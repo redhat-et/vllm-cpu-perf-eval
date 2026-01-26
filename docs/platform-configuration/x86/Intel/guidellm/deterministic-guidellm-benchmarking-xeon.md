@@ -1,5 +1,6 @@
 # Deterministic Benchmarking System Configuration
-### Eliminating Scheduler, IRQ, and NUMA Noise on Bare-Metal Linux
+
+## Eliminating Scheduler, IRQ, and NUMA Noise on Bare-Metal Linux
 
 This document describes a **generalized, repeatable approach** for configuring
 a Linux system to run performance-sensitive workloads (benchmarks, inference,
@@ -90,6 +91,7 @@ This isolation model **must be applied even if only the system under test is**
 **running**.
 
 If isolation is skipped:
+
 - kernel work competes with the workload
 - interrupts land on benchmark CPUs
 - background services introduce jitter
@@ -103,11 +105,12 @@ the same tuning is required for **any deterministic single-container benchmark**
 
 ---
 
-
 The system is partitioned into two CPU classes:
 
 ### Housekeeping CPUs
+
 Used exclusively for:
+
 - Kernel housekeeping
 - Interrupts
 - Networking and storage
@@ -115,7 +118,9 @@ Used exclusively for:
 - SSH, logging, monitoring, cron
 
 ### Isolated CPUs
+
 Used exclusively for:
+
 - Benchmarks
 - Inference workloads
 - Performance-critical containers
@@ -140,7 +145,9 @@ irqaffinity=<housekeeping-cpu-list>
 ### Example
 
 ```bash
-sudo grubby --update-kernel=ALL --args="isolcpus=managed_irq,domain=32-95 nohz_full=32-95 rcu_nocbs=32-95 irqaffinity=0-31,96-127"
+sudo grubby --update-kernel=ALL \
+  --args="isolcpus=managed_irq,domain=32-95 nohz_full=32-95 \
+rcu_nocbs=32-95 irqaffinity=0-31,96-127"
 ```
 
 ---
@@ -155,6 +162,7 @@ numactl -H
 ```
 
 Rules:
+
 - One workload per NUMA node
 - No cross-node memory
 - One SMT thread per physical core (recommended for stable benchmarking)
@@ -215,12 +223,14 @@ These are not strictly required for CPU isolation, but often improve run-to-run
 stability.
 
 ### Disable automatic NUMA page balancing (persistent)
+
 ```bash
 echo 'kernel.numa_balancing=0' | sudo tee /etc/sysctl.d/99-numa-benchmark.conf
 sudo sysctl --system
 ```
 
 ### Disable THP defrag (persistent)
+
 ```bash
 echo never | sudo tee /sys/kernel/mm/transparent_hugepage/defrag
 ```
@@ -235,11 +245,13 @@ When the load generator and server run on the **same host**, run **both**
 **containers with host networking** and target the server via `localhost`.
 
 Why:
+
 - Avoids veth/bridge/NAT overhead
 - Minimizes jitter from container networking layers
 - Uses Linux loopback for intra-host traffic (no NIC interrupts)
 
 Notes:
+
 - When using `--network=host`, **do not** use `-p` port mappings.
 - `GUIDELLM_TARGET` should be `http://localhost:<port>`.
 
@@ -250,6 +262,7 @@ Notes:
 ### vLLM (Inference workload, dedicated NUMA node)
 
 This example:
+
 - pins vLLM to a dedicated CPU set and NUMA memory node
 - uses vLLM’s CPU binding control to **reserve 1 CPU** for the serving
   framework (reduces oversubscription)
@@ -273,7 +286,8 @@ sudo podman run --rm \
   --no_enable_prefix_caching
 ```
 
-**Notes**
+#### vLLM Notes
+
 - Runs on its own NUMA node
 - Memory is local to CPUs
 - Host networking uses loopback for same-host traffic (no NIC interrupts)
@@ -282,6 +296,7 @@ sudo podman run --rm \
 ---
 
 ### guiddllm (Load generator, separate NUMA node)
+
 ```bash
 mkdir -p /tmp/results
 chmod 777 /tmp/results
@@ -302,7 +317,8 @@ sudo podman run --rm -it \
   ghcr.io/vllm-project/guidellm:latest
 ```
 
-**Notes**
+#### guidellm Notes
+
 - Runs on a different NUMA node than vLLM
 - Does not contend for caches or memory
 - Increasing requests/time per sweep point reduces “end-point weirdness” near saturation
@@ -329,8 +345,9 @@ sudo podman run --rm -it \
 
 ## 11. Automation script (apply + check mode)
 
-Please see: [setup-platform.sh](../../../../../scripts/intel/setup-platform.sh) for quick system configuration.
-
+Please see:
+[setup-platform.sh](../../../../../scripts/intel/setup-platform.sh) for quick
+system configuration.
 
 Example usage:
 
@@ -356,7 +373,8 @@ systemctl show system.slice -p AllowedCPUs
 Check for unexpected CPU activity on isolated CPUs:
 
 ```bash
-ps -eLo pid,tid,psr,pcpu,comm --sort=-pcpu | awk '$3>=32 && $3<=95 && $4>0.1 {print}' | head -n 30
+ps -eLo pid,tid,psr,pcpu,comm --sort=-pcpu | \
+  awk '$3>=32 && $3<=95 && $4>0.1 {print}' | head -n 30
 ```
 
 ---
@@ -372,4 +390,5 @@ After applying these controls:
 - Benchmarks are more repeatable
 - The system behaves like a dedicated appliance
 
-This configuration is suitable for benchmarking, inference, HPC, and low-latency workloads.
+This configuration is suitable for benchmarking, inference, HPC, and
+low-latency workloads.
