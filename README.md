@@ -1,6 +1,6 @@
 # vllm-cpu-perf-eval
 
-Performance evaluation tools for vLLM on CPU platforms.
+Performance evaluation guide for vLLM on CPU platforms.
 
 ## Development Setup
 
