@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+*.egg-info/
+dist/
+build/
+
+# Benchmark reports and artifacts
+benchmark_reports/
+*.png
+*.csv
+*.txt
+*.html
+*.json
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+*.ipynb
+
+# Test results
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Mac
+.DS_Store
+.AppleDouble
+.LSOverride
