@@ -21,7 +21,28 @@ tests/
 │       ├── synchronous.yaml
 │       └── ...
 └── phase-3-resource-contention/  # Future: Resource sharing tests
-```text
+```
+
+## Test ID Naming Convention
+
+All test cases use a hierarchical naming scheme for easy identification and tracking:
+
+**Format:** `P{phase}-{TYPE}-{model}-{workload}`
+
+**Components:**
+
+- **Phase**: `P1` (Concurrent), `P2` (Scalability), `P3` (Resource Contention)
+- **Type**: `CONC` (Concurrent), `SWEEP`, `SYNC` (Synchronous), `POISSON`
+- **Model**: Short abbreviation (e.g., `LLAMA32`, `QWEN06`, `GRANITE32`, `BGE-BASE`)
+- **Workload**: `CHAT`, `RAG`, `CODE`, `SUMM`, `EMB`
+
+**Examples:**
+
+- `P1-CONC-LLAMA32-CHAT`: Phase 1, Concurrent, Llama-3.2-1B, Chat workload
+- `P2-SWEEP-QWEN06-CODE`: Phase 2, Sweep test, Qwen3-0.6B, CodeGen workload
+- `P2-POISSON-GRANITE32-CHAT`: Phase 2, Poisson distribution, Granite-3.2-2B, Chat
+
+See individual phase README files for complete test case listings.
 
 ## Test Phases
 
@@ -56,7 +77,7 @@ docker compose up  # or podman-compose up
 
 # Run specific model and scenario
 MODEL_NAME=llama-3.2-1b SCENARIO=concurrent-8 docker compose up
-```text
+```
 
 ### With Ansible
 
@@ -69,7 +90,7 @@ ansible-playbook playbooks/run-phase.yml -e "phase=phase-1-concurrent"
 ansible-playbook playbooks/run-model.yml \
   -e "model_name=llama-3.2-1b" \
   -e "phase=phase-1-concurrent"
-```text
+```
 
 ### With Bash Wrappers
 
@@ -79,7 +100,7 @@ automation/test-execution/bash/run-phase.sh phase-1-concurrent
 
 # Run a single model
 automation/test-execution/bash/run-model.sh llama-3.2-1b phase-1-concurrent
-```text
+```
 
 ## Model Matrix
 
@@ -88,6 +109,7 @@ which test scenarios. This allows flexible testing without duplicating
 model configurations.
 
 Example:
+
 ```yaml
 matrix:
   phase: "phase-1"
@@ -97,11 +119,12 @@ matrix:
         - concurrent-8
         - concurrent-16
         - concurrent-32
-```text
+```
 
 ## Results
 
 Test results are written to the `results/` directory, organized by:
+
 - Phase
 - Model
 - Host (for distributed testing)
