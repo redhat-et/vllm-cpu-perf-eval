@@ -367,6 +367,6 @@ automation/test-execution/bash/embedding/run-baseline.sh <model>
 ## References
 
 - [Full Documentation](README.md)
-- [Test Scenarios](scenarios/)
+- [Test Scenarios](.)
 - [Model Matrix](../../models/embedding-models/model-matrix.yaml)
 - [Ansible Inventory](../../automation/test-execution/ansible/inventory/embedding-hosts.yml)
