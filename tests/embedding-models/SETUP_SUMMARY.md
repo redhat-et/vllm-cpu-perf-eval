@@ -30,7 +30,7 @@ Quick reference guide with:
 
 ### 2. Test Scenarios
 
-#### [scenarios/baseline-sweep.yaml](scenarios/baseline-sweep.yaml)
+#### [baseline-sweep.yaml](baseline-sweep.yaml)
 
 Baseline performance test configuration:
 
@@ -38,7 +38,7 @@ Baseline performance test configuration:
 - Test at 25%, 50%, 75% of max load
 - Measures request throughput and latency curves
 
-#### [scenarios/latency-concurrent.yaml](scenarios/latency-concurrent.yaml)
+#### [latency-concurrent.yaml](latency-concurrent.yaml)
 
 Latency scaling test configuration:
 
@@ -336,4 +336,4 @@ automation/utilities/health-checks/check-vllm.sh \
 - [Quick Start Guide](QUICKSTART.md)
 - [Ansible Playbooks README](../../automation/test-execution/ansible/playbooks/README.md)
 - [Model Matrix](model-matrix.yaml)
-- [Test Scenarios](scenarios/)
+- [Test Scenarios](.)

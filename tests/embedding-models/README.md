@@ -18,9 +18,8 @@ to establish:
 ```text
 embedding-models/
 ├── README.md                  # This file
-├── scenarios/                 # Test scenario definitions
-│   ├── baseline-sweep.yaml    # Baseline throughput tests
-│   └── latency-concurrent.yaml # Concurrent latency tests
+├── baseline-sweep.yaml        # Baseline throughput test scenario
+├── latency-concurrent.yaml    # Concurrent latency test scenario
 └── scripts/                   # Automation scripts
     ├── run-baseline.sh        # Run baseline performance tests
     ├── run-latency.sh         # Run latency tests
