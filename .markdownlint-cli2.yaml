@@ -27,3 +27,6 @@ config:
 
   # Fenced code language - disable (we'll add languages when convenient)
   MD040: false
+
+  # No emphasis as heading - disable (we use bold for terminal labels)
+  MD036: false
