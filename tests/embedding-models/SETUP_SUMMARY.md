@@ -30,7 +30,7 @@ Quick reference guide with:
 
 ### 2. Test Scenarios
 
-#### [test-scenarios/baseline-sweep.yaml](test-scenarios/baseline-sweep.yaml)
+#### [scenarios/baseline-sweep.yaml](scenarios/baseline-sweep.yaml)
 
 Baseline performance test configuration:
 
@@ -38,7 +38,7 @@ Baseline performance test configuration:
 - Test at 25%, 50%, 75% of max load
 - Measures request throughput and latency curves
 
-#### [test-scenarios/latency-concurrent.yaml](test-scenarios/latency-concurrent.yaml)
+#### [scenarios/latency-concurrent.yaml](scenarios/latency-concurrent.yaml)
 
 Latency scaling test configuration:
 
@@ -48,7 +48,7 @@ Latency scaling test configuration:
 
 ### 3. Model Matrix
 
-#### [model-matrix.yaml](model-matrix.yaml)
+#### [model-matrix.yaml](../../models/embedding-models/model-matrix.yaml)
 
 Defines models and test mappings:
 
@@ -336,4 +336,4 @@ automation/utilities/health-checks/check-vllm.sh \
 - [Quick Start Guide](QUICKSTART.md)
 - [Ansible Playbooks README](../../automation/test-execution/ansible/playbooks/README.md)
 - [Model Matrix](model-matrix.yaml)
-- [Test Scenarios](test-scenarios/)
+- [Test Scenarios](scenarios/)

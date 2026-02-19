@@ -18,14 +18,16 @@ to establish:
 ```text
 embedding-models/
 ├── README.md                  # This file
-├── model-matrix.yaml          # Model to test scenario mapping
-├── test-scenarios/            # Test scenario definitions
+├── scenarios/                 # Test scenario definitions
 │   ├── baseline-sweep.yaml    # Baseline throughput tests
 │   └── latency-concurrent.yaml # Concurrent latency tests
 └── scripts/                   # Automation scripts
     ├── run-baseline.sh        # Run baseline performance tests
     ├── run-latency.sh         # Run latency tests
     └── run-all.sh             # Run all embedding tests
+
+models/embedding-models/
+└── model-matrix.yaml          # Model to test scenario mapping
 ```
 
 ## Models Under Test
