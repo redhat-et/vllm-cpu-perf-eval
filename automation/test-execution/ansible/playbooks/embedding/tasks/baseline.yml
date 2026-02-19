@@ -1,0 +1,94 @@
+---
+# Baseline performance test tasks (sweep test)
+# Included by run-embedding-tests.yml
+
+- name: "Baseline Test - Find Maximum Throughput (inf rate)"
+  ansible.builtin.command:
+    cmd: >
+      vllm bench serve
+      --host {{ bench_config.vllm_host }}
+      --port {{ bench_config.vllm_port }}
+      --backend openai-embeddings
+      --model {{ model_name }}
+      --dataset-name random
+      --random-input-len 512
+      --num-prompts 1000
+      --request-rate inf
+      --endpoint /v1/embeddings
+      --save-result
+      --result-filename {{ bench_config.results_dir }}/{{ model_name | basename }}/baseline/sweep-inf.json
+  register: baseline_inf
+  changed_when: true
+
+- name: Parse maximum RPS from inf rate test
+  ansible.builtin.set_fact:
+    max_rps: >-
+      {{
+        baseline_inf.stdout
+        | regex_search('Request throughput \(req/s\):\s+([0-9.]+)', '\1')
+        | first
+        | float
+      }}
+
+- name: Display maximum RPS
+  ansible.builtin.debug:
+    msg:
+      - "Maximum RPS achieved: {{ max_rps }}"
+      - "25% rate: {{ (max_rps * 0.25) | round(2) }}"
+      - "50% rate: {{ (max_rps * 0.50) | round(2) }}"
+      - "75% rate: {{ (max_rps * 0.75) | round(2) }}"
+
+- name: "Baseline Test - 25% Load"
+  ansible.builtin.command:
+    cmd: >
+      vllm bench serve
+      --host {{ bench_config.vllm_host }}
+      --port {{ bench_config.vllm_port }}
+      --backend openai-embeddings
+      --model {{ model_name }}
+      --dataset-name random
+      --random-input-len 512
+      --num-prompts 1000
+      --request-rate {{ (max_rps * 0.25) | round(2) }}
+      --endpoint /v1/embeddings
+      --save-result
+      --result-filename {{ bench_config.results_dir }}/{{ model_name | basename }}/baseline/sweep-25pct.json
+  changed_when: true
+
+- name: "Baseline Test - 50% Load"
+  ansible.builtin.command:
+    cmd: >
+      vllm bench serve
+      --host {{ bench_config.vllm_host }}
+      --port {{ bench_config.vllm_port }}
+      --backend openai-embeddings
+      --model {{ model_name }}
+      --dataset-name random
+      --random-input-len 512
+      --num-prompts 1000
+      --request-rate {{ (max_rps * 0.50) | round(2) }}
+      --endpoint /v1/embeddings
+      --save-result
+      --result-filename {{ bench_config.results_dir }}/{{ model_name | basename }}/baseline/sweep-50pct.json
+  changed_when: true
+
+- name: "Baseline Test - 75% Load"
+  ansible.builtin.command:
+    cmd: >
+      vllm bench serve
+      --host {{ bench_config.vllm_host }}
+      --port {{ bench_config.vllm_port }}
+      --backend openai-embeddings
+      --model {{ model_name }}
+      --dataset-name random
+      --random-input-len 512
+      --num-prompts 1000
+      --request-rate {{ (max_rps * 0.75) | round(2) }}
+      --endpoint /v1/embeddings
+      --save-result
+      --result-filename {{ bench_config.results_dir }}/{{ model_name | basename }}/baseline/sweep-75pct.json
+  changed_when: true
+
+- name: Display baseline test completion
+  ansible.builtin.debug:
+    msg: "Baseline sweep tests completed. Results saved to {{ bench_config.results_dir }}/{{ model_name | basename }}/baseline/"

@@ -1,0 +1,43 @@
+---
+# Common Health Check Playbook
+# Waits for vLLM server to be ready
+# Can be imported by other playbooks or run standalone
+
+- name: "Health Check - Wait for vLLM Server"
+  hosts: load_generator
+  gather_facts: false
+
+  tasks:
+    - name: Display health check configuration
+      ansible.builtin.debug:
+        msg:
+          - "vLLM Server: http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}"
+          - "Timeout: {{ health_check.timeout }}s"
+          - "Check Interval: {{ health_check.interval }}s"
+
+    - name: Wait for vLLM health endpoint
+      ansible.builtin.uri:
+        url: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/health"
+        method: GET
+        status_code: 200
+      register: health_check_result
+      retries: "{{ health_check.timeout // health_check.interval }}"
+      delay: "{{ health_check.interval }}"
+      until: health_check_result.status == 200
+
+    - name: Display vLLM server status
+      ansible.builtin.debug:
+        msg:
+          - "✓ vLLM Server is READY!"
+          - "Health check response: {{ health_check_result.json | default('OK') }}"
+
+    - name: Verify vLLM /v1/models endpoint
+      ansible.builtin.uri:
+        url: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/v1/models"
+        method: GET
+        status_code: 200
+      register: models_check
+
+    - name: Display available models
+      ansible.builtin.debug:
+        msg: "Available models: {{ models_check.json.data | map(attribute='id') | list }}"

@@ -1,0 +1,134 @@
+---
+# Single Core Configuration Iteration for LLM Core Sweep
+# Handles one core config: clean restart → start vLLM → test → collect → cleanup
+
+# ==============================================================================
+# STEP 1: Start vLLM with specific core configuration on DUT
+# ==============================================================================
+
+- name: "Deploy vLLM with {{ current_core_config.name }}"
+  hosts: dut
+  become: true
+  vars:
+    core_configuration: "{{ hostvars['localhost']['current_core_config'] }}"
+
+  tasks:
+    - name: Display iteration info
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Core Config: {{ core_configuration.name }}"
+          - "Cores: {{ core_configuration.cores }} ({{ core_configuration.cpuset_cpus }})"
+          - "NUMA: {{ core_configuration.cpuset_mems }}"
+          - "Tensor Parallel: {{ core_configuration.tensor_parallel }}"
+          - "OMP Threads: {{ core_configuration.omp_num_threads | default('auto') }}"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+    - name: Start vLLM for LLM model
+      ansible.builtin.include_tasks:
+        file: start-llm-vllm.yml
+
+# ==============================================================================
+# STEP 2: Health Check - Wait for vLLM
+# ==============================================================================
+
+- name: "Health Check for {{ hostvars['localhost']['current_core_config'].name }}"
+  hosts: load_generator
+  gather_facts: false
+
+  tasks:
+    - name: Wait for vLLM health endpoint
+      ansible.builtin.uri:
+        url: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/health"
+        method: GET
+        status_code: 200
+      register: health_check_result
+      retries: 60
+      delay: 5
+      until: health_check_result.status == 200
+
+    - name: Display readiness status
+      ansible.builtin.debug:
+        msg: "✓ vLLM is ready with {{ hostvars['localhost']['current_core_config'].name }}"
+
+# ==============================================================================
+# STEP 3: Run GuideLLM Benchmark
+# ==============================================================================
+
+- name: "Run GuideLLM with {{ hostvars['localhost']['current_core_config'].name }}"
+  hosts: load_generator
+  become: true
+  vars:
+    core_configuration: "{{ hostvars['localhost']['current_core_config'] }}"
+
+  tasks:
+    - name: Setup HuggingFace token for load generator
+      ansible.builtin.include_tasks:
+        file: ../../common/tasks/setup-hf-token.yml
+
+    - name: Run GuideLLM benchmark
+      ansible.builtin.include_tasks:
+        file: run-guidellm.yml
+
+    - name: Tag results with core configuration metadata
+      ansible.builtin.copy:
+        content: |
+          {
+            "test_run_id": "{{ hostvars['localhost']['test_run_id'] }}",
+            "core_config_name": "{{ core_configuration.name }}",
+            "core_count": {{ core_configuration.cores }},
+            "cpuset_cpus": "{{ core_configuration.cpuset_cpus }}",
+            "cpuset_mems": "{{ core_configuration.cpuset_mems }}",
+            "tensor_parallel": {{ core_configuration.tensor_parallel }},
+            "omp_num_threads": {{ core_configuration.omp_num_threads | default('null') }},
+            "omp_threads_bind": "{{ core_configuration.omp_threads_bind | default('null') }}",
+            "model": "{{ test_model }}",
+            "workload": "{{ workload_type }}",
+            "timestamp": "{{ ansible_date_time.iso8601 }}"
+          }
+        dest: "{{ bench_config.results_dir }}/{{ test_model | basename }}/{{ workload_type }}/{{ core_configuration.name }}/test-metadata.json"
+
+# ==============================================================================
+# STEP 4: Collect Logs for This Iteration
+# ==============================================================================
+
+- name: "Collect vLLM logs for {{ hostvars['localhost']['current_core_config'].name }}"
+  hosts: dut
+  become: true
+  vars:
+    core_configuration: "{{ hostvars['localhost']['current_core_config'] }}"
+
+  tasks:
+    - name: Get vLLM container logs
+      ansible.builtin.command:
+        cmd: "podman logs {{ vllm_container_name }}"
+      register: vllm_logs
+      changed_when: false
+
+    - name: Save vLLM logs
+      ansible.builtin.copy:
+        content: "{{ vllm_logs.stdout }}"
+        dest: "{{ log_dir }}/vllm-{{ core_configuration.name }}-{{ hostvars['localhost']['test_run_id'] }}.log"
+
+# ==============================================================================
+# STEP 5: Stop vLLM Container (Clean Restart for Next Iteration)
+# ==============================================================================
+
+- name: "Stop vLLM container ({{ hostvars['localhost']['current_core_config'].name }})"
+  hosts: dut
+  become: true
+
+  tasks:
+    - name: Stop and remove vLLM container
+      containers.podman.podman_container:
+        name: "{{ vllm_container_name }}"
+        state: absent
+
+    - name: Display cleanup status
+      ansible.builtin.debug:
+        msg: "✓ vLLM container stopped and cleaned for {{ hostvars['localhost']['current_core_config'].name }}"
+
+    - name: Wait before next iteration
+      ansible.builtin.pause:
+        seconds: 10
+      when: hostvars['localhost']['current_core_config'] != hostvars['localhost']['selected_core_configs'][-1]

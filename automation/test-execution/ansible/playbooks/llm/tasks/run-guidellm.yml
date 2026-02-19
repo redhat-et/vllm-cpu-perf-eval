@@ -1,0 +1,95 @@
+---
+# Run GuideLLM Benchmark for LLM Generative Models
+# Runs containerized GuideLLM on load generator
+
+- name: Get workload configuration
+  ansible.builtin.set_fact:
+    workload_cfg: "{{ test_configs[workload_type] }}"
+    guidellm_cfg: "{{ benchmark_tool.guidellm }}"
+    core_cfg: "{{ core_configuration }}"
+
+- name: Create results directory for this test
+  ansible.builtin.file:
+    path: "{{ bench_config.results_dir }}/{{ test_model | basename }}/{{ workload_type }}/{{ core_cfg.name }}"
+    state: directory
+    mode: "0777"
+    recurse: true
+
+- name: Ensure results directory has write permissions for container
+  ansible.builtin.command:
+    cmd: "chmod -R 777 {{ bench_config.results_dir }}/{{ test_model | basename }}/{{ workload_type }}/{{ core_cfg.name }}"
+  changed_when: false
+
+- name: Display GuideLLM configuration
+  ansible.builtin.debug:
+    msg:
+      - "Running GuideLLM Benchmark"
+      - "Target: http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}"
+      - "Workload: {{ workload_type }} ({{ workload_cfg.isl }}:{{ workload_cfg.osl }})"
+      - "Profile: {{ guidellm_cfg.profile }}"
+      - "Max Requests: {{ guidellm_cfg.max_requests }}"
+      - "Max Concurrency: {{ guidellm_cfg.max_concurrency }}"
+
+- name: Pull GuideLLM container image
+  containers.podman.podman_image:
+    name: "{{ guidellm_cfg.container_image }}"
+    state: present
+
+- name: Prepare GuideLLM environment variables
+  ansible.builtin.set_fact:
+    guidellm_env:
+      GUIDELLM_TARGET: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}"
+      GUIDELLM_PROFILE: "{{ guidellm_cfg.profile }}"
+      GUIDELLM_MAX_SECONDS: "{{ guidellm_cfg.max_seconds }}"
+      GUIDELLM_MAX_REQUESTS: "{{ guidellm_cfg.max_requests }}"
+      GUIDELLM__EXCLUDE_THROUGHPUT_TARGET: "{{ guidellm_cfg.exclude_throughput_target | string | lower }}"
+      GUIDELLM__EXCLUDE_THROUGHPUT_RESULT: "{{ guidellm_cfg.exclude_throughput_result | string | lower }}"
+      GUIDELLM__SATURATION_THRESHOLD: "{{ guidellm_cfg.saturation_threshold }}"
+      GUIDELLM_DATA: "prompt_tokens={{ workload_cfg.isl }},output_tokens={{ workload_cfg.osl }}"
+      GUIDELLM__MAX_CONCURRENCY: "{{ guidellm_cfg.max_concurrency }}"
+      GUIDELLM_COOLDOWN: "{{ guidellm_cfg.cooldown }}"
+      GUIDELLM_OUTPUTS: "{{ guidellm_cfg.outputs }}"
+      HF_TOKEN: "{{ hf_token }}"
+
+- name: Run GuideLLM benchmark
+  containers.podman.podman_container:
+    name: "guidellm-{{ workload_type }}-{{ core_cfg.name }}"
+    image: "{{ guidellm_cfg.container_image }}"
+    state: started
+    rm: true
+    detach: false  # Wait for completion
+    network: host
+    cpuset_cpus: "{{ guidellm_cfg.cpuset_cpus }}"
+    cpuset_mems: "{{ guidellm_cfg.cpuset_mems }}"
+    volumes:
+      - "{{ bench_config.results_dir }}/{{ test_model | basename }}/{{ workload_type }}/{{ core_cfg.name }}:/results:z"
+    env: "{{ guidellm_env }}"
+    log_driver: journald
+    log_opt:
+      tag: "guidellm-{{ workload_type }}-{{ core_cfg.name }}"
+  register: guidellm_run
+  ignore_errors: true
+
+- name: Display GuideLLM completion status
+  ansible.builtin.debug:
+    msg:
+      - "{{ '✓ GuideLLM benchmark completed' if not guidellm_run.failed else '✗ GuideLLM benchmark failed' }}"
+      - "Results: {{ bench_config.results_dir }}/{{ test_model | basename }}/{{ workload_type }}/{{ core_cfg.name }}"
+      - "Status: {{ 'Success' if not guidellm_run.failed else 'Failed' }}"
+
+- name: Fail if GuideLLM encountered errors
+  ansible.builtin.fail:
+    msg: "GuideLLM benchmark failed. Check logs for details."
+  when:
+    - guidellm_run.failed is defined
+    - guidellm_run.failed
+
+- name: List generated result files
+  ansible.builtin.find:
+    paths: "{{ bench_config.results_dir }}/{{ test_model | basename }}/{{ workload_type }}/{{ core_cfg.name }}"
+    patterns: "*.html,*.json,*.csv"
+  register: result_files
+
+- name: Display result files
+  ansible.builtin.debug:
+    msg: "Generated {{ result_files.files | length }} result files: {{ result_files.files | map(attribute='path') | map('basename') | list }}"

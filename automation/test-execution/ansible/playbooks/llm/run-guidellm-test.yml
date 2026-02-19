@@ -1,0 +1,135 @@
+---
+# Run Single GuideLLM Test for LLM Generative Models
+# Tests one model with one core configuration and one workload
+
+- name: "LLM GuideLLM Test - Setup"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    test_run_id: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
+
+  tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - test_model is defined
+          - workload_type is defined
+          - core_config_name is defined
+        fail_msg: |
+          Missing required variables. Please provide:
+          -e "test_model=<model>"
+          -e "workload_type=<summarization|chat|code|rag>"
+          -e "core_config_name=<config_name>"
+
+    - name: Get core configuration by name
+      ansible.builtin.set_fact:
+        core_configuration: "{{ core_configs | selectattr('name', 'equalto', core_config_name) | first }}"
+      failed_when: core_configuration is not defined
+
+    - name: Display test information
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "LLM GuideLLM Performance Test"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Test Run ID: {{ test_run_id }}"
+          - "Model: {{ test_model }}"
+          - "Workload: {{ workload_type }}"
+          - "Core Config: {{ core_config_name }} ({{ core_configuration.cores }} cores, TP={{ core_configuration.tensor_parallel }})"
+          - "DUT: {{ groups['dut'][0] }} ({{ hostvars[groups['dut'][0]]['ansible_host'] }})"
+          - "Load Generator: {{ groups['load_generator'][0] }} ({{ hostvars[groups['load_generator'][0]]['ansible_host'] }})"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# ==============================================================================
+# PHASE 1: Start vLLM Server on DUT
+# ==============================================================================
+
+- name: "Phase 1 - Start vLLM Server on DUT"
+  hosts: dut
+  become: true
+  vars:
+    core_configuration: "{{ hostvars['localhost']['core_configuration'] }}"
+
+  tasks:
+    - name: Start vLLM for LLM model
+      ansible.builtin.include_tasks:
+        file: tasks/start-llm-vllm.yml
+
+# ==============================================================================
+# PHASE 2: Health Check - Wait for vLLM
+# ==============================================================================
+
+- name: "Phase 2 - Wait for vLLM Server to be Ready"
+  ansible.builtin.import_playbook: ../common/health-check.yml
+
+# ==============================================================================
+# PHASE 3: Run GuideLLM Benchmark
+# ==============================================================================
+
+- name: "Phase 3 - Run GuideLLM Benchmark"
+  hosts: load_generator
+  become: true
+  vars:
+    core_configuration: "{{ hostvars['localhost']['core_configuration'] }}"
+
+  tasks:
+    - name: Setup HuggingFace token for load generator
+      ansible.builtin.include_tasks:
+        file: ../common/tasks/setup-hf-token.yml
+
+    - name: Run GuideLLM benchmark
+      ansible.builtin.include_tasks:
+        file: tasks/run-guidellm.yml
+
+# ==============================================================================
+# PHASE 4: Collect Results and Logs
+# ==============================================================================
+
+- name: "Phase 4 - Collect Results and Logs"
+  ansible.builtin.import_playbook: ../common/collect-logs.yml
+
+# ==============================================================================
+# PHASE 5: Cleanup (Optional)
+# ==============================================================================
+
+- name: "Phase 5 - Cleanup (if requested)"
+  hosts: dut
+  become: true
+  vars:
+    cleanup: "{{ cleanup_after_test | default(false) }}"
+
+  tasks:
+    - name: Stop vLLM container
+      containers.podman.podman_container:
+        name: "{{ vllm_container_name }}"
+        state: stopped
+      when:
+        - cleanup | bool
+        - vllm_server.container_runtime == 'podman'
+
+    - name: Display cleanup status
+      ansible.builtin.debug:
+        msg: "vLLM server {{ 'stopped' if cleanup else 'still running - use cleanup_after_test=true to stop' }}"
+
+# ==============================================================================
+# SUMMARY
+# ==============================================================================
+
+- name: "Test Summary"
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: Display test summary
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "✓ LLM GuideLLM Test Complete!"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Model: {{ test_model }}"
+          - "Workload: {{ workload_type }}"
+          - "Core Config: {{ core_config_name }}"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Results: results/{{ test_model | basename }}/{{ workload_type }}/{{ core_config_name }}/"
+          - "Logs: results/logs/"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

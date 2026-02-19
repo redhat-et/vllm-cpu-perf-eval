@@ -1,0 +1,127 @@
+---
+# Start vLLM for LLM Generative Models
+# Supports tensor parallelism, custom workloads, optional OMP configuration
+
+- name: Setup HuggingFace token
+  ansible.builtin.include_tasks:
+    file: ../../common/tasks/setup-hf-token.yml
+
+- name: Clean restart vLLM container
+  ansible.builtin.include_tasks:
+    file: ../../common/tasks/clean-restart-vllm.yml
+
+- name: Create required directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: "{{ item.mode }}"
+  loop:
+    - {path: "{{ model_cache_dir }}", mode: "0777"}  # Container needs write access
+    - {path: "{{ log_dir }}", mode: "0777"}
+  when: use_persistent_cache | default(false) | bool
+
+- name: Get workload and core configuration
+  ansible.builtin.set_fact:
+    workload_cfg: "{{ test_configs[workload_type] }}"
+    core_cfg: "{{ core_configuration }}"
+    container_cfg: "{{ container_runtime }}"
+
+- name: Validate workload type
+  ansible.builtin.assert:
+    that:
+      - workload_type in ['summarization', 'chat', 'code', 'rag']
+    fail_msg: "Invalid workload_type: {{ workload_type }}. Must be one of: summarization, chat, code, rag"
+
+- name: Prepare base environment variables
+  ansible.builtin.set_fact:
+    vllm_env_vars:
+      VLLM_CPU_KVCACHE_SPACE: "{{ workload_cfg.kv_cache_space | extract_size_value }}"
+      HF_TOKEN: "{{ hf_token }}"
+
+- name: Add OMP_NUM_THREADS if specified (OPTIONAL)
+  ansible.builtin.set_fact:
+    vllm_env_vars: "{{ vllm_env_vars | combine({'OMP_NUM_THREADS': core_cfg.omp_num_threads | string}) }}"
+  when:
+    - core_cfg.omp_num_threads is defined
+    - core_cfg.omp_num_threads is not none
+
+- name: Add VLLM_CPU_OMP_THREADS_BIND if specified (OPTIONAL)
+  ansible.builtin.set_fact:
+    vllm_env_vars: "{{ vllm_env_vars | combine({'VLLM_CPU_OMP_THREADS_BIND': core_cfg.omp_threads_bind}) }}"
+  when:
+    - core_cfg.omp_threads_bind is defined
+    - core_cfg.omp_threads_bind is not none
+
+- name: Build vLLM command arguments
+  ansible.builtin.set_fact:
+    vllm_cmd: >-
+      --model {{ test_model }}
+      --host {{ vllm_server.host }}
+      --port {{ vllm_server.port }}
+      {{ workload_cfg.vllm_args | join(' ') }}
+      {% if core_cfg.tensor_parallel > 1 %}-tp {{ core_cfg.tensor_parallel }}{% endif %}
+
+- name: Pull vLLM container image
+  containers.podman.podman_container:
+    name: "{{ vllm_container_name }}"
+    image: "{{ container_cfg.image }}"
+    state: present
+  when: container_cfg.engine == 'podman'
+
+- name: Display vLLM configuration
+  ansible.builtin.debug:
+    msg:
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "Starting vLLM for LLM Generative Model"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "Model: {{ test_model }}"
+      - "Workload: {{ workload_type }} (ISL:{{ workload_cfg.isl }}/OSL:{{ workload_cfg.osl }})"
+      - "Image: {{ container_cfg.image }}"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "Container CPU Allocation:"
+      - "  CPUs: {{ core_cfg.cpuset_cpus }}"
+      - "  NUMA: {{ core_cfg.cpuset_mems }}"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "vLLM Configuration:"
+      - "  Tensor Parallel: {{ core_cfg.tensor_parallel }}"
+      - "  KV Cache: {{ workload_cfg.kv_cache_space }} (VLLM_CPU_KVCACHE_SPACE={{ workload_cfg.kv_cache_space | extract_size_value }})"
+      - "  OMP Threads: {{ core_cfg.omp_num_threads | default('auto') }}"
+      - "  OMP Bind: {{ core_cfg.omp_threads_bind | default('auto') }}"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+- name: Start vLLM LLM server
+  containers.podman.podman_container:
+    name: "{{ vllm_container_name }}"
+    image: "{{ container_cfg.image }}"
+    state: started
+    restart_policy: "no"
+    detach: true
+    rm: "{{ container_cfg.remove_on_stop | default(true) }}"
+    network: "{{ container_cfg.network_mode }}"
+    shm_size: "{{ container_cfg.shm_size | default('4g') }}"
+    security_opt: "{{ container_cfg.security_opts | default([]) }}"
+    cap_add: "{{ container_cfg.capabilities | default([]) }}"
+    cpuset_cpus: "{{ core_cfg.cpuset_cpus }}"
+    cpuset_mems: "{{ core_cfg.cpuset_mems }}"
+    volumes: "{{ [model_cache_dir + ':/root/.cache/huggingface:rw', log_dir + ':/var/log/vllm:rw'] if (use_persistent_cache | default(false) | bool) else [] }}"
+    env: "{{ vllm_env_vars }}"
+    command: "{{ vllm_cmd }}"
+    log_driver: journald
+    log_opt:
+      tag: "vllm-{{ workload_type }}-{{ core_cfg.cores }}c-tp{{ core_cfg.tensor_parallel }}"
+  when: container_cfg.engine == 'podman'
+  register: vllm_container
+
+- name: Display vLLM container info
+  ansible.builtin.debug:
+    msg:
+      - "✓ vLLM LLM Container Started"
+      - "Container ID: {{ vllm_container.container.Id[:12] if vllm_container.container is defined else 'N/A' }}"
+      - "Server: http://{{ ansible_host }}:{{ vllm_server.port }}"
+      - "Logs: journalctl -t vllm-{{ workload_type }}-{{ core_cfg.cores }}c-tp{{ core_cfg.tensor_parallel }} -f"
+      - "Stats: podman stats {{ vllm_container_name }}"
+
+- name: Wait for vLLM initialization (longer for LLM models)
+  ansible.builtin.pause:
+    seconds: 20
+    prompt: "Waiting for vLLM to download model and initialize (this may take a while for large models)..."

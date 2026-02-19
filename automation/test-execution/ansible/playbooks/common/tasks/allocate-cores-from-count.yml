@@ -1,0 +1,73 @@
+---
+# Smart Core Allocation from Simple Core Count
+# Takes simple input like "cores: 8" and auto-generates cpuset/NUMA configuration
+# Uses detected NUMA topology to allocate cores intelligently
+# Uses custom Jinja2 filters instead of awk for better maintainability
+
+# This task requires numa_topology to be set (from detect-numa-topology.yml)
+
+- name: Validate inputs
+  ansible.builtin.assert:
+    that:
+      - requested_cores is defined
+      - numa_topology is defined
+      - numa_topology.vllm is defined
+    fail_msg: "Missing required variables: requested_cores and numa_topology must be set"
+
+- name: Parse vLLM available CPUs list
+  ansible.builtin.set_fact:
+    vllm_available_cpus: "{{ numa_topology.vllm.cpus_list.split(',') | map('int') | list }}"
+
+- name: Validate enough cores available
+  ansible.builtin.assert:
+    that:
+      - vllm_available_cpus | length >= requested_cores | int
+    fail_msg: "Requested {{ requested_cores }} cores but only {{ vllm_available_cpus | length }} available on vLLM node {{ numa_topology.vllm.node }}"
+
+- name: Allocate requested cores from vLLM node
+  ansible.builtin.set_fact:
+    allocated_cpus_list: "{{ vllm_available_cpus[:requested_cores | int] }}"
+
+- name: Convert allocated CPUs to range format using custom filter
+  ansible.builtin.set_fact:
+    allocated_cpus_range: "{{ allocated_cpus_list | cpu_list_to_range }}"
+
+- name: Set auto-allocated core configuration
+  ansible.builtin.set_fact:
+    auto_core_config:
+      name: "{{ requested_cores }}cores-auto-numa{{ numa_topology.vllm.node }}"
+      cores: "{{ requested_cores }}"
+      cpuset_cpus: "{{ allocated_cpus_range }}"
+      cpuset_mems: "{{ numa_topology.vllm.node }}"
+      tensor_parallel: "{{ requested_tensor_parallel | default(1) }}"
+      # OMP settings are OPTIONAL - omit for auto-configuration
+      # User can override by setting requested_omp_threads and requested_omp_bind
+
+- name: Add optional OMP configuration if requested
+  ansible.builtin.set_fact:
+    auto_core_config: "{{ auto_core_config | combine({'omp_num_threads': requested_omp_threads | int}) }}"
+  when:
+    - requested_omp_threads is defined
+    - requested_omp_threads is not none
+
+- name: Add optional OMP binding if requested
+  ansible.builtin.set_fact:
+    auto_core_config: "{{ auto_core_config | combine({'omp_threads_bind': requested_omp_bind}) }}"
+  when:
+    - requested_omp_bind is defined
+    - requested_omp_bind is not none
+
+- name: Display auto-allocated configuration
+  ansible.builtin.debug:
+    msg:
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "Auto-Allocated Core Configuration"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "Requested: {{ requested_cores }} cores"
+      - "Name: {{ auto_core_config.name }}"
+      - "CPUs: {{ auto_core_config.cpuset_cpus }}"
+      - "NUMA: {{ auto_core_config.cpuset_mems }}"
+      - "TP: {{ auto_core_config.tensor_parallel }}"
+      - "OMP Threads: {{ auto_core_config.omp_num_threads | default('auto') }}"
+      - "OMP Bind: {{ auto_core_config.omp_threads_bind | default('auto') }}"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

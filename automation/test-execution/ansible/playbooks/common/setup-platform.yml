@@ -1,0 +1,287 @@
+---
+# Platform Setup for vLLM Benchmarking
+# Configures DUT and Load Generator for optimal performance
+# Similar to setup-guidellm-platform.sh but idempotent and Ansible-native
+#
+# This playbook:
+# - Detects NUMA topology
+# - Configures CPU isolation (isolcpus, nohz_full, rcu_nocbs)
+# - Sets up tuned profile with performance governor
+# - Pins systemd slices to housekeeping CPUs
+# - Disables irqbalance
+# - Optional: NUMA balancing, THP defrag, preempt=full
+
+- name: "Platform Setup - Detect NUMA Topology"
+  hosts: dut,load_generator
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Detect NUMA topology
+      ansible.builtin.include_tasks:
+        file: tasks/detect-numa-topology.yml
+
+    - name: Store topology for this host
+      ansible.builtin.set_fact:
+        host_numa_topology: "{{ numa_topology }}"
+
+- name: "Platform Setup - Install Required Tools"
+  hosts: dut,load_generator
+  become: true
+
+  tasks:
+    - name: Install tuning tools
+      ansible.builtin.dnf:
+        name:
+          - tuned
+          - kernel-tools
+          - numactl
+        state: present
+
+- name: "Platform Setup - Disable irqbalance"
+  hosts: dut,load_generator
+  become: true
+
+  tasks:
+    - name: Disable and stop irqbalance
+      ansible.builtin.systemd:
+        name: irqbalance
+        enabled: false
+        state: stopped
+      failed_when: false
+
+- name: "Platform Setup - Configure Systemd CPU Pinning"
+  hosts: dut,load_generator
+  become: true
+  vars:
+    housekeeping_cpus: "{{ host_numa_topology.housekeeping.cpus }}"
+
+  tasks:
+    - name: Create systemd drop-in directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - /etc/systemd/system/system.slice.d
+        - /etc/systemd/system/user.slice.d
+        - /etc/systemd/system/init.scope.d
+
+    - name: Configure system.slice CPU pinning
+      ansible.builtin.copy:
+        content: |
+          [Slice]
+          AllowedCPUs={{ housekeeping_cpus }}
+        dest: /etc/systemd/system/system.slice.d/allowedcpus.conf
+        mode: "0644"
+      register: system_slice_config
+
+    - name: Configure user.slice CPU pinning
+      ansible.builtin.copy:
+        content: |
+          [Slice]
+          AllowedCPUs={{ housekeeping_cpus }}
+        dest: /etc/systemd/system/user.slice.d/allowedcpus.conf
+        mode: "0644"
+      register: user_slice_config
+
+    - name: Configure init.scope CPU pinning
+      ansible.builtin.copy:
+        content: |
+          [Scope]
+          AllowedCPUs={{ housekeeping_cpus }}
+        dest: /etc/systemd/system/init.scope.d/allowedcpus.conf
+        mode: "0644"
+      register: init_scope_config
+
+    - name: Reload systemd if configs changed
+      ansible.builtin.systemd:
+        daemon_reload: true
+      when: system_slice_config.changed or user_slice_config.changed or init_scope_config.changed
+
+- name: "Platform Setup - Create Tuned Profile"
+  hosts: dut,load_generator
+  become: true
+  vars:
+    housekeeping_cpus: "{{ host_numa_topology.housekeeping.cpus }}"
+    isolated_cpus: "{{ [host_numa_topology.guidellm.cpus, host_numa_topology.vllm.cpus] | join(',') }}"
+    enable_preempt_full: "{{ platform_setup.preempt_full | default(false) }}"
+
+  tasks:
+    - name: Create tuned profile directory
+      ansible.builtin.file:
+        path: /usr/lib/tuned/vllm-benchmark
+        state: directory
+        mode: "0755"
+
+    - name: Build kernel cmdline
+      ansible.builtin.set_fact:
+        kernel_cmdline: "isolcpus=managed_irq,domain,{{ isolated_cpus }} nohz_full={{ isolated_cpus }} rcu_nocbs={{ isolated_cpus }} irqaffinity={{ housekeeping_cpus }} intel_pstate=disable cpufreq.default_governor=performance"
+
+    - name: Add preempt=full if requested
+      ansible.builtin.set_fact:
+        kernel_cmdline: "{{ kernel_cmdline }} preempt=full"
+      when: enable_preempt_full | bool
+
+    - name: Create tuned profile configuration
+      ansible.builtin.copy:
+        content: |
+          [main]
+          summary=vLLM benchmarking with CPU isolation
+          include=throughput-performance
+
+          [bootloader]
+          cmdline_vllm={{ kernel_cmdline }}
+
+          [cpu]
+          governor=performance
+        dest: /usr/lib/tuned/vllm-benchmark/tuned.conf
+        mode: "0644"
+      register: tuned_profile
+
+    - name: Enable and start tuned
+      ansible.builtin.systemd:
+        name: tuned
+        enabled: true
+        state: started
+
+    - name: Restart tuned to reload profiles
+      ansible.builtin.systemd:
+        name: tuned
+        state: restarted
+      when: tuned_profile.changed
+
+    - name: Wait for tuned to be ready
+      ansible.builtin.pause:
+        seconds: 2
+      when: tuned_profile.changed
+
+    - name: Apply vllm-benchmark tuned profile
+      ansible.builtin.command:
+        cmd: tuned-adm profile vllm-benchmark
+      register: tuned_apply
+      changed_when: "'Tuning was' in tuned_apply.stdout or 'has been' in tuned_apply.stdout"
+
+    - name: Regenerate GRUB configuration
+      ansible.builtin.command:
+        cmd: grub2-mkconfig -o {{ grub_config_path }}
+      vars:
+        grub_config_path: "{{ '/boot/efi/EFI/redhat/grub.cfg' if (ansible_facts.mounts | selectattr('mount', 'equalto', '/boot/efi') | list | length > 0) else '/boot/grub2/grub.cfg' }}"
+      when: tuned_profile.changed
+      register: grub_update
+      changed_when: grub_update.rc == 0
+      failed_when: false
+
+- name: "Platform Setup - Optional NUMA Balancing"
+  hosts: dut,load_generator
+  become: true
+  when: platform_setup.numa_balancing_off | default(false)
+
+  tasks:
+    - name: Disable NUMA balancing (persistent)
+      ansible.builtin.copy:
+        content: |
+          kernel.numa_balancing=0
+        dest: /etc/sysctl.d/99-numa-benchmark.conf
+        mode: "0644"
+
+    - name: Apply NUMA balancing setting (runtime)
+      ansible.posix.sysctl:
+        name: kernel.numa_balancing
+        value: "0"
+        state: present
+        sysctl_file: /etc/sysctl.d/99-numa-benchmark.conf
+        reload: true
+
+- name: "Platform Setup - Optional THP Defrag"
+  hosts: dut,load_generator
+  become: true
+  when: platform_setup.thp_defrag_never | default(false)
+
+  tasks:
+    - name: Set THP defrag to never (runtime)
+      ansible.builtin.shell: |
+        echo never > /sys/kernel/mm/transparent_hugepage/defrag
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+    - name: Create THP defrag systemd service
+      ansible.builtin.copy:
+        content: |
+          [Unit]
+          Description=Set THP defrag to never (benchmark determinism)
+          After=multi-user.target
+
+          [Service]
+          Type=oneshot
+          ExecStart=/bin/sh -c 'echo never > /sys/kernel/mm/transparent_hugepage/defrag'
+          RemainAfterExit=yes
+
+          [Install]
+          WantedBy=multi-user.target
+        dest: /etc/systemd/system/thp-defrag-never.service
+        mode: "0644"
+
+    - name: Enable THP defrag service
+      ansible.builtin.systemd:
+        name: thp-defrag-never
+        enabled: true
+        daemon_reload: true
+
+- name: "Platform Setup - Set CPU Frequency Governor"
+  hosts: dut,load_generator
+  become: true
+
+  tasks:
+    - name: Set CPU governor to performance (runtime)
+      ansible.builtin.command:
+        cmd: cpupower frequency-set -g performance
+      register: cpupower_result
+      changed_when: cpupower_result.rc == 0
+      failed_when: false
+
+- name: "Platform Setup - Summary"
+  hosts: dut,load_generator
+  become: true
+  vars:
+    housekeeping_cpus: "{{ host_numa_topology.housekeeping.cpus }}"
+    guidellm_cpus: "{{ host_numa_topology.guidellm.cpus }}"
+    vllm_cpus: "{{ host_numa_topology.vllm.cpus }}"
+    isolated_cpus: "{{ [host_numa_topology.guidellm.cpus, host_numa_topology.vllm.cpus] | join(',') }}"
+
+  tasks:
+    - name: Display platform setup summary
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Platform Setup Complete - {{ inventory_hostname }}"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Housekeeping CPUs: {{ housekeeping_cpus }} (node {{ host_numa_topology.housekeeping.node }})"
+          - "GuideLLM CPUs: {{ guidellm_cpus }} (node {{ host_numa_topology.guidellm.node }})"
+          - "vLLM CPUs: {{ vllm_cpus }} (node {{ host_numa_topology.vllm.node }})"
+          - "Isolated CPUs: {{ isolated_cpus }}"
+          - ""
+          - "Tuned profile: vllm-benchmark"
+          - "CPU governor: performance"
+          - "irqbalance: disabled"
+          - "Systemd slices pinned to: {{ housekeeping_cpus }}"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+    - name: Check if reboot is needed
+      ansible.builtin.stat:
+        path: /var/run/reboot-required
+      register: reboot_required
+      failed_when: false
+
+    - name: Display reboot warning
+      ansible.builtin.debug:
+        msg:
+          - "⚠️  REBOOT REQUIRED for kernel parameters to take effect!"
+          - ""
+          - "After reboot, validate with:"
+          - "  cat /proc/cmdline | tr ' ' '\\n' | grep -E 'isolcpus|nohz|rcu|irq'"
+          - "  cat /sys/devices/system/cpu/isolated"
+          - "  systemctl show system.slice -p AllowedCPUs"
+          - "  tuned-adm active"
+      when: tuned_profile.changed or grub_update.changed
