@@ -7,7 +7,7 @@ architecture.
 
 ### 1. Test Documentation
 
-#### [README.md](README.md)
+#### [embedding-models.md](embedding-models.md)
 
 Complete documentation based on the PDF guide covering:
 
@@ -77,7 +77,7 @@ automation/test-execution/ansible/
 │   │   ├── start-vllm-server.yml   # Start vLLM on DUT
 │   │   ├── health-check.yml        # Wait for vLLM ready
 │   │   └── collect-logs.yml        # Collect logs and results
-│   └── README.md                    # Playbook documentation
+│   └── playbooks.md                 # Playbook documentation
 └── roles/                           # Future: Ansible roles
 ```
 
@@ -332,8 +332,8 @@ automation/utilities/health-checks/check-vllm.sh \
 
 ## References
 
-- [Full Documentation](README.md)
+- [Full Documentation](embedding-models.md)
 - [Quick Start Guide](QUICKSTART.md)
-- [Ansible Playbooks README](../../automation/test-execution/ansible/playbooks/README.md)
+- [Ansible Playbooks README](../../automation/test-execution/ansible/playbooks/playbooks.md)
 - [Model Matrix](model-matrix.yaml)
 - [Test Scenarios](.)

@@ -185,7 +185,7 @@ all:
             vllm_port: 8000
 ```
 
-See [inventory/embedding-hosts.yml](../inventory/embedding-hosts.yml) for complete example.
+See [inventory/hosts.yml](../inventory/hosts.yml) for complete example.
 
 ## Variables
 
@@ -332,4 +332,4 @@ To add a new test type (e.g., `stress`):
 - [Ansible Documentation](https://docs.ansible.com/)
 - [Podman Ansible Collection](https://docs.ansible.com/ansible/latest/collections/containers/podman/index.html)
 - [vLLM Documentation](https://docs.vllm.ai/)
-- [Embedding Tests Documentation](../../../tests/embedding-models/README.md)
+- [Embedding Tests Documentation](../../../tests/embedding-models/embedding-models.md)

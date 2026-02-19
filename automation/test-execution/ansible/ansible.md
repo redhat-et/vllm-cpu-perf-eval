@@ -8,7 +8,7 @@ models with NUMA-aware CPU optimization.
 ### 1. Configure Inventory
 
 Edit [inventory/hosts.yml](inventory/hosts.yml) - **only change the
-IP addresses**:
+IP addresses** (see [inventory documentation](inventory/inventory.md) for details):
 
 ```yaml
 dut:
@@ -395,13 +395,13 @@ automation/test-execution/ansible/
 
 ## References
 
-- [Inventory README](inventory/README.md) - Detailed inventory guide
-- [LLM Playbooks](playbooks/llm/README.md) - LLM testing details
-- [Filter Plugins](filter_plugins/README.md) - Custom filter
+- [Inventory README](inventory/inventory.md) - Detailed inventory guide
+- [LLM Playbooks](playbooks/llm/llm.md) - LLM testing details
+- [Filter Plugins](filter_plugins/filter_plugins.md) - Custom filter
   documentation
 - [vLLM Documentation](https://docs.vllm.ai/)
 - [GuideLLM Documentation](https://github.com/neuralmagic/guidellm)
 
 ## Examples
 
-See [inventory/README.md](inventory/README.md) for more examples.
+See [inventory/inventory.md](inventory/inventory.md) for more examples.
