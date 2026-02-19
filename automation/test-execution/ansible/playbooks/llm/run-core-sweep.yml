@@ -1,0 +1,123 @@
+---
+# Core Count Sweep for LLM Generative Models
+# Tests one model across multiple core configurations (e.g., T14, T16, T17, T18)
+# Each iteration: clean restart → start vLLM → health check → run GuideLLM → collect results
+
+- name: "LLM Core Sweep - Setup"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    test_run_id: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
+
+  tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - test_model is defined
+          - workload_type is defined
+          - core_config_names is defined
+        fail_msg: |
+          Missing required variables. Please provide:
+          -e "test_model=<model>"
+          -e "workload_type=<summarization|chat|code|rag>"
+          -e "core_config_names=['config1','config2',...]"
+
+    - name: Get core configurations by names
+      ansible.builtin.set_fact:
+        selected_core_configs: "{{ core_configs | selectattr('name', 'in', core_config_names) | list }}"
+
+    - name: Validate core configurations found
+      ansible.builtin.assert:
+        that:
+          - selected_core_configs | length > 0
+          - selected_core_configs | length == core_config_names | length
+        fail_msg: "Could not find all specified core configurations. Check core_config_names."
+
+    - name: Display core sweep test information
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "LLM Core Count Sweep Test"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Test Run ID: {{ test_run_id }}"
+          - "Model: {{ test_model }}"
+          - "Workload: {{ workload_type }}"
+          - "Core Configurations: {{ core_config_names }}"
+          - "DUT: {{ groups['dut'][0] }}"
+          - "Load Generator: {{ groups['load_generator'][0] }}"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# ==============================================================================
+# MAIN LOOP: Iterate over core configurations
+# ==============================================================================
+
+- name: "Core Sweep - Run Tests for Each Core Configuration"
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: Run test sequence for each core configuration
+      ansible.builtin.include_tasks:
+        file: tasks/core-sweep-iteration.yml
+      loop: "{{ selected_core_configs }}"
+      loop_control:
+        loop_var: current_core_config
+        label: "{{ current_core_config.name }} ({{ current_core_config.cores }} cores, TP={{ current_core_config.tensor_parallel }})"
+
+# ==============================================================================
+# FINAL: Collect All Results
+# ==============================================================================
+
+- name: "Core Sweep - Collect and Summarize All Results"
+  hosts: load_generator
+  gather_facts: false
+  vars:
+    test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
+
+  tasks:
+    - name: Fetch all core sweep results
+      ansible.builtin.fetch:
+        src: "{{ bench_config.results_dir }}/{{ test_model | basename }}/{{ workload_type }}/"
+        dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | basename }}/{{ workload_type }}-{{ test_run_id }}/"
+        flat: false
+
+    - name: Display results location
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "✓ Core sweep tests completed!"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Results: results/llm/{{ test_model | basename }}/{{ workload_type }}-{{ test_run_id }}/"
+          - "Analyze results to find optimal core configuration"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# ==============================================================================
+# SUMMARY
+# ==============================================================================
+
+- name: "Core Sweep Summary"
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: Display test configurations summary
+      ansible.builtin.debug:
+        msg:
+          - "Core Configurations Tested:"
+          - "{{ selected_core_configs | map(attribute='name') | list }}"
+          - ""
+          - "Configuration Details:"
+
+    - name: Display each core configuration
+      ansible.builtin.debug:
+        msg:
+          - "{{ item.name }}:"
+          - "  Cores: {{ item.cores }}"
+          - "  CPUs: {{ item.cpuset_cpus }}"
+          - "  NUMA: {{ item.cpuset_mems }}"
+          - "  TP: {{ item.tensor_parallel }}"
+          - "  OMP Threads: {{ item.omp_num_threads | default('auto') }}"
+          - "  OMP Bind: {{ item.omp_threads_bind | default('auto') }}"
+      loop: "{{ selected_core_configs }}"
+      loop_control:
+        label: "{{ item.name }}"

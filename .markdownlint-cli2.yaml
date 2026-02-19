@@ -1,0 +1,29 @@
+---
+# Markdownlint configuration
+config:
+  # Line length - disable for better readability of long technical content
+  MD013: false
+
+  # Multiple consecutive blank lines - disable for better visual separation
+  MD012: false
+
+  # Table column style - disable to allow more flexible table formatting
+  MD060: false
+
+  # Allow inline HTML for complex formatting needs
+  MD033: false
+
+  # Headings surrounded by blank lines - disable for flexibility
+  MD022: false
+
+  # Fenced code blocks surrounded by blank lines - disable for flexibility
+  MD031: false
+
+  # Lists surrounded by blank lines - disable for flexibility
+  MD032: false
+
+  # Spaces inside emphasis markers - disable for flexibility
+  MD037: false
+
+  # Fenced code language - disable (we'll add languages when convenient)
+  MD040: false

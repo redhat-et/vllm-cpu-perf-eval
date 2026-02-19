@@ -1,0 +1,111 @@
+---
+# Common vLLM Server Startup Playbook
+# Starts vLLM server in container on DUT
+# Can be imported by other playbooks or run standalone
+
+- name: "Start vLLM Server on DUT"
+  hosts: dut
+  become: true
+  vars:
+    # Can be overridden when importing
+    model_name: "{{ test_model | default('ibm-granite/granite-embedding-278m-multilingual') }}"
+    container_name: "{{ vllm_container_name | default('vllm-embedding-server') }}"
+    cpu_cores: "{{ vllm_cpu_cores | default('') }}"  # Empty = no pinning
+
+  tasks:
+    - name: Create log directory on DUT
+      ansible.builtin.file:
+        path: "{{ log_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Create model cache directory
+      ansible.builtin.file:
+        path: "{{ model_cache_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Pull vLLM container image
+      containers.podman.podman_image:
+        name: "{{ vllm_server.container_image }}"
+        state: present
+      when: vllm_server.container_runtime == 'podman'
+
+    - name: Stop any existing vLLM container
+      containers.podman.podman_container:
+        name: "{{ container_name }}"
+        state: absent
+      ignore_errors: true
+      when: vllm_server.container_runtime == 'podman'
+
+    - name: Start vLLM server in container (with CPU pinning)
+      containers.podman.podman_container:
+        name: "{{ container_name }}"
+        image: "{{ vllm_server.container_image }}"
+        state: started
+        restart_policy: "no"
+        detach: true
+        network: host
+        cpuset_cpus: "{{ cpu_cores }}"
+        volumes:
+          - "{{ model_cache_dir }}:/root/.cache/huggingface:rw"
+          - "{{ log_dir }}:/var/log/vllm:rw"
+        env: "{{ vllm_env }}"
+        command: >
+          --model {{ model_name }}
+          --host {{ vllm_server.host }}
+          --port {{ vllm_server.port }}
+          --dtype bfloat16
+          --max-model-len 512
+        log_driver: journald
+        log_opt:
+          tag: "vllm-{{ model_name | basename }}"
+      when:
+        - vllm_server.container_runtime == 'podman'
+        - cpu_cores != ''
+      register: vllm_container_pinned
+
+    - name: Start vLLM server in container (no CPU pinning)
+      containers.podman.podman_container:
+        name: "{{ container_name }}"
+        image: "{{ vllm_server.container_image }}"
+        state: started
+        restart_policy: "no"
+        detach: true
+        network: host
+        volumes:
+          - "{{ model_cache_dir }}:/root/.cache/huggingface:rw"
+          - "{{ log_dir }}:/var/log/vllm:rw"
+        env: "{{ vllm_env }}"
+        command: >
+          --model {{ model_name }}
+          --host {{ vllm_server.host }}
+          --port {{ vllm_server.port }}
+          --dtype bfloat16
+          --max-model-len 512
+        log_driver: journald
+        log_opt:
+          tag: "vllm-{{ model_name | basename }}"
+      when:
+        - vllm_server.container_runtime == 'podman'
+        - cpu_cores == ''
+      register: vllm_container_no_pin
+
+    - name: Set container result
+      ansible.builtin.set_fact:
+        vllm_container: "{{ vllm_container_pinned if cpu_cores != '' else vllm_container_no_pin }}"
+
+    - name: Display vLLM container start info
+      ansible.builtin.debug:
+        msg:
+          - "vLLM Container Started"
+          - "Container ID: {{ vllm_container.container.Id | default('N/A') }}"
+          - "vLLM Server: http://{{ ansible_host }}:{{ vllm_server.port }}"
+          - "Model: {{ model_name }}"
+          - "CPU Pinning: {{ cpu_cores if cpu_cores != '' else 'None (automatic)' }}"
+          - "Check logs: journalctl -t vllm-{{ model_name | basename }} -f"
+
+    - name: Wait for container initialization
+      ansible.builtin.pause:
+        seconds: 10
+        prompt: "Waiting for vLLM container to initialize..."

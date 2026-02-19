@@ -1,0 +1,137 @@
+---
+# Model Matrix for Embedding Performance Tests
+# Defines which embedding models run which test scenarios
+
+matrix:
+  test_suite: "embedding-models"
+  description: "Performance evaluation for vLLM embedding models on CPU"
+  vllm_version_required: ">=0.11.0"  # Embedding benchmarking support
+
+  # Test case mapping
+  test_cases:
+    # Test Case 1.1: Baseline Performance - English Model
+    - id: "EMB-BASELINE-SLATE-EN-EMB512"
+      description: "Baseline performance and scalability for English embedding model"
+      model: "slate-125m-english-rtrvr-v2"
+      model_path: "Salesforce/slate-125m-english-rtrvr-v2"
+      architecture: "MiniLM/BERT"
+      focus: "Enterprise English Embedding Throughput"
+      scenarios:
+        - baseline-sweep
+      quantization: false
+      kv_cache: "1GiB"
+
+    # Test Case 1.2: Baseline Performance - Multilingual Model
+    - id: "EMB-BASELINE-GRANITE-ML-EMB512"
+      description: "Baseline performance and scalability for Multilingual embedding model"
+      model: "granite-embedding-278m-multilingual"
+      model_path: "ibm-granite/granite-embedding-278m-multilingual"
+      architecture: "XLM-RoBERTa"
+      focus: "Multilingual Embedding Throughput"
+      scenarios:
+        - baseline-sweep
+      quantization: false
+      kv_cache: "1GiB"
+
+    # Test Case 2.1: Latency and Stability - Multilingual Model
+    - id: "EMB-LATENCY-GRANITE-ML-EMB512"
+      description: "Latency scaling under concurrent load for Multilingual model"
+      model: "granite-embedding-278m-multilingual"
+      model_path: "ibm-granite/granite-embedding-278m-multilingual"
+      architecture: "XLM-RoBERTa"
+      focus: "P99 Latency Scaling for Multilingual Encoder"
+      scenarios:
+        - latency-concurrent
+      quantization: false
+      kv_cache: "1GiB"
+
+  # Embedding model definitions
+  embedding_models:
+    # English Dense Encoder (MiniLM/BERT family)
+    - name: "slate-125m-english-rtrvr-v2"
+      full_name: "Salesforce/slate-125m-english-rtrvr-v2"
+      architecture_family: "MiniLM/BERT"
+      application_focus: "Encoder-Only (Fastest Baseline)"
+      language: "English"
+      parameters: "125M"
+      alternate_models:
+        - "slate-30m-english-rtrvr-v2"
+        - "all-minilm-l12-v2"
+        - "ms-marco-minilm-l-12-v2"
+        - "all-minilm-l6-v2"
+      default_scenarios:
+        - baseline-sweep
+
+    # Alternative English model (granite)
+    - name: "granite-embedding-english-r2"
+      full_name: "ibm-granite/granite-embedding-english-r2"
+      architecture_family: "MiniLM/BERT"
+      application_focus: "Encoder-Only (English Dense)"
+      language: "English"
+      parameters: "~110M"
+      default_scenarios:
+        - baseline-sweep
+
+    # Multilingual Dense Encoder (XLM-RoBERTa family)
+    - name: "granite-embedding-278m-multilingual"
+      full_name: "ibm-granite/granite-embedding-278m-multilingual"
+      architecture_family: "XLM-RoBERTa"
+      application_focus: "Encoder-Only (Multilingual)"
+      language: "Multilingual"
+      parameters: "278M"
+      alternate_models:
+        - "granite-embedding-107m-multilingual"
+        - "Multilingual-e5-large"
+      default_scenarios:
+        - baseline-sweep
+        - latency-concurrent
+
+  # Common test parameters
+  common_parameters:
+    workload: "Embedding (512:1)"
+    input_sequence_length: 512
+    output_sequence_length: 1
+    affinity: "auto"  # Handled by vLLM automatically
+    dtype: "bfloat16"
+    kv_cache_space: "1GiB"  # Minimal for embedding models (encoder-only)
+    num_prompts: 1000
+
+  # Platform configuration (vendor-specific)
+  platform_config:
+    cores: "VENDOR-DEFINED"
+    numa_nodes: "VENDOR-DEFINED"
+    notes: |
+      - Core count and NUMA configuration should be optimized per platform
+      - Intel Xeon platforms may benefit from specific core binding
+      - AMD EPYC platforms may require different NUMA settings
+
+  # Expected test duration (approximate)
+  estimated_duration:
+    baseline_sweep:
+      per_model: "20-30 minutes"
+      stages: 4  # inf, 25%, 50%, 75%
+    latency_concurrent:
+      per_model: "25-40 minutes"
+      stages: 5  # 16, 32, 64, 128, 196 concurrency
+
+  # Results storage structure
+  results_structure: |
+    results/embedding-models/
+    ├── slate-125m-english-rtrvr-v2/
+    │   └── baseline/
+    │       ├── sweep-inf.json
+    │       ├── sweep-25pct.json
+    │       ├── sweep-50pct.json
+    │       └── sweep-75pct.json
+    └── granite-embedding-278m-multilingual/
+        ├── baseline/
+        │   ├── sweep-inf.json
+        │   ├── sweep-25pct.json
+        │   ├── sweep-50pct.json
+        │   └── sweep-75pct.json
+        └── latency/
+            ├── concurrent-16.json
+            ├── concurrent-32.json
+            ├── concurrent-64.json
+            ├── concurrent-128.json
+            └── concurrent-196.json

@@ -6,10 +6,7 @@ rules:
   comments:
     min-spaces-from-content: 1
   quoted-strings:
-    required: only-when-needed
-    extra-required:
-      - ^.*:\s.*$
-      - ^.*:$
+    required: false
     quote-type: double
 ignore:
   - bin/*

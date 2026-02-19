@@ -1,0 +1,64 @@
+---
+# Core Count Sweep Playbook for Embedding Tests
+# Tests vLLM performance with varying CPU core allocations
+# Deploys containerized vLLM with different core counts up to NUMA node boundary
+
+- name: "Embedding Core Count Sweep - Setup"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    test_run_id: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
+
+  tasks:
+    - name: Display core sweep test information
+      ansible.builtin.debug:
+        msg:
+          - "Core Count Sweep Test Run ID: {{ test_run_id }}"
+          - "Testing core counts: {{ core_counts }}"
+          - "DUT Host: {{ groups['dut'][0] }}"
+          - "Load Generator Host: {{ groups['load_generator'][0] }}"
+
+# ==============================================================================
+# MAIN LOOP: Iterate over core counts
+# ==============================================================================
+
+- name: "Core Count Sweep - Run Tests for Each Core Configuration"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    # Define core counts to test (can be overridden)
+    # Default: 8, 16, 32, 64 (up to 1 NUMA node on typical systems)
+    core_counts: "{{ test_core_counts | default([8, 16, 32, 64]) }}"
+    model_name: "{{ test_model | default('ibm-granite/granite-embedding-278m-multilingual') }}"
+    test_scenario: "{{ scenario | default('baseline') }}"
+
+  tasks:
+    - name: "Run test sequence for each core count"
+      ansible.builtin.include_tasks:
+        file: tasks/core-iteration.yml
+      loop: "{{ core_counts }}"
+      loop_control:
+        loop_var: current_core_count
+        label: "Core count: {{ current_core_count }}"
+
+# ==============================================================================
+# FINAL: Collect All Results
+# ==============================================================================
+
+- name: "Core Sweep - Collect and Summarize Results"
+  hosts: load_generator
+  gather_facts: false
+
+  tasks:
+    - name: Fetch all core sweep results
+      ansible.builtin.fetch:
+        src: "{{ bench_config.results_dir }}/core-sweep/"
+        dest: "{{ playbook_dir }}/../../results/embedding-models/core-sweep-{{ test_run_id }}/"
+        flat: false
+
+    - name: Display results location
+      ansible.builtin.debug:
+        msg:
+          - "Core sweep tests completed!"
+          - "Results: {{ playbook_dir }}/../../results/embedding-models/core-sweep-{{ test_run_id }}/"
+          - "Analyze results to find optimal core count for performance"

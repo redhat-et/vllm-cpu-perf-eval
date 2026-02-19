@@ -1,0 +1,138 @@
+---
+# Auto-Configured Core Sweep for LLM Models
+# User provides simple core counts list and Ansible auto-generates configurations
+# Alternative to run-core-sweep.yml which requires pre-defined core_config_names
+#
+# Usage:
+#   ansible-playbook playbooks/llm/run-core-sweep-auto.yml \
+#     -i inventory/example-full-config.yml \
+#     -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
+#     -e "workload_type=summarization" \
+#     -e "requested_cores_list=[8,16,32,64]"
+
+- name: "Auto Core Sweep - Setup"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    test_run_id: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
+
+  tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - test_model is defined
+          - workload_type is defined
+          - requested_cores_list is defined
+        fail_msg: |
+          Missing required variables. Please provide:
+          -e "test_model=<model>"
+          -e "workload_type=<summarization|chat|code|rag>"
+          -e "requested_cores_list=[8,16,32,64]"
+
+    - name: Display auto core sweep information
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Auto-Configured Core Sweep Test"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Test Run ID: {{ test_run_id }}"
+          - "Model: {{ test_model }}"
+          - "Workload: {{ workload_type }}"
+          - "Core Counts: {{ requested_cores_list }}"
+          - "DUT: {{ groups['dut'][0] }} ({{ hostvars[groups['dut'][0]]['ansible_host'] }})"
+          - "Load Generator: {{ groups['load_generator'][0] }} ({{ hostvars[groups['load_generator'][0]]['ansible_host'] }})"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# ==============================================================================
+# STEP 1: Detect NUMA Topology (once)
+# ==============================================================================
+
+- name: "Auto Core Sweep - Detect NUMA Topology"
+  hosts: dut
+  become: true
+
+  tasks:
+    - name: Detect NUMA topology on DUT
+      ansible.builtin.include_tasks:
+        file: ../common/tasks/detect-numa-topology.yml
+
+    - name: Save topology to localhost
+      ansible.builtin.set_fact:
+        dut_numa_topology: "{{ numa_topology }}"
+      delegate_to: localhost
+      delegate_facts: true
+
+# ==============================================================================
+# STEP 2: Setup HuggingFace Token (once)
+# ==============================================================================
+
+- name: "Auto Core Sweep - Setup HF Token"
+  hosts: dut
+  become: true
+
+  tasks:
+    - name: Setup HuggingFace token
+      ansible.builtin.include_tasks:
+        file: ../common/tasks/setup-hf-token.yml
+
+# ==============================================================================
+# MAIN LOOP: Iterate over core counts
+# ==============================================================================
+
+- name: "Auto Core Sweep - Run Tests for Each Core Count"
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: Run test sequence for each core count
+      ansible.builtin.include_tasks:
+        file: tasks/core-sweep-auto-iteration.yml
+      loop: "{{ requested_cores_list }}"
+      loop_control:
+        loop_var: current_cores
+        label: "{{ current_cores }} cores"
+
+# ==============================================================================
+# FINAL: Collect All Results
+# ==============================================================================
+
+- name: "Auto Core Sweep - Collect and Summarize Results"
+  hosts: load_generator
+  gather_facts: false
+  vars:
+    test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
+
+  tasks:
+    - name: Fetch all core sweep results
+      ansible.builtin.fetch:
+        src: "{{ bench_config.results_dir }}/{{ test_model | basename }}/{{ workload_type }}/"
+        dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | basename }}/{{ workload_type }}-{{ test_run_id }}/"
+        flat: false
+
+    - name: Display results location
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "✓ Auto-configured core sweep completed!"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Results: results/llm/{{ test_model | basename }}/{{ workload_type }}-{{ test_run_id }}/"
+          - "Analyze results to find optimal core configuration"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# ==============================================================================
+# SUMMARY
+# ==============================================================================
+
+- name: "Auto Core Sweep - Summary"
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: Display test summary
+      ansible.builtin.debug:
+        msg:
+          - "Auto-Configured Core Sweep Summary:"
+          - "  Model: {{ test_model }}"
+          - "  Workload: {{ workload_type }}"
+          - "  Core counts tested: {{ requested_cores_list }}"
+          - "  Total tests: {{ requested_cores_list | length }}"

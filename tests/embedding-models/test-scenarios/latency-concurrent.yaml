@@ -1,0 +1,108 @@
+---
+# Latency and Stability Under Load Test Scenario
+# This scenario measures latency scaling under increasing concurrent requests
+
+test_scenario:
+  name: "latency-concurrent"
+  type: "latency"
+  description: "Measure latency scaling under increasing concurrent requests to identify the point of degradation"
+
+  # Test configuration
+  backend: "openai-embeddings"
+  endpoint: "/v1/embeddings"
+  dataset_name: "random"
+  random_input_len: 512
+  num_prompts: 1000
+  request_rate: "inf"  # Use infinite rate with max-concurrency control
+
+  # vLLM server configuration
+  server:
+    dtype: "bfloat16"
+    env_vars:
+      VLLM_CPU_KVCACHE_SPACE: "1GiB"
+
+  # Concurrency levels to test
+  concurrency_levels:
+    - level: 16
+      description: "Low concurrency baseline"
+      result_filename_suffix: "concurrent-16"
+      expected: "Low latency, good throughput"
+
+    - level: 32
+      description: "Medium concurrency"
+      result_filename_suffix: "concurrent-32"
+      expected: "Moderate latency increase"
+
+    - level: 64
+      description: "High concurrency"
+      result_filename_suffix: "concurrent-64"
+      expected: "Higher latency, throughput approaching plateau"
+
+    - level: 128
+      description: "Very high concurrency"
+      result_filename_suffix: "concurrent-128"
+      expected: "Significant latency degradation possible"
+
+    - level: 196
+      description: "Maximum concurrency"
+      result_filename_suffix: "concurrent-196"
+      expected: "Maximum latency, minimal throughput gain"
+
+  # Metrics to collect at each concurrency level
+  metrics:
+    primary:
+      - "Request throughput (req/s)"
+      - "Total Token throughput (tok/s)"
+      - "Mean E2EL (ms)"
+      - "P95 E2EL (ms)"
+      - "P99 E2EL (ms)"  # Primary metric for this test
+
+  # Analysis objectives
+  analysis:
+    objectives:
+      - name: "sweet_spot"
+        description: "Identify concurrency level where throughput plateaus but P99 latency remains acceptable"
+        threshold: "P99 < 1000ms (configurable)"
+
+      - name: "degradation_point"
+        description: "Identify when P99 latency starts increasing significantly while throughput gains diminish"
+        criteria: "P99 increase > 50% with throughput gain < 10%"
+
+      - name: "scaling_comparison"
+        description: "Compare how P99 scales from low (16) to high (196) concurrency"
+        metric: "P99 latency ratio (high/low)"
+
+  # Success criteria
+  success_criteria:
+    - "All concurrency levels complete without errors"
+    - "Throughput increases with concurrency (at least initially)"
+    - "P99 latency correlates with concurrency level"
+    - "Identify clear sweet spot and degradation point"
+
+  # Expected results format
+  results:
+    format: "json"
+    location: "results/embedding-models/{model}/latency/"
+    graphs:
+      - type: "throughput_vs_concurrency"
+        title: "Throughput vs Concurrency"
+        x_axis: "Concurrency"
+        y_axis: "Throughput (req/s)"
+
+      - type: "latency_vs_concurrency"
+        title: "Latency vs Concurrency"
+        x_axis: "Concurrency"
+        y_axis: "Latency (ms)"
+        series:
+          - "Mean E2EL"
+          - "P99 E2EL"
+
+  # Example interpretation
+  example_output:
+    concurrency_32:
+      request_throughput: 38.42
+      total_token_throughput: 19670.4
+      mean_e2el: 832.5
+      p95_e2el: 945.2
+      p99_e2el: 1024.8
+      interpretation: "At concurrency 32, system maintains good throughput with acceptable P99 latency"

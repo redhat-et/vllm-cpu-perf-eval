@@ -1,0 +1,138 @@
+---
+# Start vLLM for Embedding Models
+# Includes clean restart and flexible configuration
+
+- name: Setup HuggingFace token
+  ansible.builtin.include_tasks:
+    file: ../../common/tasks/setup-hf-token.yml
+
+- name: Clean restart vLLM container
+  ansible.builtin.include_tasks:
+    file: ../../common/tasks/clean-restart-vllm.yml
+
+- name: Create required directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: "{{ item.mode }}"
+  loop:
+    - {path: "{{ model_cache_dir }}", mode: "0777"}  # Container needs write access
+    - {path: "{{ log_dir }}", mode: "0777"}
+  when: use_persistent_cache | default(false) | bool
+
+- name: Get workload configuration
+  ansible.builtin.set_fact:
+    workload_cfg: "{{ test_configs.embedding }}"
+    core_cfg: "{{ core_configuration | default({}) }}"
+    container_cfg: "{{ container_runtime }}"
+
+- name: Prepare environment variables
+  ansible.builtin.set_fact:
+    vllm_env_vars:
+      VLLM_CPU_KVCACHE_SPACE: "{{ workload_cfg.kv_cache_space | extract_size_value }}"
+      HF_TOKEN: "{{ hf_token }}"
+
+- name: Add OMP configuration if specified
+  ansible.builtin.set_fact:
+    vllm_env_vars: "{{ vllm_env_vars | combine({'OMP_NUM_THREADS': core_cfg.omp_num_threads | string}) }}"
+  when:
+    - core_cfg.omp_num_threads is defined
+    - core_cfg.omp_num_threads != none
+
+- name: Add OMP threads bind if specified
+  ansible.builtin.set_fact:
+    vllm_env_vars: "{{ vllm_env_vars | combine({'VLLM_CPU_OMP_THREADS_BIND': core_cfg.omp_threads_bind}) }}"
+  when:
+    - core_cfg.omp_threads_bind is defined
+    - core_cfg.omp_threads_bind != none
+
+- name: Pull vLLM container image
+  containers.podman.podman_image:
+    name: "{{ container_cfg.image }}"
+    state: present
+  when: container_cfg.engine == 'podman'
+
+- name: Display vLLM configuration
+  ansible.builtin.debug:
+    msg:
+      - "Starting vLLM for Embedding Model"
+      - "Model: {{ test_model }}"
+      - "Image: {{ container_cfg.image }}"
+      - "Cores: {{ core_cfg.cpuset_cpus | default('auto') }}"
+      - "NUMA: {{ core_cfg.cpuset_mems | default('auto') }}"
+      - "KV Cache: {{ workload_cfg.kv_cache_space }} (VLLM_CPU_KVCACHE_SPACE={{ workload_cfg.kv_cache_space | extract_size_value }})"
+
+- name: Start vLLM embedding server (with CPU pinning)
+  containers.podman.podman_container:
+    name: "{{ vllm_container_name }}"
+    image: "{{ container_cfg.image }}"
+    state: started
+    restart_policy: "no"
+    detach: true
+    rm: "{{ container_cfg.remove_on_stop | default(true) }}"
+    network: "{{ container_cfg.network_mode }}"
+    shm_size: "{{ container_cfg.shm_size | default('4g') }}"
+    security_opt: "{{ container_cfg.security_opts | default([]) }}"
+    cap_add: "{{ container_cfg.capabilities | default([]) }}"
+    cpuset_cpus: "{{ core_cfg.cpuset_cpus }}"
+    cpuset_mems: "{{ core_cfg.cpuset_mems }}"
+    volumes: "{{ [model_cache_dir + ':/root/.cache/huggingface:rw', log_dir + ':/var/log/vllm:rw'] if (use_persistent_cache | default(false) | bool) else [] }}"
+    env: "{{ vllm_env_vars }}"
+    command: >
+      --model {{ test_model }}
+      --host {{ vllm_server.host }}
+      --port {{ vllm_server.port }}
+      --dtype bfloat16
+      --max-model-len 512
+    log_driver: journald
+    log_opt:
+      tag: "vllm-embedding-{{ core_cfg.cores | default('auto') }}c"
+  when:
+    - container_cfg.engine == 'podman'
+    - core_cfg.cpuset_cpus is defined
+  register: vllm_container_pinned
+
+- name: Start vLLM embedding server (no CPU pinning)
+  containers.podman.podman_container:
+    name: "{{ vllm_container_name }}"
+    image: "{{ container_cfg.image }}"
+    state: started
+    restart_policy: "no"
+    detach: true
+    rm: "{{ container_cfg.remove_on_stop | default(true) }}"
+    network: "{{ container_cfg.network_mode }}"
+    shm_size: "{{ container_cfg.shm_size | default('4g') }}"
+    security_opt: "{{ container_cfg.security_opts | default([]) }}"
+    cap_add: "{{ container_cfg.capabilities | default([]) }}"
+    volumes: "{{ [model_cache_dir + ':/root/.cache/huggingface:rw', log_dir + ':/var/log/vllm:rw'] if (use_persistent_cache | default(false) | bool) else [] }}"
+    env: "{{ vllm_env_vars }}"
+    command: >
+      --model {{ test_model }}
+      --host {{ vllm_server.host }}
+      --port {{ vllm_server.port }}
+      --dtype bfloat16
+      --max-model-len 512
+    log_driver: journald
+    log_opt:
+      tag: "vllm-embedding-auto"
+  when:
+    - container_cfg.engine == 'podman'
+    - core_cfg.cpuset_cpus is not defined
+  register: vllm_container_no_pin
+
+- name: Set container result
+  ansible.builtin.set_fact:
+    vllm_container: "{{ vllm_container_pinned if core_cfg.cpuset_cpus is defined else vllm_container_no_pin }}"
+
+- name: Display vLLM container info
+  ansible.builtin.debug:
+    msg:
+      - "✓ vLLM Embedding Container Started"
+      - "Container ID: {{ vllm_container.container.Id[:12] if vllm_container.container is defined else 'N/A' }}"
+      - "Server: http://{{ ansible_host }}:{{ vllm_server.port }}"
+      - "Logs: journalctl -t vllm-embedding* -f"
+
+- name: Wait for vLLM initialization
+  ansible.builtin.pause:
+    seconds: 15
+    prompt: "Waiting for vLLM to download model and initialize..."

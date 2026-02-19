@@ -20,7 +20,12 @@ tests/
 │       ├── sweep.yaml
 │       ├── synchronous.yaml
 │       └── ...
-└── phase-3-resource-contention/  # Future: Resource sharing tests
+├── phase-3-resource-contention/  # Future: Resource sharing tests
+└── embedding-models/          # Embedding model performance tests
+    ├── README.md              # Detailed embedding test documentation
+    ├── model-matrix.yaml      # Embedding models and test mapping
+    ├── test-scenarios/        # Baseline and latency test scenarios
+    └── scripts/               # Bash scripts for test execution
 ```
 
 ## Test ID Naming Convention
@@ -31,16 +36,18 @@ All test cases use a hierarchical naming scheme for easy identification and trac
 
 **Components:**
 
-- **Phase**: `P1` (Concurrent), `P2` (Scalability), `P3` (Resource Contention)
-- **Type**: `CONC` (Concurrent), `SWEEP`, `SYNC` (Synchronous), `POISSON`
-- **Model**: Short abbreviation (e.g., `LLAMA32`, `QWEN06`, `GRANITE32`, `BGE-BASE`)
-- **Workload**: `CHAT`, `RAG`, `CODE`, `SUMM`, `EMB`
+- **Phase**: `P1` (Concurrent), `P2` (Scalability), `P3` (Resource Contention), `EMB` (Embedding)
+- **Type**: `CONC` (Concurrent), `SWEEP`, `SYNC` (Synchronous), `POISSON`, `BASELINE`, `LATENCY`
+- **Model**: Short abbreviation (e.g., `LLAMA32`, `QWEN06`, `GRANITE32`, `GRANITE-EN`, `GRANITE-ML`)
+- **Workload**: `CHAT`, `RAG`, `CODE`, `SUMM`, `EMB512` (512-token embedding)
 
 **Examples:**
 
 - `P1-CONC-LLAMA32-CHAT`: Phase 1, Concurrent, Llama-3.2-1B, Chat workload
 - `P2-SWEEP-QWEN06-CODE`: Phase 2, Sweep test, Qwen3-0.6B, CodeGen workload
 - `P2-POISSON-GRANITE32-CHAT`: Phase 2, Poisson distribution, Granite-3.2-2B, Chat
+- `EMB-BASELINE-GRANITE-EN-EMB512`: Embedding, Baseline test, Granite English model
+- `EMB-LATENCY-GRANITE-ML-EMB512`: Embedding, Latency test, Granite Multilingual model
 
 See individual phase README files for complete test case listings.
 
@@ -65,6 +72,17 @@ Characterizes maximum throughput and performance curves.
 ### Phase 3: Resource Contention (Planned)
 
 Multi-tenant and resource sharing scenarios.
+
+### Embedding Models
+
+Performance evaluation for embedding models on CPU.
+
+- **Test types**: Baseline (sweep), Latency (concurrent)
+- **Metrics focus**: Request throughput (RPS), P95/P99 latency
+- **Goal**: Establish baseline performance and optimal concurrency levels
+- **Architecture**: Two-node (DUT + Load Generator)
+
+See [embedding-models/README.md](embedding-models/README.md) for detailed documentation.
 
 ## Running Tests
 

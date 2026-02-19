@@ -1,0 +1,256 @@
+---
+# Auto-Configured LLM Test with GuideLLM
+# User provides simple core count (e.g., 8, 16, 32) and Ansible auto-configures NUMA/cpuset
+# Alternative to run-guidellm-test.yml which requires manual core_config_name
+#
+# Usage:
+#   ansible-playbook playbooks/llm/run-guidellm-test-auto.yml \
+#     -i inventory/example-full-config.yml \
+#     -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
+#     -e "workload_type=summarization" \
+#     -e "requested_cores=16"
+#     -e "requested_tensor_parallel=1"  # optional, default=1
+
+- name: "Auto-Configured LLM Test - Setup"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    test_run_id: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
+
+  tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - test_model is defined
+          - workload_type is defined
+          - requested_cores is defined
+        fail_msg: |
+          Missing required variables. Please provide:
+          -e "test_model=<model>"
+          -e "workload_type=<summarization|chat|code|rag>"
+          -e "requested_cores=<8|16|32|64|...>"
+
+    - name: Display auto-config test information
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Auto-Configured LLM Test"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Test Run ID: {{ test_run_id }}"
+          - "Model: {{ test_model }}"
+          - "Workload: {{ workload_type }}"
+          - "Requested Cores: {{ requested_cores }}"
+          - "DUT: {{ groups['dut'][0] }} ({{ hostvars[groups['dut'][0]]['ansible_host'] }})"
+          - "Load Generator: {{ groups['load_generator'][0] }} ({{ hostvars[groups['load_generator'][0]]['ansible_host'] }})"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# ==============================================================================
+# STEP 1: Detect NUMA Topology on DUT
+# ==============================================================================
+
+- name: "Auto-Configured LLM Test - Detect NUMA Topology"
+  hosts: dut
+  become: true
+
+  tasks:
+    - name: Detect NUMA topology on DUT
+      ansible.builtin.include_tasks:
+        file: ../common/tasks/detect-numa-topology.yml
+
+# ==============================================================================
+# STEP 2: Allocate Cores from Detected Topology
+# ==============================================================================
+
+- name: "Auto-Configured LLM Test - Allocate Cores"
+  hosts: dut
+  become: true
+  vars:
+    requested_cores: "{{ hostvars['localhost']['requested_cores'] }}"
+    requested_tensor_parallel: "{{ hostvars['localhost']['requested_tensor_parallel'] | default(1) }}"
+    requested_omp_threads: "{{ hostvars['localhost']['requested_omp_threads'] | default(omit) }}"
+    requested_omp_bind: "{{ hostvars['localhost']['requested_omp_bind'] | default(omit) }}"
+
+  tasks:
+    - name: Allocate cores from NUMA topology
+      ansible.builtin.include_tasks:
+        file: ../common/tasks/allocate-cores-from-count.yml
+
+    - name: Save auto-allocated config to localhost
+      ansible.builtin.set_fact:
+        core_configuration: "{{ auto_core_config }}"
+      delegate_to: localhost
+      delegate_facts: true
+
+# ==============================================================================
+# STEP 3: Setup HuggingFace Token
+# ==============================================================================
+
+- name: "Auto-Configured LLM Test - Setup HF Token"
+  hosts: dut
+  become: true
+
+  tasks:
+    - name: Setup HuggingFace token
+      ansible.builtin.include_tasks:
+        file: ../common/tasks/setup-hf-token.yml
+
+# ==============================================================================
+# STEP 4: Clean Restart vLLM
+# ==============================================================================
+
+- name: "Auto-Configured LLM Test - Clean Restart"
+  hosts: dut
+  become: true
+
+  tasks:
+    - name: Clean restart vLLM
+      ansible.builtin.include_tasks:
+        file: ../common/tasks/clean-restart-vllm.yml
+
+# ==============================================================================
+# STEP 5: Start vLLM with Auto-Allocated Configuration
+# ==============================================================================
+
+- name: "Auto-Configured LLM Test - Start vLLM"
+  hosts: dut
+  become: true
+  vars:
+    core_configuration: "{{ hostvars['localhost']['core_configuration'] }}"
+
+  tasks:
+    - name: Start vLLM for LLM model
+      ansible.builtin.include_tasks:
+        file: tasks/start-llm-vllm.yml
+
+# ==============================================================================
+# STEP 6: Health Check
+# ==============================================================================
+
+- name: "Auto-Configured LLM Test - Health Check"
+  hosts: load_generator
+  gather_facts: false
+
+  tasks:
+    - name: Wait for vLLM health endpoint
+      ansible.builtin.uri:
+        url: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/health"
+        method: GET
+        status_code: 200
+      register: health_check_result
+      retries: 60
+      delay: 5
+      until: health_check_result.status == 200
+
+    - name: Display readiness status
+      ansible.builtin.debug:
+        msg: "✓ vLLM is ready"
+
+# ==============================================================================
+# STEP 7: Run GuideLLM Benchmark
+# ==============================================================================
+
+- name: "Auto-Configured LLM Test - Run GuideLLM"
+  hosts: load_generator
+  become: true
+  vars:
+    core_configuration: "{{ hostvars['localhost']['core_configuration'] }}"
+
+  tasks:
+    - name: Setup HuggingFace token for load generator
+      ansible.builtin.include_tasks:
+        file: ../common/tasks/setup-hf-token.yml
+
+    - name: Run GuideLLM benchmark
+      ansible.builtin.include_tasks:
+        file: tasks/run-guidellm.yml
+
+# ==============================================================================
+# STEP 8: Collect Results
+# ==============================================================================
+
+- name: "Auto-Configured LLM Test - Collect Results"
+  hosts: load_generator
+  gather_facts: false
+  vars:
+    test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
+    core_configuration: "{{ hostvars['localhost']['core_configuration'] }}"
+
+  tasks:
+    - name: Tag results with auto-config metadata
+      ansible.builtin.copy:
+        content: |
+          {
+            "test_run_id": "{{ test_run_id }}",
+            "config_type": "auto",
+            "core_config_name": "{{ core_configuration.name }}",
+            "core_count": {{ core_configuration.cores }},
+            "cpuset_cpus": "{{ core_configuration.cpuset_cpus }}",
+            "cpuset_mems": "{{ core_configuration.cpuset_mems }}",
+            "tensor_parallel": {{ core_configuration.tensor_parallel }},
+            "omp_num_threads": {{ core_configuration.omp_num_threads | default('null') }},
+            "omp_threads_bind": "{{ core_configuration.omp_threads_bind | default('null') }}",
+            "model": "{{ test_model }}",
+            "workload": "{{ workload_type }}",
+            "timestamp": "{{ ansible_date_time.iso8601 }}"
+          }
+        dest: "{{ bench_config.results_dir }}/{{ test_model | basename }}/{{ workload_type }}/{{ core_configuration.name }}/test-metadata.json"
+
+    - name: Fetch results to local machine
+      ansible.builtin.fetch:
+        src: "{{ bench_config.results_dir }}/{{ test_model | basename }}/{{ workload_type }}/{{ core_configuration.name }}/"
+        dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | basename }}/{{ workload_type }}-{{ test_run_id }}/"
+        flat: false
+
+    - name: Display results location
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "✓ Auto-configured test completed!"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Configuration: {{ core_configuration.name }}"
+          - "  CPUs: {{ core_configuration.cpuset_cpus }}"
+          - "  NUMA: {{ core_configuration.cpuset_mems }}"
+          - "Results: results/llm/{{ test_model | basename }}/{{ workload_type }}-{{ test_run_id }}/"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# ==============================================================================
+# STEP 9: Collect Logs
+# ==============================================================================
+
+- name: "Auto-Configured LLM Test - Collect Logs"
+  hosts: dut
+  become: true
+  vars:
+    test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
+    core_configuration: "{{ hostvars['localhost']['core_configuration'] }}"
+
+  tasks:
+    - name: Get vLLM container logs
+      ansible.builtin.command:
+        cmd: "podman logs {{ vllm_container_name }}"
+      register: vllm_logs
+      changed_when: false
+
+    - name: Save vLLM logs
+      ansible.builtin.copy:
+        content: "{{ vllm_logs.stdout }}"
+        dest: "{{ log_dir }}/vllm-{{ core_configuration.name }}-{{ test_run_id }}.log"
+
+# ==============================================================================
+# STEP 10: Optional Cleanup
+# ==============================================================================
+
+- name: "Auto-Configured LLM Test - Optional Cleanup"
+  hosts: dut
+  become: true
+  when: cleanup_after_test | default(false) | bool
+
+  tasks:
+    - name: Stop and remove vLLM container
+      containers.podman.podman_container:
+        name: "{{ vllm_container_name }}"
+        state: absent
+
+    - name: Display cleanup status
+      ansible.builtin.debug:
+        msg: "✓ vLLM container stopped and removed"

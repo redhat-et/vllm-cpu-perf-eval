@@ -1,0 +1,84 @@
+---
+# Baseline Performance and Scalability Test Scenario
+# This scenario finds maximum throughput and measures performance at various load levels
+
+test_scenario:
+  name: "baseline-sweep"
+  type: "baseline"
+  description: "Establish maximum Request Throughput (RPS) and analyze how performance scales across different load levels"
+
+  # Test configuration
+  backend: "openai-embeddings"
+  endpoint: "/v1/embeddings"
+  dataset_name: "random"
+  random_input_len: 512
+  num_prompts: 1000
+
+  # vLLM server configuration
+  server:
+    dtype: "bfloat16"
+    env_vars:
+      VLLM_CPU_KVCACHE_SPACE: "1GiB"
+
+  # Test stages
+  # Stage 1: Find maximum throughput
+  stages:
+    - name: "max-throughput"
+      description: "Find maximum sustained RPS with infinite request rate"
+      request_rate: "inf"
+      result_filename_suffix: "sweep-inf"
+      expected_output:
+        - "Request throughput (req/s)"
+        - "Use this value to calculate 25%, 50%, 75% rates"
+
+    # Stage 2: Test at 25% of max
+    - name: "load-25pct"
+      description: "Test at 25% of maximum throughput"
+      request_rate_percent: 25  # Will be calculated from Stage 1 results
+      result_filename_suffix: "sweep-25pct"
+
+    # Stage 3: Test at 50% of max
+    - name: "load-50pct"
+      description: "Test at 50% of maximum throughput"
+      request_rate_percent: 50  # Will be calculated from Stage 1 results
+      result_filename_suffix: "sweep-50pct"
+
+    # Stage 4: Test at 75% of max
+    - name: "load-75pct"
+      description: "Test at 75% of maximum throughput"
+      request_rate_percent: 75  # Will be calculated from Stage 1 results
+      result_filename_suffix: "sweep-75pct"
+
+  # Metrics to collect
+  metrics:
+    primary:
+      - "Request throughput (req/s)"
+      - "Total Token throughput (tok/s)"
+      - "Mean E2EL (ms)"
+      - "P95 E2EL (ms)"
+      - "P99 E2EL (ms)"
+    derived:
+      - "Calculated Avg. Concurrency (RPS x Mean Latency in Sec)"
+
+  # Success criteria
+  success_criteria:
+    - "All stages complete without errors"
+    - "Latency increases progressively with load"
+    - "Throughput saturates near maximum"
+
+  # Expected results format
+  results:
+    format: "json"
+    location: "results/embedding-models/{model}/baseline/"
+    graphs:
+      - type: "throughput_saturation"
+        title: "Throughput Saturation Curve"
+        x_axis: "Requested Rate (req/s)"
+        y_axis: "Achieved Throughput (req/s)"
+      - type: "latency_vs_rate"
+        title: "Latency vs Request Rate"
+        x_axis: "Request Rate (req/s)"
+        y_axis: "Latency (ms)"
+        series:
+          - "Mean E2EL"
+          - "P99 E2EL"
