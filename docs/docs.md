@@ -71,7 +71,7 @@ docs/
 
 ### For Platform Setup
 
-1. [Platform Setup Overview](platform-setup/README.md) - Platform configuration
+1. [Platform Setup Overview](platform-setup/platform-setup.md) - Platform configuration
    overview
 2. [Intel Xeon Setup](platform-setup/x86/intel/deterministic-benchmarking.md) -
    Intel-specific tuning

@@ -39,7 +39,7 @@ architecture families:
 | MiniLM/BERT (English Dense) | granite-embedding-english-r2 | Encoder-Only (Fastest Baseline) |
 | XLM-RoBERTa (Multilingual Dense) | granite-embedding-278m-multilingual | Encoder-Only (Multilingual) |
 
-See [models/embedding/](../../models/embedding/) for complete model
+See [models/embedding-models/](../../models/embedding-models/) for complete model
 definitions.
 
 ## Test Cases

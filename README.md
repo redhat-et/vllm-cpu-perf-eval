@@ -138,7 +138,7 @@ See [Reporting Guide](docs/methodology/reporting.md) for details.
 - **[Ansible](docs/ansible/)** - Ansible playbook documentation
 - **[Reference](docs/reference/)** - Schema and CLI reference
 
-Full documentation index: [docs/README.md](docs/README.md)
+Full documentation index: [docs/docs.md](docs/docs.md)
 
 ## Test Phases
 
@@ -180,7 +180,7 @@ Current model coverage:
 - BGE-base-en-v1.5
 - BGE-large-en-v1.5
 
-See [models/README.md](models/README.md) for model definitions and how to
+See [models/models.md](models/models.md) for model definitions and how to
 add new models.
 
 ## Requirements

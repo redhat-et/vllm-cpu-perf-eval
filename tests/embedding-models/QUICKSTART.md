@@ -358,7 +358,7 @@ automation/test-execution/bash/embedding/run-baseline.sh <model>
 ## Next Steps
 
 1. **Analyze Results**: See
-   [README.md](README.md#analysis-and-reporting)
+   [embedding-models.md](embedding-models.md#analysis-and-reporting)
 2. **Generate Reports**: Use analysis scripts in
    `automation/analysis/`
 3. **Tune Performance**: Adjust core counts, NUMA settings, OMP threads
@@ -366,7 +366,7 @@ automation/test-execution/bash/embedding/run-baseline.sh <model>
 
 ## References
 
-- [Full Documentation](README.md)
+- [Full Documentation](embedding-models.md)
 - [Test Scenarios](.)
 - [Model Matrix](../../models/embedding-models/model-matrix.yaml)
-- [Ansible Inventory](../../automation/test-execution/ansible/inventory/embedding-hosts.yml)
+- [Ansible Inventory](../../automation/test-execution/ansible/inventory/hosts.yml)

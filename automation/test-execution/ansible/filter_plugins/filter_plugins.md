@@ -341,4 +341,3 @@ All filters include proper error handling:
 - [Ansible Custom Filters Guide](https://docs.ansible.com/ansible/latest/dev_guide/developing_plugins.html#filter-plugins)
 - [detect-numa-topology.yml](../playbooks/common/tasks/detect-numa-topology.yml) - Usage example
 - [allocate-cores-from-count.yml](../playbooks/common/tasks/allocate-cores-from-count.yml) - Usage example
-- [REFACTORING_SUMMARY.md](../REFACTORING_SUMMARY.md) - Why we use filters instead of shell scripts

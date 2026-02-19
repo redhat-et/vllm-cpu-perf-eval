@@ -81,7 +81,7 @@ Performance evaluation for embedding models on CPU.
 - **Goal**: Establish baseline performance and optimal concurrency levels
 - **Architecture**: Two-node (DUT + Load Generator)
 
-See [embedding-models/README.md](embedding-models/README.md) for detailed documentation.
+See [embedding-models/embedding-models.md](embedding-models/embedding-models.md) for detailed documentation.
 
 ## Running Tests
 
