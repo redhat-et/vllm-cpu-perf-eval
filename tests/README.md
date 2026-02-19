@@ -23,8 +23,7 @@ tests/
 ├── phase-3-resource-contention/  # Future: Resource sharing tests
 └── embedding-models/          # Embedding model performance tests
     ├── README.md              # Detailed embedding test documentation
-    ├── model-matrix.yaml      # Embedding models and test mapping
-    ├── test-scenarios/        # Baseline and latency test scenarios
+    ├── scenarios/             # Baseline and latency test scenarios
     └── scripts/               # Bash scripts for test execution
 ```
 
@@ -122,9 +121,10 @@ automation/test-execution/bash/run-model.sh llama-3.2-1b phase-1-concurrent
 
 ## Model Matrix
 
-Each phase has a `model-matrix.yaml` file that defines which models run
+Model definitions are centralized in the `models/` directory (e.g.,
+`models/embedding-models/model-matrix.yaml`), which defines which models run
 which test scenarios. This allows flexible testing without duplicating
-model configurations.
+model configurations across test phases.
 
 Example:
 
