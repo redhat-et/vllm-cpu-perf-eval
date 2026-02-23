@@ -1,10 +1,10 @@
-# Phase 2: Scalability and Performance Testing
+# Test Suite: Scalability
 
 Characterizes maximum throughput and generates complete load-latency curves.
 
 ## Overview
 
-Phase 2 uses sweep tests to generate full load-latency curves and identify
+This test suite uses sweep tests to generate full load-latency curves and identify
 maximum throughput capability, synchronous tests for baseline latency, and
 Poisson tests to measure responsiveness to bursty traffic patterns.
 
@@ -95,7 +95,7 @@ MODEL_NAME=llama-3.2-1b SCENARIO=sweep docker compose up
 
 ```bash
 cd ../../automation/test-execution/ansible
-ansible-playbook playbooks/run-phase.yml -e "phase=phase-2-scalability"
+ansible-playbook playbooks/run-suite.yml -e "test_suite=scalability"
 ```text
 
 ### Option 3: Manual Execution
@@ -197,13 +197,13 @@ Results are written to:
 
 ```text
 ../../results/
-├── by-phase/phase-2-scalability/
+├── by-suite/scalability/
 │   ├── llama-3.2-1b/
 │   │   ├── sweep.json
 │   │   ├── synchronous.json
 │   │   └── poisson.json
 │   └── ...
-└── by-model/llama-3.2-1b/phase-2/
+└── by-model/llama-3.2-1b/scalability/
 ```text
 
 ## Analysis
@@ -213,7 +213,7 @@ Results are written to:
 ```bash
 cd ../../automation/analysis
 python generate-report.py \
-  --input ../../results/by-phase/phase-2-scalability \
+  --input ../../results/by-suite/scalability \
   --format html \
   --include-curves
 ```text
@@ -222,7 +222,7 @@ python generate-report.py \
 
 ```bash
 python compare-models.py \
-  --phase phase-2-scalability \
+  --suite scalability \
   --scenario sweep \
   --metric max-throughput
 ```text
@@ -243,5 +243,5 @@ analysis procedures.
 - [Manual Sweep Testing](../../docs/methodology/manual-sweep.md) - Detailed
   sweep methodology
 - [Metrics Guide](../../docs/methodology/metrics.md) - Metric definitions
-- [Phase 1 Tests](../phase-1-concurrent/) - Concurrent load testing
-- [Phase 3 Tests](../phase-3-resource-contention/) - Resource contention
+- [Concurrent Load Test Suite](../concurrent-load/) - Concurrent load testing
+- [Resource Contention Test Suite](../resource-contention/) - Resource contention
