@@ -1,0 +1,235 @@
+---
+# Model Matrix for LLM Performance Tests
+# Defines which LLM models run which test scenarios
+
+matrix:
+  test_suite: "llm-models"
+  description: "Performance evaluation for vLLM LLM models on CPU"
+  vllm_version_required: ">=0.6.0"
+
+  # LLM model definitions
+  llm_models:
+    # Llama 3 Family
+    - name: "llama-3.2-1b-instruct"
+      full_name: "meta-llama/Llama-3.2-1B-Instruct"
+      architecture_family: "Llama 3 Decoder"
+      application_focus: "Prefill-Heavy (Baseline)"
+      parameters: "1.2B"
+      context_length: 8192
+      inference_characteristics:
+        prefill_performance: "high"
+        decode_performance: "medium"
+        balance: "prefill-heavy"
+      default_workloads:
+        - chat
+        - rag
+      test_suites:
+        - concurrent-load
+        - scalability
+
+    - name: "llama-3.2-3b-instruct"
+      full_name: "meta-llama/Llama-3.2-3B-Instruct"
+      architecture_family: "Llama 3 Decoder"
+      application_focus: "Prefill-Heavy (Baseline)"
+      parameters: "3.2B"
+      context_length: 8192
+      inference_characteristics:
+        prefill_performance: "high"
+        decode_performance: "medium"
+        balance: "prefill-heavy"
+      default_workloads:
+        - chat
+        - rag
+      test_suites:
+        - concurrent-load
+        - scalability
+
+    # Llama 2 Family (Small-Scale)
+    - name: "tinyllama-1.1b-chat"
+      full_name: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+      architecture_family: "Llama 2 Decoder"
+      application_focus: "Prefill/Decode (Small-Scale)"
+      parameters: "1.1B"
+      context_length: 2048
+      inference_characteristics:
+        prefill_performance: "medium"
+        decode_performance: "medium"
+        balance: "balanced"
+      default_workloads:
+        - chat
+      test_suites:
+        - concurrent-load
+        - scalability
+
+    # OPT Family (Legacy Baseline)
+    - name: "opt-125m"
+      full_name: "facebook/opt-125m"
+      architecture_family: "Traditional OPT Decoder"
+      application_focus: "Decode-Heavy (Legacy Baseline)"
+      parameters: "125M"
+      context_length: 2048
+      inference_characteristics:
+        prefill_performance: "low"
+        decode_performance: "high"
+        balance: "decode-heavy"
+      default_workloads:
+        - chat
+        - summarization
+      test_suites:
+        - concurrent-load
+        - scalability
+
+    - name: "opt-1.3b"
+      full_name: "facebook/opt-1.3b"
+      architecture_family: "Traditional OPT Decoder"
+      application_focus: "Decode-Heavy (Legacy Baseline)"
+      parameters: "1.3B"
+      context_length: 2048
+      inference_characteristics:
+        prefill_performance: "low"
+        decode_performance: "high"
+        balance: "decode-heavy"
+      default_workloads:
+        - chat
+        - summarization
+      test_suites:
+        - scalability
+
+    # IBM Granite Family
+    - name: "granite-3.2-2b-instruct"
+      full_name: "ibm-granite/granite-3.2-2b-instruct"
+      architecture_family: "IBM Granite Decoder"
+      application_focus: "Balanced (Enterprise Baseline)"
+      parameters: "2B"
+      context_length: 4096
+      inference_characteristics:
+        prefill_performance: "medium"
+        decode_performance: "medium"
+        balance: "balanced"
+      default_workloads:
+        - chat
+        - rag
+      test_suites:
+        - concurrent-load
+        - scalability
+
+    # Qwen Family
+    - name: "qwen3-0.6b"
+      full_name: "Qwen/Qwen3-0.6B"
+      architecture_family: "Qwen 3 Decoder"
+      application_focus: "Balanced (High-Efficiency)"
+      parameters: "0.6B"
+      context_length: 8192
+      inference_characteristics:
+        prefill_performance: "medium"
+        decode_performance: "high"
+        balance: "balanced"
+      default_workloads:
+        - chat
+        - codegen
+      test_suites:
+        - concurrent-load
+        - scalability
+
+    - name: "qwen2.5-3b-instruct"
+      full_name: "Qwen/Qwen2.5-3B-Instruct"
+      architecture_family: "Qwen 2.5 Decoder"
+      application_focus: "Balanced (High-Efficiency)"
+      parameters: "3B"
+      context_length: 8192
+      inference_characteristics:
+        prefill_performance: "medium"
+        decode_performance: "high"
+        balance: "balanced"
+      default_workloads:
+        - chat
+        - codegen
+      test_suites:
+        - scalability
+
+  # Workload definitions
+  workloads:
+    chat:
+      name: "Chat"
+      input_tokens: 512
+      output_tokens: 256
+      description: "Balanced prefill/decode, typical conversational AI"
+      use_case: "General chat applications"
+
+    rag:
+      name: "RAG (Retrieval-Augmented Generation)"
+      input_tokens: 4096
+      output_tokens: 512
+      description: "Long context prefill, retrieval-augmented generation"
+      use_case: "Document Q&A, knowledge retrieval"
+
+    codegen:
+      name: "Code Generation"
+      input_tokens: 512
+      output_tokens: 4096
+      description: "Long output decode, code generation scenarios"
+      use_case: "Code completion, generation"
+
+    summarization:
+      name: "Summarization"
+      input_tokens: 1024
+      output_tokens: 256
+      description: "Medium context, summarization tasks"
+      use_case: "Document summarization"
+
+  # Common test parameters
+  common_parameters:
+    affinity: "FULL"  # All physical cores
+    dtype: "bfloat16"
+    kv_cache: "auto"  # Let vLLM determine based on workload
+    quantization: false  # Full precision for baseline
+
+  # Test suite mappings
+  test_suite_configs:
+    concurrent-load:
+      concurrency_levels: [8, 16, 32, 64, 96, 128]
+      test_tool: "guidellm"
+      profile: "concurrent"
+      primary_metrics:
+        - "p95_e2el_ms"
+        - "p99_e2el_ms"
+        - "throughput_rps"
+        - "ttft_ms"
+
+    scalability:
+      test_types:
+        - sweep
+        - synchronous
+        - poisson
+      test_tool: "guidellm"
+      primary_metrics:
+        - "max_throughput"
+        - "saturation_point"
+        - "ttft_scaling"
+        - "itl_scaling"
+
+    resource-contention:
+      status: "planned"
+      test_scenarios:
+        - fractional_cores
+        - numa_isolation
+        - noisy_neighbor
+
+  # Results storage structure
+  results_structure: |
+    results/by-suite/
+    ├── concurrent-load/
+    │   ├── llama-3.2-1b-instruct/
+    │   │   ├── chat-concurrent-8.json
+    │   │   ├── chat-concurrent-16.json
+    │   │   ├── rag-concurrent-8.json
+    │   │   └── ...
+    │   └── granite-3.2-2b-instruct/
+    │       └── ...
+    └── scalability/
+        ├── llama-3.2-1b-instruct/
+        │   ├── chat-sweep.json
+        │   ├── chat-synchronous.json
+        │   ├── rag-sweep.json
+        │   └── ...
+        └── ...
