@@ -29,24 +29,81 @@ instructions.
 
 ```text
 vllm-cpu-perf-eval/
-├── models/                  # Centralized model definitions
-├── tests/                   # Test suites organized by type
-│   ├── concurrent-load/
-│   ├── scalability/
-│   └── resource-contention/
-├── containers/              # Container definitions (Docker/Podman)
-├── automation/              # Automation scripts and playbooks
-│   ├── platform-setup/      # System configuration
-│   ├── test-execution/      # Test orchestration
-│   ├── analysis/            # Results analysis
-│   └── utilities/           # Helper scripts
-├── results/                 # Test results (gitignored)
-├── configs/                 # Shared configurations
-├── docs/                    # Documentation
-└── examples/                # Example configurations
+├── README.md                           # This file
+├── TODO.md                             # Roadmap and planned features
+│
+├── models/                             # Centralized model definitions
+│   ├── models.md                       # Comprehensive model documentation
+│   ├── llm-models/                     # LLM model configurations
+│   │   ├── model-matrix.yaml          # LLM model test mappings
+│   │   └── llm-models.md              # Redirects to models.md
+│   └── embedding-models/               # Embedding model configurations
+│       └── model-matrix.yaml          # Embedding model test mappings
+│
+├── tests/                              # Test suites and scenarios
+│   ├── tests.md                        # Test suite overview
+│   ├── concurrent-load/                # Test Suite 1: Concurrent load testing
+│   │   ├── concurrent-load.md         # Suite documentation
+│   │   └── *.yaml                     # Test scenario definitions
+│   ├── scalability/                    # Test Suite 2: Scalability testing
+│   │   ├── scalability.md             # Suite documentation
+│   │   └── *.yaml                     # Test scenario definitions
+│   ├── resource-contention/            # Test Suite 3: Resource contention
+│   │   ├── resource-contention.md     # Suite documentation
+│   │   └── *.yaml                     # Test scenario definitions (planned)
+│   └── embedding-models/               # Embedding model test scenarios
+│       ├── embedding-models.md        # Embedding test documentation
+│       ├── baseline-sweep.yaml        # Baseline performance tests
+│       └── latency-concurrent.yaml    # Latency tests
+│
+├── automation/                         # Automation framework
+│   ├── automation.md                   # Automation guide
+│   ├── test-execution/                 # Test orchestration
+│   │   ├── ansible/                   # Ansible playbooks (primary)
+│   │   │   ├── inventory/             # Host configurations
+│   │   │   ├── playbooks/             # Test execution playbooks
+│   │   │   ├── filter_plugins/        # Custom Ansible filters
+│   │   │   └── roles/                 # Ansible roles
+│   │   ├── bash/                      # Bash automation scripts
+│   │   │   └── embedding/             # Embedding test scripts
+│   │   └── results/                   # Temporary results (gitignored)
+│   ├── platform-setup/                 # Platform configuration
+│   │   └── bash/intel/                # Intel platform setup scripts
+│   └── utilities/                      # Helper utilities
+│       ├── health-checks/             # Health check scripts
+│       └── log-monitoring/            # Log analysis tools
+│
+├── docs/                               # Documentation
+│   ├── docs.md                         # Documentation index
+│   ├── methodology/                    # Test methodology
+│   │   └── overview.md                # Testing approach and metrics
+│   └── platform-setup/                 # Platform setup guides
+│
+├── results/                            # Test results (gitignored)
+│   ├── by-suite/                      # Results organized by test suite
+│   ├── by-model/                      # Results organized by model
+│   ├── by-host/                       # Results organized by test host
+│   ├── reports/                       # Generated reports
+│   └── metrics/                       # Exported metrics
+│
+├── utils/                              # Utility scripts and tools
+│
+└── Configuration Files
+    ├── .pre-commit-config.yaml        # Pre-commit hooks configuration
+    ├── .yamllint.yaml                 # YAML linting rules
+    ├── .markdownlint-cli2.yaml        # Markdown linting rules
+    └── .gitignore                     # Git ignore patterns
 ```
 
-See individual directory README files for detailed information.
+**Key Directories:**
+
+- **models/** - Model definitions reused across all test suites
+- **tests/** - Test suite definitions organized by testing focus
+- **automation/** - Ansible playbooks and bash scripts for test execution
+- **docs/** - Comprehensive testing methodology and guides
+- **results/** - Local test results (not committed to git)
+
+See individual directory README/markdown files for detailed information.
 
 ## Key Features
 
