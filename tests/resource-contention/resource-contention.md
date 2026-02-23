@@ -1,11 +1,11 @@
-# Phase 3: Resource Contention Testing
+# Test Suite: Resource Contention
 
 Tests platform stability under real-world server deployment scenarios.
 
 ## Overview
 
-Phase 3 focuses on resource contention scenarios including fractional core
-allocation, NUMA node isolation, and "noisy neighbor" effects. This phase
+This test suite focuses on resource contention scenarios including fractional core
+allocation, NUMA node isolation, and "noisy neighbor" effects. This suite
 evaluates how vLLM CPU inference performs when sharing resources with other
 workloads.
 
@@ -50,7 +50,7 @@ workloads.
 
 ## Implementation Status
 
-This phase is planned for future implementation. The following will be added:
+This test suite is planned for future implementation. The following will be added:
 
 - [ ] Test scenario definitions
 - [ ] Docker/Podman compose configurations
@@ -61,16 +61,16 @@ This phase is planned for future implementation. The following will be added:
 
 ## Contributing
 
-If you'd like to help design or implement Phase 3 tests, please:
+If you'd like to help design or implement Resource Contention tests, please:
 
-1. Review existing Phase 1 and Phase 2 test patterns
+1. Review existing Concurrent Load and Scalability test patterns
 2. Consult [platform setup docs](../../docs/platform-setup/x86/intel/deterministic-benchmarking.md)
 3. Open an issue or PR with proposed test scenarios
 
 ## Related Documentation
 
-- [Phase 1 Tests](../phase-1-concurrent/) - Concurrent load testing
-- [Phase 2 Tests](../phase-2-scalability/) - Scalability testing
+- [Concurrent Load Test Suite](../concurrent-load/) - Concurrent load testing
+- [Scalability Test Suite](../scalability/) - Scalability testing
 - [Platform Setup](../../docs/platform-setup/) - CPU isolation and NUMA
   configuration
 - [Testing Methodology](../../docs/methodology/overview.md) - Overall test

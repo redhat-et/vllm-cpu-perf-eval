@@ -131,13 +131,14 @@ define how user requests are submitted during the benchmarking process.
 
 <!-- markdownlint-enable MD013 -->
 
-## Testing Phases
+## Test Suites
 
-Testing is organized into multiple phases, each with specific goals and test
-scenarios. For detailed test case specifications, models under test, and
-execution instructions, see the README in each phase directory.
+Testing is organized into independent test suites, each with specific goals and test
+scenarios. Test suites can be run in any order based on your evaluation needs.
+For detailed test case specifications, models under test, and execution instructions,
+see the README in each test suite directory.
 
-### Phase 1: Concurrent Load Testing
+### Test Suite 1: Concurrent Load
 
 **Goal:** Measure P95 latency and throughput scaling under concurrent load
 
@@ -146,10 +147,10 @@ execution instructions, see the README in each phase directory.
 - Concurrency levels: {4, 8, 16, 32, 64} for embeddings
 - Workloads: Chat, RAG, CodeGen, Summarization, Embedding
 
-**📚 See [Phase 1 Test Documentation](../../tests/phase-1-concurrent/) for
+**📚 See [Concurrent Load Test Suite](../../tests/concurrent-load/) for
 complete test specifications**
 
-### Phase 2: Scalability and Performance Testing
+### Test Suite 2: Scalability
 
 **Goal:** Characterize maximum throughput and generate load-latency curves
 
@@ -158,10 +159,10 @@ complete test specifications**
 - Poisson tests for bursty traffic
 - Focus on max throughput (OTPS/TTPS), TTFT scaling, and KV cache efficiency
 
-**📚 See [Phase 2 Test Documentation](../../tests/phase-2-scalability/) for
+**📚 See [Scalability Test Suite](../../tests/scalability/) for
 complete test specifications**
 
-### Phase 3: Resource Contention Testing (Planned)
+### Test Suite 3: Resource Contention (Planned)
 
 **Goal:** Test platform stability with resource sharing and noisy neighbors
 
@@ -170,10 +171,10 @@ complete test specifications**
 - Co-located workloads
 - Multi-tenant scenarios
 
-**📚 See [Phase 3 Test Documentation](../../tests/phase-3-resource-contention/)
+**📚 See [Resource Contention Test Suite](../../tests/resource-contention/)
 for status and planned tests**
 
-### Phase 4: Configuration Tuning (Future)
+### Test Suite 4: Configuration Tuning (Future)
 
 **Goal:** Measure configuration impact of vLLM CPU tuning and quantization
 

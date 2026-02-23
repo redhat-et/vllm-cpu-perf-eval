@@ -1,10 +1,10 @@
-# Phase 1: Concurrent Load Testing
+# Test Suite: Concurrent Load
 
 Tests model performance under various concurrent request loads.
 
 ## Overview
 
-Phase 1 focuses on measuring how P95 latency and throughput scale as the
+This test suite focuses on measuring how P95 latency and throughput scale as the
 number of parallel request streams increases. This establishes baseline
 performance characteristics for CPU inferencing across multiple model
 architectures and workload types.
@@ -103,14 +103,14 @@ MODEL_NAME=llama-3.2-1b SCENARIO=concurrent-8 docker compose up
 ### Option 2: Ansible Automation
 
 ```bash
-# Run entire phase
+# Run entire test suite
 cd ../../automation/test-execution/ansible
-ansible-playbook playbooks/run-phase.yml -e "phase=phase-1-concurrent"
+ansible-playbook playbooks/run-suite.yml -e "test_suite=concurrent-load"
 
 # Run specific model
 ansible-playbook playbooks/run-model.yml \
   -e "model_name=llama-3.2-1b" \
-  -e "phase=phase-1-concurrent"
+  -e "test_suite=concurrent-load"
 ```text
 
 ### Option 3: Manual Execution (GuideLLM)
@@ -167,13 +167,13 @@ Results are written to:
 
 ```text
 ../../results/
-├── by-phase/phase-1-concurrent/
+├── by-suite/concurrent-load/
 │   ├── llama-3.2-1b/
 │   │   ├── concurrent-8.json
 │   │   ├── concurrent-16.json
 │   │   └── ...
 │   └── ...
-└── by-model/llama-3.2-1b/phase-1/
+└── by-model/llama-3.2-1b/concurrent-load/
 ```text
 
 ## Analysis
@@ -183,14 +183,14 @@ Generate reports after completing tests:
 ```bash
 cd ../../automation/analysis
 
-# HTML report for entire phase
+# HTML report for entire test suite
 python generate-report.py \
-  --input ../../results/by-phase/phase-1-concurrent \
+  --input ../../results/by-suite/concurrent-load \
   --format html
 
 # Compare models at specific concurrency
 python compare-models.py \
-  --phase phase-1-concurrent \
+  --suite concurrent-load \
   --scenario concurrent-32
 ```text
 
@@ -199,4 +199,4 @@ python compare-models.py \
 - [Testing Methodology](../../docs/methodology/overview.md)
 - [Metrics Guide](../../docs/methodology/metrics.md)
 - [Manual Testing](../../docs/methodology/manual-sweep.md)
-- [Phase 2 Tests](../phase-2-scalability/)
+- [Scalability Test Suite](../scalability/)
