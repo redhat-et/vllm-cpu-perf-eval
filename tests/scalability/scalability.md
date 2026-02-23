@@ -84,7 +84,7 @@ Poisson tests to measure responsiveness to bursty traffic patterns.
 ### Option 1: Docker/Podman Compose
 
 ```bash
-# Run all Phase 2 tests
+# Run all scalability tests
 docker compose up
 
 # Run specific test
