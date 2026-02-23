@@ -29,7 +29,7 @@ architectures and workload types.
 | Traditional OPT Decoder | facebook/opt-125m | Decode-Heavy (Legacy Baseline) |
 | IBM Granite Decoder | granite-3.2-2b-instruct | Balanced (Enterprise Baseline) |
 | Qwen 3 Decoder | Qwen/Qwen3-0.6B | Balanced (High-Efficiency) |
-| MiniLM/BERT (English Dense) | slate-125m-english-rtrvr-v2 | Encoder-Only (Fastest Baseline) |
+| MiniLM/BERT (English Dense) | granite-embedding-english-r2 | Encoder-Only (Fastest Baseline) |
 | XLM-RoBERTa (Multilingual) | granite-embedding-278m-multilingual | Encoder-Only (Multilingual) |
 
 <!-- markdownlint-enable MD013 -->
@@ -80,7 +80,7 @@ Concurrency levels: **{4, 8, 16, 32, 64}**
 
 | Test ID | Model | Workload | Primary Metric Focus |
 | --- | --- | --- | --- |
-| P1-CONC-SLATE125M-EMB | slate-125m-english-rtrvr-v2 | Embedding (512:1) | P95 Latency (English) |
+| P1-CONC-GRANITE-EN-R2-EMB | granite-embedding-english-r2 | Embedding (512:1) | P95 Latency (English) |
 | P1-CONC-GRANITE-EMB278M-EMB | granite-embedding-278m-multilingual | Embedding (512:1) | P95 Latency (Multilingual) |
 
 <!-- markdownlint-enable MD013 -->
@@ -129,17 +129,17 @@ guidellm benchmark \
 ### Option 4: Manual Execution (Embedding Models)
 
 ```bash
-# Example: Test 1.9 - slate-125m at various concurrency levels
+# Example: Test 1.9 - granite-embedding-english-r2 at various concurrency levels
 for concurrency in 4 8 16 32 64; do
   vllm bench serve --backend openai-embeddings \
-    --model slate-125m-english-rtrvr-v2 \
+    --model ibm-granite/granite-embedding-english-r2 \
     --dataset-name random \
     --random-input-len 512 \
     --num-prompts 1000 \
     --endpoint /v1/embeddings \
     --max-concurrency $concurrency \
     --save-result \
-    --result-filename "slate-125m-concurrent-${concurrency}.json"
+    --result-filename "granite-en-r2-concurrent-${concurrency}.json"
 done
 ```text
 

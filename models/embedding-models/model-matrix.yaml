@@ -10,10 +10,10 @@ matrix:
   # Test case mapping
   test_cases:
     # Test Case 1.1: Baseline Performance - English Model
-    - id: "EMB-BASELINE-SLATE-EN-EMB512"
+    - id: "EMB-BASELINE-GRANITE-EN-R2-EMB512"
       description: "Baseline performance and scalability for English embedding model"
-      model: "slate-125m-english-rtrvr-v2"
-      model_path: "Salesforce/slate-125m-english-rtrvr-v2"
+      model: "granite-embedding-english-r2"
+      model_path: "ibm-granite/granite-embedding-english-r2"
       architecture: "MiniLM/BERT"
       focus: "Enterprise English Embedding Throughput"
       scenarios:
@@ -48,21 +48,6 @@ matrix:
   # Embedding model definitions
   embedding_models:
     # English Dense Encoder (MiniLM/BERT family)
-    - name: "slate-125m-english-rtrvr-v2"
-      full_name: "Salesforce/slate-125m-english-rtrvr-v2"
-      architecture_family: "MiniLM/BERT"
-      application_focus: "Encoder-Only (Fastest Baseline)"
-      language: "English"
-      parameters: "125M"
-      alternate_models:
-        - "slate-30m-english-rtrvr-v2"
-        - "all-minilm-l12-v2"
-        - "ms-marco-minilm-l-12-v2"
-        - "all-minilm-l6-v2"
-      default_scenarios:
-        - baseline-sweep
-
-    # Alternative English model (granite)
     - name: "granite-embedding-english-r2"
       full_name: "ibm-granite/granite-embedding-english-r2"
       architecture_family: "MiniLM/BERT"
@@ -117,7 +102,7 @@ matrix:
   # Results storage structure
   results_structure: |
     results/embedding-models/
-    ├── slate-125m-english-rtrvr-v2/
+    ├── granite-embedding-english-r2/
     │   └── baseline/
     │       ├── sweep-inf.json
     │       ├── sweep-25pct.json

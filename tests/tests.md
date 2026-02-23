@@ -1,26 +1,26 @@
 # Tests Directory
 
-This directory contains all test scenarios organized by testing phase.
+This directory contains all test suites organized by test type.
 
 ## Structure
 
 ```text
 tests/
-├── phase-1-concurrent/         # Concurrent load testing
+├── concurrent-load/           # Concurrent load testing
 │   ├── compose.yaml           # Docker/Podman compose file
 │   ├── model-matrix.yaml      # Which models run which scenarios
 │   └── test-scenarios/        # Test scenario definitions
 │       ├── concurrent-8.yaml
 │       ├── concurrent-16.yaml
 │       └── ...
-├── phase-2-scalability/       # Sweep and throughput tests
+├── scalability/               # Sweep and throughput tests
 │   ├── compose.yaml
 │   ├── model-matrix.yaml
 │   └── test-scenarios/
 │       ├── sweep.yaml
 │       ├── synchronous.yaml
 │       └── ...
-├── phase-3-resource-contention/  # Future: Resource sharing tests
+├── resource-contention/       # Resource sharing tests
 └── embedding-models/          # Embedding model performance tests
     ├── README.md              # Detailed embedding test documentation
     ├── scenarios/             # Baseline and latency test scenarios
@@ -31,28 +31,28 @@ tests/
 
 All test cases use a hierarchical naming scheme for easy identification and tracking:
 
-**Format:** `P{phase}-{TYPE}-{model}-{workload}`
+**Format:** `P{suite}-{TYPE}-{model}-{workload}`
 
 **Components:**
 
-- **Phase**: `P1` (Concurrent), `P2` (Scalability), `P3` (Resource Contention), `EMB` (Embedding)
+- **Suite**: `P1` (Concurrent Load - Test Suite 1), `P2` (Scalability - Test Suite 2), `P3` (Resource Contention - Test Suite 3), `EMB` (Embedding)
 - **Type**: `CONC` (Concurrent), `SWEEP`, `SYNC` (Synchronous), `POISSON`, `BASELINE`, `LATENCY`
 - **Model**: Short abbreviation (e.g., `LLAMA32`, `QWEN06`, `GRANITE32`, `GRANITE-EN`, `GRANITE-ML`)
 - **Workload**: `CHAT`, `RAG`, `CODE`, `SUMM`, `EMB512` (512-token embedding)
 
 **Examples:**
 
-- `P1-CONC-LLAMA32-CHAT`: Phase 1, Concurrent, Llama-3.2-1B, Chat workload
-- `P2-SWEEP-QWEN06-CODE`: Phase 2, Sweep test, Qwen3-0.6B, CodeGen workload
-- `P2-POISSON-GRANITE32-CHAT`: Phase 2, Poisson distribution, Granite-3.2-2B, Chat
+- `P1-CONC-LLAMA32-CHAT`: Test Suite 1 (Concurrent Load), Concurrent, Llama-3.2-1B, Chat workload
+- `P2-SWEEP-QWEN06-CODE`: Test Suite 2 (Scalability), Sweep test, Qwen3-0.6B, CodeGen workload
+- `P2-POISSON-GRANITE32-CHAT`: Test Suite 2 (Scalability), Poisson distribution, Granite-3.2-2B, Chat
 - `EMB-BASELINE-GRANITE-EN-EMB512`: Embedding, Baseline test, Granite English model
 - `EMB-LATENCY-GRANITE-ML-EMB512`: Embedding, Latency test, Granite Multilingual model
 
-See individual phase README files for complete test case listings.
+See individual test suite README files for complete test case listings.
 
-## Test Phases
+## Test Suites
 
-### Phase 1: Concurrent Load Testing
+### Test Suite: Concurrent Load
 
 Tests model performance under various concurrent request loads.
 
@@ -60,7 +60,7 @@ Tests model performance under various concurrent request loads.
 - **Metrics focus**: P95 latency, TTFT, throughput
 - **Goal**: Understand how models scale with parallel requests
 
-### Phase 2: Scalability Testing
+### Test Suite: Scalability
 
 Characterizes maximum throughput and performance curves.
 
@@ -68,7 +68,7 @@ Characterizes maximum throughput and performance curves.
 - **Metrics focus**: Maximum capacity, saturation points
 - **Goal**: Determine optimal operating range
 
-### Phase 3: Resource Contention (Planned)
+### Test Suite: Resource Contention (Planned)
 
 Multi-tenant and resource sharing scenarios.
 
@@ -88,8 +88,8 @@ See [embedding-models/embedding-models.md](embedding-models/embedding-models.md)
 ### With Docker/Podman Compose
 
 ```bash
-# Run entire phase
-cd tests/phase-1-concurrent
+# Run entire test suite
+cd tests/concurrent-load
 docker compose up  # or podman-compose up
 
 # Run specific model and scenario
@@ -99,24 +99,24 @@ MODEL_NAME=llama-3.2-1b SCENARIO=concurrent-8 docker compose up
 ### With Ansible
 
 ```bash
-# Run entire phase
+# Run entire test suite
 cd automation/test-execution/ansible
-ansible-playbook playbooks/run-phase.yml -e "phase=phase-1-concurrent"
+ansible-playbook playbooks/run-suite.yml -e "test_suite=concurrent-load"
 
 # Run specific model
 ansible-playbook playbooks/run-model.yml \
   -e "model_name=llama-3.2-1b" \
-  -e "phase=phase-1-concurrent"
+  -e "test_suite=concurrent-load"
 ```
 
 ### With Bash Wrappers
 
 ```bash
-# Run a phase
-automation/test-execution/bash/run-phase.sh phase-1-concurrent
+# Run a test suite
+automation/test-execution/bash/run-suite.sh concurrent-load
 
 # Run a single model
-automation/test-execution/bash/run-model.sh llama-3.2-1b phase-1-concurrent
+automation/test-execution/bash/run-model.sh llama-3.2-1b concurrent-load
 ```
 
 ## Model Matrix
@@ -124,7 +124,7 @@ automation/test-execution/bash/run-model.sh llama-3.2-1b phase-1-concurrent
 Model definitions are centralized in the `models/` directory (e.g.,
 `models/embedding-models/model-matrix.yaml`), which defines which models run
 which test scenarios. This allows flexible testing without duplicating
-model configurations across test phases.
+model configurations across test suites.
 
 Example:
 

@@ -59,7 +59,7 @@ Examples:
     $0 --vllm-host 192.168.1.10
 
     # Test specific models
-    $0 --models "ibm-granite/granite-embedding-english-r2 Salesforce/slate-125m-english-rtrvr-v2"
+    $0 --models "ibm-granite/granite-embedding-english-r2 ibm-granite/granite-embedding-278m-multilingual"
 
     # Run only baseline tests
     $0 --baseline-only

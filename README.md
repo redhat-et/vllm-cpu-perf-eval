@@ -13,13 +13,13 @@ systems.
 cd automation/platform-setup/ansible
 ansible-playbook playbooks/site.yml -i inventory/hosts.yml
 
-# 2. Run a test phase
+# 2. Run a test suite
 cd ../../test-execution/ansible
-ansible-playbook playbooks/run-phase.yml -e "phase=phase-1-concurrent"
+ansible-playbook playbooks/run-suite.yml -e "test_suite=concurrent-load"
 
 # 3. Generate report
 cd ../analysis
-python generate-report.py --input ../../results/phase-1/ --format html
+python generate-report.py --input ../../results/concurrent-load/ --format html
 ```
 
 See [Quick Start Guide](docs/getting-started/quick-start.md) for detailed
@@ -30,10 +30,10 @@ instructions.
 ```text
 vllm-cpu-perf-eval/
 ├── models/                  # Centralized model definitions
-├── tests/                   # Test scenarios organized by phase
-│   ├── phase-1-concurrent/
-│   ├── phase-2-scalability/
-│   └── phase-3-resource-contention/
+├── tests/                   # Test suites organized by type
+│   ├── concurrent-load/
+│   ├── scalability/
+│   └── resource-contention/
 ├── containers/              # Container definitions (Docker/Podman)
 ├── automation/              # Automation scripts and playbooks
 │   ├── platform-setup/      # System configuration
@@ -75,11 +75,11 @@ See individual directory README files for detailed information.
 - **Docker/Podman Compose** for containerized testing
 - **Distributed testing** across multiple nodes
 
-### Multiple Test Phases
+### Multiple Test Suites
 
-- **Phase 1**: Concurrent load testing
-- **Phase 2**: Scalability and sweep testing
-- **Phase 3**: Resource contention (planned)
+- **Concurrent Load**: Concurrent load testing
+- **Scalability**: Scalability and sweep testing
+- **Resource Contention**: Resource contention testing (planned)
 
 ## Testing Workflow
 
@@ -104,12 +104,12 @@ See [Platform Setup Guide](docs/platform-setup/) for details.
 Execute performance tests using Ansible or Docker/Podman:
 
 ```bash
-# Ansible - Run entire phase
+# Ansible - Run entire test suite
 cd automation/test-execution/ansible
-ansible-playbook playbooks/run-phase.yml -e "phase=phase-1-concurrent"
+ansible-playbook playbooks/run-suite.yml -e "test_suite=concurrent-load"
 
 # Docker/Podman - Run specific test
-cd tests/phase-1-concurrent
+cd tests/concurrent-load
 MODEL_NAME=llama-3.2-1b SCENARIO=concurrent-8 docker compose up
 ```
 
@@ -122,9 +122,9 @@ Generate reports and compare results:
 ```bash
 cd automation/analysis
 python generate-report.py \
-  --input ../../results/phase-1/ \
+  --input ../../results/concurrent-load/ \
   --format html \
-  --output ../../results/reports/phase-1.html
+  --output ../../results/reports/concurrent-load.html
 ```
 
 See [Reporting Guide](docs/methodology/reporting.md) for details.
@@ -140,9 +140,9 @@ See [Reporting Guide](docs/methodology/reporting.md) for details.
 
 Full documentation index: [docs/docs.md](docs/docs.md)
 
-## Test Phases
+## Test Suites
 
-### Phase 1: Concurrent Load Testing
+### Test Suite: Concurrent Load
 
 Tests model performance under various concurrent request loads.
 
@@ -150,7 +150,7 @@ Tests model performance under various concurrent request loads.
 - 8 LLM models + 2 embedding models
 - Focus: P95 latency, TTFT, throughput scaling
 
-### Phase 2: Scalability Testing
+### Test Suite: Scalability
 
 Characterizes maximum throughput and performance curves.
 
@@ -159,7 +159,7 @@ Characterizes maximum throughput and performance curves.
 - Poisson distribution tests
 - Focus: Maximum capacity, saturation points
 
-### Phase 3: Resource Contention (Planned)
+### Test Suite: Resource Contention (Planned)
 
 Multi-tenant and resource sharing scenarios.
 
