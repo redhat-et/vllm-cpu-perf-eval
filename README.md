@@ -167,21 +167,21 @@ Multi-tenant and resource sharing scenarios.
 
 Current model coverage:
 
-**LLM Models:**
+**LLM Models (8 total):**
 
-- Llama-3.2 (1B, 3B)
-- TinyLlama-1.1B
-- OPT (125M, 1.3B)
-- Granite-3.0-2B
-- Qwen2.5 (0.5B, 3B)
+- Llama-3.2 (1B, 3B) - Prefill-heavy
+- TinyLlama-1.1B - Balanced small-scale
+- OPT (125M, 1.3B) - Decode-heavy legacy baseline
+- Granite-3.2-2B - Balanced enterprise
+- Qwen3-0.6B, Qwen2.5-3B - High-efficiency balanced
 
 **Embedding Models:**
 
-- BGE-base-en-v1.5
-- BGE-large-en-v1.5
+- granite-embedding-english-r2
+- granite-embedding-278m-multilingual
 
-See [models/models.md](models/models.md) for model definitions and how to
-add new models.
+See [models/models.md](models/models.md) for complete model definitions,
+selection rationale, and how to add new models.
 
 ## Requirements
 
@@ -252,6 +252,16 @@ pre-commit install --hook-type commit-msg
 # Run manually
 pre-commit run --all-files
 ```
+
+### Roadmap and Future Work
+
+See [TODO.md](TODO.md) for planned features and enhancements, including:
+
+- External vLLM endpoint support
+- Real-time output streaming
+- Grafana dashboards
+- Docker Compose integration
+- Additional load generators
 
 ## License
 
