@@ -57,26 +57,29 @@ Run performance tests using container-based workflows.
 ```bash
 cd automation/test-execution/ansible
 
-# Run entire test phase
-ansible-playbook playbooks/run-phase.yml -e "phase=phase-1-concurrent"
+# Run entire test suite
+ansible-playbook playbooks/run-suite.yml -e "test_suite=concurrent-load"
 
 # Run specific model
 ansible-playbook playbooks/run-model.yml \
   -e "model_name=llama-3.2-1b" \
-  -e "phase=phase-1-concurrent"
+  -e "test_suite=concurrent-load"
 
 # Distributed testing across multiple nodes
 ansible-playbook playbooks/distributed-tests.yml
 ```
 
+**Note:** The `phase` parameter is deprecated. Use `test_suite` with the new suite names:
+`concurrent-load`, `scalability`, `resource-contention`.
+
 ### Using Bash Scripts (Test Execution)
 
 ```bash
-# Run a phase
-automation/test-execution/bash/run-phase.sh phase-1-concurrent
+# Run a test suite
+automation/test-execution/bash/run-suite.sh concurrent-load
 
 # Run a single model
-automation/test-execution/bash/run-model.sh llama-3.2-1b phase-1-concurrent
+automation/test-execution/bash/run-model.sh llama-3.2-1b concurrent-load
 ```
 
 ## Results Analysis
