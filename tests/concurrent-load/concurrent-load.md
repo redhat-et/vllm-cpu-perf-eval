@@ -93,7 +93,7 @@ Concurrency levels: **{4, 8, 16, 32, 64}**
 ### Option 1: Docker/Podman Compose
 
 ```bash
-# Run all tests in this phase
+# Run all concurrent load tests
 docker compose up
 
 # Run specific model and scenario

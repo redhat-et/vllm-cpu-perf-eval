@@ -130,7 +130,7 @@ Example:
 
 ```yaml
 matrix:
-  phase: "phase-1"
+  test_suite: "concurrent-load"
   llm_models:
     - model: "llama-3.2-1b"
       scenarios:
@@ -143,7 +143,7 @@ matrix:
 
 Test results are written to the `results/` directory, organized by:
 
-- Phase
+- Test Suite
 - Model
 - Host (for distributed testing)
 
