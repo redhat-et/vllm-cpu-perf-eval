@@ -13,9 +13,9 @@ playbooks/
 │       ├── baseline.yml         # Baseline sweep tests
 │       ├── latency.yml          # Latency/concurrency tests
 │       └── core-iteration.yml   # Single core count iteration
-├── llm/                         # LLM generative model tests (future)
-│   ├── run-phase-1.yml
-│   ├── run-phase-2.yml
+├── llm/                         # LLM generative model tests
+│   ├── run-guidellm-test.yml
+│   ├── run-guidellm-test-auto.yml
 │   └── tasks/
 ├── common/                      # Shared playbooks
 │   ├── start-vllm-server.yml    # Start vLLM container on DUT

@@ -10,29 +10,29 @@ patterns:
 
 ```text
 results/
-├── by-phase/              # Organized by test phase
-│   ├── phase-1-concurrent/
+├── by-suite/             # Organized by test suite
+│   ├── concurrent-load/
 │   │   ├── llama-3.2-1b/
 │   │   │   ├── concurrent-8.json
 │   │   │   ├── concurrent-16.json
 │   │   │   └── ...
 │   │   ├── llama-3.2-3b/
 │   │   └── ...
-│   └── phase-2-scalability/
+│   └── scalability/
 │
 ├── by-model/             # Organized by model
 │   ├── llama-3.2-1b/
-│   │   ├── phase-1/
+│   │   ├── concurrent-load/
 │   │   │   ├── concurrent-8.json
 │   │   │   └── ...
-│   │   ├── phase-2/
-│   │   └── phase-3/
+│   │   ├── scalability/
+│   │   └── resource-contention/
 │   └── llama-3.2-3b/
 │
 ├── by-host/              # Organized by test host (distributed testing)
 │   ├── test-node-01/
-│   │   ├── phase-1/
-│   │   └── phase-2/
+│   │   ├── concurrent-load/
+│   │   └── scalability/
 │   └── test-node-02/
 │
 ├── reports/              # Generated reports
@@ -57,7 +57,7 @@ Test results are stored in JSON format following GuideLLM's output schema:
   "test_info": {
     "model": "llama-3.2-1b",
     "scenario": "concurrent-8",
-    "phase": "phase-1-concurrent",
+    "test_suite": "concurrent-load",
     "timestamp": "2024-02-13T10:30:00Z"
   },
   "metrics": {
@@ -77,24 +77,24 @@ Test results are stored in JSON format following GuideLLM's output schema:
 ```bash
 cd automation/analysis
 python generate-report.py \
-  --input ../../results/by-phase/phase-1-concurrent \
+  --input ../../results/by-suite/concurrent-load \
   --format html \
-  --output ../../results/reports/html/phase-1.html
+  --output ../../results/reports/html/concurrent-load.html
 ```text
 
 ### Compare Results
 
 ```bash
 python compare-results.py \
-  --baseline ../../results/archives/2024-02-13/phase-1 \
-  --current ../../results/by-phase/phase-1-concurrent
+  --baseline ../../results/archives/2024-02-13/concurrent-load \
+  --current ../../results/by-suite/concurrent-load
 ```text
 
 ### GuideLLM CLI
 
 ```bash
 guidellm report generate \
-  --input results/by-phase/phase-1-concurrent/llama-3.2-1b/concurrent-8.json
+  --input results/by-suite/concurrent-load/llama-3.2-1b/concurrent-8.json
 ```text
 
 ## Archiving Results
@@ -103,7 +103,7 @@ Results can be archived with timestamps for long-term storage:
 
 ```bash
 # Manual archive
-./automation/utilities/archive-results.sh phase-1-concurrent
+./automation/utilities/archive-results.sh concurrent-load
 
 # Automated archiving (run after test completion)
 cd automation/test-execution/ansible
@@ -118,8 +118,8 @@ To remove old results and free disk space:
 # Clean results older than 30 days
 ./automation/utilities/cleanup-results.sh --days 30
 
-# Clean specific phase
-./automation/utilities/cleanup-results.sh --phase phase-1-concurrent
+# Clean specific test suite
+./automation/utilities/cleanup-results.sh --suite concurrent-load
 ```text
 
 ## Result Collection (Distributed Testing)
