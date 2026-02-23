@@ -91,9 +91,9 @@ cd automation/analysis
 
 # Generate HTML report
 python generate-report.py \
-  --input ../../results/phase-1/ \
+  --input ../../results/by-suite/concurrent-load/ \
   --format html \
-  --output ../../results/reports/phase-1-report.html
+  --output ../../results/reports/concurrent-load-report.html
 
 # Compare multiple test runs
 python compare-results.py \
