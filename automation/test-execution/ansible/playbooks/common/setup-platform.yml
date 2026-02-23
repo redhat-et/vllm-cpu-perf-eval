@@ -118,6 +118,9 @@
       ansible.builtin.set_fact:
         kernel_cmdline: "isolcpus=managed_irq,domain,{{ isolated_cpus }} nohz_full={{ isolated_cpus }} rcu_nocbs={{ isolated_cpus }} irqaffinity={{ housekeeping_cpus }} intel_pstate=disable cpufreq.default_governor=performance"
 
+    # NOTE: preempt=full should ONLY be enabled for load_generator hosts
+    # It improves latency for benchmarking tools but is NOT recommended for ML workloads (DUT)
+    # Override platform_setup.preempt_full per host group in inventory if needed
     - name: Add preempt=full if requested
       ansible.builtin.set_fact:
         kernel_cmdline: "{{ kernel_cmdline }} preempt=full"

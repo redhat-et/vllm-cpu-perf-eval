@@ -2,6 +2,10 @@
 # Clean Restart of vLLM Container
 # Ensures fresh state between tests for accurate results
 # Can be included by any playbook that needs clean vLLM restart
+#
+# TODO: Add support for multiple vLLM instances running concurrently
+#       Currently assumes single container named {{ vllm_container_name }}
+#       Future: Support container name patterns or list of instances
 
 - name: Check if vLLM container exists
   ansible.builtin.shell:
