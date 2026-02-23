@@ -71,7 +71,7 @@ Examples:
 
     # Test with environment variables
     VLLM_HOST=10.0.0.5 CONCURRENCY_LEVELS="16 32 64" $0 \\
-        Salesforce/slate-125m-english-rtrvr-v2
+        ibm-granite/granite-embedding-english-r2
 
 EOF
 }

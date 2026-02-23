@@ -78,13 +78,11 @@ The test suite focuses on representative models from different architecture fami
 |-------------------|---------------------|-------------------|------------|
 | MiniLM/BERT (English Dense) | ibm-granite/granite-embedding-english-r2 | Encoder-Only (Fastest Baseline) | ~110M |
 | XLM-RoBERTa (Multilingual Dense) | ibm-granite/granite-embedding-278m-multilingual | Encoder-Only (Multilingual) | ~278M |
-| SLATE (English Retrieval) | Salesforce/slate-125m-english-rtrvr-v2 | Encoder-Only (Retrieval) | ~125M |
 
 ### Model Selection Rationale
 
 - **Granite English R2**: Fast baseline for English-only workloads
 - **Granite Multilingual**: Broader language support with reasonable performance
-- **SLATE**: Optimized for retrieval tasks
 
 See [model-matrix.yaml](model-matrix.yaml) for complete model definitions and configurations.
 
@@ -745,8 +743,7 @@ done
 # Test multiple models across both test types
 for model in \
   "ibm-granite/granite-embedding-english-r2" \
-  "ibm-granite/granite-embedding-278m-multilingual" \
-  "Salesforce/slate-125m-english-rtrvr-v2"; do
+  "ibm-granite/granite-embedding-278m-multilingual"; do
 
   echo "Testing $model..."
 
@@ -963,13 +960,11 @@ Embedding test cases follow the hierarchical naming scheme:
 - **Model**: Short abbreviation
   - `GRANITE-EN`: ibm-granite/granite-embedding-english-r2
   - `GRANITE-ML`: ibm-granite/granite-embedding-278m-multilingual
-  - `SLATE-EN`: Salesforce/slate-125m-english-rtrvr-v2
 - **Workload**: `EMB512` (512-token embedding)
 
 **Examples**:
 - `EMB-BASELINE-GRANITE-EN-EMB512`: Baseline test, Granite English model
 - `EMB-LATENCY-GRANITE-ML-EMB512`: Latency test, Granite Multilingual model
-- `EMB-BASELINE-SLATE-EN-EMB512`: Baseline test, SLATE English model
 
 **Usage in Results**:
 ```text

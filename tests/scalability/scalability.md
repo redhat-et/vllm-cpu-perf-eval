@@ -61,7 +61,7 @@ Poisson tests to measure responsiveness to bursty traffic patterns.
 
 | Test ID | Test Type | Model | Workload | Primary Metric Focus |
 | --- | --- | --- | --- | --- |
-| P2-SWEEP-SLATE125M-EMB | sweep | slate-125m-english-rtrvr-v2 | Embedding (512:1) | English Embedding Throughput |
+| P2-SWEEP-GRANITE-EN-R2-EMB | sweep | granite-embedding-english-r2 | Embedding (512:1) | English Embedding Throughput |
 | P2-SWEEP-GRANITE-EMB278M-EMB | sweep | granite-embedding-278m-multilingual | Embedding (512:1) | Multilingual Embedding Throughput |
 
 <!-- markdownlint-enable MD013 -->
@@ -142,30 +142,30 @@ guidellm benchmark \
 #### Embedding Model Sweep
 
 ```bash
-# Example: Test 2.11 - slate-125m sweep simulation
+# Example: Test 2.11 - granite-embedding-english-r2 sweep simulation
 
 # 1. Find max throughput (infinite rate)
 vllm bench serve --backend openai-embeddings \
-  --model slate-125m-english-rtrvr-v2 \
+  --model ibm-granite/granite-embedding-english-r2 \
   --dataset-name random \
   --random-input-len 512 \
   --num-prompts 1000 \
   --endpoint /v1/embeddings \
   --save-result \
-  --result-filename "slate-125m-sweep-inf.json"
+  --result-filename "granite-en-r2-sweep-inf.json"
 
 # 2. Test at 25%, 50%, 75% of max
 # If max was 42 req/s, test at: 10, 21, 31 req/s
 for rate in 10 21 31; do
   vllm bench serve --backend openai-embeddings \
-    --model slate-125m-english-rtrvr-v2 \
+    --model ibm-granite/granite-embedding-english-r2 \
     --dataset-name random \
     --random-input-len 512 \
     --num-prompts 1000 \
     --endpoint /v1/embeddings \
     --request-rate $rate \
     --save-result \
-    --result-filename "slate-125m-sweep-${rate}rps.json"
+    --result-filename "granite-en-r2-sweep-${rate}rps.json"
 done
 ```text
 

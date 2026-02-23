@@ -60,7 +60,7 @@ Examples:
     $0 ibm-granite/granite-embedding-278m-multilingual --vllm-host 192.168.1.10
 
     # Custom configuration
-    VLLM_HOST=10.0.0.5 VLLM_PORT=8080 $0 Salesforce/slate-125m-english-rtrvr-v2
+    VLLM_HOST=10.0.0.5 VLLM_PORT=8080 $0 ibm-granite/granite-embedding-english-r2
 
 EOF
 }
