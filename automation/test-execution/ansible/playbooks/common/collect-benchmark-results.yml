@@ -1,0 +1,71 @@
+---
+# Collect Benchmark Results from Load Generator
+# Works with both managed and external vLLM endpoints
+# Can be imported by other playbooks or run standalone
+
+- name: "Collect Results - Setup"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    collection_id: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
+
+  tasks:
+    - name: Set collection_id fact for all hosts
+      ansible.builtin.set_fact:
+        collection_id: "{{ collection_id }}"
+      delegate_to: "{{ item }}"
+      delegate_facts: true
+      loop: "{{ groups['all'] }}"
+
+    - name: Display results collection info
+      ansible.builtin.debug:
+        msg:
+          - "Results Collection ID: {{ collection_id }}"
+          - "Load Generator: {{ groups['load_generator'][0] }}"
+
+# ==============================================================================
+# Collect Test Results from Load Generator
+# ==============================================================================
+
+- name: "Collect Test Results"
+  hosts: load_generator
+  gather_facts: false
+
+  tasks:
+    - name: Check if results directory exists
+      ansible.builtin.stat:
+        path: "{{ bench_config.results_dir }}"
+      register: results_dir_stat
+
+    - name: Fetch test results to controller
+      ansible.posix.synchronize:
+        src: "{{ bench_config.results_dir }}/"
+        dest: "{{ playbook_dir }}/../../../results/benchmark-results/"
+        mode: pull
+        recursive: true
+      when: results_dir_stat.stat.exists
+
+    - name: Display results collection status
+      ansible.builtin.debug:
+        msg: "{{ 'Results fetched from ' + bench_config.results_dir if results_dir_stat.stat.exists else 'No results directory found' }}"
+
+# ==============================================================================
+# Summary
+# ==============================================================================
+
+- name: "Results Collection Summary"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    collection_id: "{{ hostvars['localhost']['collection_id'] | default(lookup('pipe', 'date +%Y%m%d-%H%M%S')) }}"
+
+  tasks:
+    - name: Display collection summary
+      ansible.builtin.debug:
+        msg:
+          - "✓ Results Collection Complete!"
+          - "Collection ID: {{ collection_id }}"
+          - "Results saved to: results/benchmark-results/"
+          - ""
+          - "View results:"
+          - "  ls -lh results/benchmark-results/"

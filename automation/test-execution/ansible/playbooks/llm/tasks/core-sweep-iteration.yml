@@ -3,10 +3,11 @@
 # Handles one core config: clean restart → start vLLM → test → collect → cleanup
 
 # ==============================================================================
-# STEP 1: Start vLLM with specific core configuration on DUT
+# STEP 1: Start vLLM with specific core configuration on DUT (Managed Mode Only)
 # ==============================================================================
 
 - name: "Deploy vLLM with {{ current_core_config.name }}"
+  when: hostvars['localhost']['vllm_mode'] | default('managed') == 'managed'
   hosts: dut
   become: true
   vars:
@@ -57,7 +58,7 @@
 
 - name: "Run GuideLLM with {{ hostvars['localhost']['current_core_config'].name }}"
   hosts: load_generator
-  become: true
+  become: "{{ ansible_connection != 'local' }}"
   vars:
     core_configuration: "{{ hostvars['localhost']['current_core_config'] }}"
 
@@ -89,10 +90,11 @@
         dest: "{{ bench_config.results_dir }}/{{ test_model | basename }}/{{ workload_type }}/{{ core_configuration.name }}/test-metadata.json"
 
 # ==============================================================================
-# STEP 4: Collect Logs for This Iteration
+# STEP 4: Collect Logs for This Iteration (Managed Mode Only)
 # ==============================================================================
 
 - name: "Collect vLLM logs for {{ hostvars['localhost']['current_core_config'].name }}"
+  when: hostvars['localhost']['vllm_mode'] | default('managed') == 'managed'
   hosts: dut
   become: true
   vars:
@@ -111,10 +113,11 @@
         dest: "{{ log_dir }}/vllm-{{ core_configuration.name }}-{{ hostvars['localhost']['test_run_id'] }}.log"
 
 # ==============================================================================
-# STEP 5: Stop vLLM Container (Clean Restart for Next Iteration)
+# STEP 5: Stop vLLM Container (Clean Restart for Next Iteration, Managed Mode Only)
 # ==============================================================================
 
 - name: "Stop vLLM container ({{ hostvars['localhost']['current_core_config'].name }})"
+  when: hostvars['localhost']['vllm_mode'] | default('managed') == 'managed'
   hosts: dut
   become: true
 

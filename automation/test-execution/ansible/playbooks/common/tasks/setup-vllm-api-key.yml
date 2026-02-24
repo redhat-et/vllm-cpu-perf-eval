@@ -1,0 +1,76 @@
+---
+# Setup vLLM API Key for External Endpoints
+# Supports multiple sources: environment variable, file, Ansible vault, prompt
+# Sets vllm_api_key fact for use in health checks and benchmarks
+
+- name: Get vLLM API key from environment variable
+  ansible.builtin.set_fact:
+    vllm_api_key: "{{ lookup('env', vllm_endpoint.external.api_key.env_var) }}"
+  when:
+    - vllm_endpoint.external.api_key.source == 'env'
+    - vllm_api_key is not defined
+  no_log: true
+
+- name: Get vLLM API key from file
+  ansible.builtin.slurp:
+    src: "{{ vllm_endpoint.external.api_key.file_path }}"
+  register: vllm_api_key_file_content
+  when:
+    - vllm_endpoint.external.api_key.source == 'file'
+    - vllm_api_key is not defined
+    - vllm_endpoint.external.api_key.file_path is defined
+  no_log: true
+
+- name: Set vLLM API key from file content
+  ansible.builtin.set_fact:
+    vllm_api_key: "{{ vllm_api_key_file_content.content | b64decode | trim }}"
+  when:
+    - vllm_endpoint.external.api_key.source == 'file'
+    - vllm_api_key_file_content is defined
+  no_log: true
+
+- name: Get vLLM API key from Ansible vault
+  ansible.builtin.set_fact:
+    vllm_api_key: "{{ vllm_endpoint.external.api_key.vault_var }}"
+  when:
+    - vllm_endpoint.external.api_key.source == 'vault'
+    - vllm_api_key is not defined
+    - vllm_endpoint.external.api_key.vault_var is defined
+  no_log: true
+
+- name: Prompt for vLLM API key
+  ansible.builtin.pause:
+    prompt: "Enter your vLLM API key"
+    echo: false
+  register: vllm_api_key_prompt
+  when:
+    - vllm_endpoint.external.api_key.source == 'prompt'
+    - vllm_api_key is not defined
+  no_log: true
+
+- name: Set vLLM API key from prompt
+  ansible.builtin.set_fact:
+    vllm_api_key: "{{ vllm_api_key_prompt.user_input }}"
+  when:
+    - vllm_endpoint.external.api_key.source == 'prompt'
+    - vllm_api_key_prompt is defined
+  no_log: true
+
+- name: Validate vLLM API key is set
+  ansible.builtin.assert:
+    that:
+      - vllm_api_key is defined
+      - vllm_api_key | length > 0
+    fail_msg: |
+      vLLM API key is not set. Configure one of:
+      1. Environment variable: export {{ vllm_endpoint.external.api_key.env_var }}=<key>
+      2. File: Set vllm_endpoint.external.api_key.file_path in inventory
+      3. Vault: Set vllm_endpoint.external.api_key.vault_var in inventory
+      4. Prompt: Set vllm_endpoint.external.api_key.source=prompt in inventory
+    success_msg: "✓ vLLM API key configured"
+  no_log: true
+
+- name: Display API key source (masked)
+  ansible.builtin.debug:
+    msg: "vLLM API key loaded from: {{ vllm_endpoint.external.api_key.source }} (***{{ vllm_api_key[-4:] }})"
+  when: vllm_api_key is defined

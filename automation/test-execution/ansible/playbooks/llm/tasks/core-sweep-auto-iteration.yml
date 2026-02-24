@@ -3,10 +3,11 @@
 # Allocates cores from NUMA topology and runs one test
 
 # ==============================================================================
-# STEP 1: Allocate Cores from NUMA Topology
+# STEP 1: Allocate Cores from NUMA Topology (Managed Mode Only)
 # ==============================================================================
 
 - name: "Allocate {{ current_cores }} cores from NUMA topology"
+  when: hostvars['localhost']['vllm_mode'] | default('managed') == 'managed'
   hosts: dut
   become: true
   vars:
@@ -28,10 +29,11 @@
       delegate_facts: true
 
 # ==============================================================================
-# STEP 2: Clean Restart vLLM
+# STEP 2: Clean Restart vLLM (Managed Mode Only)
 # ==============================================================================
 
 - name: "Clean restart vLLM for {{ hostvars['localhost']['current_cores'] }} cores"
+  when: hostvars['localhost']['vllm_mode'] | default('managed') == 'managed'
   hosts: dut
   become: true
 
@@ -41,10 +43,11 @@
         file: ../../common/tasks/clean-restart-vllm.yml
 
 # ==============================================================================
-# STEP 3: Start vLLM with Auto-Allocated Configuration
+# STEP 3: Start vLLM with Auto-Allocated Configuration (Managed Mode Only)
 # ==============================================================================
 
 - name: "Start vLLM with {{ hostvars['localhost']['current_cores'] }} cores"
+  when: hostvars['localhost']['vllm_mode'] | default('managed') == 'managed'
   hosts: dut
   become: true
   vars:
@@ -128,10 +131,11 @@
         dest: "{{ bench_config.results_dir }}/{{ test_model | basename }}/{{ workload_type }}/{{ core_configuration.name }}/test-metadata.json"
 
 # ==============================================================================
-# STEP 6: Collect Logs
+# STEP 6: Collect Logs (Managed Mode Only)
 # ==============================================================================
 
 - name: "Collect logs for {{ hostvars['localhost']['current_cores'] }} cores"
+  when: hostvars['localhost']['vllm_mode'] | default('managed') == 'managed'
   hosts: dut
   become: true
   vars:
@@ -150,10 +154,11 @@
         dest: "{{ log_dir }}/vllm-{{ core_configuration.name }}-{{ hostvars['localhost']['test_run_id'] }}.log"
 
 # ==============================================================================
-# STEP 7: Stop vLLM Container (Clean for Next Iteration)
+# STEP 7: Stop vLLM Container (Clean for Next Iteration, Managed Mode Only)
 # ==============================================================================
 
 - name: "Stop vLLM container ({{ hostvars['localhost']['current_cores'] }} cores)"
+  when: hostvars['localhost']['vllm_mode'] | default('managed') == 'managed'
   hosts: dut
   become: true
 

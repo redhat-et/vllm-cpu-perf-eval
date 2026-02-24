@@ -16,8 +16,18 @@
           - "DUT Host: {{ groups['dut'][0] }}"
           - "Load Generator Host: {{ groups['load_generator'][0] }}"
 
+    - name: Set vLLM mode
+      ansible.builtin.set_fact:
+        vllm_mode: "{{ vllm_endpoint.mode | default('managed') }}"
+
+    - name: Display vLLM configuration
+      ansible.builtin.debug:
+        msg:
+          - "vLLM Mode: {{ vllm_mode }}"
+          - "{{ 'External Endpoint: ' + vllm_endpoint.external.url if vllm_mode == 'external' else 'Managed on DUT: ' + groups['dut'][0] }}"
+
 # ==============================================================================
-# PHASE 1: Prepare and Start vLLM Server on DUT
+# PHASE 1: Prepare and Start vLLM Server on DUT (Managed Mode Only)
 # ==============================================================================
 
 - name: "Phase 1 - Start vLLM Server on DUT"
@@ -27,102 +37,115 @@
     model_name: "{{ test_model | default('ibm-granite/granite-embedding-278m-multilingual') }}"
 
   tasks:
-    - name: Create log directory on DUT
-      ansible.builtin.file:
-        path: "{{ log_dir }}"
-        state: directory
-        mode: "0755"
+    - block:
+        - name: Create log directory on DUT
+          ansible.builtin.file:
+            path: "{{ log_dir }}"
+            state: directory
+            mode: "0755"
 
-    - name: Create model cache directory
-      ansible.builtin.file:
-        path: "{{ model_cache_dir }}"
-        state: directory
-        mode: "0755"
+        - name: Create model cache directory
+          ansible.builtin.file:
+            path: "{{ model_cache_dir }}"
+            state: directory
+            mode: "0755"
 
-    - name: Pull vLLM container image
-      containers.podman.podman_image:
-        name: "{{ vllm_server.container_image }}"
-        state: present
-      when: vllm_server.container_runtime == 'podman'
+        - name: Pull vLLM container image
+          containers.podman.podman_image:
+            name: "{{ vllm_server.container_image }}"
+            state: present
+          when: vllm_server.container_runtime == 'podman'
 
-    - name: Stop any existing vLLM container
-      containers.podman.podman_container:
-        name: vllm-embedding-server
-        state: absent
-      ignore_errors: true
-      when: vllm_server.container_runtime == 'podman'
+        - name: Stop any existing vLLM container
+          containers.podman.podman_container:
+            name: vllm-embedding-server
+            state: absent
+          ignore_errors: true
+          when: vllm_server.container_runtime == 'podman'
 
-    - name: Start vLLM server in container
-      containers.podman.podman_container:
-        name: vllm-embedding-server
-        image: "{{ vllm_server.container_image }}"
-        state: started
-        restart_policy: "no"
-        detach: true
-        network: host
-        volumes:
-          - "{{ model_cache_dir }}:/root/.cache/huggingface:rw"
-          - "{{ log_dir }}:/var/log/vllm:rw"
-        env: "{{ vllm_env }}"
-        command: >
-          --model {{ model_name }}
-          --host {{ vllm_server.host }}
-          --port {{ vllm_server.port }}
-          --dtype bfloat16
-          --max-model-len 512
-        log_driver: journald
-        log_opt:
-          tag: vllm-embedding
-      when: vllm_server.container_runtime == 'podman'
-      register: vllm_container
+        - name: Start vLLM server in container
+          containers.podman.podman_container:
+            name: vllm-embedding-server
+            image: "{{ vllm_server.container_image }}"
+            state: started
+            restart_policy: "no"
+            detach: true
+            network: host
+            volumes:
+              - "{{ model_cache_dir }}:/root/.cache/huggingface:rw"
+              - "{{ log_dir }}:/var/log/vllm:rw"
+            env: "{{ vllm_env }}"
+            command: >
+              --model {{ model_name }}
+              --host {{ vllm_server.host }}
+              --port {{ vllm_server.port }}
+              --dtype bfloat16
+              --max-model-len 512
+            log_driver: journald
+            log_opt:
+              tag: vllm-embedding
+          when: vllm_server.container_runtime == 'podman'
+          register: vllm_container
 
-    - name: Display vLLM container start info
-      ansible.builtin.debug:
-        msg:
-          - "vLLM Container ID: {{ vllm_container.container.Id | default('N/A') }}"
-          - "vLLM Server: http://{{ ansible_host }}:{{ vllm_server.port }}"
-          - "Model: {{ model_name }}"
-          - "Check logs: journalctl -t vllm-embedding -f"
+        - name: Display vLLM container start info
+          ansible.builtin.debug:
+            msg:
+              - "vLLM Container ID: {{ vllm_container.container.Id | default('N/A') }}"
+              - "vLLM Server: http://{{ ansible_host }}:{{ vllm_server.port }}"
+              - "Model: {{ model_name }}"
+              - "Check logs: journalctl -t vllm-embedding -f"
 
-    - name: Wait a few seconds for container to initialize
-      ansible.builtin.pause:
-        seconds: 10
+        - name: Wait a few seconds for container to initialize
+          ansible.builtin.pause:
+            seconds: 10
 
+      when: hostvars['localhost']['vllm_mode'] == 'managed'
+# ==============================================================================
+# PHASE 1-External: Configure External Endpoint (External Mode Only)
+# ==============================================================================
+
+- name: "Phase 1-External - Configure External Endpoint"
+  hosts: load_generator
+  gather_facts: false
+
+  tasks:
+    - block:
+        - name: Validate external endpoint URL
+          ansible.builtin.assert:
+            that:
+              - vllm_endpoint.external.url is defined
+              - vllm_endpoint.external.url is not none
+              - vllm_endpoint.external.url | length > 0
+            fail_msg: "External endpoint URL is required when mode=external"
+
+        - name: Parse external endpoint URL
+          ansible.builtin.set_fact:
+            external_endpoint_parsed: "{{ vllm_endpoint.external.url | urlsplit }}"
+
+        - name: Override bench_config for external endpoint
+          ansible.builtin.set_fact:
+            bench_config: "{{ bench_config | combine({'vllm_host': external_endpoint_parsed.hostname, 'vllm_port': external_endpoint_parsed.port | default(8000) | int}) }}"
+
+        - name: Setup API key if enabled
+          ansible.builtin.include_tasks:
+            file: ../common/tasks/setup-vllm-api-key.yml
+          when: vllm_endpoint.external.api_key.enabled | default(false) | bool
+
+        - name: Display external endpoint configuration
+          ansible.builtin.debug:
+            msg:
+              - "External vLLM Endpoint: {{ vllm_endpoint.external.url }}"
+              - "Parsed Host: {{ bench_config.vllm_host }}"
+              - "Parsed Port: {{ bench_config.vllm_port }}"
+              - "{{ 'API Key: Enabled' if vllm_api_key is defined else 'API Key: Not configured' }}"
+
+      when: hostvars['localhost']['vllm_mode'] == 'external'
 # ==============================================================================
 # PHASE 2: Health Check - Wait for vLLM to be Ready
 # ==============================================================================
 
 - name: "Phase 2 - Wait for vLLM Server to be Ready"
-  hosts: load_generator
-  gather_facts: false
-
-  tasks:
-    - name: Wait for vLLM health endpoint
-      ansible.builtin.uri:
-        url: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/health"
-        method: GET
-        status_code: 200
-      register: health_check
-      retries: "{{ health_check.timeout // health_check.interval }}"
-      delay: "{{ health_check.interval }}"
-      until: health_check.status == 200
-
-    - name: Display vLLM server status
-      ansible.builtin.debug:
-        msg:
-          - "vLLM Server is READY!"
-          - "Health check: {{ health_check.json | default('OK') }}"
-
-    - name: Verify vLLM /v1/models endpoint
-      ansible.builtin.uri:
-        url: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/v1/models"
-        method: GET
-        status_code: 200
-      register: models_check
-
-    - name: Display available models
-      ansible.builtin.debug:
-        msg: "Available models: {{ models_check.json.data | map(attribute='id') | list }}"
+  ansible.builtin.import_playbook: ../common/health-check.yml
 
 # ==============================================================================
 # PHASE 3: Run Embedding Tests from Load Generator
@@ -130,7 +153,7 @@
 
 - name: "Phase 3 - Run Embedding Performance Tests"
   hosts: load_generator
-  become: true
+  become: "{{ ansible_connection != 'local' }}"
   vars:
     model_name: "{{ test_model | default('ibm-granite/granite-embedding-278m-multilingual') }}"
     test_scenario: "{{ scenario | default('baseline') }}"  # baseline or latency
@@ -167,26 +190,28 @@
   become: true
 
   tasks:
-    - name: Get vLLM container logs
-      ansible.builtin.command:
-        cmd: "podman logs vllm-embedding-server"
-      register: vllm_logs
-      when: vllm_server.container_runtime == 'podman'
+    - block:
+        - name: Get vLLM container logs
+          ansible.builtin.command:
+            cmd: "podman logs vllm-embedding-server"
+          register: vllm_logs
+          when: vllm_server.container_runtime == 'podman'
 
-    - name: Save vLLM logs to file
-      ansible.builtin.copy:
-        content: "{{ vllm_logs.stdout }}"
-        dest: "{{ log_dir }}/vllm-server-{{ test_run_id }}.log"
-      when: vllm_logs is defined
+        - name: Save vLLM logs to file
+          ansible.builtin.copy:
+            content: "{{ vllm_logs.stdout }}"
+            dest: "{{ log_dir }}/vllm-server-{{ test_run_id }}.log"
+          when: vllm_logs is defined
 
-    - name: Fetch vLLM logs to controller
-      ansible.builtin.fetch:
-        src: "{{ log_dir }}/vllm-server-{{ test_run_id }}.log"
-        dest: "{{ playbook_dir }}/../../results/logs/"
-        flat: false
+        - name: Fetch vLLM logs to controller
+          ansible.builtin.fetch:
+            src: "{{ log_dir }}/vllm-server-{{ test_run_id }}.log"
+            dest: "{{ playbook_dir }}/../../results/logs/"
+            flat: false
 
+      when: hostvars['localhost']['vllm_mode'] | default('managed') == 'managed'
 # ==============================================================================
-# PHASE 5: Cleanup (Optional)
+# PHASE 5: Cleanup (Optional, Managed Mode Only)
 # ==============================================================================
 
 - name: "Phase 5 - Cleanup (if requested)"
@@ -196,14 +221,15 @@
     cleanup: "{{ cleanup_after_test | default(false) }}"
 
   tasks:
-    - name: Stop vLLM container
-      containers.podman.podman_container:
-        name: vllm-embedding-server
-        state: stopped
-      when:
-        - cleanup | bool
-        - vllm_server.container_runtime == 'podman'
+    - block:
+        - name: Stop vLLM container
+          containers.podman.podman_container:
+            name: vllm-embedding-server
+            state: stopped
+          when:
+            - cleanup | bool
+            - vllm_server.container_runtime == 'podman'
 
-    - name: Display cleanup status
-      ansible.builtin.debug:
-        msg: "vLLM server {{ 'stopped' if cleanup else 'still running - use cleanup_after_test=true to stop' }}"
+        - name: Display cleanup status
+          ansible.builtin.debug:
+            msg: "vLLM server {{ 'stopped' if cleanup else 'still running - use cleanup_after_test=true to stop' }}"

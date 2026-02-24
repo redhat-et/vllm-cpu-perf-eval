@@ -47,6 +47,66 @@
           - "Load Generator: {{ groups['load_generator'][0] }}"
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
+    - name: Set vLLM mode
+      ansible.builtin.set_fact:
+        vllm_mode: "{{ vllm_endpoint.mode | default('managed') }}"
+
+    - name: Display vLLM configuration
+      ansible.builtin.debug:
+        msg:
+          - "vLLM Mode: {{ vllm_mode }}"
+          - "{{ 'External Endpoint: ' + vllm_endpoint.external.url if vllm_mode == 'external' else 'Managed on DUT: ' + groups['dut'][0] }}"
+
+    - name: Warn about external mode with core sweep
+      ansible.builtin.debug:
+        msg:
+          - "⚠️  WARNING: External mode does not support core configuration."
+          - "All tests will run against the same external endpoint regardless of core_config_names."
+      when: vllm_mode == 'external'
+
+# ==============================================================================
+# EXTERNAL MODE: Configure External Endpoint (Once)
+# ==============================================================================
+
+- name: "Configure External Endpoint"
+  hosts: load_generator
+  gather_facts: false
+
+  tasks:
+    - block:
+        - name: Validate external endpoint URL
+          ansible.builtin.assert:
+            that:
+              - vllm_endpoint.external.url is defined
+              - vllm_endpoint.external.url is not none
+              - vllm_endpoint.external.url | length > 0
+            fail_msg: "External endpoint URL is required when mode=external"
+
+        - name: Parse external endpoint URL
+          ansible.builtin.set_fact:
+            external_endpoint_parsed: "{{ vllm_endpoint.external.url | urlsplit }}"
+
+        - name: Override bench_config for external endpoint
+          ansible.builtin.set_fact:
+            bench_config: "{{ bench_config | combine({'vllm_host': external_endpoint_parsed.hostname, 'vllm_port': external_endpoint_parsed.port | default(8000) | int}) }}"
+
+        - name: Setup API key if enabled
+          ansible.builtin.include_tasks:
+            file: ../common/tasks/setup-vllm-api-key.yml
+          when: vllm_endpoint.external.api_key.enabled | default(false) | bool
+
+        - name: Display external endpoint configuration
+          ansible.builtin.debug:
+            msg:
+              - "External vLLM Endpoint: {{ vllm_endpoint.external.url }}"
+              - "Parsed Host: {{ bench_config.vllm_host }}"
+              - "Parsed Port: {{ bench_config.vllm_port }}"
+              - "{{ 'API Key: Enabled' if vllm_api_key is defined else 'API Key: Not configured' }}"
+
+      when: hostvars['localhost']['vllm_mode'] == 'external'
+- name: "Health Check - External Endpoint"
+  ansible.builtin.import_playbook: ../common/health-check.yml
+
 # ==============================================================================
 # MAIN LOOP: Iterate over core configurations
 # ==============================================================================
@@ -56,14 +116,16 @@
   gather_facts: false
 
   tasks:
-    - name: Run test sequence for each core configuration
-      ansible.builtin.include_tasks:
-        file: tasks/core-sweep-iteration.yml
-      loop: "{{ selected_core_configs }}"
-      loop_control:
-        loop_var: current_core_config
-        label: "{{ current_core_config.name }} ({{ current_core_config.cores }} cores, TP={{ current_core_config.tensor_parallel }})"
+    - block:
+        - name: Run test sequence for each core configuration
+          ansible.builtin.include_tasks:
+            file: tasks/core-sweep-iteration.yml
+          loop: "{{ selected_core_configs }}"
+          loop_control:
+            loop_var: current_core_config
+            label: "{{ current_core_config.name }} ({{ current_core_config.cores }} cores, TP={{ current_core_config.tensor_parallel }})"
 
+      when: hostvars['localhost']['vllm_mode'] == 'external'
 # ==============================================================================
 # FINAL: Collect All Results
 # ==============================================================================

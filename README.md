@@ -113,6 +113,29 @@ See individual directory README/markdown files for detailed information.
 - **Auto-detection** - Automatically detects available runtime
 - **Rootless support** - Full Podman rootless compatibility
 
+### External vLLM Endpoint Support
+
+Run benchmarks against existing vLLM deployments without managing the vLLM container:
+
+```yaml
+# inventory/hosts.yml
+vllm_endpoint:
+  mode: "external"
+  external:
+    url: "http://my-vllm-instance.example.com:8000"
+    api_key:  # Optional authentication
+      enabled: true
+      source: "env"
+      env_var: "VLLM_API_KEY"
+```
+
+- Test production deployments, cloud-hosted instances (AWS, Azure, GCP), or Kubernetes services
+- Support for authenticated endpoints with API keys
+- Automatic health checks and validation
+- Works with all test playbooks
+
+See [External Endpoints Guide](docs/external-endpoints.md) for complete documentation and examples.
+
 ### Centralized Model Management
 
 - Define models once, use across all test phases

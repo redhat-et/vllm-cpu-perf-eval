@@ -59,8 +59,8 @@
     rm: true
     detach: false  # Wait for completion
     network: host
-    cpuset_cpus: "{{ guidellm_cfg.cpuset_cpus }}"
-    cpuset_mems: "{{ guidellm_cfg.cpuset_mems }}"
+    cpuset_cpus: "{{ omit if ansible_system == 'Darwin' else guidellm_cfg.cpuset_cpus }}"
+    cpuset_mems: "{{ omit if ansible_system == 'Darwin' else guidellm_cfg.cpuset_mems }}"
     volumes:
       - "{{ bench_config.results_dir }}/{{ test_model | basename }}/{{ workload_type }}/{{ core_cfg.name }}:/results:z"
     env: "{{ guidellm_env }}"

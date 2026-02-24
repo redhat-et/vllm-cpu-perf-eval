@@ -40,13 +40,24 @@
           - "Load Generator: {{ groups['load_generator'][0] }} ({{ hostvars[groups['load_generator'][0]]['ansible_host'] }})"
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
+    - name: Set vLLM mode
+      ansible.builtin.set_fact:
+        vllm_mode: "{{ vllm_endpoint.mode | default('managed') }}"
+
+    - name: Display vLLM configuration
+      ansible.builtin.debug:
+        msg:
+          - "vLLM Mode: {{ vllm_mode }}"
+          - "{{ 'External Endpoint: ' + vllm_endpoint.external.url if vllm_mode == 'external' else 'Managed on DUT: ' + groups['dut'][0] }}"
+
 # ==============================================================================
-# PHASE 1: Start vLLM Server on DUT
+# PHASE 1: Start vLLM Server on DUT (Managed Mode Only)
 # ==============================================================================
 
 - name: "Phase 1 - Start vLLM Server on DUT"
   hosts: dut
   become: true
+  gather_facts: false
   vars:
     core_configuration: "{{ hostvars['localhost']['core_configuration'] }}"
 
@@ -54,6 +65,47 @@
     - name: Start vLLM for LLM model
       ansible.builtin.include_tasks:
         file: tasks/start-llm-vllm.yml
+      when: hostvars['localhost']['vllm_mode'] == 'managed'
+
+# ==============================================================================
+# PHASE 1-External: Configure External Endpoint (External Mode Only)
+# ==============================================================================
+
+- name: "Phase 1-External - Configure External Endpoint"
+  hosts: load_generator
+  gather_facts: false
+
+  tasks:
+    - block:
+        - name: Validate external endpoint URL
+          ansible.builtin.assert:
+            that:
+              - vllm_endpoint.external.url is defined
+              - vllm_endpoint.external.url is not none
+              - vllm_endpoint.external.url | length > 0
+            fail_msg: "External endpoint URL is required when mode=external"
+
+        - name: Parse external endpoint URL
+          ansible.builtin.set_fact:
+            external_endpoint_parsed: "{{ vllm_endpoint.external.url | urlsplit }}"
+
+        - name: Override bench_config for external endpoint
+          ansible.builtin.set_fact:
+            bench_config: "{{ bench_config | combine({'vllm_host': external_endpoint_parsed.hostname, 'vllm_port': external_endpoint_parsed.port | default(8000) | int}) }}"
+
+        - name: Setup API key if enabled
+          ansible.builtin.include_tasks:
+            file: ../common/tasks/setup-vllm-api-key.yml
+          when: vllm_endpoint.external.api_key.enabled | default(false) | bool
+
+        - name: Display external endpoint configuration
+          ansible.builtin.debug:
+            msg:
+              - "External vLLM Endpoint: {{ vllm_endpoint.external.url }}"
+              - "Parsed Host: {{ bench_config.vllm_host }}"
+              - "Parsed Port: {{ bench_config.vllm_port }}"
+              - "{{ 'API Key: Enabled' if vllm_api_key is defined else 'API Key: Not configured' }}"
+      when: hostvars['localhost']['vllm_mode'] == 'external'
 
 # ==============================================================================
 # PHASE 2: Health Check - Wait for vLLM
@@ -68,7 +120,7 @@
 
 - name: "Phase 3 - Run GuideLLM Benchmark"
   hosts: load_generator
-  become: true
+  become: "{{ ansible_connection != 'local' }}"
   vars:
     core_configuration: "{{ hostvars['localhost']['core_configuration'] }}"
 
@@ -85,31 +137,37 @@
 # PHASE 4: Collect Results and Logs
 # ==============================================================================
 
-- name: "Phase 4 - Collect Results and Logs"
-  ansible.builtin.import_playbook: ../common/collect-logs.yml
+- name: "Phase 4 - Collect Benchmark Results"
+  ansible.builtin.import_playbook: ../common/collect-benchmark-results.yml
+
+- name: "Phase 4 - Collect DUT Logs"
+  ansible.builtin.import_playbook: ../common/collect-dut-logs.yml
 
 # ==============================================================================
-# PHASE 5: Cleanup (Optional)
+# PHASE 5: Cleanup (Optional, Managed Mode Only)
 # ==============================================================================
 
 - name: "Phase 5 - Cleanup (if requested)"
   hosts: dut
   become: true
+  gather_facts: false
   vars:
     cleanup: "{{ cleanup_after_test | default(false) }}"
 
   tasks:
-    - name: Stop vLLM container
-      containers.podman.podman_container:
-        name: "{{ vllm_container_name }}"
-        state: stopped
-      when:
-        - cleanup | bool
-        - vllm_server.container_runtime == 'podman'
+    - block:
+        - name: Stop vLLM container
+          containers.podman.podman_container:
+            name: "{{ vllm_container_name }}"
+            state: stopped
+          when:
+            - cleanup | bool
+            - vllm_server.container_runtime == 'podman'
 
-    - name: Display cleanup status
-      ansible.builtin.debug:
-        msg: "vLLM server {{ 'stopped' if cleanup else 'still running - use cleanup_after_test=true to stop' }}"
+        - name: Display cleanup status
+          ansible.builtin.debug:
+            msg: "vLLM server {{ 'stopped' if cleanup else 'still running - use cleanup_after_test=true to stop' }}"
+      when: hostvars['localhost']['vllm_mode'] | default('managed') == 'managed'
 
 # ==============================================================================
 # SUMMARY

@@ -8,18 +8,32 @@
   gather_facts: false
 
   tasks:
+    - name: Set default headers
+      ansible.builtin.set_fact:
+        vllm_headers: {}
+
+    - name: Add Authorization header if API key configured
+      ansible.builtin.set_fact:
+        vllm_headers: "{{ vllm_headers | combine({'Authorization': 'Bearer ' + vllm_api_key}) }}"
+      when:
+        - vllm_api_key is defined
+        - vllm_api_key | length > 0
+      no_log: true
+
     - name: Display health check configuration
       ansible.builtin.debug:
         msg:
           - "vLLM Server: http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}"
           - "Timeout: {{ health_check.timeout }}s"
           - "Check Interval: {{ health_check.interval }}s"
+          - "{{ 'Authentication: Enabled' if vllm_api_key is defined else 'Authentication: None' }}"
 
     - name: Wait for vLLM health endpoint
       ansible.builtin.uri:
         url: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/health"
         method: GET
         status_code: 200
+        headers: "{{ vllm_headers }}"
       register: health_check_result
       retries: "{{ health_check.timeout // health_check.interval }}"
       delay: "{{ health_check.interval }}"
@@ -36,6 +50,7 @@
         url: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/v1/models"
         method: GET
         status_code: 200
+        headers: "{{ vllm_headers }}"
       register: models_check
 
     - name: Display available models

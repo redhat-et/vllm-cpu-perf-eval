@@ -4,39 +4,6 @@ This document tracks planned features, enhancements, and technical debt for the 
 
 ## High Priority
 
-### 1. External vLLM Endpoint Support
-
-**Goal:** Support running tests against existing vLLM inference endpoints without setting up vLLM via Ansible.
-
-**Use Cases:**
-- Testing against production vLLM deployments
-- Cloud-hosted vLLM instances (AWS, Azure, GCP)
-- Kubernetes-managed vLLM services
-- Development/staging environments
-
-**Implementation:**
-- [ ] Add `external_vllm_endpoint` mode to playbooks
-- [ ] Skip vLLM container setup tasks when endpoint is provided
-- [ ] Add endpoint validation and health checks
-- [ ] Support authentication/API keys for secured endpoints
-- [ ] Document endpoint URL format and configuration
-- [ ] Add examples for common cloud providers
-
-**Configuration Example:**
-```yaml
-# inventory/hosts.yml
-vllm_endpoint:
-  mode: "external"  # vs "ansible_managed"
-  url: "https://my-vllm-instance.example.com:8000"
-  api_key: "{{ lookup('env', 'VLLM_API_KEY') }}"
-  skip_setup: true
-```
-
-**Related Files:**
-- `automation/test-execution/ansible/playbooks/llm/run-guidellm-test.yml`
-- `automation/test-execution/ansible/playbooks/common/tasks/clean-restart-vllm.yml`
-
----
 
 ### 2. Real-time GuideLLM Output Streaming
 
@@ -308,6 +275,14 @@ services:
 ✅ Address PR #7 review comments
 ✅ Add embedding model test suite
 ✅ Replace SLATE models with Granite models
+✅ **External vLLM Endpoint Support** - Test against production/cloud vLLM deployments
+- ✅ Added `vllm_endpoint` configuration with external mode support
+- ✅ Implemented endpoint URL parsing and validation
+- ✅ Added API key authentication (env, file, vault, prompt sources)
+- ✅ Updated health checks to support external endpoints with auth headers
+- ✅ Updated all 6 main playbooks with external endpoint support
+- ✅ Created comprehensive documentation with cloud provider examples ([docs/external-endpoints.md](docs/external-endpoints.md))
+- See [External Endpoints Guide](docs/external-endpoints.md) for usage
 
 ---
 
