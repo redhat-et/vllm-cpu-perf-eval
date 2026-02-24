@@ -35,8 +35,6 @@
           - "Test Run ID: {{ test_run_id }}"
           - "Model: {{ test_model }}"
           - "Workload: {{ workload_type }}"
-          - "Core Config: {{ core_config_name }} ({{ core_configuration.cores }} cores, TP={{ core_configuration.tensor_parallel }})"
-          - "DUT: {{ groups['dut'][0] }} ({{ hostvars[groups['dut'][0]]['ansible_host'] }})"
           - "Load Generator: {{ groups['load_generator'][0] }} ({{ hostvars[groups['load_generator'][0]]['ansible_host'] }})"
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
@@ -44,11 +42,21 @@
       ansible.builtin.set_fact:
         vllm_mode: "{{ vllm_endpoint.mode | default('managed') }}"
 
-    - name: Display vLLM configuration
+    - name: Display vLLM configuration (Managed Mode)
       ansible.builtin.debug:
         msg:
-          - "vLLM Mode: {{ vllm_mode }}"
-          - "{{ 'External Endpoint: ' + vllm_endpoint.external.url if vllm_mode == 'external' else 'Managed on DUT: ' + groups['dut'][0] }}"
+          - "vLLM Mode: managed"
+          - "DUT Host: {{ groups['dut'][0] }} ({{ hostvars[groups['dut'][0]]['ansible_host'] }})"
+          - "Core Config: {{ core_config_name }} ({{ core_configuration.cores }} cores, TP={{ core_configuration.tensor_parallel }})"
+      when: vllm_mode == 'managed'
+
+    - name: Display vLLM configuration (External Mode)
+      ansible.builtin.debug:
+        msg:
+          - "vLLM Mode: external"
+          - "External Endpoint: {{ vllm_endpoint.external.url }}"
+          - "Note: Core config only affects load generator CPU allocation, not the external vLLM server"
+      when: vllm_mode == 'external'
 
 # ==============================================================================
 # PHASE 1: Start vLLM Server on DUT (Managed Mode Only)
