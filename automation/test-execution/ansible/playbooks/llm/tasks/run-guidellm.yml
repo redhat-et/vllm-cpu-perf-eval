@@ -51,13 +51,13 @@
       GUIDELLM_OUTPUTS: "{{ guidellm_cfg.outputs }}"
       HF_TOKEN: "{{ hf_token }}"
 
-- name: Run GuideLLM benchmark
+- name: Start GuideLLM benchmark container
   containers.podman.podman_container:
     name: "guidellm-{{ workload_type }}-{{ core_cfg.name }}"
     image: "{{ guidellm_cfg.container_image }}"
     state: started
-    rm: true
-    detach: false  # Wait for completion
+    rm: false  # Don't auto-remove so we can check exit code
+    detach: true  # Run in background so we can stream logs
     network: host
     cpuset_cpus: "{{ omit if ansible_system == 'Darwin' else guidellm_cfg.cpuset_cpus }}"
     cpuset_mems: "{{ omit if ansible_system == 'Darwin' else guidellm_cfg.cpuset_mems }}"
@@ -67,22 +67,62 @@
     log_driver: journald
     log_opt:
       tag: "guidellm-{{ workload_type }}-{{ core_cfg.name }}"
-  register: guidellm_run
-  ignore_errors: true
+  register: guidellm_container
+
+- name: Set monitoring command based on connection type
+  ansible.builtin.set_fact:
+    monitor_cmd: "{{ 'podman logs -f guidellm-' + workload_type + '-' + core_cfg.name if ansible_connection == 'local' else 'ssh ' + ansible_user + '@' + ansible_host + ' podman logs -f guidellm-' + workload_type + '-' + core_cfg.name }}"
+
+- name: Display benchmark start info
+  ansible.builtin.debug:
+    msg:
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "GuideLLM Benchmark Started"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "Container: {{ guidellm_container.container.Id[:12] }}"
+      - "Max Duration: {{ guidellm_cfg.max_seconds }}s | Max Requests: {{ guidellm_cfg.max_requests }}"
+      - "{{ 'Location: localhost' if ansible_connection == 'local' else 'Location: ' + ansible_host }}"
+      - ""
+      - "⚠️  Ansible will now wait silently for completion"
+      - "⚠️  This may take several minutes (or hours for sweep tests)"
+      - ""
+      - "To monitor progress, open another terminal and run:"
+      - "  {{ monitor_cmd }}"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+- name: Wait for GuideLLM benchmark to complete (this will block silently)
+  ansible.builtin.command:
+    cmd: "podman wait guidellm-{{ workload_type }}-{{ core_cfg.name }}"
+  register: guidellm_exit_code
+  changed_when: false
+  failed_when: false
+
+- name: Get container exit details
+  ansible.builtin.command:
+    cmd: "podman inspect guidellm-{{ workload_type }}-{{ core_cfg.name }} --format '{{{{.State.ExitCode}}}}'"
+  register: container_exit_code
+  changed_when: false
+  failed_when: false
 
 - name: Display GuideLLM completion status
   ansible.builtin.debug:
     msg:
-      - "{{ '✓ GuideLLM benchmark completed' if not guidellm_run.failed else '✗ GuideLLM benchmark failed' }}"
+      - "{{ '✓ GuideLLM benchmark completed successfully' if container_exit_code.stdout == '0' else '✗ GuideLLM benchmark failed' }}"
+      - "Exit Code: {{ container_exit_code.stdout }}"
       - "Results: {{ bench_config.results_dir }}/{{ test_model | basename }}/{{ workload_type }}/{{ core_cfg.name }}"
-      - "Status: {{ 'Success' if not guidellm_run.failed else 'Failed' }}"
+
+- name: Remove completed container
+  containers.podman.podman_container:
+    name: "guidellm-{{ workload_type }}-{{ core_cfg.name }}"
+    state: absent
+  when: container_exit_code.stdout is defined
 
 - name: Fail if GuideLLM encountered errors
   ansible.builtin.fail:
-    msg: "GuideLLM benchmark failed. Check logs for details."
+    msg: "GuideLLM benchmark failed with exit code {{ container_exit_code.stdout }}. Check logs above for details."
   when:
-    - guidellm_run.failed is defined
-    - guidellm_run.failed
+    - container_exit_code.stdout is defined
+    - container_exit_code.stdout != '0'
 
 - name: List generated result files
   ansible.builtin.find:
