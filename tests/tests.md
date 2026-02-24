@@ -31,22 +31,26 @@ tests/
 
 All test cases use a hierarchical naming scheme for easy identification and tracking:
 
-**Format:** `P{suite}-{TYPE}-{model}-{workload}`
+**Format:**
+- Concurrent Load: `CONC-{model}-{workload}`
+- Scalability: `SCALE-{TYPE}-{model}-{workload}`
+- Resource Contention: `CONT-{TYPE}-{model}-{workload}`
+- Embedding: `EMB-{TYPE}-{model}-{workload}`
 
 **Components:**
 
-- **Suite**: `P1` (Concurrent Load - Test Suite 1), `P2` (Scalability - Test Suite 2), `P3` (Resource Contention - Test Suite 3), `EMB` (Embedding)
-- **Type**: `CONC` (Concurrent), `SWEEP`, `SYNC` (Synchronous), `POISSON`, `BASELINE`, `LATENCY`
+- **Suite Prefix**: `CONC` (Concurrent Load), `SCALE` (Scalability), `CONT` (Resource Contention), `EMB` (Embedding)
+- **Type** (not used for CONC suite): `SWEEP`, `SYNC` (Synchronous), `POISSON`, `BASELINE`, `LATENCY`
 - **Model**: Short abbreviation (e.g., `LLAMA32`, `QWEN06`, `GRANITE32`, `GRANITE-EN`, `GRANITE-ML`)
-- **Workload**: `CHAT`, `RAG`, `CODE`, `SUMM`, `EMB512` (512-token embedding)
+- **Workload**: `CHAT`, `RAG`, `CODE`, `SUMM`, `EMB` (embedding), `EMB512` (512-token embedding)
 
 **Examples:**
 
-- `P1-CONC-LLAMA32-CHAT`: Test Suite 1 (Concurrent Load), Concurrent, Llama-3.2-1B, Chat workload
-- `P2-SWEEP-QWEN06-CODE`: Test Suite 2 (Scalability), Sweep test, Qwen3-0.6B, CodeGen workload
-- `P2-POISSON-GRANITE32-CHAT`: Test Suite 2 (Scalability), Poisson distribution, Granite-3.2-2B, Chat
-- `EMB-BASELINE-GRANITE-EN-EMB512`: Embedding, Baseline test, Granite English model
-- `EMB-LATENCY-GRANITE-ML-EMB512`: Embedding, Latency test, Granite Multilingual model
+- `CONC-LLAMA32-CHAT`: Concurrent Load suite, Llama-3.2-1B, Chat workload
+- `SCALE-SWEEP-QWEN06-CODE`: Scalability suite, Sweep test, Qwen3-0.6B, CodeGen workload
+- `SCALE-POISSON-GRANITE32-CHAT`: Scalability suite, Poisson distribution, Granite-3.2-2B, Chat
+- `EMB-BASELINE-GRANITE-EN-EMB512`: Embedding suite, Baseline test, Granite English model
+- `EMB-LATENCY-GRANITE-ML-EMB512`: Embedding suite, Latency test, Granite Multilingual model
 
 See individual test suite README files for complete test case listings.
 
