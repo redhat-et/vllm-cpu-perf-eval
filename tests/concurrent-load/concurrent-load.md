@@ -18,21 +18,11 @@ architectures and workload types.
 
 ## Models Under Test
 
-### Core Architectural Coverage
+This test suite evaluates models across multiple architecture families to ensure comprehensive coverage of CPU inference scenarios. For detailed model information including architecture details, selection rationale, and full specifications, see [Model Selection Strategy](../../models/models.md#core-architectural-coverage).
 
-<!-- markdownlint-disable MD013 -->
-
-| Architecture Family | Representative Model | Key Application Focus |
-| --- | --- | --- |
-| Llama 3 Decoder | Llama-3.2-1B-Instruct | Prefill-Heavy (Baseline) |
-| Llama 2 Decoder | TinyLlama-1.1B-Chat-v1.0 | Prefill/Decode (Small-Scale) |
-| Traditional OPT Decoder | facebook/opt-125m | Decode-Heavy (Legacy Baseline) |
-| IBM Granite Decoder | granite-3.2-2b-instruct | Balanced (Enterprise Baseline) |
-| Qwen 3 Decoder | Qwen/Qwen3-0.6B | Balanced (High-Efficiency) |
-| MiniLM/BERT (English Dense) | granite-embedding-english-r2 | Encoder-Only (Fastest Baseline) |
-| XLM-RoBERTa (Multilingual) | granite-embedding-278m-multilingual | Encoder-Only (Multilingual) |
-
-<!-- markdownlint-enable MD013 -->
+**Quick Reference:**
+- **LLM Models**: Llama-3.2-1B, TinyLlama-1.1B, facebook/opt-125m, granite-3.2-2b, Qwen/Qwen3-0.6B
+- **Embedding Models**: granite-embedding-english-r2, granite-embedding-278m-multilingual
 
 ## Test Parameters
 
