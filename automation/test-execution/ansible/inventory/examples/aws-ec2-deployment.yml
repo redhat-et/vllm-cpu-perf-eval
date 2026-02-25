@@ -1,0 +1,58 @@
+---
+# Example: AWS EC2 Deployment Configuration
+# Use this when testing on dedicated AWS EC2 instances
+#
+# Setup:
+# 1. Copy this file to inventory/hosts.yml
+# 2. Update the IP addresses and SSH key paths
+# 3. Ensure security groups allow port 8000 (vLLM) between instances
+# 4. Run: ansible-playbook -i inventory/hosts.yml playbooks/...
+
+all:
+  children:
+    # DUT - EC2 instance running vLLM server
+    dut:
+      hosts:
+        my-dut:
+          # Use private IP if in same VPC, otherwise public IP
+          ansible_host: 10.0.1.100                    # ⚠️ Change to your DUT IP
+          ansible_user: ec2-user                      # Amazon Linux 2
+          # ansible_user: ubuntu                      # Ubuntu AMI
+          ansible_ssh_private_key_file: ~/.ssh/aws-key.pem  # ⚠️ Your SSH key
+
+    # Load Generator - EC2 instance running benchmarks
+    load_generator:
+      hosts:
+        my-loadgen:
+          ansible_host: 10.0.1.101                    # ⚠️ Change to your load gen IP
+          ansible_user: ec2-user
+          ansible_ssh_private_key_file: ~/.ssh/aws-key.pem
+
+          bench_config:
+            # Use DUT's private IP (faster, no NAT)
+            vllm_host: 10.0.1.100                     # ⚠️ Should match DUT IP
+            vllm_port: 8000
+            results_dir: /home/ec2-user/benchmark-results
+
+# AWS-specific overrides
+benchmark_tool:
+  guidellm:
+    # Use x86_64 container image (not ARM)
+    container_image: "localhost/guidellm:latest"
+    # Adjust CPU allocation based on your EC2 instance type
+    cpuset_cpus: "16-31"  # Example: c6i.8xlarge has 32 vCPUs
+
+  vllm_bench:
+    # Use x86_64 vLLM image
+    container_image: "quay.io/mtahhan/vllm:0.14.0"  # or vllm/vllm-openai:latest
+    num_prompts: 1000  # Production-grade measurements
+
+# Optional: External endpoint mode for testing managed vLLM services
+# vllm_endpoint:
+#   mode: "external"
+#   external:
+#     url: "http://vllm-lb-12345.us-east-1.elb.amazonaws.com:8000"
+#     api_key:
+#       enabled: true
+#       source: "env"
+#       env_var: "VLLM_API_KEY"
