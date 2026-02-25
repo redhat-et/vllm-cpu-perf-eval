@@ -4,6 +4,26 @@ Get your first vLLM performance test running in AWX in 15 minutes.
 
 ## Step 1: Install AWX (5 minutes)
 
+**Option A: Automated Install (Recommended)**
+
+```bash
+# One command to install and start AWX!
+cd automation/test-execution/awx
+make quickstart
+
+# This will:
+# - Auto-detect Docker/Podman
+# - Clone AWX repository
+# - Start all containers
+# - Wait for AWX to be ready
+# - Show access credentials
+
+# Access: http://localhost:8052
+# Login: admin / password
+```
+
+**Option B: Manual Install**
+
 ```bash
 # Clone AWX
 git clone https://github.com/ansible/awx.git
@@ -18,6 +38,21 @@ docker logs -f awx_task
 # When you see "Successfully registered instance awx", it's ready!
 # Access: http://localhost:8052
 # Login: admin / password
+```
+
+**Useful Makefile Commands:**
+
+```bash
+make help          # Show all available commands
+make start         # Start AWX
+make stop          # Stop AWX
+make restart       # Restart AWX
+make logs          # View logs
+make status        # Check container status
+make health        # Check AWX health endpoint
+make open          # Open AWX in browser
+make clean         # Remove containers (keeps data)
+make clean-all     # Remove everything (DESTRUCTIVE!)
 ```
 
 ## Step 2: Import This Project (2 minutes)
