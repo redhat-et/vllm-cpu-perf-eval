@@ -73,9 +73,9 @@
     core_configuration: "{{ hostvars['localhost']['core_configuration'] }}"
 
   tasks:
-    - name: Setup HuggingFace token for load generator
+    - name: Setup HuggingFace token for load generator (if provided)
       ansible.builtin.include_tasks:
-        file: ../common/tasks/setup-hf-token.yml
+        file: ../common/tasks/setup-hf-token-optional.yml
 
     - name: Run GuideLLM benchmark
       ansible.builtin.include_tasks:

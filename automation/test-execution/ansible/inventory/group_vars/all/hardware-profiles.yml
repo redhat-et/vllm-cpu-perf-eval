@@ -1,0 +1,63 @@
+---
+# ============================================================================
+# Hardware Profile Configurations
+# ============================================================================
+# Pre-configured CPU/NUMA settings for different hardware configurations
+#
+# These are example configurations. The actual CPU ranges will be auto-detected
+# and allocated based on your hardware's NUMA topology when using auto-config.
+#
+# For manual configuration, adjust cpuset_cpus/cpuset_mems to match your hardware.
+# ============================================================================
+
+core_configs:
+  # ============================================================================
+  # Small Configurations (8-16 cores)
+  # ============================================================================
+
+  - name: "8cores-single-socket"
+    cores: 8
+    cpuset_cpus: "0-7"          # Container CPU allocation
+    cpuset_mems: "0"            # NUMA node
+    tensor_parallel: 1
+    # OMP settings OPTIONAL (omit for auto-configuration)
+
+  - name: "16cores-single-socket"
+    cores: 16
+    cpuset_cpus: "0-15"
+    cpuset_mems: "0"
+    tensor_parallel: 1
+
+  # ============================================================================
+  # Medium Configurations (32 cores)
+  # ============================================================================
+
+  - name: "32cores-single-socket"
+    cores: 32
+    cpuset_cpus: "0-31"
+    cpuset_mems: "0"
+    tensor_parallel: 1
+
+  # ============================================================================
+  # Large Configurations (64+ cores)
+  # ============================================================================
+
+  - name: "64cores-single-socket-tp2"
+    cores: 64
+    cpuset_cpus: "0-63"
+    cpuset_mems: "0"
+    omp_num_threads: 32         # Manual OMP tuning for TP=2
+    omp_threads_bind: "0-31|32-63"
+    tensor_parallel: 2
+
+  - name: "96cores-dual-socket-tp3"
+    cores: 96
+    cpuset_cpus: "0-95"
+    cpuset_mems: "0,1"          # Multi-NUMA
+    tensor_parallel: 3
+
+  - name: "128cores-dual-socket-tp4"
+    cores: 128
+    cpuset_cpus: "0-127"
+    cpuset_mems: "0,1"
+    tensor_parallel: 4

@@ -1,0 +1,68 @@
+---
+# ============================================================================
+# Test Workload Configurations
+# ============================================================================
+# Predefined test configurations for different workload types
+# These are model-agnostic and can be used with any compatible model
+
+test_configs:
+  # ============================================================================
+  # Embedding Model Testing
+  # ============================================================================
+  embedding:
+    workload_type: "embedding"
+    isl: 512
+    osl: 1
+    backend: "openai-embeddings"
+    vllm_args:
+      - "--dtype=bfloat16"
+      - "--max-model-len=512"
+    kv_cache_space: "1GiB"
+
+  # ============================================================================
+  # LLM Generative Models - Various Workloads
+  # ============================================================================
+
+  # Summarization workload (medium input, short output)
+  summarization:
+    workload_type: "summarization"
+    isl: 1024
+    osl: 256
+    backend: "openai-completions"
+    vllm_args:
+      - "--dtype=bfloat16"
+      - "--no_enable_prefix_caching"
+    kv_cache_space: "40GiB"
+
+  # Chat workload (short input, short output)
+  chat:
+    workload_type: "chat"
+    isl: 512
+    osl: 128
+    backend: "openai-chat"
+    vllm_args:
+      - "--dtype=bfloat16"
+      - "--no_enable_prefix_caching"
+    kv_cache_space: "40GiB"
+
+  # Code generation workload (long input, long output)
+  code:
+    workload_type: "code"
+    isl: 2048
+    osl: 512
+    backend: "openai-completions"
+    vllm_args:
+      - "--dtype=bfloat16"
+      - "--no_enable_prefix_caching"
+    kv_cache_space: "60GiB"
+
+  # RAG workload (very long input, short output)
+  rag:
+    workload_type: "rag"
+    isl: 4096
+    osl: 256
+    backend: "openai-completions"
+    vllm_args:
+      - "--dtype=bfloat16"
+      - "--no_enable_prefix_caching"
+    kv_cache_space: "80GiB"

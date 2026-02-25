@@ -1,0 +1,62 @@
+---
+# ============================================================================
+# Benchmark Tool Configuration
+# ============================================================================
+# Settings for GuideLLM and vllm bench serve
+
+benchmark_tool:
+  # ============================================================================
+  # GuideLLM Configuration
+  # ============================================================================
+  guidellm:
+    # Execution mode: containerized or host-based
+    # - containerized (default): Run in Podman container (isolated, reproducible)
+    # - host: Run guidellm from PATH (requires: pip install guidellm)
+    use_container: true
+
+    # Using locally built rootless container image
+    container_image: "localhost/guidellm:latest"
+
+    # CPU allocation (only applies to containerized mode)
+    # Load generator CPU allocation
+    cpuset_cpus: "16-31"
+    cpuset_mems: "0"
+
+    # Benchmark profile
+    # Options: sweep, concurrent, synchronous, throughput, poisson, constant, async
+    # synchronous = single request at a time (simplest, good for quick tests)
+    profile: "synchronous"
+
+    # GuideLLM benchmark parameters (all optional, defaults shown)
+    # These can be overridden via -e flag when running playbooks
+    max_seconds: 60             # Maximum benchmark duration
+    max_requests: 500           # Maximum number of requests
+    saturation_threshold: 0.98  # Saturation detection threshold (0-1)
+    max_concurrency: 128        # Maximum concurrent requests
+    cooldown: 30                # Cooldown period between tests (seconds)
+    outputs: "html,json,csv"    # Output formats (comma-separated)
+    exclude_throughput_target: false   # Exclude target throughput from results
+    exclude_throughput_result: false   # Exclude result throughput from results
+
+  # ============================================================================
+  # vllm bench serve Configuration
+  # ============================================================================
+  vllm_bench:
+    # Execution mode: containerized or host-based
+    # Whether to run 'vllm bench serve' in a container (default: true)
+    # Set to false to run vllm bench directly on the host (requires vllm pip install)
+    use_container: true
+
+    # Container image for vllm bench (only used if use_container: true)
+    # For ARM/M-series Macs, use arm-base-cpu; for x86_64, use appropriate tag
+    container_image: "quay.io/mtahhan/vllm:arm-base-cpu"
+
+    # Number of prompts for embedding benchmark tests
+    # Trade-off: sample size vs test duration
+    # - 250 prompts: ~4-5 min/test, good for throughput & P50/P90 latency
+    # - 500 prompts: ~9-10 min/test, better P99 stability
+    # - 1000 prompts: ~18-20 min/test, production-grade measurements
+    # Note: P99 needs ~100+ samples above threshold for stability (250 → ~2-3 samples)
+    num_prompts: 250  # Quick tests
+    # num_prompts: 500  # Better P99 stability
+    # num_prompts: 1000  # Production-grade measurements
