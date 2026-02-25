@@ -1,0 +1,185 @@
+---
+# AWX Survey Specification: LLM GuideLLM Test
+#
+# This survey collects all configuration needed to run a single LLM test
+# Users fill out a web form instead of editing inventory files
+#
+# Import: Job Template > Survey > Add
+
+name: "LLM GuideLLM Performance Test"
+description: "Configure and run a single LLM performance test with GuideLLM"
+
+spec:
+  # ============================================================================
+  # DUT (Device Under Test) Configuration
+  # ============================================================================
+
+  - question_name: "DUT Hostname or IP"
+    question_description: "Hostname or IP address of the DUT where vLLM will run (e.g., ec2-3-144-144-132.us-east-2.compute.amazonaws.com)"
+    required: true
+    type: text
+    variable: dut_host
+    min: 1
+    max: 255
+    default: ""
+
+  - question_name: "DUT SSH User"
+    question_description: "SSH username for DUT access (e.g., ec2-user, ubuntu, root)"
+    required: true
+    type: text
+    variable: dut_user
+    min: 1
+    max: 64
+    default: "ec2-user"
+
+  - question_name: "DUT SSH Key"
+    question_description: "Name of the AWX Machine Credential for DUT SSH access"
+    required: true
+    type: text
+    variable: dut_ssh_credential
+    min: 1
+    max: 128
+    default: ""
+
+  # ============================================================================
+  # Load Generator Configuration
+  # ============================================================================
+
+  - question_name: "Load Generator Mode"
+    question_description: "Where to run the load generator (benchmarking tool)"
+    required: true
+    type: multiplechoice
+    variable: loadgen_mode
+    choices:
+      - "localhost"  # Run on AWX execution node
+      - "remote"     # Run on separate remote host
+    default: "localhost"
+
+  - question_name: "Load Generator Hostname (if remote)"
+    question_description: "Hostname or IP of remote load generator (leave empty if using localhost)"
+    required: false
+    type: text
+    variable: loadgen_host
+    min: 0
+    max: 255
+    default: ""
+
+  - question_name: "Load Generator SSH User (if remote)"
+    question_description: "SSH username for load generator (leave empty if using localhost)"
+    required: false
+    type: text
+    variable: loadgen_user
+    min: 0
+    max: 64
+    default: ""
+
+  # ============================================================================
+  # Container Images
+  # ============================================================================
+
+  - question_name: "vLLM Container Image"
+    question_description: "Container image for vLLM server (e.g., quay.io/mtahhan/vllm:0.13.0-amx)"
+    required: true
+    type: text
+    variable: vllm_image
+    min: 1
+    max: 255
+    default: "quay.io/mtahhan/vllm:0.13.0-amx"
+
+  - question_name: "GuideLLM Container Image"
+    question_description: "Container image for GuideLLM benchmark tool"
+    required: true
+    type: text
+    variable: guidellm_image
+    min: 1
+    max: 255
+    default: "localhost/guidellm:latest"
+
+  # ============================================================================
+  # Test Configuration
+  # ============================================================================
+
+  - question_name: "Model"
+    question_description: "HuggingFace model to test"
+    required: true
+    type: multiplechoice
+    variable: test_model
+    choices:
+      # Public models (no HF_TOKEN needed)
+      - "Qwen/Qwen3-0.6B"
+      - "Qwen/Qwen2.5-3B-Instruct"
+      - "facebook/opt-125m"
+      - "facebook/opt-1.3b"
+      - "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+      - "ibm-granite/granite-3.2-2b-instruct"
+      # Gated models (requires HF_TOKEN credential)
+      - "meta-llama/Llama-3.2-1B-Instruct"
+      - "meta-llama/Llama-3.2-3B-Instruct"
+    default: "Qwen/Qwen3-0.6B"
+
+  - question_name: "Workload Type"
+    question_description: "Type of workload to test (affects input/output token distribution)"
+    required: true
+    type: multiplechoice
+    variable: workload_type
+    choices:
+      - "chat"           # 512:256 tokens - balanced conversational AI
+      - "summarization"  # 1024:256 tokens - medium context summarization
+      - "code"           # 512:4096 tokens - code generation (long output)
+      - "rag"            # 4096:512 tokens - retrieval-augmented generation (long input)
+    default: "chat"
+
+  - question_name: "Core Configuration"
+    question_description: "CPU/NUMA allocation profile"
+    required: true
+    type: multiplechoice
+    variable: core_config_name
+    choices:
+      - "8cores-single-socket"
+      - "16cores-single-socket"
+      - "32cores-single-socket"
+      - "64cores-single-socket-tp2"
+      - "96cores-dual-socket-tp3"
+      - "128cores-dual-socket-tp4"
+    default: "16cores-single-socket"
+
+  # ============================================================================
+  # Advanced Options
+  # ============================================================================
+
+  - question_name: "Results Directory"
+    question_description: "Where to store benchmark results on the load generator"
+    required: true
+    type: text
+    variable: results_dir
+    min: 1
+    max: 255
+    default: "/tmp/benchmark-results"
+
+  - question_name: "GuideLLM Execution Mode"
+    question_description: "How to run GuideLLM (containerized is recommended)"
+    required: true
+    type: multiplechoice
+    variable: guidellm_use_container
+    choices:
+      - "true"   # Run in container (isolated, reproducible)
+      - "false"  # Run from PATH (requires pip install guidellm)
+    default: "true"
+
+  - question_name: "Max Requests"
+    question_description: "Maximum number of requests for GuideLLM test"
+    required: true
+    type: integer
+    variable: guidellm_max_requests
+    min: 10
+    max: 10000
+    default: 500
+
+  - question_name: "Max Duration (seconds)"
+    question_description: "Maximum duration for GuideLLM test"
+    required: true
+    type: integer
+    variable: guidellm_max_seconds
+    min: 10
+    max: 7200
+    default: 60

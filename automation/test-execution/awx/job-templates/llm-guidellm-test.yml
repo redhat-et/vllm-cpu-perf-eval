@@ -1,0 +1,91 @@
+---
+# AWX Job Template: LLM GuideLLM Test
+#
+# This job template runs a single LLM performance test with GuideLLM
+# All configuration is collected via the survey (no file editing needed)
+#
+# Import: Resources > Templates > Add > Job Template
+
+name: "LLM GuideLLM Performance Test"
+description: |
+  Run a single LLM performance test using GuideLLM.
+
+  This job will:
+  1. Start vLLM server on the DUT with the specified model
+  2. Wait for server to become healthy
+  3. Run GuideLLM benchmark from the load generator
+  4. Collect results and logs
+
+  All configuration is done through the survey - no file editing required.
+
+job_type: run
+inventory: "{{ awx_inventory_name }}"  # Will be set during AWX setup
+
+# Playbook to run
+project: "{{ awx_project_name }}"  # Your AWX project (Git repo or local)
+playbook: automation/test-execution/ansible/playbooks/llm/run-guidellm-test.yml
+
+# Credentials needed
+credentials:
+  - name: "{{ dut_ssh_credential }}"
+    credential_type: "Machine"
+    description: "SSH access to DUT"
+
+  # Optional: Add HuggingFace Token credential if testing gated models
+  - name: "{{ hf_credential_name }}"
+    credential_type: "HuggingFace Token"
+    description: "HuggingFace API token (optional, for gated models)"
+
+# Execution settings
+verbosity: 1  # 0=normal, 1=verbose, 2=debug
+forks: 5
+limit: ""  # Run on all hosts in inventory
+job_tags: ""
+skip_tags: ""
+diff_mode: false
+timeout: 0  # No timeout (tests can take a while)
+
+# Enable survey to collect user input
+survey_enabled: true
+survey_spec: "{{ lookup('file', '../surveys/llm-guidellm-test.yml') }}"
+
+# Ask for credentials on launch (for HF_TOKEN)
+ask_credential_on_launch: true
+
+# Extra variables (can be overridden by survey)
+extra_vars: |
+  ---
+  # DUT configuration (from survey)
+  ansible_host_dut: "{{ dut_host }}"
+  ansible_user_dut: "{{ dut_user }}"
+
+  # Load generator configuration (from survey)
+  loadgen_mode: "{{ loadgen_mode }}"
+  ansible_host_loadgen: "{{ loadgen_host if loadgen_mode == 'remote' else 'localhost' }}"
+  ansible_user_loadgen: "{{ loadgen_user if loadgen_mode == 'remote' else lookup('env', 'USER') }}"
+
+  # Container images (from survey)
+  container_runtime:
+    image: "{{ vllm_image }}"
+
+  benchmark_tool:
+    guidellm:
+      use_container: "{{ guidellm_use_container }}"
+      container_image: "{{ guidellm_image }}"
+      max_requests: "{{ guidellm_max_requests }}"
+      max_seconds: "{{ guidellm_max_seconds }}"
+
+  # Test configuration (from survey)
+  test_model: "{{ test_model }}"
+  workload_type: "{{ workload_type }}"
+  core_config_name: "{{ core_config_name }}"
+
+  # Results configuration (from survey)
+  bench_config:
+    results_dir: "{{ results_dir }}"
+    vllm_host: "{{ dut_host }}"
+    vllm_port: 8000
+
+# AWX-specific settings
+allow_simultaneous: false  # Don't allow multiple jobs running same test
+instance_groups: []  # Use default execution environment

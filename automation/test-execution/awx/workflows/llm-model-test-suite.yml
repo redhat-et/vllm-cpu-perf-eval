@@ -1,0 +1,207 @@
+---
+# AWX Workflow Template: LLM Model Test Suite
+#
+# Run a complete test suite for a single model across multiple workloads/configs
+# Tests can run sequentially or in parallel
+#
+# Import: Resources > Templates > Add > Workflow Template
+
+name: "LLM Model Test Suite"
+description: |
+  Run a complete test suite for an LLM model.
+
+  This workflow will test a single model across multiple:
+  - Workload types (chat, summarization, code, rag)
+  - Core configurations (8c, 16c, 32c, etc.)
+
+  Results are collected centrally for comparison and analysis.
+
+organization: "{{ awx_organization }}"
+inventory: "{{ awx_inventory_name }}"
+
+# Survey to collect suite configuration
+survey_enabled: true
+survey_spec:
+  - question_name: "DUT Hostname or IP"
+    question_description: "Hostname or IP address of the DUT"
+    required: true
+    type: text
+    variable: dut_host
+    default: ""
+
+  - question_name: "DUT SSH Credential"
+    question_description: "AWX Machine Credential for DUT SSH access"
+    required: true
+    type: text
+    variable: dut_ssh_credential
+    default: ""
+
+  - question_name: "vLLM Container Image"
+    question_description: "Container image for vLLM server"
+    required: true
+    type: text
+    variable: vllm_image
+    default: "quay.io/mtahhan/vllm:0.13.0-amx"
+
+  - question_name: "Model to Test"
+    question_description: "HuggingFace model for the test suite"
+    required: true
+    type: multiplechoice
+    variable: test_model
+    choices:
+      - "Qwen/Qwen3-0.6B"
+      - "Qwen/Qwen2.5-3B-Instruct"
+      - "facebook/opt-125m"
+      - "facebook/opt-1.3b"
+      - "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+      - "ibm-granite/granite-3.2-2b-instruct"
+      - "meta-llama/Llama-3.2-1B-Instruct"
+      - "meta-llama/Llama-3.2-3B-Instruct"
+    default: "Qwen/Qwen3-0.6B"
+
+  - question_name: "Workloads to Test"
+    question_description: "Which workloads to include in the suite (comma-separated: chat,summarization,code,rag)"
+    required: true
+    type: text
+    variable: workloads
+    default: "chat,summarization"
+
+  - question_name: "Core Configurations to Test"
+    question_description: "Which core configs to test (comma-separated: 8cores-single-socket,16cores-single-socket,32cores-single-socket)"
+    required: true
+    type: text
+    variable: core_configs
+    default: "8cores-single-socket,16cores-single-socket"
+
+  - question_name: "Execution Mode"
+    question_description: "Run tests sequentially or in parallel"
+    required: true
+    type: multiplechoice
+    variable: execution_mode
+    choices:
+      - "sequential"  # One test at a time (safer, slower)
+      - "parallel"    # Multiple tests at once (faster, requires more resources)
+    default: "sequential"
+
+  - question_name: "Results Directory"
+    question_description: "Base directory for storing all test results"
+    required: true
+    type: text
+    variable: results_dir
+    default: "/tmp/benchmark-results"
+
+# Workflow nodes (executed in order/parallel)
+workflow_nodes:
+  # ============================================================================
+  # Setup Phase
+  # ============================================================================
+
+  - identifier: setup
+    unified_job_template:
+      name: "Test Suite - Setup"
+      type: job_template
+    success_nodes:
+      - test_matrix
+
+  # ============================================================================
+  # Test Matrix Phase (Dynamic based on survey input)
+  # ============================================================================
+
+  - identifier: test_matrix
+    unified_job_template:
+      name: "LLM GuideLLM Performance Test"
+      type: job_template
+    # This node will be dynamically expanded based on:
+    # - workloads (from survey)
+    # - core_configs (from survey)
+    # Creates: len(workloads) * len(core_configs) parallel/sequential jobs
+    extra_data:
+      test_model: "{{ test_model }}"
+      vllm_image: "{{ vllm_image }}"
+      dut_host: "{{ dut_host }}"
+      results_dir: "{{ results_dir }}"
+    success_nodes:
+      - collect_results
+    failure_nodes:
+      - cleanup_on_failure
+
+  # ============================================================================
+  # Results Collection Phase
+  # ============================================================================
+
+  - identifier: collect_results
+    unified_job_template:
+      name: "Collect Test Results"
+      type: job_template
+    extra_data:
+      results_dir: "{{ results_dir }}"
+      test_model: "{{ test_model }}"
+    success_nodes:
+      - generate_report
+    always_nodes:
+      - cleanup
+
+  # ============================================================================
+  # Report Generation Phase
+  # ============================================================================
+
+  - identifier: generate_report
+    unified_job_template:
+      name: "Generate Test Report"
+      type: job_template
+    extra_data:
+      results_dir: "{{ results_dir }}"
+      test_model: "{{ test_model }}"
+    always_nodes:
+      - cleanup
+
+  # ============================================================================
+  # Cleanup Phase
+  # ============================================================================
+
+  - identifier: cleanup
+    unified_job_template:
+      name: "Cleanup Test Environment"
+      type: job_template
+    extra_data:
+      dut_host: "{{ dut_host }}"
+
+  - identifier: cleanup_on_failure
+    unified_job_template:
+      name: "Cleanup Test Environment"
+      type: job_template
+    extra_data:
+      dut_host: "{{ dut_host }}"
+    failure_nodes:
+      - send_failure_notification
+
+  # ============================================================================
+  # Notification Phase
+  # ============================================================================
+
+  - identifier: send_failure_notification
+    unified_job_template:
+      name: "Send Failure Notification"
+      type: job_template
+    extra_data:
+      test_model: "{{ test_model }}"
+      results_dir: "{{ results_dir }}"
+
+# Workflow visualization
+#
+# Setup → Test Matrix → Collect Results → Generate Report → Cleanup
+#            ↓              ↓
+#            ↓          (on failure)
+#            ↓              ↓
+#            ↓         Cleanup → Send Notification
+#            ↓
+#         (expands to)
+#            ↓
+#      ┌─────┴─────┬─────┬─────┐
+#      │           │     │     │
+#   Test 1-1   Test 1-2 ... Test N-M
+#   (chat,8c)  (chat,16c)   (rag,32c)
+#      │           │     │     │
+#      └─────┬─────┴─────┴─────┘
+#            ↓
+#      Collect Results
