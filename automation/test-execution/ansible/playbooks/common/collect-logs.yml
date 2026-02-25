@@ -35,6 +35,12 @@
     container_name: "{{ vllm_container_name | default('vllm-embedding-server') }}"
 
   tasks:
+    - name: Ensure log directory exists
+      ansible.builtin.file:
+        path: "{{ log_dir }}"
+        state: directory
+        mode: "0755"
+
     - name: Check if vLLM container exists
       ansible.builtin.shell:
         cmd: "podman ps -a --filter name={{ container_name }} --format '{{'{{'}}.Names{{'}}'}}'"

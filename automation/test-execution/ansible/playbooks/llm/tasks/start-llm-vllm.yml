@@ -32,6 +32,63 @@
       - workload_type in ['summarization', 'chat', 'code', 'rag']
     fail_msg: "Invalid workload_type: {{ workload_type }}. Must be one of: summarization, chat, code, rag"
 
+# ============================================================================
+# CPU Configuration Validation
+# ============================================================================
+
+- name: Get available CPU count on target system
+  ansible.builtin.command: nproc --all
+  register: available_cpus_result
+  changed_when: false
+
+- name: Parse CPU configuration
+  ansible.builtin.set_fact:
+    available_cpus: "{{ available_cpus_result.stdout | int }}"
+    max_cpu_id: "{{ (available_cpus_result.stdout | int) - 1 }}"
+
+- name: Extract CPU range from cpuset_cpus configuration
+  ansible.builtin.set_fact:
+    cpu_range_parts: "{{ core_cfg.cpuset_cpus.split('-') }}"
+  when: "'-' in core_cfg.cpuset_cpus"
+
+- name: Validate CPU range is within available CPUs
+  ansible.builtin.assert:
+    that:
+      - cpu_range_parts[0] | int >= 0
+      - cpu_range_parts[1] | int <= max_cpu_id | int
+    fail_msg: |
+      ❌ CPU configuration error!
+
+      Configured cpuset_cpus: {{ core_cfg.cpuset_cpus }}
+      Available CPUs on {{ inventory_hostname }}: 0-{{ max_cpu_id }} ({{ available_cpus }} total)
+
+      The configured CPU range {{ core_cfg.cpuset_cpus }} is out of bounds.
+      Please update inventory/group_vars/all/hardware-profiles.yml to match your hardware.
+
+      Example fix for this system:
+        - name: "{{ core_cfg.name }}"
+          cpuset_cpus: "0-{{ [core_cfg.cores - 1, max_cpu_id] | min }}"
+          cpuset_mems: "0"
+    success_msg: "✓ CPU configuration validated: {{ core_cfg.cpuset_cpus }} is within available range 0-{{ max_cpu_id }}"
+  when: "'-' in core_cfg.cpuset_cpus"
+
+- name: Display CPU allocation summary
+  ansible.builtin.debug:
+    msg:
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "CPU Validation Summary"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "Target System: {{ inventory_hostname }}"
+      - "Available CPUs: {{ available_cpus }} (0-{{ max_cpu_id }})"
+      - "Configured Allocation: {{ core_cfg.cpuset_cpus }}"
+      - "NUMA Node: {{ core_cfg.cpuset_mems }}"
+      - "Status: ✓ Valid configuration"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# ============================================================================
+# End CPU Configuration Validation
+# ============================================================================
+
 - name: Prepare base environment variables
   ansible.builtin.set_fact:
     vllm_env_vars:
