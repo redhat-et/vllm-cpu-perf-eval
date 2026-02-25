@@ -1,0 +1,35 @@
+---
+# ============================================================================
+# Infrastructure Configuration
+# ============================================================================
+# Platform setup, container runtime, and health check settings
+# These affect all test runs regardless of model or workload type
+
+# SSH configuration
+ansible_ssh_common_args: "-o StrictHostKeyChecking=no"
+
+# Platform setup options
+platform_setup:
+  numa_balancing_off: true        # Recommended for benchmarks
+  thp_defrag_never: true          # Recommended for determinism
+  preempt_full: false             # NOT recommended for ML workloads (DUT)
+  # For load generator: set to true for better latency
+  # Override per host group if needed
+
+# Container runtime settings
+container_runtime:
+  engine: "podman"
+  # ⚠️ CHANGE: Update to official vLLM image or your preferred version
+  # This image includes CPU optimizations for performance testing
+  image: "quay.io/mtahhan/vllm:0.14.0"
+  security_opts:
+    - "seccomp=unconfined"
+  capabilities:
+    - "SYS_NICE"
+  network_mode: "host"
+  shm_size: "4g"
+
+# Health check configuration
+health_check:
+  timeout: 300                  # Total timeout in seconds
+  interval: 5                   # Check interval in seconds

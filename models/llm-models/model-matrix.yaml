@@ -12,6 +12,7 @@ matrix:
     # Llama 3 Family
     - name: "llama-3.2-1b-instruct"
       full_name: "meta-llama/Llama-3.2-1B-Instruct"
+      gated: true  # Requires HuggingFace token and license acceptance
       architecture_family: "Llama 3 Decoder"
       application_focus: "Prefill-Heavy (Baseline)"
       parameters: "1.2B"
@@ -29,6 +30,7 @@ matrix:
 
     - name: "llama-3.2-3b-instruct"
       full_name: "meta-llama/Llama-3.2-3B-Instruct"
+      gated: true  # Requires HuggingFace token and license acceptance
       architecture_family: "Llama 3 Decoder"
       application_focus: "Prefill-Heavy (Baseline)"
       parameters: "3.2B"
@@ -47,6 +49,7 @@ matrix:
     # Llama 2 Family (Small-Scale)
     - name: "tinyllama-1.1b-chat"
       full_name: "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+      gated: false  # Public model, no token required
       architecture_family: "Llama 2 Decoder"
       application_focus: "Prefill/Decode (Small-Scale)"
       parameters: "1.1B"
@@ -64,6 +67,7 @@ matrix:
     # OPT Family (Legacy Baseline)
     - name: "opt-125m"
       full_name: "facebook/opt-125m"
+      gated: false  # Public model, no token required
       architecture_family: "Traditional OPT Decoder"
       application_focus: "Decode-Heavy (Legacy Baseline)"
       parameters: "125M"
@@ -81,6 +85,7 @@ matrix:
 
     - name: "opt-1.3b"
       full_name: "facebook/opt-1.3b"
+      gated: false  # Public model, no token required
       architecture_family: "Traditional OPT Decoder"
       application_focus: "Decode-Heavy (Legacy Baseline)"
       parameters: "1.3B"
@@ -98,6 +103,7 @@ matrix:
     # IBM Granite Family
     - name: "granite-3.2-2b-instruct"
       full_name: "ibm-granite/granite-3.2-2b-instruct"
+      gated: false  # Public model (Apache 2.0), no token required
       architecture_family: "IBM Granite Decoder"
       application_focus: "Balanced (Enterprise Baseline)"
       parameters: "2B"
@@ -116,6 +122,7 @@ matrix:
     # Qwen Family
     - name: "qwen3-0.6b"
       full_name: "Qwen/Qwen3-0.6B"
+      gated: false  # Public model, no token required
       architecture_family: "Qwen 3 Decoder"
       application_focus: "Balanced (High-Efficiency)"
       parameters: "0.6B"
@@ -133,6 +140,7 @@ matrix:
 
     - name: "qwen2.5-3b-instruct"
       full_name: "Qwen/Qwen2.5-3B-Instruct"
+      gated: false  # Public model, no token required
       architecture_family: "Qwen 2.5 Decoder"
       application_focus: "Balanced (High-Efficiency)"
       parameters: "3B"

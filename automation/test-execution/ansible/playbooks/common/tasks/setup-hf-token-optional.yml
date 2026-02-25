@@ -1,0 +1,27 @@
+---
+# Optional HuggingFace Token Setup
+# Only sets up token if HF_TOKEN environment variable is provided
+# Otherwise sets empty token to allow testing with public models
+
+- name: Check if HF_TOKEN is provided
+  ansible.builtin.set_fact:
+    hf_token_provided: "{{ lookup('env', huggingface.token_env_var) | length > 0 }}"
+
+- name: Display token status
+  ansible.builtin.debug:
+    msg: |
+      HuggingFace Token: {{ 'Provided' if hf_token_provided else 'Not provided' }}
+      {% if not hf_token_provided %}
+      Note: Testing with public models only. Gated models (e.g., meta-llama/*) will fail.
+      To use gated models, set: export {{ huggingface.token_env_var }}=hf_xxxxx
+      {% endif %}
+
+- name: Setup HF token (if provided)
+  ansible.builtin.include_tasks:
+    file: setup-hf-token.yml
+  when: hf_token_provided | bool
+
+- name: Set empty token for public models
+  ansible.builtin.set_fact:
+    hf_token: ""
+  when: not (hf_token_provided | bool)

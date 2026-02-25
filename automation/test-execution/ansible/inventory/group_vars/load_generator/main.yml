@@ -1,0 +1,9 @@
+---
+# ============================================================================
+# Load Generator Specific Configuration
+# ============================================================================
+# Settings specific to the load_generator host group
+# These override the global settings in group_vars/all/
+
+# Log directory for load generator
+log_dir: /tmp/vllm-logs

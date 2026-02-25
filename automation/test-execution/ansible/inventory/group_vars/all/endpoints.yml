@@ -1,0 +1,37 @@
+---
+# ============================================================================
+# Endpoint Configuration
+# ============================================================================
+# vLLM server settings and endpoint mode (managed vs external)
+
+# vLLM server configuration
+vllm_container_name: "vllm-server"
+vllm_server:
+  host: "0.0.0.0"
+  port: 8000
+
+# vLLM Endpoint Mode Configuration
+# Supports testing against external vLLM deployments (cloud, k8s, production)
+vllm_endpoint:
+  # Mode: "managed" (default) or "external"
+  # - managed: Ansible starts/stops vLLM container on DUT (traditional behavior)
+  # - external: Use existing vLLM endpoint (skip container management)
+  mode: "managed"
+
+  # External endpoint configuration (only used when mode=external)
+  external:
+    # Full URL to vLLM endpoint (required when mode=external)
+    # Examples:
+    #   - http://my-vllm-instance.example.com:8000
+    #   - https://vllm-prod.company.com
+    #   - http://10.0.1.50:8000 (direct IP)
+    #   - http://vllm-lb.k8s.local:8000 (Kubernetes LoadBalancer)
+    url: null
+
+    # Optional API key authentication for secured endpoints
+    api_key:
+      enabled: false
+      source: "env"              # Options: env, file, vault, prompt
+      env_var: "VLLM_API_KEY"    # Used when source=env
+      file_path: null            # Used when source=file (e.g., /etc/secrets/vllm-key)
+      vault_var: null            # Used when source=vault (Ansible vault variable)
