@@ -23,6 +23,7 @@
 - name: "Phase 1 - Start vLLM Server on DUT"
   hosts: dut
   become: true
+  gather_facts: false
   vars:
     model_name: "{{ test_model | default('ibm-granite/granite-embedding-278m-multilingual') }}"
 

@@ -1,0 +1,50 @@
+---
+# Example: Local Development Configuration
+# Use this when testing locally on your Mac/Linux laptop
+#
+# Setup:
+# 1. Copy this file to inventory/hosts.yml
+# 2. Adjust the settings below for your local environment
+# 3. Run: ansible-playbook -i inventory/hosts.yml playbooks/...
+
+all:
+  children:
+    # DUT - Not used in local development (external vLLM)
+    dut:
+      hosts:
+        my-dut:
+          ansible_host: localhost
+          ansible_user: "{{ lookup('env', 'USER') }}"
+          ansible_connection: local
+
+    # Load Generator - Your local machine
+    load_generator:
+      hosts:
+        my-loadgen:
+          ansible_host: localhost
+          ansible_connection: local
+          ansible_python_interpreter: auto_silent
+
+          bench_config:
+            # Point to external vLLM instance
+            vllm_host: ec2-X-X-X-X.compute-1.amazonaws.com  # ⚠️ Change to your vLLM endpoint
+            vllm_port: 8000
+
+            # Results on macOS should be in $HOME (Podman VM compatibility)
+            results_dir: "{{ lookup('env', 'HOME') }}/vllm-benchmark-results"
+
+# Optionally override settings in group_vars/all/ here
+# Example overrides for local development:
+
+# Use ARM containers if on M-series Mac
+# (Otherwise these are already set in group_vars/all/benchmark-tools.yml)
+# benchmark_tool:
+#   vllm_bench:
+#     container_image: "quay.io/mtahhan/vllm:arm-base-cpu"
+
+# Enable external endpoint mode
+# (Configure in group_vars/all/endpoints.yml instead for persistence)
+# vllm_endpoint:
+#   mode: "external"
+#   external:
+#     url: "http://ec2-X-X-X-X.compute-1.amazonaws.com:8000"
