@@ -94,7 +94,7 @@
 # ==============================================================================
 
 - name: "Phase 4 - Collect Logs and Results"
-  ansible.builtin.import_playbook: ../common/collect-logs.yml
+  ansible.builtin.import_playbook: collect-logs.yml
 
 # ==============================================================================
 # PHASE 5: Cleanup (Optional)
