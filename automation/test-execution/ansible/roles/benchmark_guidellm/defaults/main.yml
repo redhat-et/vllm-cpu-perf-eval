@@ -1,0 +1,8 @@
+---
+# GuideLLM Benchmark Role - Default Variables
+
+# Default container name prefix
+guidellm_container_prefix: guidellm
+
+# Default execution mode
+guidellm_use_container: true

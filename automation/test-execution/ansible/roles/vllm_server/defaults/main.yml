@@ -1,0 +1,15 @@
+---
+# vLLM Server Role - Default Variables
+# These are fallback values that can be overridden in inventory
+
+# Container naming
+vllm_container_name: vllm-server
+
+# Health check settings
+vllm_health_check_retries: 30
+vllm_health_check_delay: 2
+
+# Default wait times (seconds)
+vllm_init_wait_llm: 20
+vllm_init_wait_embedding: 15
+vllm_cleanup_wait: 5
