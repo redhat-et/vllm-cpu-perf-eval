@@ -25,69 +25,11 @@
   become: true
   gather_facts: false
   vars:
-    model_name: "{{ test_model | default('ibm-granite/granite-embedding-278m-multilingual') }}"
+    test_model: "{{ test_model | default('ibm-granite/granite-embedding-278m-multilingual') }}"
+    workload_type: embedding
 
-  tasks:
-    - name: Create log directory on DUT
-      ansible.builtin.file:
-        path: "{{ log_dir }}"
-        state: directory
-        mode: "0755"
-
-    - name: Create model cache directory
-      ansible.builtin.file:
-        path: "{{ model_cache_dir }}"
-        state: directory
-        mode: "0755"
-
-    - name: Pull vLLM container image
-      containers.podman.podman_image:
-        name: "{{ vllm_server.container_image }}"
-        state: present
-      when: vllm_server.container_runtime == 'podman'
-
-    - name: Stop any existing vLLM container
-      containers.podman.podman_container:
-        name: vllm-embedding-server
-        state: absent
-      ignore_errors: true
-      when: vllm_server.container_runtime == 'podman'
-
-    - name: Start vLLM server in container
-      containers.podman.podman_container:
-        name: vllm-embedding-server
-        image: "{{ vllm_server.container_image }}"
-        state: started
-        restart_policy: "no"
-        detach: true
-        network: host
-        volumes:
-          - "{{ model_cache_dir }}:/root/.cache/huggingface:rw"
-          - "{{ log_dir }}:/var/log/vllm:rw"
-        env: "{{ vllm_env }}"
-        command: >
-          --model {{ model_name }}
-          --host {{ vllm_server.host }}
-          --port {{ vllm_server.port }}
-          --dtype bfloat16
-          --max-model-len 512
-        log_driver: journald
-        log_opt:
-          tag: vllm-embedding
-      when: vllm_server.container_runtime == 'podman'
-      register: vllm_container
-
-    - name: Display vLLM container start info
-      ansible.builtin.debug:
-        msg:
-          - "vLLM Container ID: {{ vllm_container.container.Id | default('N/A') }}"
-          - "vLLM Server: http://{{ ansible_host }}:{{ vllm_server.port }}"
-          - "Model: {{ model_name }}"
-          - "Check logs: journalctl -t vllm-embedding -f"
-
-    - name: Wait a few seconds for container to initialize
-      ansible.builtin.pause:
-        seconds: 10
+  roles:
+    - role: vllm_server
 
 # ==============================================================================
 # PHASE 2: Health Check - Wait for vLLM to be Ready
@@ -134,57 +76,25 @@
   become: true
   vars:
     model_name: "{{ test_model | default('ibm-granite/granite-embedding-278m-multilingual') }}"
-    test_scenario: "{{ scenario | default('baseline') }}"  # baseline or latency
+    test_type: "{{ scenario | default('baseline') }}"  # baseline, latency, or all
 
-  tasks:
+  pre_tasks:
     - name: Create results directory on load generator
       ansible.builtin.file:
-        path: "{{ bench_config.results_dir }}/{{ model_name | basename }}/{{ test_scenario }}"
+        path: "{{ bench_config.results_dir }}/{{ model_name | basename }}/{{ test_type }}"
         state: directory
         mode: "0755"
         recurse: true
 
-    - name: Include test scenario tasks
-      ansible.builtin.include_tasks:
-        file: "tasks/{{ test_scenario }}.yml"
+  roles:
+    - role: benchmark_embedding
 
 # ==============================================================================
 # PHASE 4: Collect Logs and Results
 # ==============================================================================
 
 - name: "Phase 4 - Collect Logs and Results"
-  hosts: load_generator
-  gather_facts: false
-
-  tasks:
-    - name: Fetch results from load generator to controller
-      ansible.builtin.fetch:
-        src: "{{ bench_config.results_dir }}/"
-        dest: "{{ playbook_dir }}/../../results/embedding-models/"
-        flat: false
-
-- name: "Phase 4 - Collect vLLM Server Logs"
-  hosts: dut
-  become: true
-
-  tasks:
-    - name: Get vLLM container logs
-      ansible.builtin.command:
-        cmd: "podman logs vllm-embedding-server"
-      register: vllm_logs
-      when: vllm_server.container_runtime == 'podman'
-
-    - name: Save vLLM logs to file
-      ansible.builtin.copy:
-        content: "{{ vllm_logs.stdout }}"
-        dest: "{{ log_dir }}/vllm-server-{{ test_run_id }}.log"
-      when: vllm_logs is defined
-
-    - name: Fetch vLLM logs to controller
-      ansible.builtin.fetch:
-        src: "{{ log_dir }}/vllm-server-{{ test_run_id }}.log"
-        dest: "{{ playbook_dir }}/../../results/logs/"
-        flat: false
+  ansible.builtin.import_playbook: ../common/collect-logs.yml
 
 # ==============================================================================
 # PHASE 5: Cleanup (Optional)
