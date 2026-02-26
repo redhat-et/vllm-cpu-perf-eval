@@ -137,7 +137,7 @@
 
       when: hostvars['localhost']['vllm_mode'] == 'external'
 - name: "Health Check - External Endpoint"
-  ansible.builtin.import_playbook: ../common/health-check.yml
+  ansible.builtin.import_playbook: health-check.yml
 
 # ==============================================================================
 # MAIN LOOP: Iterate over core counts

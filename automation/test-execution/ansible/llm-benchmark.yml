@@ -58,7 +58,7 @@
 # ==============================================================================
 
 - name: "Phase 2 - Wait for vLLM Server to be Ready"
-  ansible.builtin.import_playbook: ../common/health-check.yml
+  ansible.builtin.import_playbook: health-check.yml
 
 # ==============================================================================
 # PHASE 3: Run GuideLLM Benchmark
@@ -80,7 +80,7 @@
 # ==============================================================================
 
 - name: "Phase 4 - Collect Results and Logs"
-  ansible.builtin.import_playbook: ../common/collect-logs.yml
+  ansible.builtin.import_playbook: collect-logs.yml
 
 # ==============================================================================
 # PHASE 5: Cleanup (Optional)
