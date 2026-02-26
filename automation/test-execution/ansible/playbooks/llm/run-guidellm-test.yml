@@ -50,10 +50,8 @@
   vars:
     core_configuration: "{{ hostvars['localhost']['core_configuration'] }}"
 
-  tasks:
-    - name: Start vLLM for LLM model
-      ansible.builtin.include_tasks:
-        file: tasks/start-llm-vllm.yml
+  roles:
+    - role: vllm_server
 
 # ==============================================================================
 # PHASE 2: Health Check - Wait for vLLM
@@ -72,14 +70,10 @@
   vars:
     core_configuration: "{{ hostvars['localhost']['core_configuration'] }}"
 
-  tasks:
-    - name: Setup HuggingFace token for load generator (if provided)
-      ansible.builtin.include_tasks:
-        file: ../common/tasks/setup-hf-token-optional.yml
-
-    - name: Run GuideLLM benchmark
-      ansible.builtin.include_tasks:
-        file: tasks/run-guidellm.yml
+  roles:
+    - role: hf_token
+      tasks_from: setup-optional
+    - role: benchmark_guidellm
 
 # ==============================================================================
 # PHASE 4: Collect Results and Logs
