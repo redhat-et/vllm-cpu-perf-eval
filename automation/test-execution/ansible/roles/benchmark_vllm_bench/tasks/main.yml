@@ -1,0 +1,20 @@
+---
+# Benchmark vLLM-Bench Role - Main Entry Point
+# General-purpose vllm-bench execution role
+# Can be used for custom vllm-bench tests
+
+- name: Set vllm-bench execution mode
+  ansible.builtin.set_fact:
+    use_vllm_bench_container: "{{ benchmark_tool.vllm_bench.use_container | default(true) }}"
+    vllm_bench_image: "{{ benchmark_tool.vllm_bench.container_image | default('quay.io/mtahhan/vllm:arm-base-cpu') }}"
+
+- name: Display vllm-bench configuration
+  ansible.builtin.debug:
+    msg:
+      - "vLLM Bench Configuration"
+      - "Mode: {{ 'Container' if use_vllm_bench_container else 'Host' }}"
+      - "Image: {{ vllm_bench_image if use_vllm_bench_container else 'N/A (using host vllm)' }}"
+      - "Target: {{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}"
+
+# This is a base role - specific benchmark tasks should be included
+# by other playbooks or roles that call this role

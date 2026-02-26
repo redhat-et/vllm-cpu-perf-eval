@@ -1,0 +1,16 @@
+---
+# Results Collector Role - Main Entry Point
+# Collects logs and results from DUT and load generator
+
+- name: Set collection ID
+  ansible.builtin.set_fact:
+    collection_id: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
+  run_once: true
+
+- name: Include vLLM server log collection
+  ansible.builtin.include_tasks: collect-vllm-logs.yml
+  when: "'dut' in group_names"
+
+- name: Include test results collection
+  ansible.builtin.include_tasks: collect-test-results.yml
+  when: "'load_generator' in group_names"

@@ -1,0 +1,11 @@
+---
+# vLLM Server Role - Main Entry Point
+# Determines which vLLM server type to start based on workload
+
+- name: Start vLLM server for LLM workloads
+  ansible.builtin.include_tasks: start-llm.yml
+  when: workload_type in ['summarization', 'chat', 'code', 'rag']
+
+- name: Start vLLM server for embedding workloads
+  ansible.builtin.include_tasks: start-embedding.yml
+  when: workload_type == 'embedding'

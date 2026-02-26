@@ -1,0 +1,238 @@
+---
+# Run GuideLLM Benchmark for LLM Generative Models
+# Supports both containerized and host-based execution
+
+# ============================================================================
+# COMMON SETUP (Both Execution Modes)
+# ============================================================================
+
+- name: Get workload configuration
+  ansible.builtin.set_fact:
+    workload_cfg: "{{ test_configs[workload_type] }}"
+    guidellm_cfg: "{{ benchmark_tool.guidellm }}"
+    core_cfg: "{{ core_configuration }}"
+
+- name: Set GuideLLM execution mode
+  ansible.builtin.set_fact:
+    use_guidellm_container: "{{ guidellm_cfg.use_container | default(true) }}"
+
+- name: Create results directory for this test
+  ansible.builtin.file:
+    path: "{{ bench_config.results_dir }}/{{ test_model | basename }}/{{ workload_type }}/{{ core_cfg.name }}"
+    state: directory
+    mode: "0777"
+    recurse: true
+
+- name: Ensure results directory has write permissions
+  ansible.builtin.command:
+    cmd: "chmod -R 777 {{ bench_config.results_dir }}/{{ test_model | basename }}/{{ workload_type }}/{{ core_cfg.name }}"
+  changed_when: false
+
+- name: Display GuideLLM configuration
+  ansible.builtin.debug:
+    msg:
+      - "Running GuideLLM Benchmark ({{ 'Container' if use_guidellm_container else 'Host' }} mode)"
+      - "Target: http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}"
+      - "Workload: {{ workload_type }} ({{ workload_cfg.isl }}:{{ workload_cfg.osl }})"
+      - "Profile: {{ guidellm_cfg.profile }}"
+      - "Max Requests: {{ guidellm_cfg.max_requests }}"
+      - "Max Concurrency: {{ guidellm_cfg.max_concurrency }}"
+
+# ============================================================================
+# CONTAINERIZED EXECUTION PATH
+# ============================================================================
+
+- name: Pull GuideLLM container image
+  containers.podman.podman_image:
+    name: "{{ guidellm_cfg.container_image }}"
+    state: present
+  when: use_guidellm_container | bool
+
+- name: Prepare GuideLLM environment variables
+  ansible.builtin.set_fact:
+    guidellm_env:
+      GUIDELLM_TARGET: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}"
+      GUIDELLM_PROFILE: "{{ guidellm_cfg.profile }}"
+      GUIDELLM_MAX_SECONDS: "{{ guidellm_cfg.max_seconds }}"
+      GUIDELLM_MAX_REQUESTS: "{{ guidellm_cfg.max_requests }}"
+      GUIDELLM__EXCLUDE_THROUGHPUT_TARGET: "{{ guidellm_cfg.exclude_throughput_target | string | lower }}"
+      GUIDELLM__EXCLUDE_THROUGHPUT_RESULT: "{{ guidellm_cfg.exclude_throughput_result | string | lower }}"
+      GUIDELLM__SATURATION_THRESHOLD: "{{ guidellm_cfg.saturation_threshold }}"
+      GUIDELLM_DATA: "prompt_tokens={{ workload_cfg.isl }},output_tokens={{ workload_cfg.osl }}"
+      GUIDELLM__MAX_CONCURRENCY: "{{ guidellm_cfg.max_concurrency }}"
+      GUIDELLM_COOLDOWN: "{{ guidellm_cfg.cooldown }}"
+      GUIDELLM_OUTPUTS: "{{ guidellm_cfg.outputs }}"
+      HF_TOKEN: "{{ hf_token | default('') }}"
+
+- name: Start GuideLLM benchmark container
+  containers.podman.podman_container:
+    name: "guidellm-{{ workload_type }}-{{ core_cfg.name }}"
+    image: "{{ guidellm_cfg.container_image }}"
+    state: started
+    rm: false  # Don't auto-remove so we can check exit code
+    detach: true  # Run in background so we can stream logs
+    network: host
+    cpuset_cpus: "{{ omit if ansible_facts['system'] == 'Darwin' else guidellm_cfg.cpuset_cpus }}"
+    cpuset_mems: "{{ omit if ansible_facts['system'] == 'Darwin' else guidellm_cfg.cpuset_mems }}"
+    volumes:
+      - "{{ bench_config.results_dir }}/{{ test_model | basename }}/{{ workload_type }}/{{ core_cfg.name }}:/results:z"
+    env: "{{ guidellm_env }}"
+    log_driver: journald
+    log_opt:
+      tag: "guidellm-{{ workload_type }}-{{ core_cfg.name }}"
+  register: guidellm_container
+  when: use_guidellm_container | bool
+
+- name: Set monitoring command based on connection type
+  ansible.builtin.set_fact:
+    monitor_cmd: "{{ 'podman logs -f guidellm-' + workload_type + '-' + core_cfg.name if ansible_connection == 'local' else 'ssh ' + ansible_user + '@' + ansible_host + ' podman logs -f guidellm-' + workload_type + '-' + core_cfg.name }}"
+  when: use_guidellm_container | bool
+
+- name: Display benchmark start info (containerized)
+  ansible.builtin.debug:
+    msg:
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "GuideLLM Benchmark Started (Container Mode)"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "Container: {{ guidellm_container.container.Id[:12] }}"
+      - "Max Duration: {{ guidellm_cfg.max_seconds }}s | Max Requests: {{ guidellm_cfg.max_requests }}"
+      - "{{ 'Location: localhost' if ansible_connection == 'local' else 'Location: ' + ansible_host }}"
+      - ""
+      - "⚠️  Ansible will now wait silently for completion"
+      - "⚠️  This may take several minutes (or hours for sweep tests)"
+      - ""
+      - "To monitor progress, open another terminal and run:"
+      - "  {{ monitor_cmd }}"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  when: use_guidellm_container | bool
+
+- name: Wait for GuideLLM benchmark to complete (containerized)
+  ansible.builtin.command:
+    cmd: "podman wait guidellm-{{ workload_type }}-{{ core_cfg.name }}"
+  register: guidellm_exit_code_container
+  changed_when: false
+  failed_when: false
+  when: use_guidellm_container | bool
+
+- name: Get container exit details
+  ansible.builtin.shell:
+    cmd: "podman inspect guidellm-{{ workload_type }}-{{ core_cfg.name }} --format '{''{ .State.ExitCode }''}' || echo 1"
+  args:
+    executable: /bin/bash
+  register: container_exit_code
+  changed_when: false
+  failed_when: false
+  when: use_guidellm_container | bool
+
+- name: Capture container logs on failure
+  ansible.builtin.shell:
+    cmd: "podman logs guidellm-{{ workload_type }}-{{ core_cfg.name }} 2>&1 | tail -100"
+  args:
+    executable: /bin/bash
+  register: guidellm_failure_logs
+  changed_when: false
+  failed_when: false
+  when:
+    - use_guidellm_container | bool
+    - container_exit_code.stdout is defined
+    - container_exit_code.stdout != '0'
+
+- name: Remove completed container
+  containers.podman.podman_container:
+    name: "guidellm-{{ workload_type }}-{{ core_cfg.name }}"
+    state: absent
+  when:
+    - use_guidellm_container | bool
+    - container_exit_code.stdout is defined
+
+# ============================================================================
+# HOST EXECUTION PATH
+# ============================================================================
+
+- name: Display benchmark start info (host mode)
+  ansible.builtin.debug:
+    msg:
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "GuideLLM Benchmark Started (Host Mode)"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "Max Duration: {{ guidellm_cfg.max_seconds }}s | Max Requests: {{ guidellm_cfg.max_requests }}"
+      - "{{ 'Location: localhost' if ansible_connection == 'local' else 'Location: ' + ansible_host }}"
+      - ""
+      - "⚠️  Running guidellm from PATH (not containerized)"
+      - "⚠️  Ansible will now wait for completion"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  when: not (use_guidellm_container | bool)
+
+- name: Run GuideLLM benchmark on host
+  ansible.builtin.command:
+    cmd: >
+      guidellm
+      --target http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}
+      --profile {{ guidellm_cfg.profile }}
+      --max-seconds {{ guidellm_cfg.max_seconds }}
+      --max-requests {{ guidellm_cfg.max_requests }}
+      --data prompt_tokens={{ workload_cfg.isl }},output_tokens={{ workload_cfg.osl }}
+      --max-concurrency {{ guidellm_cfg.max_concurrency }}
+      --saturation-threshold {{ guidellm_cfg.saturation_threshold }}
+      --cooldown {{ guidellm_cfg.cooldown }}
+      --outputs {{ guidellm_cfg.outputs }}
+      --output-dir {{ bench_config.results_dir }}/{{ test_model | basename }}/{{ workload_type }}/{{ core_cfg.name }}
+  environment:
+    HF_TOKEN: "{{ hf_token | default('') }}"
+    GUIDELLM_TARGET: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}"
+  register: guidellm_host_result
+  changed_when: true
+  failed_when: false
+  when: not (use_guidellm_container | bool)
+
+# ============================================================================
+# COMMON COMPLETION & ERROR HANDLING
+# ============================================================================
+
+- name: Set exit code (unified across modes)
+  ansible.builtin.set_fact:
+    guidellm_exit_code: "{{ container_exit_code.stdout if use_guidellm_container else (guidellm_host_result.rc | string) }}"
+
+- name: Display GuideLLM completion status
+  ansible.builtin.debug:
+    msg:
+      - "{{ '✓ GuideLLM benchmark completed successfully' if guidellm_exit_code == '0' else '✗ GuideLLM benchmark failed' }}"
+      - "Exit Code: {{ guidellm_exit_code }}"
+      - "Results: {{ bench_config.results_dir }}/{{ test_model | basename }}/{{ workload_type }}/{{ core_cfg.name }}"
+
+- name: Display failure logs (containerized)
+  ansible.builtin.debug:
+    msg: "{{ guidellm_failure_logs.stdout_lines | default([]) }}"
+  when:
+    - use_guidellm_container | bool
+    - guidellm_exit_code != '0'
+    - guidellm_failure_logs is defined
+
+- name: Display failure output (host mode)
+  ansible.builtin.debug:
+    msg:
+      - "STDOUT:"
+      - "{{ guidellm_host_result.stdout_lines | default([]) }}"
+      - "STDERR:"
+      - "{{ guidellm_host_result.stderr_lines | default([]) }}"
+  when:
+    - not (use_guidellm_container | bool)
+    - guidellm_exit_code != '0'
+    - guidellm_host_result is defined
+
+- name: Fail if GuideLLM encountered errors
+  ansible.builtin.fail:
+    msg: "GuideLLM benchmark failed with exit code {{ guidellm_exit_code }}. Check logs above for details."
+  when:
+    - guidellm_exit_code is defined
+    - guidellm_exit_code != '0'
+
+- name: List generated result files
+  ansible.builtin.find:
+    paths: "{{ bench_config.results_dir }}/{{ test_model | basename }}/{{ workload_type }}/{{ core_cfg.name }}"
+    patterns: "*.html,*.json,*.csv"
+  register: result_files
+
+- name: Display result files
+  ansible.builtin.debug:
+    msg: "Generated {{ result_files.files | length }} result files: {{ result_files.files | map(attribute='path') | map('basename') | list }}"

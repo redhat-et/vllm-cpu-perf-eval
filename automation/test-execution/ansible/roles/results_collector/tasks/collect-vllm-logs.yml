@@ -1,0 +1,81 @@
+---
+# Collect vLLM Server Logs from DUT
+
+- name: Ensure log directory exists
+  ansible.builtin.file:
+    path: "{{ log_dir }}"
+    state: directory
+    mode: "0755"
+  become: true
+
+- name: Check if vLLM container exists
+  ansible.builtin.shell:
+    cmd: "podman ps -a --filter name={{ vllm_container_name | default('vllm-embedding-server') }} --format '{{'{{'}}.Names{{'}}'}}'"
+  register: container_check
+  changed_when: false
+  when: container_runtime.engine == 'podman'
+
+- name: Get vLLM container logs (if running)
+  ansible.builtin.command:
+    cmd: "podman logs {{ vllm_container_name | default('vllm-embedding-server') }}"
+  register: vllm_logs
+  changed_when: false
+  when:
+    - container_runtime.engine == 'podman'
+    - container_check.stdout | length > 0
+
+- name: Save vLLM logs to file
+  ansible.builtin.copy:
+    content: "{{ vllm_logs.stdout }}"
+    dest: "{{ log_dir }}/vllm-server-{{ collection_id }}.log"
+  become: true
+  when: vllm_logs is defined and vllm_logs.stdout is defined
+
+- name: Get journald logs for vLLM
+  ansible.builtin.command:
+    cmd: "journalctl -t vllm-embedding --since '1 hour ago' --no-pager"
+  register: journald_logs
+  changed_when: false
+  become: true
+  ignore_errors: true
+
+- name: Save journald logs to file
+  ansible.builtin.copy:
+    content: "{{ journald_logs.stdout }}"
+    dest: "{{ log_dir }}/vllm-journald-{{ collection_id }}.log"
+  become: true
+  when: journald_logs is defined and journald_logs.stdout is defined
+
+- name: Collect system metrics snapshot
+  ansible.builtin.shell: |
+    echo "=== CPU Info ===" > {{ log_dir }}/system-metrics-{{ collection_id }}.log
+    lscpu >> {{ log_dir }}/system-metrics-{{ collection_id }}.log
+    echo "" >> {{ log_dir }}/system-metrics-{{ collection_id }}.log
+    echo "=== Memory Usage ===" >> {{ log_dir }}/system-metrics-{{ collection_id }}.log
+    free -h >> {{ log_dir }}/system-metrics-{{ collection_id }}.log
+    echo "" >> {{ log_dir }}/system-metrics-{{ collection_id }}.log
+    echo "=== Container Stats ===" >> {{ log_dir }}/system-metrics-{{ collection_id }}.log
+    podman stats --no-stream {{ vllm_container_name | default('vllm-embedding-server') }} >> {{ log_dir }}/system-metrics-{{ collection_id }}.log 2>&1 || true
+  args:
+    executable: /bin/bash
+  changed_when: false
+  become: true
+
+- name: List collected log files
+  ansible.builtin.find:
+    paths: "{{ log_dir }}"
+    patterns: "*{{ collection_id }}*"
+  register: collected_logs
+
+- name: Display collected logs
+  ansible.builtin.debug:
+    msg: "Collected {{ collected_logs.files | length }} log files from {{ inventory_hostname }}"
+
+- name: Fetch logs to controller
+  ansible.builtin.fetch:
+    src: "{{ item.path }}"
+    dest: "{{ playbook_dir }}/../../../results/logs/{{ inventory_hostname }}/"
+    flat: false
+  loop: "{{ collected_logs.files }}"
+  loop_control:
+    label: "{{ item.path | basename }}"
