@@ -1,0 +1,23 @@
+---
+# Collect Test Results from Load Generator
+
+- name: Check if results directory exists
+  ansible.builtin.stat:
+    path: "{{ bench_config.results_dir }}"
+  register: results_dir_stat
+
+- name: Display results directory status
+  ansible.builtin.debug:
+    msg: "Results directory: {{ bench_config.results_dir }} ({{ 'exists' if results_dir_stat.stat.exists else 'not found' }})"
+
+- name: Fetch test results to controller
+  ansible.posix.synchronize:
+    src: "{{ bench_config.results_dir }}/"
+    dest: "{{ playbook_dir }}/../../../results/benchmark-results/"
+    mode: pull
+    recursive: true
+  when: results_dir_stat.stat.exists
+
+- name: Display results collection status
+  ansible.builtin.debug:
+    msg: "{{ 'Results fetched from ' + bench_config.results_dir if results_dir_stat.stat.exists else 'No results directory found' }}"

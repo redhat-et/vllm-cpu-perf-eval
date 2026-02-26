@@ -1,0 +1,65 @@
+---
+# Latency and concurrent load test tasks
+# Included by run-embedding-tests.yml
+
+- name: Set vllm-bench execution mode
+  ansible.builtin.set_fact:
+    use_vllm_bench_container: "{{ benchmark_tool.vllm_bench.use_container | default(true) }}"
+    vllm_bench_image: "{{ benchmark_tool.vllm_bench.container_image | default('quay.io/mtahhan/vllm:arm-base-cpu') }}"
+    num_prompts: "{{ benchmark_tool.vllm_bench.num_prompts | default(250) }}"
+
+- name: Define concurrency levels to test
+  ansible.builtin.set_fact:
+    concurrency_levels: [16, 32, 64, 128, 196]
+
+- name: "Latency Test - Run at each concurrency level - Containerized"
+  ansible.builtin.command:
+    cmd: >
+      podman run --rm --entrypoint="" --network host
+      -v {{ bench_config.results_dir }}:{{ bench_config.results_dir }}:z
+      {{ vllm_bench_image }}
+      /opt/venv/bin/vllm bench serve
+      --host {{ bench_config.vllm_host }}
+      --port {{ bench_config.vllm_port }}
+      --backend openai-embeddings
+      --model {{ model_name }}
+      --dataset-name random
+      --random-input-len 512
+      --num-prompts {{ num_prompts }}
+      --endpoint /v1/embeddings
+      --request-rate inf
+      --max-concurrency {{ item }}
+      --save-result
+      --result-filename {{ bench_config.results_dir }}/{{ model_name | basename }}/latency/concurrent-{{ item }}.json
+  loop: "{{ concurrency_levels }}"
+  register: latency_tests
+  changed_when: true
+  when: use_vllm_bench_container | bool
+
+- name: "Latency Test - Run at each concurrency level - Host"
+  ansible.builtin.command:
+    cmd: >
+      vllm bench serve
+      --host {{ bench_config.vllm_host }}
+      --port {{ bench_config.vllm_port }}
+      --backend openai-embeddings
+      --model {{ model_name }}
+      --dataset-name random
+      --random-input-len 512
+      --num-prompts {{ num_prompts }}
+      --endpoint /v1/embeddings
+      --request-rate inf
+      --max-concurrency {{ item }}
+      --save-result
+      --result-filename {{ bench_config.results_dir }}/{{ model_name | basename }}/latency/concurrent-{{ item }}.json
+  loop: "{{ concurrency_levels }}"
+  register: latency_tests
+  changed_when: true
+  when: not (use_vllm_bench_container | bool)
+
+- name: Display latency test results summary
+  ansible.builtin.debug:
+    msg:
+      - "Latency tests completed for concurrency levels: {{ concurrency_levels }}"
+      - "Results saved to {{ bench_config.results_dir }}/{{ model_name | basename }}/latency/"
+      - "Look for P99 latency sweet spot and degradation point"

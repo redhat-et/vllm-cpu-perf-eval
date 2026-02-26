@@ -1,0 +1,11 @@
+---
+# Benchmark Embedding Role - Main Entry Point
+# Runs embedding model benchmarks using vllm-bench
+
+- name: Run baseline performance test (throughput sweep)
+  ansible.builtin.include_tasks: baseline.yml
+  when: test_type == 'baseline' or test_type == 'all'
+
+- name: Run latency performance test
+  ansible.builtin.include_tasks: latency.yml
+  when: test_type == 'latency' or test_type == 'all'
