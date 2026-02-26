@@ -42,12 +42,12 @@ ansible -i inventory/hosts.yml all -m ping
 # Set HuggingFace token
 export HF_TOKEN=hf_xxxxx
 
-# Run auto-configured test (easiest)
+# Run LLM benchmark (manual config)
 ansible-playbook -i inventory/hosts.yml \
-  playbooks/llm/run-guidellm-test-auto.yml \
+  llm-benchmark.yml \
   -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
   -e "workload_type=summarization" \
-  -e "requested_cores=16"
+  -e "core_config_name=32cores-single-socket"
 ```
 
 Done!
@@ -69,94 +69,30 @@ Done!
 - **Load Generator**: Runs benchmarking tools (GuideLLM, vllm bench
   serve)
 
-## Configuration Approaches
-
-### Auto-Configuration (Recommended for Exploration)
-
-**You provide**: Number of cores (single value or list)
-
-**Ansible handles**: NUMA detection, CPU allocation, configuration
-
-#### Single Core Count
-
-```bash
-ansible-playbook -i inventory/hosts.yml \
-  playbooks/llm/run-guidellm-test-auto.yml \
-  -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
-  -e "workload_type=summarization" \
-  -e "requested_cores=32"  # Just specify how many cores!
-```
-
-**What happens:**
-
-1. Detects NUMA topology on DUT
-2. Allocates 32 cores from vLLM NUMA node
-3. Generates config: `32cores-auto-numa<X>`
-4. Runs test
-
-#### Multiple Core Counts (Core Sweep)
-
-```bash
-ansible-playbook -i inventory/hosts.yml \
-  playbooks/llm/run-core-sweep-auto.yml \
-  -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
-  -e "workload_type=summarization" \
-  -e "requested_cores_list=[8,16,24,32]"
-# Test multiple core counts!
-```
-
-**What happens:**
-
-1. Detects NUMA topology once
-2. For **each** core count (8, 16, 24, 32):
-   - Allocates cores from topology
-   - Generates unique config name
-   - Clean restart vLLM
-   - Runs test
-   - Collects results
-3. All results organized by core count
-
-### Manual Configuration (Recommended for Production)
-
-**You provide**: Pre-defined configuration name
-
-**Uses**: Exact cpuset/NUMA settings from inventory
-
-```bash
-ansible-playbook -i inventory/hosts.yml \
-  playbooks/llm/run-guidellm-test.yml \
-  -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
-  -e "workload_type=summarization" \
-  -e "core_config_name=32cores-single-socket"
-```
-
-**When to use each:**
-
-- **Auto**: Quick testing, exploration, unknown hardware
-- **Manual**: Production benchmarks, exact reproducibility, documented
-  configs
-
 ## Available Playbooks
 
 ### LLM Testing
 
 | Playbook | Purpose | Usage |
 |----------|---------|-------|
-| [run-guidellm-test-auto.yml](playbooks/llm/run-guidellm-test-auto.yml) | Single test, auto cores | `-e "requested_cores=16"` |
-| [run-guidellm-test.yml](playbooks/llm/run-guidellm-test.yml) | Single test, manual config | `-e "core_config_name=..."` |
-| [run-core-sweep-auto.yml](playbooks/llm/run-core-sweep-auto.yml) | Test multiple core counts | `-e "requested_cores_list=[8,16,32]"` |
-| [run-core-sweep.yml](playbooks/llm/run-core-sweep.yml) | Test multiple configs | `-e "core_config_names=[...]"` |
+| [llm-benchmark.yml](llm-benchmark.yml) | Single LLM test with manual config | `-e "core_config_name=..."` |
+| [llm-core-sweep.yml](llm-core-sweep.yml) | Test multiple core configs | `-e "core_config_names=[...]"` |
+| [embedding-benchmark.yml](embedding-benchmark.yml) | Single embedding test | `-e "test_model=..." -e "scenario=baseline"` |
+| [embedding-core-sweep.yml](embedding-core-sweep.yml) | Embedding core sweep | Multiple configs |
 
 ### Platform Setup
 
 | Playbook | Purpose | When |
 |----------|---------|------|
-| [setup-platform.yml](playbooks/common/setup-platform.yml) | Configure DUT/LoadGen for optimal performance | One-time, before testing |
+| [setup-platform.yml](setup-platform.yml) | Configure DUT/LoadGen for optimal performance | One-time, before testing |
+| [collect-logs.yml](collect-logs.yml) | Collect logs and results | After tests |
+| [health-check.yml](health-check.yml) | Check vLLM server health | Standalone or imported |
 
+**Note:** `llm-benchmark-auto.yml` and `llm-core-sweep-auto.yml` have broken references and need updating.
 
 ## Workload Types
 
-Pre-configured in [inventory/hosts.yml](inventory/hosts.yml):
+Pre-configured in [inventory/group_vars/all/test-workloads.yml](inventory/group_vars/all/test-workloads.yml):
 
 | Workload | ISL:OSL | Use Case | vLLM Args |
 |----------|---------|----------|-----------|
@@ -173,8 +109,7 @@ Pre-configured in [inventory/hosts.yml](inventory/hosts.yml):
 
 ```bash
 # Configure CPU isolation, tuned profile, systemd pinning
-ansible-playbook -i inventory/hosts.yml \
-  playbooks/common/setup-platform.yml
+ansible-playbook -i inventory/hosts.yml setup-platform.yml
 
 # Reboot required
 ansible -i inventory/hosts.yml all -b -m reboot
@@ -183,18 +118,27 @@ ansible -i inventory/hosts.yml all -b -m reboot
 ansible -i inventory/hosts.yml dut -b -a "tuned-adm active"
 ```
 
-### Run Core Sweep
+### Run LLM Benchmark
 
-Test multiple core counts:
+Test with specific core configuration:
 
 ```bash
 export HF_TOKEN=hf_xxxxx
 
 ansible-playbook -i inventory/hosts.yml \
-  playbooks/llm/run-core-sweep-auto.yml \
+  llm-benchmark.yml \
   -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
   -e "workload_type=summarization" \
-  -e "requested_cores_list=[8,16,32,64]"
+  -e "core_config_name=32cores-single-socket"
+```
+
+### Run Embedding Benchmark
+
+```bash
+ansible-playbook -i inventory/hosts.yml \
+  embedding-benchmark.yml \
+  -e "test_model=ibm-granite/granite-embedding-278m-multilingual" \
+  -e "scenario=baseline"
 ```
 
 ### Test Multiple Models
@@ -207,66 +151,116 @@ for model in \
   "meta-llama/Llama-3.2-3B-Instruct"; do
 
   ansible-playbook -i inventory/hosts.yml \
-    playbooks/llm/run-guidellm-test-auto.yml \
+    llm-benchmark.yml \
     -e "test_model=$model" \
     -e "workload_type=summarization" \
-    -e "requested_cores=16"
+    -e "core_config_name=16cores-single-socket"
 done
 ```
 
-## Results
+## Directory Structure
 
-Results are organized by model and workload:
-
+```text
+automation/test-execution/ansible/
+├── ansible.cfg                       # Ansible configuration
+├── inventory/
+│   ├── hosts.yml                    # Main inventory - edit IPs here
+│   ├── group_vars/                  # Group variables
+│   │   ├── all/                     # Variables for all hosts
+│   │   │   ├── benchmark-tools.yml  # GuideLLM, vllm-bench config
+│   │   │   ├── credentials.yml      # HuggingFace token setup
+│   │   │   ├── endpoints.yml        # Network endpoints
+│   │   │   ├── hardware-profiles.yml # Core configurations
+│   │   │   ├── infrastructure.yml    # Paths, directories
+│   │   │   └── test-workloads.yml   # Workload definitions
+│   │   ├── dut/main.yml             # DUT-specific vars
+│   │   └── load_generator/main.yml  # Load gen-specific vars
+│   ├── examples/                    # Example inventory files
+│   └── README.md                    # Inventory documentation
+│
+├── roles/                           # Reusable roles
+│   ├── vllm_server/                 # vLLM server management
+│   │   ├── defaults/main.yml        # Default variables
+│   │   └── tasks/                   # Tasks
+│   │       ├── main.yml
+│   │       ├── start-llm.yml
+│   │       ├── start-embedding.yml
+│   │       └── clean-restart.yml
+│   ├── hf_token/                    # HuggingFace token setup
+│   │   └── tasks/
+│   │       ├── main.yml
+│   │       └── setup-optional.yml
+│   ├── benchmark_guidellm/          # GuideLLM benchmarks
+│   │   ├── defaults/main.yml
+│   │   └── tasks/main.yml
+│   ├── benchmark_embedding/         # Embedding benchmarks
+│   │   └── tasks/
+│   │       ├── main.yml
+│   │       ├── baseline.yml
+│   │       └── latency.yml
+│   ├── benchmark_vllm_bench/        # vllm-bench base
+│   │   └── tasks/main.yml
+│   └── results_collector/           # Log/result collection
+│       └── tasks/
+│           ├── main.yml
+│           ├── collect-vllm-logs.yml
+│           └── collect-test-results.yml
+│
+├── llm-benchmark.yml                # LLM playbook
+├── llm-benchmark-auto.yml           # Auto-config (broken)
+├── llm-core-sweep.yml               # LLM sweep
+├── llm-core-sweep-auto.yml          # Auto sweep (broken)
+├── embedding-benchmark.yml          # Embedding playbook
+├── embedding-core-sweep.yml         # Embedding sweep
+├─��� setup-platform.yml               # Platform setup
+├── collect-logs.yml                 # Log collection
+├── health-check.yml                 # Health check
+├── start-vllm-server.yml            # vLLM starter
+│
+├── filter_plugins/                  # Custom Jinja2 filters
+│   ├── cpu_utils.py                 # CPU topology filters
+│   └── test_cpu_utils.py            # Unit tests
+│
+└── ansible.md                       # This file
 ```
-results/llm/
-├── Llama-3.2-1B-Instruct/
-│   ├── summarization-20260219-143022/
-│   │   ├── 16cores-auto-numa1/
-│   │   │   ├── test-metadata.json
-│   │   │   ├── guidellm-report.html
-│   │   │   ├── guidellm-results.json
-│   │   │   └── guidellm-results.csv
-│   │   └── 32cores-auto-numa1/
-│   └── chat-20260219-150033/
-└── Llama-3.2-3B-Instruct/
-```
 
-## NUMA Detection
+## Roles
 
-The automation automatically detects NUMA topology and allocates CPUs:
+### vllm_server
+Manages vLLM server lifecycle:
+- Starts vLLM for LLM or embedding workloads
+- Handles HuggingFace token setup
+- Clean container restarts
+- CPU/NUMA pinning
 
-```
-Detected NUMA Topology:
-  NUMA nodes: [0, 1, 2]
-  Node count: 3
+### hf_token
+HuggingFace authentication:
+- Multiple token sources (env, file, vault, prompt)
+- Optional setup (allows public models)
 
-Node Allocation Strategy:
-  Housekeeping: node 0 (all CPUs for system tasks)
-  GuideLLM: node 1 (primary CPUs only)
-  vLLM: node 2 (primary CPUs only)
+### benchmark_guidellm
+GuideLLM benchmark execution:
+- Container or host execution
+- Configurable workloads
+- Result collection
 
-NUMA Topology Detection Complete
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Housekeeping: node 0, CPUs 0-31
-GuideLLM: node 1, CPUs 32-63
-vLLM: node 2, CPUs 64-95
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
+### benchmark_embedding
+Embedding model benchmarks:
+- Baseline throughput tests
+- Latency/concurrency tests
+- Uses vllm-bench
 
-**Key concepts:**
-
-- **Housekeeping**: System tasks (uses all CPUs including SMT)
-- **GuideLLM/vLLM**: Workload tasks (uses primary CPUs only, skip SMT
-  siblings)
-- **Container cpuset**: Container CPU boundary (REQUIRED)
-- **vLLM OMP**: Optional threading tuning (omit for auto-configuration)
+### results_collector
+Log and result collection:
+- Collects vLLM logs from DUT
+- Fetches benchmark results from load generator
+- Organizes by test run ID
 
 ## Custom Configurations
 
 ### Add Custom Workload
 
-Edit [inventory/hosts.yml](inventory/hosts.yml):
+Edit [inventory/group_vars/all/test-workloads.yml](inventory/group_vars/all/test-workloads.yml):
 
 ```yaml
 test_configs:
@@ -284,7 +278,7 @@ test_configs:
 
 ### Add Custom Core Config
 
-Edit [inventory/hosts.yml](inventory/hosts.yml):
+Edit [inventory/group_vars/all/hardware-profiles.yml](inventory/group_vars/all/hardware-profiles.yml):
 
 ```yaml
 core_configs:
@@ -332,76 +326,22 @@ ssh <DUT_IP> "podman logs vllm-server"
 # - Port in use: Check no other vLLM running
 ```
 
-### NUMA Detection Fails
-
-```bash
-# Check lscpu on DUT
-ssh <DUT_IP> lscpu -e=CPU,NODE,CORE
-
-# If single NUMA node, use manual configs instead of auto
-```
-
-## Directory Structure
-
-```text
-automation/test-execution/ansible/
-├── inventory/
-│   ├── hosts.yml          # Main inventory - edit IPs here
-│   └── README.md          # Inventory documentation
-├── playbooks/
-│   ├── common/            # Shared tasks
-│   │   ├── setup-platform.yml
-│   │   └── tasks/
-│   │       ├── detect-numa-topology.yml
-│   │       ├── allocate-cores-from-count.yml
-│   │       ├── setup-hf-token.yml
-│   │       └── clean-restart-vllm.yml
-│   ├── llm/               # LLM generative model testing
-│   │   ├── run-guidellm-test-auto.yml
-│   │   ├── run-guidellm-test.yml
-│   │   ├── run-core-sweep-auto.yml
-│   │   ├── run-core-sweep.yml
-│   │   └── tasks/
-│   │       ├── start-llm-vllm.yml
-│   │       ├── run-guidellm.yml
-│   │       └── core-sweep-*.yml
-│   └── embedding/         # Embedding model testing
-├── filter_plugins/        # Custom Jinja2 filters
-│   ├── cpu_utils.py       # CPU topology filters
-│   └── test_cpu_utils.py  # Unit tests
-└── README.md             # This file
-```
-
 ## Key Features
 
-- **Auto NUMA detection** - Discovers and allocates CPUs
-  intelligently
+- **Role-based architecture** - Modular, reusable components
+- **Group variables** - Environment-specific configuration
 - **Custom Jinja2 filters** - Native Python (no shell/awk scripts)
 - **Clean restarts** - Fresh vLLM state between tests
 - **Secure HF tokens** - Multiple methods (env, file, vault, prompt)
 - **Container isolation** - Podman/Docker with CPU/NUMA pinning
-- **Platform tuning** - CPU isolation, tuned profiles, systemd
-  pinning
+- **Platform tuning** - CPU isolation, tuned profiles, systemd pinning
 - **Comprehensive testing** - Unit tests for all filters
 - **Single inventory** - Just edit IPs and run
 
-## Performance
-
-**NUMA detection**: <1 second (was ~10s with shell scripts)
-
-**50x faster** than previous awk/shell implementation
-
-**100+ unit tests** - All custom filters validated
-
 ## References
 
-- [Inventory README](inventory/inventory.md) - Detailed inventory guide
-- [LLM Playbooks](playbooks/llm/llm.md) - LLM testing details
-- [Filter Plugins](filter_plugins/filter_plugins.md) - Custom filter
-  documentation
+- [Inventory Documentation](inventory/inventory.md) - Detailed inventory guide
+- [Filter Plugins](filter_plugins/filter_plugins.md) - Custom filter documentation
 - [vLLM Documentation](https://docs.vllm.ai/)
 - [GuideLLM Documentation](https://github.com/neuralmagic/guidellm)
-
-## Examples
-
-See [inventory/inventory.md](inventory/inventory.md) for more examples.
+- [Ansible Best Practices](https://docs.ansible.com/projects/ansible/latest/tips_tricks/sample_setup.html)
