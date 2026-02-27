@@ -64,7 +64,7 @@
 
 - name: Split cpuset_cpus into segments
   ansible.builtin.set_fact:
-    cpu_segments: "{{ core_cfg.cpuset_cpus.split(',') }}"
+    cpu_segments: "{{ (core_cfg.cpuset_cpus | default('') | string).split(',') }}"
 
 - name: Validate each CPU segment
   ansible.builtin.assert:
