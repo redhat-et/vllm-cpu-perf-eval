@@ -26,6 +26,20 @@ inventory/
 
 ### 1. Configure Hosts
 
+**Option A: Environment Variables (Recommended - No file edits)**
+
+```bash
+export DUT_HOSTNAME=192.168.1.100
+export LOADGEN_HOSTNAME=192.168.1.200
+export ANSIBLE_SSH_USER=ec2-user
+export ANSIBLE_SSH_KEY=~/.ssh/my-key.pem
+export HF_TOKEN=hf_xxxxx  # If using gated models
+```
+
+The inventory file automatically uses these environment variables with sensible defaults if not set.
+
+**Option B: Edit hosts.yml directly**
+
 Edit `hosts.yml` to set your DUT and load generator connection details:
 
 ```yaml
@@ -33,21 +47,16 @@ all:
   children:
     dut:
       hosts:
-        my-dut:
+        vllm-server:
           ansible_host: 192.168.1.100        # ⚠️ Change to your DUT IP
-          ansible_user: ec2-user              # ⚠️ Change to your SSH user
-          ansible_ssh_private_key_file: ~/.ssh/my-key.pem
 
     load_generator:
       hosts:
-        my-loadgen:
-          ansible_host: localhost
-          ansible_connection: local
-          bench_config:
-            vllm_host: 192.168.1.100          # ⚠️ Should match DUT IP
-            vllm_port: 8000
-            results_dir: "{{ lookup('env', 'HOME') }}/benchmark-results"
+        guidellm-client:
+          ansible_host: 192.168.1.200        # ⚠️ Change to your load gen IP
 ```
+
+Common settings like `ansible_user` and `ansible_ssh_private_key_file` are configured in the `all.vars` section.
 
 ### 2. Configure Settings (Optional)
 
