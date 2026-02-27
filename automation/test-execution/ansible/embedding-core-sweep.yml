@@ -51,10 +51,11 @@
 
   tasks:
     - name: Fetch all core sweep results
-      ansible.builtin.fetch:
+      ansible.posix.synchronize:
         src: "{{ bench_config.results_dir }}/core-sweep/"
         dest: "{{ playbook_dir }}/../../results/embedding-models/core-sweep-{{ test_run_id }}/"
-        flat: false
+        mode: pull
+        recursive: true
 
     - name: Display results location
       ansible.builtin.debug:

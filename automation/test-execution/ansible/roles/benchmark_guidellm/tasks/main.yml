@@ -233,6 +233,7 @@
   register: guidellm_host_result
   changed_when: true
   failed_when: false
+  no_log: true
   when: not (use_guidellm_container | bool)
 
 # ============================================================================

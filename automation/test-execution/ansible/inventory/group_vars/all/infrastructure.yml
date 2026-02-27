@@ -6,7 +6,7 @@
 # These affect all test runs regardless of model or workload type
 
 # SSH configuration
-ansible_ssh_common_args: "-o StrictHostKeyChecking=no"
+ansible_ssh_common_args: "-o StrictHostKeyChecking=accept-new"
 
 # Platform setup options
 platform_setup:

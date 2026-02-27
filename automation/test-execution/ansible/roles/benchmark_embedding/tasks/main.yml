@@ -2,6 +2,14 @@
 # Benchmark Embedding Role - Main Entry Point
 # Runs embedding model benchmarks using vllm-bench
 
+- name: Validate test_type
+  ansible.builtin.assert:
+    that:
+      - test_type is defined
+      - test_type in ['baseline', 'latency', 'all']
+    fail_msg: "Invalid test_type '{{ test_type | default('undefined') }}'. Must be one of: baseline, latency, all"
+    success_msg: "test_type validated: {{ test_type }}"
+
 - name: Run baseline performance test (throughput sweep)
   ansible.builtin.include_tasks: baseline.yml
   when: test_type == 'baseline' or test_type == 'all'
