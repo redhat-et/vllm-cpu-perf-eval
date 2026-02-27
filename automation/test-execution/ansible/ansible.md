@@ -76,7 +76,9 @@ Done!
 | Playbook | Purpose | Usage |
 |----------|---------|-------|
 | [llm-benchmark.yml](llm-benchmark.yml) | Single LLM test with manual config | `-e "core_config_name=..."` |
+| [llm-benchmark-auto.yml](llm-benchmark-auto.yml) | Single LLM test with auto core allocation | `-e "requested_cores=16"` |
 | [llm-core-sweep.yml](llm-core-sweep.yml) | Test multiple core configs | `-e "core_config_names=[...]"` |
+| [llm-core-sweep-auto.yml](llm-core-sweep-auto.yml) | Test multiple core counts (auto-allocated) | `-e "requested_cores_list=[8,16,32]"` |
 | [embedding-benchmark.yml](embedding-benchmark.yml) | Single embedding test | `-e "test_model=..." -e "scenario=baseline"` |
 | [embedding-core-sweep.yml](embedding-core-sweep.yml) | Embedding core sweep | Multiple configs |
 
@@ -85,10 +87,8 @@ Done!
 | Playbook | Purpose | When |
 |----------|---------|------|
 | [setup-platform.yml](setup-platform.yml) | Configure DUT/LoadGen for optimal performance | One-time, before testing |
-| [collect-logs.yml](collect-logs.yml) | Collect logs and results | After tests |
+| [collect-logs.yml](collect-logs.yml) | Collect logs from DUT | After tests |
 | [health-check.yml](health-check.yml) | Check vLLM server health | Standalone or imported |
-
-**Note:** `llm-benchmark-auto.yml` and `llm-core-sweep-auto.yml` have broken references and need updating.
 
 ## Workload Types
 
@@ -207,9 +207,9 @@ automation/test-execution/ansible/
 │           └── collect-test-results.yml
 │
 ├── llm-benchmark.yml                # LLM playbook
-├── llm-benchmark-auto.yml           # Auto-config (broken)
+├── llm-benchmark-auto.yml           # Auto-config LLM test
 ├── llm-core-sweep.yml               # LLM sweep
-├── llm-core-sweep-auto.yml          # Auto sweep (broken)
+├── llm-core-sweep-auto.yml          # Auto-config sweep
 ├── embedding-benchmark.yml          # Embedding playbook
 ├── embedding-core-sweep.yml         # Embedding sweep
 ├─��� setup-platform.yml               # Platform setup
