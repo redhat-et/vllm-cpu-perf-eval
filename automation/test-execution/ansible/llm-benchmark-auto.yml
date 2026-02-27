@@ -195,7 +195,7 @@
 
 - name: "Auto-Configured LLM Test - Run GuideLLM"
   hosts: load_generator
-  become: "{{ ansible_connection != 'local' }}"
+  become: true
   vars:
     core_configuration: "{{ hostvars['localhost']['core_configuration'] }}"
 
