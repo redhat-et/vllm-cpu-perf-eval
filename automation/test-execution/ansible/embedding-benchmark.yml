@@ -81,7 +81,7 @@
   pre_tasks:
     - name: Create results directory on load generator
       ansible.builtin.file:
-        path: "{{ bench_config.results_dir }}/{{ model_name | basename }}/{{ test_type }}"
+        path: "{{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/{{ test_type }}"
         state: directory
         mode: "0755"
         recurse: true

@@ -59,7 +59,7 @@
           --max-model-len 512
         log_driver: journald
         log_opt:
-          tag: "vllm-{{ model_name | basename }}"
+          tag: "vllm-{{ model_name | replace('/', '__') }}"
       when:
         - vllm_server.container_runtime == 'podman'
         - cpu_cores != ''
@@ -85,7 +85,7 @@
           --max-model-len 512
         log_driver: journald
         log_opt:
-          tag: "vllm-{{ model_name | basename }}"
+          tag: "vllm-{{ model_name | replace('/', '__') }}"
       when:
         - vllm_server.container_runtime == 'podman'
         - cpu_cores == ''
@@ -103,7 +103,7 @@
           - "vLLM Server: http://{{ ansible_host }}:{{ vllm_server.port }}"
           - "Model: {{ model_name }}"
           - "CPU Pinning: {{ cpu_cores if cpu_cores != '' else 'None (automatic)' }}"
-          - "Check logs: journalctl -t vllm-{{ model_name | basename }} -f"
+          - "Check logs: journalctl -t vllm-{{ model_name | replace('/', '__') }} -f"
 
     - name: Wait for container initialization
       ansible.builtin.pause:

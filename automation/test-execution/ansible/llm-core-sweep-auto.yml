@@ -171,8 +171,8 @@
   tasks:
     - name: Fetch all core sweep results
       ansible.builtin.fetch:
-        src: "{{ bench_config.results_dir }}/{{ test_model | basename }}/{{ workload_type }}/"
-        dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | basename }}/{{ workload_type }}-{{ test_run_id }}/"
+        src: "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}/"
+        dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/"
         flat: false
 
     - name: Display results location
@@ -181,7 +181,7 @@
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           - "✓ Auto-configured core sweep completed!"
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          - "Results: results/llm/{{ test_model | basename }}/{{ workload_type }}-{{ test_run_id }}/"
+          - "Results: results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/"
           - "Analyze results to find optimal core configuration"
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
