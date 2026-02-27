@@ -62,7 +62,7 @@
       - "Target: http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}"
       - "Workload: {{ workload_type }} (ISL:{{ workload_cfg.isl }}/OSL:{{ workload_cfg.osl }})"
       - "Profile: {{ guidellm_cfg.profile }}"
-      - "Rate: {{ guidellm_cfg.rate | default([]) }}"
+      - "Rate: {{ 'N/A (synchronous)' if guidellm_cfg.profile == 'synchronous' else guidellm_cfg.rate | default([]) }}"
       - "Max Duration: {{ guidellm_cfg.max_seconds }}s"
       - "Max Requests: {{ guidellm_cfg.max_requests }}"
       - "Max Concurrency: {{ guidellm_cfg.max_concurrency }}"
@@ -79,12 +79,11 @@
     state: present
   when: use_guidellm_container | bool
 
-- name: Prepare GuideLLM environment variables
+- name: Prepare GuideLLM environment variables (base)
   ansible.builtin.set_fact:
     guidellm_env:
       GUIDELLM_TARGET: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}"
       GUIDELLM_PROFILE: "{{ guidellm_cfg.profile }}"
-      GUIDELLM_RATE: "{{ guidellm_cfg.rate | default([]) | join(',') }}"
       GUIDELLM_MAX_SECONDS: "{{ guidellm_cfg.max_seconds }}"
       GUIDELLM_MAX_REQUESTS: "{{ guidellm_cfg.max_requests }}"
       GUIDELLM__MAX_CONCURRENCY: "{{ guidellm_cfg.max_concurrency | default(128) }}"
@@ -95,6 +94,12 @@
       GUIDELLM_COOLDOWN: "{{ guidellm_cfg.cooldown }}"
       GUIDELLM_OUTPUTS: "{{ guidellm_cfg.outputs }}"
       HF_TOKEN: "{{ hf_token | default('') }}"
+  no_log: true
+
+- name: Add rate parameter for non-synchronous profiles
+  ansible.builtin.set_fact:
+    guidellm_env: "{{ guidellm_env | combine({'GUIDELLM_RATE': guidellm_cfg.rate | default([]) | join(',')}) }}"
+  when: guidellm_cfg.profile != 'synchronous'
   no_log: true
 
 - name: Start GuideLLM benchmark container
@@ -207,7 +212,7 @@
       guidellm
       --target http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}
       --profile {{ guidellm_cfg.profile }}
-      {% if guidellm_cfg.rate is defined and guidellm_cfg.rate | length > 0 %}
+      {% if guidellm_cfg.profile != 'synchronous' and guidellm_cfg.rate is defined and guidellm_cfg.rate | length > 0 %}
       --rate {{ guidellm_cfg.rate | join(' ') }}
       {% endif %}
       --max-seconds {{ guidellm_cfg.max_seconds }}
