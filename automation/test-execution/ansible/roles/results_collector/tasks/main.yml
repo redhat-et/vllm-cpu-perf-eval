@@ -13,4 +13,4 @@
 
 - name: Include test results collection
   ansible.builtin.include_tasks: collect-test-results.yml
-  when: "'load_generator' in group_names"
+  when: inventory_hostname == (groups['load_generator'] | first)

@@ -47,31 +47,65 @@
     available_cpus: "{{ available_cpus_result.stdout | int }}"
     max_cpu_id: "{{ (available_cpus_result.stdout | int) - 1 }}"
 
-- name: Extract CPU range from cpuset_cpus configuration
-  ansible.builtin.set_fact:
-    cpu_range_parts: "{{ core_cfg.cpuset_cpus.split('-') }}"
-  when: "'-' in core_cfg.cpuset_cpus"
-
-- name: Validate CPU range is within available CPUs
+- name: Validate cpuset_cpus format
   ansible.builtin.assert:
     that:
-      - cpu_range_parts[0] | int >= 0
-      - cpu_range_parts[1] | int <= max_cpu_id | int
+      - core_cfg.cpuset_cpus is match('^[0-9,-]+$')
     fail_msg: |
-      ❌ CPU configuration error!
+      ❌ Invalid cpuset_cpus format: {{ core_cfg.cpuset_cpus }}
+
+      Format must contain only digits, hyphens, and commas.
+      Valid examples:
+        - Single CPU: "7"
+        - Range: "0-15"
+        - Comma-separated: "0-3,8-11"
+        - Mixed: "0,4-7,12"
+    success_msg: "✓ CPU format validated: {{ core_cfg.cpuset_cpus }}"
+
+- name: Split cpuset_cpus into segments
+  ansible.builtin.set_fact:
+    cpu_segments: "{{ core_cfg.cpuset_cpus.split(',') }}"
+
+- name: Validate each CPU segment
+  ansible.builtin.assert:
+    that:
+      # For single CPU: validate it's a number within range
+      - >-
+        (item is match('^\\d+$') and item | int >= 0 and item | int <= max_cpu_id | int)
+        or
+        # For range: validate both start and end are numbers within range
+        (item is match('^\\d+-\\d+$') and
+         item.split('-')[0] | int >= 0 and
+         item.split('-')[0] | int <= max_cpu_id | int and
+         item.split('-')[1] | int >= 0 and
+         item.split('-')[1] | int <= max_cpu_id | int and
+         item.split('-')[0] | int <= item.split('-')[1] | int)
+    fail_msg: |
+      ❌ CPU configuration error in segment "{{ item }}"!
 
       Configured cpuset_cpus: {{ core_cfg.cpuset_cpus }}
       Available CPUs on {{ inventory_hostname }}: 0-{{ max_cpu_id }} ({{ available_cpus }} total)
 
-      The configured CPU range {{ core_cfg.cpuset_cpus }} is out of bounds.
-      Please update inventory/group_vars/all/hardware-profiles.yml to match your hardware.
+      Invalid segment: {{ item }}
+      {% if item is match('^\\d+-\\d+$') %}
+      {% if item.split('-')[0] | int > item.split('-')[1] | int %}
+      Error: Range start ({{ item.split('-')[0] }}) is greater than range end ({{ item.split('-')[1] }})
+      {% else %}
+      Error: Range {{ item }} is out of bounds (valid: 0-{{ max_cpu_id }})
+      {% endif %}
+      {% elif item is match('^\\d+$') %}
+      Error: CPU ID {{ item }} is out of bounds (valid: 0-{{ max_cpu_id }})
+      {% else %}
+      Error: Invalid format "{{ item }}" (expected single CPU or range like "0-15")
+      {% endif %}
 
-      Example fix for this system:
-        - name: "{{ core_cfg.name }}"
-          cpuset_cpus: "0-{{ [core_cfg.cores - 1, max_cpu_id] | min }}"
-          cpuset_mems: "0"
-    success_msg: "✓ CPU configuration validated: {{ core_cfg.cpuset_cpus }} is within available range 0-{{ max_cpu_id }}"
-  when: "'-' in core_cfg.cpuset_cpus"
+      Please update inventory/group_vars/all/hardware-profiles.yml to match your hardware.
+    success_msg: "✓ CPU segment validated: {{ item }}"
+  loop: "{{ cpu_segments }}"
+
+- name: Set CPU validation status
+  ansible.builtin.set_fact:
+    cpu_cfg_valid: true
 
 - name: Display CPU allocation summary
   ansible.builtin.debug:
@@ -83,7 +117,7 @@
       - "Available CPUs: {{ available_cpus }} (0-{{ max_cpu_id }})"
       - "Configured Allocation: {{ core_cfg.cpuset_cpus }}"
       - "NUMA Node: {{ core_cfg.cpuset_mems }}"
-      - "Status: ✓ Valid configuration"
+      - "Status: {{ '✓ Valid configuration' if cpu_cfg_valid else '✗ Invalid configuration' }}"
       - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # ============================================================================
