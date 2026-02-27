@@ -326,6 +326,31 @@ ssh <DUT_IP> "podman logs vllm-server"
 # - Port in use: Check no other vLLM running
 ```
 
+### Benchmark Timeout
+
+If a benchmark times out waiting for completion:
+
+```bash
+# Default timeout = min(max_seconds + 600, 14400)
+# - Short tests: max_seconds + 10min buffer
+# - Long tests: capped at 4 hours
+
+# Override timeout for very long tests:
+ansible-playbook ... -e "guidellm_wait_timeout_seconds=7200"  # 2 hours
+
+# Monitor container in real-time:
+ssh <DUT_IP> "sudo podman logs -f <container-name>"
+
+# Check if container is stuck:
+ssh <DUT_IP> "sudo podman ps -a"
+ssh <DUT_IP> "sudo podman inspect <container-name> --format '{{.State.Status}}'"
+```
+
+**Timeout Examples:**
+- `max_seconds: 120` → timeout: 720s (12 min)
+- `max_seconds: 1800` → timeout: 2400s (40 min)
+- `max_seconds: 10800` → timeout: 14400s (4 hours, capped)
+
 ## Key Features
 
 - **Role-based architecture** - Modular, reusable components
