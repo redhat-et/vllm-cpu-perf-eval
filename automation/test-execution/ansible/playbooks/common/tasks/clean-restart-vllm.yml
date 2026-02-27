@@ -1,0 +1,42 @@
+---
+# Clean Restart of vLLM Container
+# Ensures fresh state between tests for accurate results
+# Can be included by any playbook that needs clean vLLM restart
+#
+# TODO: Add support for multiple vLLM instances running concurrently
+#       Currently assumes single container named {{ vllm_container_name }}
+#       Future: Support container name patterns or list of instances
+
+- name: Check if vLLM container exists
+  ansible.builtin.shell:
+    cmd: "{{ container_runtime.engine }} ps -a --filter name={{ vllm_container_name }} --format '{{'{{'}}.Names{{'}}'}}'"
+  register: existing_container
+  changed_when: false
+  ignore_errors: true
+
+- name: Stop existing vLLM container
+  containers.podman.podman_container:
+    name: "{{ vllm_container_name }}"
+    state: stopped
+  when:
+    - container_runtime.engine == 'podman'
+    - existing_container.stdout | length > 0
+  ignore_errors: true
+
+- name: Remove existing vLLM container
+  containers.podman.podman_container:
+    name: "{{ vllm_container_name }}"
+    state: absent
+  when:
+    - container_runtime.engine == 'podman'
+    - existing_container.stdout | length > 0
+  ignore_errors: true
+
+- name: Wait for cleanup to complete
+  ansible.builtin.pause:
+    seconds: 5
+    prompt: "Waiting for vLLM cleanup..."
+
+- name: Display cleanup status
+  ansible.builtin.debug:
+    msg: "✓ vLLM container cleaned and ready for fresh start"

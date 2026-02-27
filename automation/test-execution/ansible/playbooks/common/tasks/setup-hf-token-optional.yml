@@ -1,0 +1,8 @@
+---
+# Wrapper task to setup HuggingFace token (optional)
+# Calls the hf_token role's setup-optional task
+
+- name: Setup HuggingFace token (optional)
+  ansible.builtin.include_role:
+    name: hf_token
+    tasks_from: setup-optional

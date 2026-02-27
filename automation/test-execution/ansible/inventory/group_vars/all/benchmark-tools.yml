@@ -48,7 +48,7 @@ benchmark_tool:
     #    - Best for: Testing specific request rates
     # ========================================================================
 
-    profile: "throughput"
+    profile: "sweep"
 
     # Rate parameter (meaning depends on profile - see above)
     # For throughput: max concurrent requests to test
@@ -56,7 +56,7 @@ benchmark_tool:
     # For constant/poisson: list of requests per second [10, 20, 30]
     # For sweep: number of benchmarks to generate (optional)
     # For synchronous: leave empty (will error if provided)
-    rate: [32]
+    rate: [10]
 
     # Runtime constraints (apply to all profiles)
     max_seconds: 120            # Maximum benchmark duration
