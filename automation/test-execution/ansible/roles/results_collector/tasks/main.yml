@@ -6,6 +6,9 @@
 - name: Set collection ID
   ansible.builtin.set_fact:
     collection_id: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
+  delegate_to: "{{ item }}"
+  delegate_facts: true
+  loop: "{{ groups['all'] }}"
   run_once: true
 
 - name: Include vLLM server log collection

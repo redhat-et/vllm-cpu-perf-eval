@@ -48,6 +48,16 @@
       ansible.builtin.set_fact:
         vllm_mode: "{{ vllm_endpoint.mode | default('managed') }}"
 
+    - name: Set fallback core configuration for external mode
+      ansible.builtin.set_fact:
+        core_configuration:
+          name: "external-endpoint"
+          cores: "{{ requested_cores | int }}"
+          cpuset_cpus: "n/a"
+          cpuset_mems: "n/a"
+          tensor_parallel: "{{ requested_tensor_parallel | default(1) | int }}"
+      when: vllm_mode == 'external'
+
     - name: Display vLLM configuration
       ansible.builtin.debug:
         msg:
