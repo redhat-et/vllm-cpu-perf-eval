@@ -124,6 +124,6 @@
           - "Workload: {{ workload_type }}"
           - "Core Config: {{ core_config_name }}"
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          - "Results: results/{{ test_model | basename }}/{{ workload_type }}/{{ core_config_name }}/"
+          - "Results: results/{{ test_model | replace('/', '__') }}/{{ workload_type }}/{{ core_config_name }}/"
           - "Logs: results/logs/"
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

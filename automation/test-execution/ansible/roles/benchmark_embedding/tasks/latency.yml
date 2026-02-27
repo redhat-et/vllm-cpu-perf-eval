@@ -30,7 +30,7 @@
       --request-rate inf
       --max-concurrency {{ item }}
       --save-result
-      --result-filename {{ bench_config.results_dir }}/{{ model_name | basename }}/latency/concurrent-{{ item }}.json
+      --result-filename {{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/latency/concurrent-{{ item }}.json
   loop: "{{ concurrency_levels }}"
   register: latency_tests
   changed_when: true
@@ -51,7 +51,7 @@
       --request-rate inf
       --max-concurrency {{ item }}
       --save-result
-      --result-filename {{ bench_config.results_dir }}/{{ model_name | basename }}/latency/concurrent-{{ item }}.json
+      --result-filename {{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/latency/concurrent-{{ item }}.json
   loop: "{{ concurrency_levels }}"
   register: latency_tests
   changed_when: true
@@ -61,5 +61,5 @@
   ansible.builtin.debug:
     msg:
       - "Latency tests completed for concurrency levels: {{ concurrency_levels }}"
-      - "Results saved to {{ bench_config.results_dir }}/{{ model_name | basename }}/latency/"
+      - "Results saved to {{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/latency/"
       - "Look for P99 latency sweet spot and degradation point"

@@ -49,8 +49,6 @@
 - name: "Log Collection Summary"
   hosts: localhost
   gather_facts: false
-  vars:
-    collection_id: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
 
   tasks:
     - name: Display collection summary

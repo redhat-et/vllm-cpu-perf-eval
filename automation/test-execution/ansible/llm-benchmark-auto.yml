@@ -237,12 +237,12 @@
             "workload": "{{ workload_type }}",
             "timestamp": "{{ ansible_date_time.iso8601 }}"
           }
-        dest: "{{ bench_config.results_dir }}/{{ test_model | basename }}/{{ workload_type }}/{{ core_configuration.name }}/test-metadata.json"
+        dest: "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}/{{ core_configuration.name }}/test-metadata.json"
 
     - name: Fetch results to local machine
       ansible.builtin.fetch:
-        src: "{{ bench_config.results_dir }}/{{ test_model | basename }}/{{ workload_type }}/{{ core_configuration.name }}/"
-        dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | basename }}/{{ workload_type }}-{{ test_run_id }}/"
+        src: "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}/{{ core_configuration.name }}/"
+        dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/"
         flat: false
 
     - name: Display results location
@@ -254,7 +254,7 @@
           - "Configuration: {{ core_configuration.name }}"
           - "  CPUs: {{ core_configuration.cpuset_cpus }}"
           - "  NUMA: {{ core_configuration.cpuset_mems }}"
-          - "Results: results/llm/{{ test_model | basename }}/{{ workload_type }}-{{ test_run_id }}/"
+          - "Results: results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/"
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # ==============================================================================

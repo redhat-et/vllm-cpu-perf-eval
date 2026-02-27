@@ -25,7 +25,7 @@
       --request-rate inf
       --endpoint /v1/embeddings
       --save-result
-      --result-filename {{ bench_config.results_dir }}/{{ model_name | basename }}/baseline/sweep-inf.json
+      --result-filename {{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/baseline/sweep-inf.json
   register: baseline_inf_container
   changed_when: true
   when: use_vllm_bench_container | bool
@@ -44,7 +44,7 @@
       --request-rate inf
       --endpoint /v1/embeddings
       --save-result
-      --result-filename {{ bench_config.results_dir }}/{{ model_name | basename }}/baseline/sweep-inf.json
+      --result-filename {{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/baseline/sweep-inf.json
   register: baseline_inf_host
   changed_when: true
   when: not (use_vllm_bench_container | bool)
@@ -116,7 +116,7 @@
       --request-rate {{ (max_rps * 0.25) | round(2) }}
       --endpoint /v1/embeddings
       --save-result
-      --result-filename {{ bench_config.results_dir }}/{{ model_name | basename }}/baseline/sweep-25pct.json
+      --result-filename {{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/baseline/sweep-25pct.json
   changed_when: true
   when: use_vllm_bench_container | bool
 
@@ -134,7 +134,7 @@
       --request-rate {{ (max_rps * 0.25) | round(2) }}
       --endpoint /v1/embeddings
       --save-result
-      --result-filename {{ bench_config.results_dir }}/{{ model_name | basename }}/baseline/sweep-25pct.json
+      --result-filename {{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/baseline/sweep-25pct.json
   changed_when: true
   when: not (use_vllm_bench_container | bool)
 
@@ -155,7 +155,7 @@
       --request-rate {{ (max_rps * 0.50) | round(2) }}
       --endpoint /v1/embeddings
       --save-result
-      --result-filename {{ bench_config.results_dir }}/{{ model_name | basename }}/baseline/sweep-50pct.json
+      --result-filename {{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/baseline/sweep-50pct.json
   changed_when: true
   when: use_vllm_bench_container | bool
 
@@ -173,7 +173,7 @@
       --request-rate {{ (max_rps * 0.50) | round(2) }}
       --endpoint /v1/embeddings
       --save-result
-      --result-filename {{ bench_config.results_dir }}/{{ model_name | basename }}/baseline/sweep-50pct.json
+      --result-filename {{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/baseline/sweep-50pct.json
   changed_when: true
   when: not (use_vllm_bench_container | bool)
 
@@ -194,7 +194,7 @@
       --request-rate {{ (max_rps * 0.75) | round(2) }}
       --endpoint /v1/embeddings
       --save-result
-      --result-filename {{ bench_config.results_dir }}/{{ model_name | basename }}/baseline/sweep-75pct.json
+      --result-filename {{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/baseline/sweep-75pct.json
   changed_when: true
   when: use_vllm_bench_container | bool
 
@@ -212,10 +212,10 @@
       --request-rate {{ (max_rps * 0.75) | round(2) }}
       --endpoint /v1/embeddings
       --save-result
-      --result-filename {{ bench_config.results_dir }}/{{ model_name | basename }}/baseline/sweep-75pct.json
+      --result-filename {{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/baseline/sweep-75pct.json
   changed_when: true
   when: not (use_vllm_bench_container | bool)
 
 - name: Display baseline test completion
   ansible.builtin.debug:
-    msg: "Baseline sweep tests completed. Results saved to {{ bench_config.results_dir }}/{{ model_name | basename }}/baseline/"
+    msg: "Baseline sweep tests completed. Results saved to {{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/baseline/"

@@ -24,7 +24,7 @@
 
 - name: Create results directory for this test
   ansible.builtin.file:
-    path: "{{ bench_config.results_dir }}/{{ test_model | basename }}/{{ workload_type }}/{{ core_cfg.name }}"
+    path: "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}/{{ core_cfg.name }}"
     state: directory
     mode: "0755"
     recurse: true
@@ -77,7 +77,7 @@
     cpuset_cpus: "{{ omit if ansible_facts['system'] == 'Darwin' else guidellm_cfg.cpuset_cpus }}"
     cpuset_mems: "{{ omit if ansible_facts['system'] == 'Darwin' else guidellm_cfg.cpuset_mems }}"
     volumes:
-      - "{{ bench_config.results_dir }}/{{ test_model | basename }}/{{ workload_type }}/{{ core_cfg.name }}:/results:z"
+      - "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}/{{ core_cfg.name }}:/results:z"
     env: "{{ guidellm_env }}"
     log_driver: journald
     log_opt:
@@ -180,7 +180,7 @@
       --saturation-threshold {{ guidellm_cfg.saturation_threshold }}
       --cooldown {{ guidellm_cfg.cooldown }}
       --outputs {{ guidellm_cfg.outputs }}
-      --output-dir {{ bench_config.results_dir }}/{{ test_model | basename }}/{{ workload_type }}/{{ core_cfg.name }}
+      --output-dir {{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}/{{ core_cfg.name }}
   when: not (use_guidellm_container | bool)
 
 - name: Run GuideLLM benchmark on host
@@ -207,7 +207,7 @@
     msg:
       - "{{ '✓ GuideLLM benchmark completed successfully' if guidellm_exit_code == '0' else '✗ GuideLLM benchmark failed' }}"
       - "Exit Code: {{ guidellm_exit_code }}"
-      - "Results: {{ bench_config.results_dir }}/{{ test_model | basename }}/{{ workload_type }}/{{ core_cfg.name }}"
+      - "Results: {{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}/{{ core_cfg.name }}"
 
 - name: Display failure logs (containerized)
   ansible.builtin.debug:
@@ -238,7 +238,7 @@
 
 - name: List generated result files
   ansible.builtin.find:
-    paths: "{{ bench_config.results_dir }}/{{ test_model | basename }}/{{ workload_type }}/{{ core_cfg.name }}"
+    paths: "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}/{{ core_cfg.name }}"
     patterns: "*.html,*.json,*.csv"
   register: result_files
 
