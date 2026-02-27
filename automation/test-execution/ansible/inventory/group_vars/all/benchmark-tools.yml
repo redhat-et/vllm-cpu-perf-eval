@@ -14,41 +14,70 @@ benchmark_tool:
     # - host: Run guidellm from PATH (requires: pip install guidellm)
     use_container: true
 
-    # Using locally built rootless container image
-    container_image: "localhost/guidellm:latest"
+    # Using GuideLLM official container image
+    container_image: "ghcr.io/vllm-project/guidellm:latest"
 
     # CPU allocation (only applies to containerized mode)
     # Load generator CPU allocation
     cpuset_cpus: "16-31"
     cpuset_mems: "0"
 
-    # Benchmark profile
-    # Options: sweep, concurrent, synchronous, throughput, poisson, constant, async
-    # synchronous = single request at a time (simplest, good for quick tests)
-    profile: "synchronous"
+    # ========================================================================
+    # Benchmark Profile Configuration
+    # ========================================================================
+    # Profile types and their required parameters:
+    #
+    # 1. synchronous: Single request at a time (baseline metrics)
+    #    - No rate parameter needed
+    #    - Best for: Quick baseline measurements
+    #
+    # 2. throughput: Find maximum throughput
+    #    - rate: [max_concurrency] (single value, e.g., [32])
+    #    - Best for: Finding saturation point
+    #
+    # 3. concurrent: Fixed concurrency levels
+    #    - rate: [stream1, stream2, ...] (e.g., [8, 16, 32])
+    #    - Best for: Testing specific concurrency levels
+    #
+    # 4. sweep: Adaptive multi-strategy (sync + throughput + interpolated rates)
+    #    - rate: [num_benchmarks] (optional, default: 10)
+    #    - Best for: Comprehensive performance analysis
+    #
+    # 5. constant/poisson: Rate-based scheduling
+    #    - rate: [req_per_sec1, req_per_sec2, ...] (e.g., [10, 20, 30])
+    #    - Best for: Testing specific request rates
+    # ========================================================================
 
-    # GuideLLM benchmark parameters (all optional, defaults shown)
-    # These can be overridden via -e flag when running playbooks
-    max_seconds: 60             # Maximum benchmark duration
-    max_requests: 500           # Maximum number of requests
+    profile: "throughput"
+
+    # Rate parameter (meaning depends on profile - see above)
+    # For throughput: max concurrent requests to test
+    # For concurrent: list of concurrent stream counts [8, 16, 32]
+    # For constant/poisson: list of requests per second [10, 20, 30]
+    # For sweep: number of benchmarks to generate (optional)
+    # For synchronous: leave empty (will error if provided)
+    rate: [32]
+
+    # Runtime constraints (apply to all profiles)
+    max_seconds: 120            # Maximum benchmark duration
+    max_requests: 100           # Maximum number of requests (quick test)
+    max_concurrency: 128        # Max concurrent requests (for async/sweep profiles)
     saturation_threshold: 0.98  # Saturation detection threshold (0-1)
-    max_concurrency: 128        # Maximum concurrent requests
     cooldown: 30                # Cooldown period between tests (seconds)
+
+    # Output configuration
     outputs: "html,json,csv"    # Output formats (comma-separated)
-    exclude_throughput_target: false   # Exclude target throughput from results
-    exclude_throughput_result: false   # Exclude result throughput from results
+    exclude_throughput_target: false
+    exclude_throughput_result: false
 
   # ============================================================================
   # vllm bench serve Configuration
   # ============================================================================
   vllm_bench:
     # Execution mode: containerized or host-based
-    # Whether to run 'vllm bench serve' in a container (default: true)
-    # Set to false to run vllm bench directly on the host (requires vllm pip install)
     use_container: true
 
-    # Container image for vllm bench (only used if use_container: true)
-    # For ARM/M-series Macs, use arm-base-cpu; for x86_64, use appropriate tag
+    # Container image for vllm bench
     container_image: "quay.io/mtahhan/vllm:arm-base-cpu"
 
     # Number of prompts for embedding benchmark tests
@@ -56,7 +85,30 @@ benchmark_tool:
     # - 250 prompts: ~4-5 min/test, good for throughput & P50/P90 latency
     # - 500 prompts: ~9-10 min/test, better P99 stability
     # - 1000 prompts: ~18-20 min/test, production-grade measurements
-    # Note: P99 needs ~100+ samples above threshold for stability (250 → ~2-3 samples)
     num_prompts: 250  # Quick tests
-    # num_prompts: 500  # Better P99 stability
-    # num_prompts: 1000  # Production-grade measurements
+
+# ============================================================================
+# Profile Examples for Different Use Cases
+# ============================================================================
+#
+# Quick baseline test:
+#   profile: "synchronous"
+#   rate: []
+#
+# Find max throughput (current config):
+#   profile: "throughput"
+#   rate: [32]
+#
+# Test specific concurrency levels:
+#   profile: "concurrent"
+#   rate: [8, 16, 32]
+#
+# Comprehensive analysis:
+#   profile: "sweep"
+#   rate: [10]  # Optional: number of benchmark points
+#
+# Rate-based testing:
+#   profile: "constant"
+#   rate: [10, 20, 30]  # Requests per second
+#
+# ============================================================================

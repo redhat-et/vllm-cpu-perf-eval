@@ -49,13 +49,15 @@
 - name: "Log Collection Summary"
   hosts: localhost
   gather_facts: false
+  vars:
+    collection_id: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
 
   tasks:
     - name: Display collection summary
       ansible.builtin.debug:
         msg:
           - "Log Collection Complete!"
-          - "Collection ID: {{ hostvars['localhost']['collection_id'] }}"
+          - "Collection ID: {{ collection_id }}"
           - "Logs saved to: {{ playbook_dir }}/../../../results/logs/"
           - "Results saved to: {{ playbook_dir }}/../../../results/benchmark-results/"
           - ""
