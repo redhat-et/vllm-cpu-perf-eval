@@ -45,16 +45,16 @@
         url: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/health"
         method: GET
         status_code: 200
-      register: health_check
+      register: health_check_result
       retries: "{{ health_check.timeout // health_check.interval }}"
       delay: "{{ health_check.interval }}"
-      until: health_check.status == 200
+      until: health_check_result.status == 200
 
     - name: Display vLLM server status
       ansible.builtin.debug:
         msg:
           - "vLLM Server is READY!"
-          - "Health check: {{ health_check.json | default('OK') }}"
+          - "Health check: {{ health_check_result.json | default('OK') }}"
 
     - name: Verify vLLM /v1/models endpoint
       ansible.builtin.uri:
@@ -113,7 +113,7 @@
         state: stopped
       when:
         - cleanup | bool
-        - vllm_server.container_runtime == 'podman'
+        - container_runtime.engine == 'podman'
 
     - name: Display cleanup status
       ansible.builtin.debug:
