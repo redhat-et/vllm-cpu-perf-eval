@@ -212,7 +212,7 @@ automation/test-execution/ansible/
 ├── llm-core-sweep-auto.yml          # Auto-config sweep
 ├── embedding-benchmark.yml          # Embedding playbook
 ├── embedding-core-sweep.yml         # Embedding sweep
-├─��� setup-platform.yml               # Platform setup
+├── setup-platform.yml               # Platform setup
 ├── collect-logs.yml                 # Log collection
 ├── health-check.yml                 # Health check
 ├── start-vllm-server.yml            # vLLM starter
@@ -340,7 +340,7 @@ ssh <DUT_IP> "podman logs vllm-server"
 
 ## References
 
-- [Inventory Documentation](inventory/inventory.md) - Detailed inventory guide
+- [Inventory Documentation](inventory/README.md) - Detailed inventory guide
 - [Filter Plugins](filter_plugins/filter_plugins.md) - Custom filter documentation
 - [vLLM Documentation](https://docs.vllm.ai/)
 - [GuideLLM Documentation](https://github.com/neuralmagic/guidellm)

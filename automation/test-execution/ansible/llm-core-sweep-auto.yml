@@ -53,11 +53,12 @@
           - "vLLM Mode: {{ vllm_mode }}"
           - "{{ 'External Endpoint: ' + vllm_endpoint.external.url if vllm_mode == 'external' else 'Managed on DUT: ' + groups['dut'][0] }}"
 
-    - name: Warn about external mode with core sweep
-      ansible.builtin.debug:
+    - name: Fail if external mode is used with core sweep
+      ansible.builtin.fail:
         msg:
-          - "⚠️  WARNING: External mode does not support core configuration."
-          - "All tests will run against the same external endpoint regardless of requested_cores_list."
+          - "❌ ERROR: Core sweep is not supported in external mode."
+          - "External endpoints cannot have their core configuration changed."
+          - "Use llm-benchmark-auto.yml for external endpoint testing instead."
       when: vllm_mode == 'external'
 
 # ==============================================================================
@@ -136,8 +137,10 @@
               - "{{ 'API Key: Enabled' if vllm_api_key is defined else 'API Key: Not configured' }}"
 
       when: hostvars['localhost']['vllm_mode'] == 'external'
+
 - name: "Health Check - External Endpoint"
   ansible.builtin.import_playbook: health-check.yml
+  when: hostvars['localhost']['vllm_mode'] == 'external'
 
 # ==============================================================================
 # MAIN LOOP: Iterate over core counts

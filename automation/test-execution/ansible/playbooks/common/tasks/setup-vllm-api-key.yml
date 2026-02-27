@@ -18,6 +18,7 @@
     - name: Set vLLM API key fact
       ansible.builtin.set_fact:
         vllm_api_key: "{{ vllm_endpoint.external.api_key.value }}"
+      no_log: true
 
     - name: Display API key status
       ansible.builtin.debug:

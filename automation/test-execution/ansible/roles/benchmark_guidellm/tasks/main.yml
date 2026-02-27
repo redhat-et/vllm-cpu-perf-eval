@@ -22,9 +22,13 @@
   ansible.builtin.set_fact:
     use_guidellm_container: "{{ guidellm_cfg.use_container | default(true) | bool }}"
 
+- name: Set results path
+  ansible.builtin.set_fact:
+    results_path: "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}/{{ core_cfg.name }}"
+
 - name: Create results directory for this test
   ansible.builtin.file:
-    path: "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}/{{ core_cfg.name }}"
+    path: "{{ results_path }}"
     state: directory
     mode: "0755"
     recurse: true
@@ -77,7 +81,7 @@
     cpuset_cpus: "{{ omit if ansible_facts['system'] == 'Darwin' else guidellm_cfg.cpuset_cpus }}"
     cpuset_mems: "{{ omit if ansible_facts['system'] == 'Darwin' else guidellm_cfg.cpuset_mems }}"
     volumes:
-      - "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}/{{ core_cfg.name }}:/results:z"
+      - "{{ results_path }}:/results:z"
     env: "{{ guidellm_env }}"
     log_driver: journald
     log_opt:
@@ -110,15 +114,15 @@
 
 - name: Wait for GuideLLM benchmark to complete (containerized)
   ansible.builtin.command:
-    cmd: "podman wait guidellm-{{ workload_type }}-{{ core_cfg.name }}"
+    cmd: "timeout {{ (guidellm_cfg.max_seconds | int) + 600 }} podman wait guidellm-{{ workload_type }}-{{ core_cfg.name }}"
   register: guidellm_exit_code_container
   changed_when: false
-  failed_when: false
+  failed_when: guidellm_exit_code_container.rc == 124
   when: use_guidellm_container | bool
 
 - name: Get container exit details
   ansible.builtin.shell:
-    cmd: "podman inspect guidellm-{{ workload_type }}-{{ core_cfg.name }} --format '{''{ .State.ExitCode }''}' || echo 1"
+    cmd: "podman inspect {{ ('guidellm-' ~ workload_type ~ '-' ~ core_cfg.name) | quote }} --format '{''{ .State.ExitCode }''}' || echo 1"
   args:
     executable: /bin/bash
   register: container_exit_code
@@ -128,7 +132,7 @@
 
 - name: Capture container logs on failure
   ansible.builtin.shell:
-    cmd: "podman logs guidellm-{{ workload_type }}-{{ core_cfg.name }} 2>&1 | tail -100"
+    cmd: "podman logs {{ ('guidellm-' ~ workload_type ~ '-' ~ core_cfg.name) | quote }} 2>&1 | tail -100"
   args:
     executable: /bin/bash
   register: guidellm_failure_logs
@@ -180,7 +184,7 @@
       --saturation-threshold {{ guidellm_cfg.saturation_threshold }}
       --cooldown {{ guidellm_cfg.cooldown }}
       --outputs {{ guidellm_cfg.outputs }}
-      --output-dir {{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}/{{ core_cfg.name }}
+      --output-dir {{ results_path }}
   when: not (use_guidellm_container | bool)
 
 - name: Run GuideLLM benchmark on host
@@ -207,7 +211,7 @@
     msg:
       - "{{ '✓ GuideLLM benchmark completed successfully' if guidellm_exit_code == '0' else '✗ GuideLLM benchmark failed' }}"
       - "Exit Code: {{ guidellm_exit_code }}"
-      - "Results: {{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}/{{ core_cfg.name }}"
+      - "Results: {{ results_path }}"
 
 - name: Display failure logs (containerized)
   ansible.builtin.debug:
@@ -238,7 +242,7 @@
 
 - name: List generated result files
   ansible.builtin.find:
-    paths: "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}/{{ core_cfg.name }}"
+    paths: "{{ results_path }}"
     patterns: "*.html,*.json,*.csv"
   register: result_files
 
