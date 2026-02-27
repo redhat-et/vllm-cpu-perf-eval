@@ -8,7 +8,7 @@ models with NUMA-aware CPU optimization.
 ### 1. Configure Inventory
 
 Edit [inventory/hosts.yml](inventory/hosts.yml) - **only change the
-IP addresses** (see [inventory documentation](inventory/inventory.md) for details):
+IP addresses** (see [inventory documentation](inventory/README.md) for details):
 
 ```yaml
 dut:

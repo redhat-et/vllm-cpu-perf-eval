@@ -2,6 +2,13 @@
 # vLLM Server Role - Main Entry Point
 # Determines which vLLM server type to start based on workload
 
+- name: Validate workload type
+  ansible.builtin.assert:
+    that:
+      - workload_type is defined
+      - workload_type in ['summarization', 'chat', 'code', 'rag', 'embedding']
+    fail_msg: "Invalid workload_type '{{ workload_type | default('undefined') }}'. Must be one of: summarization, chat, code, rag, embedding"
+
 - name: Start vLLM server for LLM workloads
   ansible.builtin.include_tasks: start-llm.yml
   when: workload_type in ['summarization', 'chat', 'code', 'rag']

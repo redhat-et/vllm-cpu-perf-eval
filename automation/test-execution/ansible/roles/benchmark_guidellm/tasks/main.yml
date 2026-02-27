@@ -49,7 +49,7 @@
   ansible.builtin.file:
     path: "{{ results_path }}"
     state: directory
-    mode: "0755"
+    mode: "0777"
     recurse: true
 
 - name: Display GuideLLM configuration
@@ -241,7 +241,7 @@
 
 - name: Set exit code (unified across modes)
   ansible.builtin.set_fact:
-    guidellm_exit_code: "{{ container_exit_code.stdout if use_guidellm_container else (guidellm_host_result.rc | string) }}"
+    guidellm_exit_code: "{{ (container_exit_code.stdout | default(guidellm_host_result.rc | string)) if use_guidellm_container else (guidellm_host_result.rc | string) }}"
 
 - name: Display GuideLLM completion status
   ansible.builtin.debug:
