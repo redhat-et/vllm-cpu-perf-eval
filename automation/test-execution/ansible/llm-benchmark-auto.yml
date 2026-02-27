@@ -145,6 +145,20 @@
           ansible.builtin.set_fact:
             external_endpoint_parsed: "{{ vllm_endpoint.external.url | urlsplit }}"
 
+        - name: Validate parsed endpoint URL
+          ansible.builtin.assert:
+            that:
+              - external_endpoint_parsed.hostname is defined
+              - external_endpoint_parsed.hostname is not none
+              - external_endpoint_parsed.hostname | length > 0
+              - external_endpoint_parsed.scheme is defined
+              - external_endpoint_parsed.scheme in ['http', 'https']
+            fail_msg: |
+              Invalid external endpoint URL: {{ vllm_endpoint.external.url }}
+              Parsed hostname: {{ external_endpoint_parsed.hostname | default('MISSING') }}
+              Parsed scheme: {{ external_endpoint_parsed.scheme | default('MISSING') }}
+              URL must be a valid HTTP/HTTPS URL with a hostname.
+
         - name: Override bench_config for external endpoint
           ansible.builtin.set_fact:
             bench_config: "{{ bench_config | combine({'vllm_host': external_endpoint_parsed.hostname, 'vllm_port': external_endpoint_parsed.port | default(8000) | int}) }}"
