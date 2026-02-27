@@ -31,7 +31,7 @@ test_configs:
     backend: "openai-completions"
     vllm_args:
       - "--dtype=bfloat16"
-      - "--no_enable_prefix_caching"
+      - "--no-enable-prefix-caching"
     kv_cache_space: "40GiB"
 
   # Chat workload (short input, short output)
@@ -42,7 +42,7 @@ test_configs:
     backend: "openai-chat"
     vllm_args:
       - "--dtype=bfloat16"
-      - "--no_enable_prefix_caching"
+      - "--no-enable-prefix-caching"
     kv_cache_space: "40GiB"
 
   # Code generation workload (long input, long output)
@@ -53,7 +53,7 @@ test_configs:
     backend: "openai-completions"
     vllm_args:
       - "--dtype=bfloat16"
-      - "--no_enable_prefix_caching"
+      - "--no-enable-prefix-caching"
     kv_cache_space: "60GiB"
 
   # RAG workload (very long input, short output)
@@ -64,5 +64,5 @@ test_configs:
     backend: "openai-completions"
     vllm_args:
       - "--dtype=bfloat16"
-      - "--no_enable_prefix_caching"
+      - "--no-enable-prefix-caching"
     kv_cache_space: "80GiB"

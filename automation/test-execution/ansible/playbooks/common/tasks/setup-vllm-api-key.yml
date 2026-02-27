@@ -6,18 +6,76 @@
 - name: Setup vLLM API key for external endpoints
   when: vllm_endpoint.external.api_key.enabled | default(false) | bool
   block:
+    - name: Get API key from environment variable
+      ansible.builtin.set_fact:
+        vllm_api_key_resolved: "{{ lookup('env', vllm_endpoint.external.api_key.env_var) }}"
+      when:
+        - vllm_endpoint.external.api_key.source | default('value') == 'env_var'
+        - vllm_endpoint.external.api_key.env_var is defined
+      no_log: true
+
+    - name: Get API key from file
+      ansible.builtin.slurp:
+        src: "{{ vllm_endpoint.external.api_key.file_path }}"
+      register: vllm_api_key_file_content
+      when:
+        - vllm_endpoint.external.api_key.source | default('value') == 'file_path'
+        - vllm_endpoint.external.api_key.file_path is defined
+      no_log: true
+
+    - name: Set API key from file content
+      ansible.builtin.set_fact:
+        vllm_api_key_resolved: "{{ vllm_api_key_file_content.content | b64decode | trim }}"
+      when:
+        - vllm_endpoint.external.api_key.source | default('value') == 'file_path'
+        - vllm_api_key_file_content is defined
+      no_log: true
+
+    - name: Get API key from Ansible vault
+      ansible.builtin.set_fact:
+        vllm_api_key_resolved: "{{ vllm_endpoint.external.api_key.vault_var }}"
+      when:
+        - vllm_endpoint.external.api_key.source | default('value') == 'vault_var'
+        - vllm_endpoint.external.api_key.vault_var is defined
+      no_log: true
+
+    - name: Prompt for API key
+      ansible.builtin.pause:
+        prompt: "Enter your vLLM API key"
+        echo: false
+      register: vllm_api_key_prompt
+      when:
+        - vllm_endpoint.external.api_key.source | default('value') == 'prompt'
+      no_log: true
+
+    - name: Set API key from prompt
+      ansible.builtin.set_fact:
+        vllm_api_key_resolved: "{{ vllm_api_key_prompt.user_input }}"
+      when:
+        - vllm_endpoint.external.api_key.source | default('value') == 'prompt'
+        - vllm_api_key_prompt is defined
+      no_log: true
+
+    - name: Use direct value if no source specified
+      ansible.builtin.set_fact:
+        vllm_api_key_resolved: "{{ vllm_endpoint.external.api_key.value }}"
+      when:
+        - vllm_endpoint.external.api_key.source | default('value') == 'value'
+        - vllm_endpoint.external.api_key.value is defined
+      no_log: true
+
     - name: Validate API key configuration
       ansible.builtin.assert:
         that:
-          - vllm_endpoint.external.api_key.value is defined
-          - vllm_endpoint.external.api_key.value is not none
-          - vllm_endpoint.external.api_key.value | length > 0
+          - vllm_api_key_resolved is defined
+          - vllm_api_key_resolved is not none
+          - vllm_api_key_resolved | length > 0
         fail_msg: "API key value is required when api_key.enabled is true"
         success_msg: "API key configuration validated"
 
     - name: Set vLLM API key fact
       ansible.builtin.set_fact:
-        vllm_api_key: "{{ vllm_endpoint.external.api_key.value }}"
+        vllm_api_key: "{{ vllm_api_key_resolved }}"
       no_log: true
 
     - name: Display API key status
