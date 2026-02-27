@@ -1,6 +1,7 @@
 ---
 # Results Collector Role - Main Entry Point
-# Collects logs and results from DUT and load generator
+# Collects logs from DUT
+# Note: Individual playbooks handle their own result fetching to properly organized paths
 
 - name: Set collection ID
   ansible.builtin.set_fact:
@@ -10,7 +11,3 @@
 - name: Include vLLM server log collection
   ansible.builtin.include_tasks: collect-vllm-logs.yml
   when: "'dut' in group_names"
-
-- name: Include test results collection
-  ansible.builtin.include_tasks: collect-test-results.yml
-  when: inventory_hostname == (groups['load_generator'] | first)
