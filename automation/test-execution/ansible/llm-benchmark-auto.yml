@@ -30,6 +30,10 @@
           -e "workload_type=<summarization|chat|code|rag>"
           -e "requested_cores=<8|16|32|64|...>"
 
+    - name: Store test run ID in hostvars
+      ansible.builtin.set_fact:
+        test_run_id: "{{ test_run_id }}"
+
     - name: Display auto-config test information
       ansible.builtin.debug:
         msg:
