@@ -53,15 +53,43 @@
   ansible.builtin.set_fact:
     baseline_inf_output: "{{ (baseline_inf_container.stdout | default('')) if use_vllm_bench_container else (baseline_inf_host.stdout | default('')) }}"
 
+- name: Validate baseline test output
+  ansible.builtin.assert:
+    that:
+      - baseline_inf_output is defined
+      - baseline_inf_output | length > 0
+      - baseline_inf_output is search('Request throughput \(req/s\)')
+    fail_msg: |
+      Failed to validate vllm bench output. Expected format with 'Request throughput (req/s)' metric.
+      Output received: {{ baseline_inf_output | default('No output') }}
+    success_msg: "Baseline test output validated"
+
 - name: Parse maximum RPS from inf rate test
   ansible.builtin.set_fact:
-    max_rps: >-
-      {{
-        baseline_inf_output
-        | regex_search('Request throughput \(req/s\):\s+([0-9.]+)', '\1')
-        | first
-        | float
-      }}
+    max_rps_match: "{{ baseline_inf_output | regex_search('Request throughput \\(req/s\\):\\s+([0-9.]+)', '\\1') }}"
+
+- name: Validate RPS extraction
+  ansible.builtin.assert:
+    that:
+      - max_rps_match is defined
+      - max_rps_match | length > 0
+      - max_rps_match[0] is defined
+    fail_msg: |
+      Failed to extract RPS value from output.
+      Pattern: 'Request throughput (req/s): <number>'
+      Output: {{ baseline_inf_output }}
+    success_msg: "RPS value extracted successfully"
+
+- name: Convert RPS to float
+  ansible.builtin.set_fact:
+    max_rps: "{{ max_rps_match[0] | float }}"
+
+- name: Validate RPS value
+  ansible.builtin.assert:
+    that:
+      - max_rps | float > 0
+    fail_msg: "Invalid RPS value: {{ max_rps }}. Expected positive number."
+    success_msg: "RPS value validated: {{ max_rps }}"
 
 - name: Display maximum RPS
   ansible.builtin.debug:

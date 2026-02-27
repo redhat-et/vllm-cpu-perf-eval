@@ -9,30 +9,35 @@
 # 4. Run: ansible-playbook -i inventory/hosts.yml playbooks/...
 
 all:
+  vars:
+    # Common connection settings
+    ansible_user: ec2-user                           # Amazon Linux 2 / RHEL
+    # ansible_user: ubuntu                           # Ubuntu AMI
+    ansible_ssh_private_key_file: ~/.ssh/aws-key.pem  # ⚠️ Your SSH key path
+
   children:
     # DUT - EC2 instance running vLLM server
     dut:
       hosts:
-        my-dut:
-          # Use private IP if in same VPC, otherwise public IP
-          ansible_host: 10.0.1.100                    # ⚠️ Change to your DUT IP
-          ansible_user: ec2-user                      # Amazon Linux 2
-          # ansible_user: ubuntu                      # Ubuntu AMI
-          ansible_ssh_private_key_file: ~/.ssh/aws-key.pem  # ⚠️ Your SSH key
+        vllm-server:
+          # Use private IP if in same VPC (faster, no NAT), otherwise public IP
+          ansible_host: 10.0.1.100                   # ⚠️ Change to your DUT IP
 
     # Load Generator - EC2 instance running benchmarks
     load_generator:
       hosts:
-        my-loadgen:
-          ansible_host: 10.0.1.101                    # ⚠️ Change to your load gen IP
-          ansible_user: ec2-user
-          ansible_ssh_private_key_file: ~/.ssh/aws-key.pem
+        guidellm-client:
+          # Can be same or different EC2 instance
+          ansible_host: 10.0.1.101                   # ⚠️ Change to your load gen IP
 
-          bench_config:
-            # Use DUT's private IP (faster, no NAT)
-            vllm_host: 10.0.1.100                     # ⚠️ Should match DUT IP
-            vllm_port: 8000
-            results_dir: /home/ec2-user/benchmark-results
+      vars:
+        # Benchmark configuration
+        bench_config:
+          # Automatically references DUT's IP (no duplication!)
+          # Override only if you need to use a different IP (e.g., public IP for benchmarking)
+          vllm_host: "{{ hostvars['vllm-server']['ansible_host'] }}"
+          vllm_port: 8000
+          results_dir: /home/ec2-user/benchmark-results
 
 # AWS-specific overrides
 benchmark_tool:

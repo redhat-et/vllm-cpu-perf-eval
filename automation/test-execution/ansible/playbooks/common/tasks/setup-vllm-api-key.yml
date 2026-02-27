@@ -1,0 +1,20 @@
+---
+# Setup vLLM API Key for External Endpoints
+# Sets up API key for accessing external vLLM instances
+
+- name: Validate API key configuration
+  ansible.builtin.assert:
+    that:
+      - vllm_endpoint.external.api_key.value is defined
+      - vllm_endpoint.external.api_key.value is not none
+      - vllm_endpoint.external.api_key.value | length > 0
+    fail_msg: "API key value is required when api_key.enabled is true"
+    success_msg: "API key configuration validated"
+
+- name: Set vLLM API key fact
+  ansible.builtin.set_fact:
+    vllm_api_key: "{{ vllm_endpoint.external.api_key.value }}"
+
+- name: Display API key status
+  ansible.builtin.debug:
+    msg: "✓ vLLM API key configured for external endpoint"
