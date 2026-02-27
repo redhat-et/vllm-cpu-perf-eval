@@ -157,7 +157,7 @@
             loop_var: current_cores
             label: "{{ current_cores }} cores"
 
-      when: hostvars['localhost']['vllm_mode'] == 'external'
+      when: hostvars['localhost']['vllm_mode'] | default('managed') == 'managed'
 # ==============================================================================
 # FINAL: Collect All Results
 # ==============================================================================
