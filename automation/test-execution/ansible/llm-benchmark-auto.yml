@@ -106,38 +106,9 @@
 
       when: hostvars['localhost']['vllm_mode'] == 'managed'
 # ==============================================================================
-# STEP 3: Setup HuggingFace Token (Managed Mode Only)
+# STEP 3: Start vLLM with Auto-Allocated Configuration (Managed Mode Only)
 # ==============================================================================
-
-- name: "Auto-Configured LLM Test - Setup HF Token"
-  hosts: dut
-  become: true
-
-  tasks:
-    - block:
-        - name: Setup HuggingFace token
-          ansible.builtin.include_tasks:
-            file: playbooks/common/tasks/setup-hf-token-optional.yml
-
-      when: hostvars['localhost']['vllm_mode'] == 'managed'
-# ==============================================================================
-# STEP 4: Clean Restart vLLM (Managed Mode Only)
-# ==============================================================================
-
-- name: "Auto-Configured LLM Test - Clean Restart"
-  hosts: dut
-  become: true
-
-  tasks:
-    - block:
-        - name: Clean restart vLLM
-          ansible.builtin.include_tasks:
-            file: playbooks/common/tasks/clean-restart-vllm.yml
-
-      when: hostvars['localhost']['vllm_mode'] == 'managed'
-# ==============================================================================
-# STEP 5: Start vLLM with Auto-Allocated Configuration (Managed Mode Only)
-# ==============================================================================
+# Note: vllm_server role handles HF token setup and clean restart internally
 
 - name: "Auto-Configured LLM Test - Start vLLM"
   hosts: dut
@@ -153,10 +124,10 @@
   roles:
     - role: vllm_server
 # ==============================================================================
-# STEP 5-External: Configure External Endpoint (External Mode Only)
+# STEP 3-External: Configure External Endpoint (External Mode Only)
 # ==============================================================================
 
-- name: "Step 5-External - Configure External Endpoint"
+- name: "Step 3-External - Configure External Endpoint"
   hosts: load_generator
   gather_facts: false
 
@@ -193,14 +164,14 @@
 
       when: hostvars['localhost']['vllm_mode'] == 'external'
 # ==============================================================================
-# STEP 6: Health Check
+# STEP 4: Health Check
 # ==============================================================================
 
 - name: "Auto-Configured LLM Test - Health Check"
   ansible.builtin.import_playbook: health-check.yml
 
 # ==============================================================================
-# STEP 7: Run GuideLLM Benchmark
+# STEP 5: Run GuideLLM Benchmark
 # ==============================================================================
 
 - name: "Auto-Configured LLM Test - Run GuideLLM"
@@ -215,7 +186,7 @@
     - role: benchmark_guidellm
 
 # ==============================================================================
-# STEP 8: Collect Results
+# STEP 6: Collect Results
 # ==============================================================================
 
 - name: "Auto-Configured LLM Test - Collect Results"
@@ -264,7 +235,7 @@
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # ==============================================================================
-# STEP 9: Collect Logs (Managed Mode Only)
+# STEP 7: Collect Logs (Managed Mode Only)
 # ==============================================================================
 
 - name: "Auto-Configured LLM Test - Collect Logs"
@@ -289,7 +260,7 @@
 
       when: hostvars['localhost']['vllm_mode'] | default('managed') == 'managed'
 # ==============================================================================
-# STEP 10: Optional Cleanup (Managed Mode Only)
+# STEP 8: Optional Cleanup (Managed Mode Only)
 # ==============================================================================
 
 - name: "Auto-Configured LLM Test - Optional Cleanup"
