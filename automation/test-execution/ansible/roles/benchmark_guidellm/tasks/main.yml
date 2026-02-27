@@ -95,6 +95,7 @@
       GUIDELLM_COOLDOWN: "{{ guidellm_cfg.cooldown }}"
       GUIDELLM_OUTPUTS: "{{ guidellm_cfg.outputs }}"
       HF_TOKEN: "{{ hf_token | default('') }}"
+  no_log: true
 
 - name: Start GuideLLM benchmark container
   containers.podman.podman_container:

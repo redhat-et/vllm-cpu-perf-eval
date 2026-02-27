@@ -3,9 +3,15 @@
 # Collects logs from DUT
 # Note: Individual playbooks handle their own result fetching to properly organized paths
 
-- name: Set collection ID
+- name: Generate collection ID once
   ansible.builtin.set_fact:
-    collection_id: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
+    collection_id_value: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: Distribute collection ID to all hosts
+  ansible.builtin.set_fact:
+    collection_id: "{{ hostvars['localhost']['collection_id_value'] }}"
   delegate_to: "{{ item }}"
   delegate_facts: true
   loop: "{{ groups['all'] }}"
