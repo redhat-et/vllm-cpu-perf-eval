@@ -72,7 +72,7 @@
     - block:
         - name: Detect NUMA topology on DUT
           ansible.builtin.include_tasks:
-            file: ../common/tasks/detect-numa-topology.yml
+            file: playbooks/common/tasks/detect-numa-topology.yml
 
         - name: Save topology to localhost
           ansible.builtin.set_fact:
@@ -93,7 +93,7 @@
     - block:
         - name: Setup HuggingFace token
           ansible.builtin.include_tasks:
-            file: ../common/tasks/setup-hf-token-optional.yml
+            file: playbooks/common/tasks/setup-hf-token-optional.yml
 
       when: hostvars['localhost']['vllm_mode'] | default('managed') == 'managed'
 # ==============================================================================
@@ -124,7 +124,7 @@
 
         - name: Setup API key if enabled
           ansible.builtin.include_tasks:
-            file: ../common/tasks/setup-vllm-api-key.yml
+            file: playbooks/common/tasks/setup-vllm-api-key.yml
           when: vllm_endpoint.external.api_key.enabled | default(false) | bool
 
         - name: Display external endpoint configuration
