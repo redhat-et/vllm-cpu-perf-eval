@@ -17,8 +17,8 @@
     state: directory
     mode: "{{ item.mode }}"
   loop:
-    - {path: "{{ model_cache_dir }}", mode: "0777"}  # Container needs write access
-    - {path: "{{ log_dir }}", mode: "0777"}
+    - {path: "{{ model_cache_dir }}", mode: "0755"}
+    - {path: "{{ log_dir }}", mode: "0755"}
   when: use_persistent_cache | default(false) | bool
 
 - name: Get workload and core configuration

@@ -8,6 +8,12 @@
     vllm_bench_image: "{{ benchmark_tool.vllm_bench.container_image | default('quay.io/mtahhan/vllm:arm-base-cpu') }}"
     num_prompts: "{{ benchmark_tool.vllm_bench.num_prompts | default(250) }}"
 
+- name: Ensure baseline result directory exists
+  ansible.builtin.file:
+    path: "{{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/baseline"
+    state: directory
+    mode: "0755"
+
 - name: "Baseline Test - Find Maximum Throughput (inf rate) - Containerized"
   ansible.builtin.command:
     cmd: >
