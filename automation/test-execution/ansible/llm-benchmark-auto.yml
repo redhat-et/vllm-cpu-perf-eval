@@ -266,6 +266,12 @@
 
   tasks:
     - block:
+        - name: Ensure log directory exists on DUT
+          ansible.builtin.file:
+            path: "{{ log_dir }}"
+            state: directory
+            mode: "0755"
+
         - name: Get vLLM container logs
           ansible.builtin.command:
             cmd: "podman logs {{ vllm_container_name }}"
@@ -276,6 +282,32 @@
           ansible.builtin.copy:
             content: "{{ vllm_logs.stdout }}"
             dest: "{{ log_dir }}/vllm-{{ core_configuration.name }}-{{ test_run_id }}.log"
+
+        - name: Collect system metrics snapshot
+          ansible.builtin.shell: |
+            echo "=== CPU Info ===" > {{ log_dir }}/system-metrics-{{ test_run_id }}.log
+            lscpu >> {{ log_dir }}/system-metrics-{{ test_run_id }}.log
+            echo "" >> {{ log_dir }}/system-metrics-{{ test_run_id }}.log
+            echo "=== Memory Usage ===" >> {{ log_dir }}/system-metrics-{{ test_run_id }}.log
+            free -h >> {{ log_dir }}/system-metrics-{{ test_run_id }}.log
+            echo "" >> {{ log_dir }}/system-metrics-{{ test_run_id }}.log
+            echo "=== Container Stats ===" >> {{ log_dir }}/system-metrics-{{ test_run_id }}.log
+            podman stats --no-stream {{ vllm_container_name }} >> {{ log_dir }}/system-metrics-{{ test_run_id }}.log 2>&1 || true
+          args:
+            executable: /bin/bash
+          changed_when: false
+
+        - name: Fetch vLLM logs to local results
+          ansible.builtin.fetch:
+            src: "{{ log_dir }}/vllm-{{ core_configuration.name }}-{{ test_run_id }}.log"
+            dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/vllm-server.log"
+            flat: true
+
+        - name: Fetch system metrics to local results
+          ansible.builtin.fetch:
+            src: "{{ log_dir }}/system-metrics-{{ test_run_id }}.log"
+            dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/system-metrics.log"
+            flat: true
 
       when: hostvars['localhost']['vllm_mode'] | default('managed') == 'managed'
 # ==============================================================================
