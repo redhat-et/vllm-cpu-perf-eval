@@ -6,6 +6,12 @@
 # COMMON SETUP (Both Execution Modes)
 # ============================================================================
 
+- name: Debug benchmark_tool type
+  ansible.builtin.debug:
+    msg:
+      - "benchmark_tool type: {{ benchmark_tool | type_debug }}"
+      - "benchmark_tool value: {{ benchmark_tool }}"
+
 - name: Get workload configuration
   ansible.builtin.set_fact:
     workload_cfg: "{{ test_configs[workload_type] }}"
@@ -35,8 +41,8 @@
       - "Target: http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}"
       - "Workload: {{ workload_type }} ({{ workload_cfg.isl }}:{{ workload_cfg.osl }})"
       - "Profile: {{ guidellm_cfg.profile }}"
+      - "Rate: {{ guidellm_cfg.rate | default([]) }}"
       - "Max Requests: {{ guidellm_cfg.max_requests }}"
-      - "Max Concurrency: {{ guidellm_cfg.max_concurrency }}"
 
 # ============================================================================
 # CONTAINERIZED EXECUTION PATH
@@ -53,13 +59,14 @@
     guidellm_env:
       GUIDELLM_TARGET: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}"
       GUIDELLM_PROFILE: "{{ guidellm_cfg.profile }}"
+      GUIDELLM_RATE: "{{ guidellm_cfg.rate | default([]) | join(',') }}"
       GUIDELLM_MAX_SECONDS: "{{ guidellm_cfg.max_seconds }}"
       GUIDELLM_MAX_REQUESTS: "{{ guidellm_cfg.max_requests }}"
+      GUIDELLM__MAX_CONCURRENCY: "{{ guidellm_cfg.max_concurrency | default(128) }}"
       GUIDELLM__EXCLUDE_THROUGHPUT_TARGET: "{{ guidellm_cfg.exclude_throughput_target | string | lower }}"
       GUIDELLM__EXCLUDE_THROUGHPUT_RESULT: "{{ guidellm_cfg.exclude_throughput_result | string | lower }}"
       GUIDELLM__SATURATION_THRESHOLD: "{{ guidellm_cfg.saturation_threshold }}"
       GUIDELLM_DATA: "prompt_tokens={{ workload_cfg.isl }},output_tokens={{ workload_cfg.osl }}"
-      GUIDELLM__MAX_CONCURRENCY: "{{ guidellm_cfg.max_concurrency }}"
       GUIDELLM_COOLDOWN: "{{ guidellm_cfg.cooldown }}"
       GUIDELLM_OUTPUTS: "{{ guidellm_cfg.outputs }}"
       HF_TOKEN: "{{ hf_token | default('') }}"
@@ -85,7 +92,7 @@
 
 - name: Set monitoring command based on connection type
   ansible.builtin.set_fact:
-    monitor_cmd: "{{ 'podman logs -f guidellm-' + workload_type + '-' + core_cfg.name if ansible_connection == 'local' else 'ssh ' + ansible_user + '@' + ansible_host + ' podman logs -f guidellm-' + workload_type + '-' + core_cfg.name }}"
+    monitor_cmd: "{{ 'sudo podman logs -f guidellm-' + workload_type + '-' + core_cfg.name if ansible_connection == 'local' else 'ssh ' + ansible_user + '@' + ansible_host + ' sudo podman logs -f guidellm-' + workload_type + '-' + core_cfg.name }}"
   when: use_guidellm_container | bool
 
 - name: Display benchmark start info (containerized)
@@ -163,20 +170,27 @@
       - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   when: not (use_guidellm_container | bool)
 
-- name: Run GuideLLM benchmark on host
-  ansible.builtin.command:
-    cmd: >
+- name: Build GuideLLM command arguments
+  ansible.builtin.set_fact:
+    guidellm_cmd_args: >-
       guidellm
       --target http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}
       --profile {{ guidellm_cfg.profile }}
+      {% if guidellm_cfg.rate is defined and guidellm_cfg.rate | length > 0 %}
+      --rate {{ guidellm_cfg.rate | join(' ') }}
+      {% endif %}
       --max-seconds {{ guidellm_cfg.max_seconds }}
       --max-requests {{ guidellm_cfg.max_requests }}
       --data prompt_tokens={{ workload_cfg.isl }},output_tokens={{ workload_cfg.osl }}
-      --max-concurrency {{ guidellm_cfg.max_concurrency }}
       --saturation-threshold {{ guidellm_cfg.saturation_threshold }}
       --cooldown {{ guidellm_cfg.cooldown }}
       --outputs {{ guidellm_cfg.outputs }}
       --output-dir {{ bench_config.results_dir }}/{{ test_model | basename }}/{{ workload_type }}/{{ core_cfg.name }}
+  when: not (use_guidellm_container | bool)
+
+- name: Run GuideLLM benchmark on host
+  ansible.builtin.command:
+    cmd: "{{ guidellm_cmd_args }}"
   environment:
     HF_TOKEN: "{{ hf_token | default('') }}"
     GUIDELLM_TARGET: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}"
