@@ -18,6 +18,25 @@
     guidellm_cfg: "{{ benchmark_tool.guidellm }}"
     core_cfg: "{{ core_configuration }}"
 
+- name: Ensure guidellm_cfg has all required defaults (with flat variable overrides)
+  ansible.builtin.set_fact:
+    guidellm_cfg: "{{ guidellm_cfg | combine({
+        'profile': guidellm_profile | default(guidellm_cfg.profile | default('sweep')),
+        'rate': guidellm_rate | default(guidellm_cfg.rate | default([10])),
+        'container_image': guidellm_container_image | default(guidellm_cfg.container_image | default('ghcr.io/vllm-project/guidellm:latest')),
+        'use_container': guidellm_use_container | default(guidellm_cfg.use_container | default(true)),
+        'cpuset_cpus': guidellm_cpuset_cpus | default(guidellm_cfg.cpuset_cpus | default('16-31')),
+        'cpuset_mems': guidellm_cpuset_mems | default(guidellm_cfg.cpuset_mems | default('0')),
+        'max_seconds': guidellm_max_seconds | default(guidellm_cfg.max_seconds | default(120)),
+        'max_requests': guidellm_max_requests | default(guidellm_cfg.max_requests | default(100)),
+        'max_concurrency': guidellm_max_concurrency | default(guidellm_cfg.max_concurrency | default(128)),
+        'saturation_threshold': guidellm_saturation_threshold | default(guidellm_cfg.saturation_threshold | default(0.98)),
+        'cooldown': guidellm_cooldown | default(guidellm_cfg.cooldown | default(30)),
+        'outputs': guidellm_outputs | default(guidellm_cfg.outputs | default('html,json,csv')),
+        'exclude_throughput_target': guidellm_exclude_throughput_target | default(guidellm_cfg.exclude_throughput_target | default(false)),
+        'exclude_throughput_result': guidellm_exclude_throughput_result | default(guidellm_cfg.exclude_throughput_result | default(false))
+      }) }}"
+
 - name: Set GuideLLM execution mode
   ansible.builtin.set_fact:
     use_guidellm_container: "{{ guidellm_cfg.use_container | default(true) | bool }}"
@@ -36,12 +55,19 @@
 - name: Display GuideLLM configuration
   ansible.builtin.debug:
     msg:
-      - "Running GuideLLM Benchmark ({{ 'Container' if use_guidellm_container else 'Host' }} mode)"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "GuideLLM Benchmark Configuration"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "Mode: {{ 'Container' if use_guidellm_container else 'Host' }}"
       - "Target: http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}"
-      - "Workload: {{ workload_type }} ({{ workload_cfg.isl }}:{{ workload_cfg.osl }})"
+      - "Workload: {{ workload_type }} (ISL:{{ workload_cfg.isl }}/OSL:{{ workload_cfg.osl }})"
       - "Profile: {{ guidellm_cfg.profile }}"
       - "Rate: {{ guidellm_cfg.rate | default([]) }}"
+      - "Max Duration: {{ guidellm_cfg.max_seconds }}s"
       - "Max Requests: {{ guidellm_cfg.max_requests }}"
+      - "Max Concurrency: {{ guidellm_cfg.max_concurrency }}"
+      - "Cooldown: {{ guidellm_cfg.cooldown }}s"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # ============================================================================
 # CONTAINERIZED EXECUTION PATH

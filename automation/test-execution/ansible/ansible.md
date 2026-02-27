@@ -289,6 +289,46 @@ core_configs:
     tensor_parallel: 1
 ```
 
+### Override GuideLLM Parameters
+
+You can customize GuideLLM benchmark parameters in two ways:
+
+**Option 1: Simple flat variables (recommended for quick tests)**
+
+```bash
+ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
+  -e "test_model=Qwen/Qwen2.5-3B-Instruct" \
+  -e "workload_type=chat" \
+  -e "requested_cores=16" \
+  -e "guidellm_max_seconds=60" \
+  -e "guidellm_max_requests=50"
+```
+
+**Option 2: Dictionary syntax (for multiple parameters)**
+
+```bash
+ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
+  -e "test_model=Qwen/Qwen2.5-3B-Instruct" \
+  -e "workload_type=chat" \
+  -e "requested_cores=16" \
+  -e '{"benchmark_tool": {"guidellm": {"max_seconds": 60, "max_requests": 50, "profile": "throughput"}}}'
+```
+
+**Available flat variables:**
+- `guidellm_profile` - Benchmark profile (sweep, throughput, concurrent, synchronous)
+- `guidellm_rate` - Rate parameter (meaning depends on profile)
+- `guidellm_max_seconds` - Maximum test duration
+- `guidellm_max_requests` - Maximum requests to send
+- `guidellm_max_concurrency` - Maximum concurrent requests
+- `guidellm_cooldown` - Cooldown between tests (seconds)
+- `guidellm_outputs` - Output formats (html,json,csv)
+- `guidellm_container_image` - GuideLLM container image
+- `guidellm_use_container` - Use container mode (true/false)
+- `guidellm_cpuset_cpus` - CPU allocation for GuideLLM
+- `guidellm_cpuset_mems` - NUMA node allocation
+
+Defaults are defined in [inventory/group_vars/all/benchmark-tools.yml](inventory/group_vars/all/benchmark-tools.yml).
+
 ## Troubleshooting
 
 ### Connection Issues
