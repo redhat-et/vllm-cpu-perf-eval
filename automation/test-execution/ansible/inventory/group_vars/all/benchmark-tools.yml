@@ -65,6 +65,10 @@ benchmark_tool:
     saturation_threshold: 0.98  # Saturation detection threshold (0-1)
     cooldown: 30                # Cooldown period between tests (seconds)
 
+    # Safety timeout for podman wait (prevents indefinite hangs)
+    # Calculated as: min(max_seconds + 600, 14400) = max 4 hours
+    # Override with: -e "guidellm_wait_timeout_seconds=7200" for custom timeout
+
     # Output configuration
     outputs: "html,json,csv"    # Output formats (comma-separated)
     exclude_throughput_target: false
