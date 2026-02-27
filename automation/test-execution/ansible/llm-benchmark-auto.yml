@@ -66,7 +66,7 @@
     - block:
         - name: Detect NUMA topology on DUT
           ansible.builtin.include_tasks:
-            file: ../common/tasks/detect-numa-topology.yml
+            file: playbooks/common/tasks/detect-numa-topology.yml
 
       when: hostvars['localhost']['vllm_mode'] == 'managed'
 # ==============================================================================
@@ -86,7 +86,7 @@
     - block:
         - name: Allocate cores from NUMA topology
           ansible.builtin.include_tasks:
-            file: ../common/tasks/allocate-cores-from-count.yml
+            file: playbooks/common/tasks/allocate-cores-from-count.yml
 
         - name: Save auto-allocated config to localhost
           ansible.builtin.set_fact:
@@ -107,7 +107,7 @@
     - block:
         - name: Setup HuggingFace token
           ansible.builtin.include_tasks:
-            file: ../common/tasks/setup-hf-token-optional.yml
+            file: playbooks/common/tasks/setup-hf-token-optional.yml
 
       when: hostvars['localhost']['vllm_mode'] == 'managed'
 # ==============================================================================
@@ -122,7 +122,7 @@
     - block:
         - name: Clean restart vLLM
           ansible.builtin.include_tasks:
-            file: ../common/tasks/clean-restart-vllm.yml
+            file: playbooks/common/tasks/clean-restart-vllm.yml
 
       when: hostvars['localhost']['vllm_mode'] == 'managed'
 # ==============================================================================
@@ -135,13 +135,13 @@
   vars:
     core_configuration: "{{ hostvars['localhost']['core_configuration'] }}"
 
-  tasks:
-    - block:
-        - name: Start vLLM for LLM model
-          ansible.builtin.include_tasks:
-            file: tasks/start-llm-vllm.yml
+  pre_tasks:
+    - name: Skip if external mode
+      ansible.builtin.meta: end_host
+      when: hostvars['localhost']['vllm_mode'] != 'managed'
 
-      when: hostvars['localhost']['vllm_mode'] == 'managed'
+  roles:
+    - role: vllm_server
 # ==============================================================================
 # STEP 5-External: Configure External Endpoint (External Mode Only)
 # ==============================================================================
@@ -170,7 +170,7 @@
 
         - name: Setup API key if enabled
           ansible.builtin.include_tasks:
-            file: ../common/tasks/setup-vllm-api-key.yml
+            file: playbooks/common/tasks/setup-vllm-api-key.yml
           when: vllm_endpoint.external.api_key.enabled | default(false) | bool
 
         - name: Display external endpoint configuration
@@ -199,14 +199,10 @@
   vars:
     core_configuration: "{{ hostvars['localhost']['core_configuration'] }}"
 
-  tasks:
-    - name: Setup HuggingFace token for load generator
-      ansible.builtin.include_tasks:
-        file: ../common/tasks/setup-hf-token-optional.yml
-
-    - name: Run GuideLLM benchmark
-      ansible.builtin.include_tasks:
-        file: tasks/run-guidellm.yml
+  roles:
+    - role: hf_token
+      tasks_from: setup-optional
+    - role: benchmark_guidellm
 
 # ==============================================================================
 # STEP 8: Collect Results

@@ -15,6 +15,29 @@ all:
     # ansible_user: ubuntu                           # Ubuntu AMI
     ansible_ssh_private_key_file: ~/.ssh/aws-key.pem  # ⚠️ Your SSH key path
 
+    # AWS-specific overrides
+    benchmark_tool:
+      guidellm:
+        # Use x86_64 container image (not ARM)
+        container_image: "localhost/guidellm:latest"
+        # Adjust CPU allocation based on your EC2 instance type
+        cpuset_cpus: "16-31"  # Example: c6i.8xlarge has 32 vCPUs
+
+      vllm_bench:
+        # Use x86_64 vLLM image
+        container_image: "quay.io/mtahhan/vllm:0.14.0"  # or vllm/vllm-openai:latest
+        num_prompts: 1000  # Production-grade measurements
+
+    # Optional: External endpoint mode for testing managed vLLM services
+    # vllm_endpoint:
+    #   mode: "external"
+    #   external:
+    #     url: "http://vllm-lb-12345.us-east-1.elb.amazonaws.com:8000"
+    #     api_key:
+    #       enabled: true
+    #       source: "env"
+    #       env_var: "VLLM_API_KEY"
+
   children:
     # DUT - EC2 instance running vLLM server
     dut:
@@ -38,26 +61,3 @@ all:
           vllm_host: "{{ hostvars['vllm-server']['ansible_host'] }}"
           vllm_port: 8000
           results_dir: /home/ec2-user/benchmark-results
-
-# AWS-specific overrides
-benchmark_tool:
-  guidellm:
-    # Use x86_64 container image (not ARM)
-    container_image: "localhost/guidellm:latest"
-    # Adjust CPU allocation based on your EC2 instance type
-    cpuset_cpus: "16-31"  # Example: c6i.8xlarge has 32 vCPUs
-
-  vllm_bench:
-    # Use x86_64 vLLM image
-    container_image: "quay.io/mtahhan/vllm:0.14.0"  # or vllm/vllm-openai:latest
-    num_prompts: 1000  # Production-grade measurements
-
-# Optional: External endpoint mode for testing managed vLLM services
-# vllm_endpoint:
-#   mode: "external"
-#   external:
-#     url: "http://vllm-lb-12345.us-east-1.elb.amazonaws.com:8000"
-#     api_key:
-#       enabled: true
-#       source: "env"
-#       env_var: "VLLM_API_KEY"
