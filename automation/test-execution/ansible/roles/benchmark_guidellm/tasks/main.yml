@@ -20,7 +20,7 @@
 
 - name: Set GuideLLM execution mode
   ansible.builtin.set_fact:
-    use_guidellm_container: "{{ guidellm_cfg.use_container | default(true) }}"
+    use_guidellm_container: "{{ guidellm_cfg.use_container | default(true) | bool }}"
 
 - name: Create results directory for this test
   ansible.builtin.file:
