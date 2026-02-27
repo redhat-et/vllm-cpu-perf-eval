@@ -69,11 +69,9 @@
 - name: Validate each CPU segment
   ansible.builtin.assert:
     that:
-      # For single CPU: validate it's a number within range
       - >-
         (item is match('^\\d+$') and item | int >= 0 and item | int <= max_cpu_id | int)
         or
-        # For range: validate both start and end are numbers within range
         (item is match('^\\d+-\\d+$') and
          item.split('-')[0] | int >= 0 and
          item.split('-')[0] | int <= max_cpu_id | int and

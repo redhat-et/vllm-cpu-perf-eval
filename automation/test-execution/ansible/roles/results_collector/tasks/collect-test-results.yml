@@ -13,11 +13,11 @@
 - name: Fetch test results to controller
   ansible.posix.synchronize:
     src: "{{ bench_config.results_dir }}/"
-    dest: "{{ playbook_dir }}/../../../results/benchmark-results/"
+    dest: "{{ playbook_dir }}/../../../results/benchmark-results/{{ inventory_hostname }}/"
     mode: pull
     recursive: true
   when: results_dir_stat.stat.exists
 
 - name: Display results collection status
   ansible.builtin.debug:
-    msg: "{{ 'Results fetched from ' + bench_config.results_dir if results_dir_stat.stat.exists else 'No results directory found' }}"
+    msg: "{{ 'Results fetched from ' + bench_config.results_dir + ' to results/benchmark-results/' + inventory_hostname + '/' if results_dir_stat.stat.exists else 'No results directory found' }}"

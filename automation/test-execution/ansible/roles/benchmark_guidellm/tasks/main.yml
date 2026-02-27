@@ -26,13 +26,8 @@
   ansible.builtin.file:
     path: "{{ bench_config.results_dir }}/{{ test_model | basename }}/{{ workload_type }}/{{ core_cfg.name }}"
     state: directory
-    mode: "0777"
+    mode: "0755"
     recurse: true
-
-- name: Ensure results directory has write permissions
-  ansible.builtin.command:
-    cmd: "chmod -R 777 {{ bench_config.results_dir }}/{{ test_model | basename }}/{{ workload_type }}/{{ core_cfg.name }}"
-  changed_when: false
 
 - name: Display GuideLLM configuration
   ansible.builtin.debug:
