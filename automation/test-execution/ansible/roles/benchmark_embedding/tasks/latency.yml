@@ -4,7 +4,7 @@
 
 - name: Set vllm-bench execution mode
   ansible.builtin.set_fact:
-    use_vllm_bench_container: "{{ benchmark_tool.vllm_bench.use_container | default(true) }}"
+    use_vllm_bench_container: "{{ benchmark_tool.vllm_bench.use_container | default(true) | bool }}"
     vllm_bench_image: "{{ benchmark_tool.vllm_bench.container_image | default('quay.io/mtahhan/vllm:arm-base-cpu') }}"
     num_prompts: "{{ benchmark_tool.vllm_bench.num_prompts | default(250) }}"
 

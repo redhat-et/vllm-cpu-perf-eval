@@ -7,6 +7,7 @@
   ansible.builtin.set_fact:
     collection_id_value: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
   delegate_to: localhost
+  delegate_facts: true
   run_once: true
 
 - name: Distribute collection ID to all hosts

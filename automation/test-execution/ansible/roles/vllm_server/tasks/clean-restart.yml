@@ -7,6 +7,11 @@
 #       Currently assumes single container named {{ vllm_container_name }}
 #       Future: Support container name patterns or list of instances
 
+- name: Verify container runtime is podman
+  ansible.builtin.fail:
+    msg: "Clean restart is only supported for Podman. Current engine: {{ container_runtime.engine }}"
+  when: container_runtime.engine != 'podman'
+
 - name: Check if vLLM container exists
   ansible.builtin.shell:
     cmd: "{{ container_runtime.engine }} ps -a --filter name={{ vllm_container_name }} --format '{{'{{'}}.Names{{'}}'}}'"
@@ -21,7 +26,7 @@
   when:
     - container_runtime.engine == 'podman'
     - existing_container.stdout | length > 0
-  ignore_errors: true
+  register: stop_result
 
 - name: Remove existing vLLM container
   containers.podman.podman_container:
@@ -30,13 +35,18 @@
   when:
     - container_runtime.engine == 'podman'
     - existing_container.stdout | length > 0
-  ignore_errors: true
+  register: remove_result
 
 - name: Wait for cleanup to complete
   ansible.builtin.pause:
     seconds: 5
     prompt: "Waiting for vLLM cleanup..."
+  when: existing_container.stdout | length > 0
 
 - name: Display cleanup status
   ansible.builtin.debug:
-    msg: "✓ vLLM container cleaned and ready for fresh start"
+    msg: "✓ vLLM container {{ vllm_container_name }} cleaned and ready for fresh start"
+  when:
+    - existing_container.stdout | length > 0
+    - stop_result is succeeded
+    - remove_result is succeeded
