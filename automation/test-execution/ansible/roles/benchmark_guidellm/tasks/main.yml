@@ -94,6 +94,10 @@
     monitor_cmd: "{{ 'sudo podman logs -f guidellm-' + workload_type + '-' + core_cfg.name if ansible_connection == 'local' else 'ssh ' + ansible_user + '@' + ansible_host + ' sudo podman logs -f guidellm-' + workload_type + '-' + core_cfg.name }}"
   when: use_guidellm_container | bool
 
+- name: Calculate wait timeout
+  ansible.builtin.set_fact:
+    guidellm_wait_timeout: "{{ [((guidellm_cfg.max_seconds | int) + 600), 14400] | min }}"
+
 - name: Display benchmark start info (containerized)
   ansible.builtin.debug:
     msg:
@@ -102,6 +106,7 @@
       - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       - "Container: {{ guidellm_container.container.Id[:12] }}"
       - "Max Duration: {{ guidellm_cfg.max_seconds }}s | Max Requests: {{ guidellm_cfg.max_requests }}"
+      - "Safety Timeout: {{ guidellm_wait_timeout }}s ({{ (guidellm_wait_timeout | int / 60) | round(1) }} min)"
       - "{{ 'Location: localhost' if ansible_connection == 'local' else 'Location: ' + ansible_host }}"
       - ""
       - "⚠️  Ansible will now wait silently for completion"
@@ -114,7 +119,7 @@
 
 - name: Wait for GuideLLM benchmark to complete (containerized)
   ansible.builtin.command:
-    cmd: "timeout {{ (guidellm_cfg.max_seconds | int) + 600 }} podman wait guidellm-{{ workload_type }}-{{ core_cfg.name }}"
+    cmd: "timeout {{ guidellm_wait_timeout_seconds | default(guidellm_wait_timeout) }} podman wait guidellm-{{ workload_type }}-{{ core_cfg.name }}"
   register: guidellm_exit_code_container
   changed_when: false
   failed_when: guidellm_exit_code_container.rc == 124
