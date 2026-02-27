@@ -74,7 +74,7 @@
 - name: Fetch logs to controller
   ansible.builtin.fetch:
     src: "{{ item.path }}"
-    dest: "{{ playbook_dir }}/../../../results/logs/{{ inventory_hostname }}/"
+    dest: "{{ playbook_dir }}/../../../results/logs/{{ inventory_hostname }}/{{ item.path | basename }}"
     flat: true
   loop: "{{ collected_logs.files }}"
   loop_control:
