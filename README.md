@@ -57,7 +57,6 @@ detailed instructions and advanced usage.
 ```text
 vllm-cpu-perf-eval/
 ├── README.md                           # This file
-├── TODO.md                             # Roadmap and planned features
 │
 ├── models/                             # Centralized model definitions
 │   ├── models.md                       # Comprehensive model documentation
@@ -281,7 +280,7 @@ selection rationale, and how to add new models.
 - Python 3.10+
 - Docker 24.0+ or Podman 4.0+
 - Ansible 2.14+ (for automation)
-- GuideLLM
+- GuideLLM v0.5.0+
 - vLLM
 
 See [docs/getting-started/quick-start.md](docs/getting-started/quick-start.md)
@@ -336,16 +335,6 @@ pre-commit install --hook-type commit-msg
 # Run manually
 pre-commit run --all-files
 ```
-
-### Roadmap and Future Work
-
-See [TODO.md](TODO.md) for planned features and enhancements, including:
-
-- External vLLM endpoint support
-- Real-time output streaming
-- Grafana dashboards
-- Docker Compose integration
-- Additional load generators
 
 ## License
 

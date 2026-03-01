@@ -52,7 +52,7 @@ Future stages will incorporate the following goals:
 
 ## Performance Evaluation Utility
 
-The chosen Performance Evaluation tool is **GuideLLM** (specifically v0.4.0).
+The chosen Performance Evaluation tool is **GuideLLM** (specifically v0.5.0).
 GuideLLM is a platform for evaluating and optimizing the deployment of Large
 Language Models (LLMs). By simulating real-world inference workloads, GuideLLM
 enables users to assess the performance, resource requirements, and cost
