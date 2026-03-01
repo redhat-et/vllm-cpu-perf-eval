@@ -30,12 +30,13 @@
   become: true
 
   tasks:
-    - name: Install tuning tools
+    - name: Install tuning tools and container runtime
       ansible.builtin.dnf:
         name:
           - tuned
           - kernel-tools
           - numactl
+          - podman
         state: present
 
 - name: "Platform Setup - Disable irqbalance"
