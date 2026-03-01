@@ -18,21 +18,11 @@ architectures and workload types.
 
 ## Models Under Test
 
-### Core Architectural Coverage
+This test suite evaluates models across multiple architecture families to ensure comprehensive coverage of CPU inference scenarios. For detailed model information including architecture details, selection rationale, and full specifications, see [Model Selection Strategy](../../models/models.md#core-architectural-coverage).
 
-<!-- markdownlint-disable MD013 -->
-
-| Architecture Family | Representative Model | Key Application Focus |
-| --- | --- | --- |
-| Llama 3 Decoder | Llama-3.2-1B-Instruct | Prefill-Heavy (Baseline) |
-| Llama 2 Decoder | TinyLlama-1.1B-Chat-v1.0 | Prefill/Decode (Small-Scale) |
-| Traditional OPT Decoder | facebook/opt-125m | Decode-Heavy (Legacy Baseline) |
-| IBM Granite Decoder | granite-3.2-2b-instruct | Balanced (Enterprise Baseline) |
-| Qwen 3 Decoder | Qwen/Qwen3-0.6B | Balanced (High-Efficiency) |
-| MiniLM/BERT (English Dense) | granite-embedding-english-r2 | Encoder-Only (Fastest Baseline) |
-| XLM-RoBERTa (Multilingual) | granite-embedding-278m-multilingual | Encoder-Only (Multilingual) |
-
-<!-- markdownlint-enable MD013 -->
+**Quick Reference:**
+- **LLM Models**: Llama-3.2-1B, TinyLlama-1.1B, facebook/opt-125m, granite-3.2-2b, Qwen/Qwen3-0.6B
+- **Embedding Models**: granite-embedding-english-r2, granite-embedding-278m-multilingual
 
 ## Test Parameters
 
@@ -44,7 +34,7 @@ architectures and workload types.
 | --- | --- | --- |
 | **Workload** | Input/Output token counts (ISL:OSL) | • Chat (512:256)<br>• RAG (4096:512)<br>• CodeGen (512:4K)<br>• Summarization (1024:256)<br>• Embedding (512:1) |
 | **Affinity** | Core allocation strategy | FULL: All physical cores |
-| **Cores** | Number of cores for test | 16, 32, 64 cores |
+| **Cores** | Number of cores for test | 16, 32, 64, 92 cores |
 | **Dtype** | Data type for weights | bfloat16 |
 | **KV Cache** | KV cache configuration | Native precision<br>1GiB for embedding |
 | **Quantization** | Quantization setting | OFF (Full Precision) |
@@ -61,14 +51,14 @@ Concurrency levels: **{8, 16, 32, 64, 96, 128}**
 
 | Test ID | Model | Workload | Primary Metric Focus |
 | --- | --- | --- | --- |
-| P1-CONC-LLAMA32-CHAT | Llama-3.2-1B | Chat (512:256) | P95 Latency Scaling (Baseline) |
-| P1-CONC-LLAMA32-RAG | Llama-3.2-1B | RAG (4096:512) | P95 Latency for Long Context RAG |
-| P1-CONC-QWEN06-CODE | Qwen/Qwen3-0.6B | CodeGen (512:4K) | P95 Latency for Long Output |
-| P1-CONC-GRANITE32-RAG | granite-3.2-2b-instruct | RAG (4096:512) | P95 Latency for Enterprise RAG |
-| P1-CONC-OPT125M-SUMM | facebook/opt-125m | Summarization (1024:256) | P95 Latency for Summarization |
-| P1-CONC-QWEN06-CHAT | Qwen/Qwen3-0.6B | Chat (512:256) | P95 Latency (Efficient Model) |
-| P1-CONC-GRANITE32-CHAT | granite-3.2-2b-instruct | Chat (512:256) | P95 Latency (Enterprise) |
-| P1-CONC-TINY11-CHAT | TinyLlama-1.1B | Chat (512:256) | P95 Latency (Small Llama) |
+| CONC-LLAMA32-CHAT | Llama-3.2-1B | Chat (512:256) | P95 Latency Scaling (Baseline) |
+| CONC-LLAMA32-RAG | Llama-3.2-1B | RAG (4096:512) | P95 Latency for Long Context RAG |
+| CONC-QWEN06-CODE | Qwen/Qwen3-0.6B | CodeGen (512:4K) | P95 Latency for Long Output |
+| CONC-GRANITE32-RAG | granite-3.2-2b-instruct | RAG (4096:512) | P95 Latency for Enterprise RAG |
+| CONC-OPT125M-SUMM | facebook/opt-125m | Summarization (1024:256) | P95 Latency for Summarization |
+| CONC-QWEN06-CHAT | Qwen/Qwen3-0.6B | Chat (512:256) | P95 Latency (Efficient Model) |
+| CONC-GRANITE32-CHAT | granite-3.2-2b-instruct | Chat (512:256) | P95 Latency (Enterprise) |
+| CONC-TINY11-CHAT | TinyLlama-1.1B | Chat (512:256) | P95 Latency (Small Llama) |
 
 <!-- markdownlint-enable MD013 -->
 
@@ -80,8 +70,8 @@ Concurrency levels: **{4, 8, 16, 32, 64}**
 
 | Test ID | Model | Workload | Primary Metric Focus |
 | --- | --- | --- | --- |
-| P1-CONC-GRANITE-EN-R2-EMB | granite-embedding-english-r2 | Embedding (512:1) | P95 Latency (English) |
-| P1-CONC-GRANITE-EMB278M-EMB | granite-embedding-278m-multilingual | Embedding (512:1) | P95 Latency (Multilingual) |
+| CONC-GRANITE-EN-R2-EMB | granite-embedding-english-r2 | Embedding (512:1) | P95 Latency (English) |
+| CONC-GRANITE-EMB278M-EMB | granite-embedding-278m-multilingual | Embedding (512:1) | P95 Latency (Multilingual) |
 
 <!-- markdownlint-enable MD013 -->
 
