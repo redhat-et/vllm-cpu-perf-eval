@@ -272,30 +272,23 @@
             state: directory
             mode: "0755"
 
-        - name: Check if vLLM container exists
-          ansible.builtin.shell:
-            cmd: "podman ps -a --filter name={{ vllm_container_name }} --format '{''{ .Names }''}'"
-          register: container_check
-          changed_when: false
-          failed_when: false
-
-        - name: Get vLLM container logs
+        - name: Get vLLM logs from journald
           ansible.builtin.command:
-            cmd: "podman logs {{ vllm_container_name }}"
+            cmd: "journalctl -t vllm-{{ workload_type }}-{{ core_configuration.cores }}c-tp{{ core_configuration.tensor_parallel }} --no-pager"
           register: vllm_logs
           changed_when: false
-          when: container_check.stdout | length > 0
+          failed_when: false
 
         - name: Save vLLM logs
           ansible.builtin.copy:
             content: "{{ vllm_logs.stdout }}"
             dest: "{{ log_dir }}/vllm-{{ core_configuration.name }}-{{ test_run_id }}.log"
-          when: vllm_logs is defined and vllm_logs.stdout is defined
+          when: vllm_logs is defined and vllm_logs.stdout is defined and vllm_logs.stdout | length > 0
 
-        - name: Log container not found warning
+        - name: Log warning if no logs found
           ansible.builtin.debug:
-            msg: "⚠️  vLLM container '{{ vllm_container_name }}' not found - logs not collected (may be using external endpoint)"
-          when: container_check.stdout | length == 0
+            msg: "⚠️  No vLLM logs found in journald for tag vllm-{{ workload_type }}-{{ core_configuration.cores }}c-tp{{ core_configuration.tensor_parallel }}"
+          when: vllm_logs.stdout | default('') | length == 0
 
         - name: Collect system metrics snapshot
           ansible.builtin.shell: |
@@ -316,6 +309,7 @@
             src: "{{ log_dir }}/vllm-{{ core_configuration.name }}-{{ test_run_id }}.log"
             dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/vllm-server.log"
             flat: true
+          when: vllm_logs is defined and vllm_logs.stdout is defined and vllm_logs.stdout | length > 0
 
         - name: Fetch system metrics to local results
           ansible.builtin.fetch:
