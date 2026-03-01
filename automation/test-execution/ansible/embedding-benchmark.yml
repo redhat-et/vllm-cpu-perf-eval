@@ -93,8 +93,36 @@
 # PHASE 4: Collect Logs and Results
 # ==============================================================================
 
-- name: "Phase 4 - Collect Logs and Results"
-  ansible.builtin.import_playbook: collect-logs.yml
+- name: "Phase 4 - Fetch Test Results"
+  hosts: load_generator
+  gather_facts: false
+  vars:
+    test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
+    model_name: "{{ test_model | default('ibm-granite/granite-embedding-278m-multilingual') }}"
+    test_type: "{{ scenario | default('baseline') }}"
+
+  tasks:
+    - name: Fetch results to local machine
+      ansible.posix.synchronize:
+        src: "{{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/{{ test_type }}/"
+        dest: "{{ playbook_dir }}/../../../results/embedding/{{ model_name | replace('/', '__') }}/{{ test_type }}-{{ test_run_id }}/"
+        mode: pull
+        recursive: true
+
+- name: "Phase 4 - Collect Logs from DUT"
+  hosts: dut
+  become: true
+  vars:
+    test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
+    model_name: "{{ test_model | default('ibm-granite/granite-embedding-278m-multilingual') }}"
+    test_type: "{{ scenario | default('baseline') }}"
+
+  roles:
+    - role: results_collector
+      vars:
+        log_collection_dest: "{{ playbook_dir }}/../../../results/embedding/{{ model_name | replace('/', '__') }}/{{ test_type }}-{{ test_run_id }}/"
+        journald_identifier: "vllm-embedding"
+        log_filename_prefix: "vllm-server"
 
 # ==============================================================================
 # PHASE 5: Cleanup (Optional)

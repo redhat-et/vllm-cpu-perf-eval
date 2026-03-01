@@ -1,22 +1,7 @@
 ---
 # Results Collector Role - Main Entry Point
-# Collects logs from DUT
-# Note: Individual playbooks handle their own result fetching to properly organized paths
-
-- name: Generate collection ID once
-  ansible.builtin.set_fact:
-    collection_id_value: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
-  delegate_to: localhost
-  delegate_facts: true
-  run_once: true
-
-- name: Distribute collection ID to all hosts
-  ansible.builtin.set_fact:
-    collection_id: "{{ hostvars['localhost']['collection_id_value'] }}"
-  delegate_to: "{{ item }}"
-  delegate_facts: true
-  loop: "{{ groups['all'] }}"
-  run_once: true
+# Collects logs and system metrics from DUT
+# Flexible destination and journald tag support for all workload types
 
 - name: Include vLLM server log collection
   ansible.builtin.include_tasks: collect-vllm-logs.yml

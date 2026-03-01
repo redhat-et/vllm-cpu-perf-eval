@@ -1,0 +1,31 @@
+---
+# Results Collector Role - Default Variables
+
+# Log collection destination directory (can be overridden per playbook)
+# Default: saves to results/logs/{hostname}/ (legacy behavior)
+# Override: set to test-specific path like results/llm/{model}/{workload}-{test_run_id}/
+log_collection_dest: "{{ playbook_dir }}/../../../results/logs/{{ inventory_hostname }}/"
+
+# Journald identifier to query (formerly hardcoded to 'vllm-embedding')
+# Examples:
+#   - "vllm-chat-8c-tp1" (LLM workload)
+#   - "vllm-embedding" (embedding workload)
+#   - "vllm-{{ workload_type }}-{{ core_configuration.cores }}c-tp{{ core_configuration.tensor_parallel }}"
+journald_identifier: "vllm-*"
+
+# Log filename prefix for collected logs
+# Default: Uses generic name with collection_id
+# Can be customized to "vllm-server" or "vllm-{{ workload_type }}" etc.
+log_filename_prefix: "vllm-server"
+
+# Whether to collect logs from journald (default: true)
+collect_journald_logs: true
+
+# Whether to collect logs from container (default: true if container exists)
+collect_container_logs: true
+
+# Whether to collect system metrics snapshot (default: true)
+collect_system_metrics: true
+
+# Time range for journald logs (default: 1 hour ago, can be overridden)
+journald_time_range: "1 hour ago"

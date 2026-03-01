@@ -79,8 +79,34 @@
 # PHASE 4: Collect Results and Logs
 # ==============================================================================
 
-- name: "Phase 4 - Collect Results and Logs"
-  ansible.builtin.import_playbook: collect-logs.yml
+- name: "Phase 4 - Fetch Test Results"
+  hosts: load_generator
+  gather_facts: false
+  vars:
+    test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
+    core_configuration: "{{ hostvars['localhost']['core_configuration'] }}"
+
+  tasks:
+    - name: Fetch results to local machine
+      ansible.posix.synchronize:
+        src: "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}/{{ core_configuration.name }}/"
+        dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/"
+        mode: pull
+        recursive: true
+
+- name: "Phase 4 - Collect Logs from DUT"
+  hosts: dut
+  become: true
+  vars:
+    test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
+    core_configuration: "{{ hostvars['localhost']['core_configuration'] }}"
+
+  roles:
+    - role: results_collector
+      vars:
+        log_collection_dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/"
+        journald_identifier: "vllm-{{ workload_type }}-{{ core_configuration.cores }}c-tp{{ core_configuration.tensor_parallel }}"
+        log_filename_prefix: "vllm-server"
 
 # ==============================================================================
 # PHASE 5: Cleanup (Optional)
@@ -124,6 +150,5 @@
           - "Workload: {{ workload_type }}"
           - "Core Config: {{ core_config_name }}"
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          - "Results: results/{{ test_model | replace('/', '__') }}/{{ workload_type }}/{{ core_config_name }}/"
-          - "Logs: results/logs/"
+          - "Results: results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/"
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
