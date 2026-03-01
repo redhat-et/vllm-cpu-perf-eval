@@ -133,10 +133,11 @@ define how user requests are submitted during the benchmarking process.
 
 ## Test Suites
 
-Testing is organized into independent test suites, each with specific goals and test
-scenarios. Test suites can be run in any order based on your evaluation needs.
-For detailed test case specifications, models under test, and execution instructions,
-see the README in each test suite directory.
+Testing is organized into independent test suites, each with specific
+goals and test scenarios. Test suites can be run in any order based on
+your evaluation needs. For detailed test case specifications, models
+under test, and execution instructions, see the README in each test
+suite directory.
 
 ### Test Suite 1: Concurrent Load
 
