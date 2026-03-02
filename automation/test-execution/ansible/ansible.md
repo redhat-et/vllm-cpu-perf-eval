@@ -97,10 +97,11 @@ Pre-configured in [inventory/group_vars/all/test-workloads.yml](inventory/group_
 | Workload | ISL:OSL | Use Case | vLLM Args |
 |----------|---------|----------|-----------|
 | `embedding` | 512:1 | Embedding models | `--dtype=bfloat16 --max-model-len=512` |
+| `chat` | 512:256 | Chatbots | `--dtype=bfloat16 --no_enable_prefix_caching` |
+| `rag` | 4096:512 | RAG applications | `--dtype=bfloat16 --no_enable_prefix_caching` |
+| `code` | 512:4096 | Code generation | `--dtype=bfloat16 --no_enable_prefix_caching` |
+| `short_codegen` | 256:2048 | Short code generation | `--dtype=bfloat16 --no_enable_prefix_caching` |
 | `summarization` | 1024:256 | Text summarization | `--dtype=bfloat16 --no_enable_prefix_caching` |
-| `chat` | 512:128 | Chatbots | `--dtype=bfloat16 --no_enable_prefix_caching` |
-| `code` | 2048:512 | Code generation | `--dtype=bfloat16 --no_enable_prefix_caching` |
-| `rag` | 4096:256 | RAG applications | `--dtype=bfloat16 --no_enable_prefix_caching` |
 
 
 ## Common Tasks

@@ -1,6 +1,6 @@
 # vLLM CPU Performance Evaluation
 
-Comprehensive performance testing framework for vLLM on CPU platforms.
+Comprehensive performance evaluation framework for vLLM on CPU platforms.
 
 This repository provides a complete testing methodology, automation tools, and
 platform configurations for evaluating vLLM inference performance on CPU-based
@@ -8,29 +8,55 @@ systems.
 
 ## Quick Start
 
+### 1. Configure Environment
+
+Set up your test infrastructure and credentials:
+
 ```bash
-# 1. Setup your platform (Ansible recommended)
-cd automation/platform-setup/ansible
-ansible-playbook playbooks/site.yml -i inventory/hosts.yml
+# Configure test hosts
+export DUT_HOSTNAME=your-dut-hostname.compute.amazonaws.com
+export LOADGEN_HOSTNAME=your-loadgen-hostname.compute.amazonaws.com
+export ANSIBLE_SSH_USER=ec2-user
+export ANSIBLE_SSH_KEY=~/.ssh/your-key.pem
 
-# 2. Run a test suite
-cd ../../test-execution/ansible
-ansible-playbook playbooks/run-suite.yml -e "test_suite=concurrent-load"
-
-# 3. Generate report
-cd ../analysis
-python generate-report.py --input ../../results/concurrent-load/ --format html
+# Configure HuggingFace token for model access
+export HF_TOKEN=hf_your_token_here
 ```
 
-See [Quick Start Guide](docs/getting-started/quick-start.md) for detailed
-instructions.
+### 2. Run a Benchmark Test
+
+Execute a single LLM benchmark with auto-configured cores:
+
+```bash
+cd automation/test-execution/ansible
+
+# Run benchmark against a specific model and workload
+ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
+  -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
+  -e "workload_type=chat" \
+  -e "requested_cores=16"
+```
+
+### 3. View Results
+
+Results are saved locally:
+
+```bash
+# Results location
+ls results/llm/meta-llama__Llama-3.2-1B-Instruct/chat-*/
+
+# View HTML report
+open results/llm/meta-llama__Llama-3.2-1B-Instruct/chat-*/benchmarks.html
+```
+
+See [Ansible Documentation](automation/test-execution/ansible/ansible.md) for
+detailed instructions and advanced usage.
 
 ## Repository Structure
 
 ```text
 vllm-cpu-perf-eval/
 ├── README.md                           # This file
-├── TODO.md                             # Roadmap and planned features
 │
 ├── models/                             # Centralized model definitions
 │   ├── models.md                       # Comprehensive model documentation
@@ -122,7 +148,7 @@ See individual directory README/markdown files for detailed information.
 ### Multi-Platform Support
 
 - Intel Xeon (Ice Lake, Sapphire Rapids)
-- AMD EPYC (planned)
+- AMD EPYC
 - ARM64 (planned)
 
 ### Comprehensive Automation
@@ -254,7 +280,7 @@ selection rationale, and how to add new models.
 - Python 3.10+
 - Docker 24.0+ or Podman 4.0+
 - Ansible 2.14+ (for automation)
-- GuideLLM
+- GuideLLM v0.5.0+
 - vLLM
 
 See [docs/getting-started/quick-start.md](docs/getting-started/quick-start.md)
@@ -310,16 +336,6 @@ pre-commit install --hook-type commit-msg
 pre-commit run --all-files
 ```
 
-### Roadmap and Future Work
-
-See [TODO.md](TODO.md) for planned features and enhancements, including:
-
-- External vLLM endpoint support
-- Real-time output streaming
-- Grafana dashboards
-- Docker Compose integration
-- Additional load generators
-
 ## License
 
 [Add license information]
@@ -334,5 +350,5 @@ See [TODO.md](TODO.md) for planned features and enhancements, including:
 
 - [vLLM](https://github.com/vllm-project/vllm) - High-performance LLM
   inference engine
-- [GuideLLM](https://github.com/neuralmagic/guidellm) - LLM benchmarking tool
+- [GuideLLM](https://github.com/vllm-project/guidellm) - LLM benchmarking tool
 - Intel and AMD for CPU optimization guidance
