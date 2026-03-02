@@ -66,10 +66,8 @@
   ansible.builtin.debug:
     msg: "⚠️  No vLLM logs found in journald (tag: {{ journald_identifier }}) or container ({{ vllm_container_name | default('vllm-server') }})"
   when:
-    - journald_logs.stdout is defined
-    - journald_logs.stdout | length == 0
-    - container_logs.stdout is defined
-    - container_logs.stdout | length == 0
+    - journald_logs.stdout | default('') | length == 0
+    - container_logs.stdout | default('') | length == 0
 
 # System metrics collection
 - name: Collect system metrics snapshot

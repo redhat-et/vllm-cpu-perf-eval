@@ -90,7 +90,7 @@
     - name: Fetch results to local machine
       ansible.posix.synchronize:
         src: "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}/{{ core_configuration.name }}/"
-        dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/"
+        dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/"
         mode: pull
         recursive: true
 
