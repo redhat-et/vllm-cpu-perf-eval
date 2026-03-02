@@ -52,7 +52,7 @@ Future stages will incorporate the following goals:
 
 ## Performance Evaluation Utility
 
-The chosen Performance Evaluation tool is **GuideLLM** (specifically v0.4.0).
+The chosen Performance Evaluation tool is **GuideLLM** (specifically v0.5.0).
 GuideLLM is a platform for evaluating and optimizing the deployment of Large
 Language Models (LLMs). By simulating real-world inference workloads, GuideLLM
 enables users to assess the performance, resource requirements, and cost
@@ -133,10 +133,11 @@ define how user requests are submitted during the benchmarking process.
 
 ## Test Suites
 
-Testing is organized into independent test suites, each with specific goals and test
-scenarios. Test suites can be run in any order based on your evaluation needs.
-For detailed test case specifications, models under test, and execution instructions,
-see the README in each test suite directory.
+Testing is organized into independent test suites, each with specific
+goals and test scenarios. Test suites can be run in any order based on
+your evaluation needs. For detailed test case specifications, models
+under test, and execution instructions, see the README in each test
+suite directory.
 
 ### Test Suite 1: Concurrent Load
 
