@@ -13,6 +13,7 @@ test_configs:
     workload_type: "embedding"
     isl: 512
     osl: 1
+    variability: false
     backend: "openai-embeddings"
     vllm_args:
       - "--dtype=bfloat16"
@@ -28,6 +29,7 @@ test_configs:
     workload_type: "summarization"
     isl: 1024
     osl: 256
+    variability: false
     backend: "openai-completions"
     vllm_args:
       - "--dtype=bfloat16"
@@ -39,6 +41,7 @@ test_configs:
     workload_type: "chat"
     isl: 512
     osl: 256
+    variability: false
     backend: "openai-chat"
     vllm_args:
       - "--dtype=bfloat16"
@@ -50,6 +53,7 @@ test_configs:
     workload_type: "rag"
     isl: 4096
     osl: 512
+    variability: false
     backend: "openai-completions"
     vllm_args:
       - "--dtype=bfloat16"
@@ -61,6 +65,7 @@ test_configs:
     workload_type: "code"
     isl: 512
     osl: 4096
+    variability: false
     backend: "openai-completions"
     vllm_args:
       - "--dtype=bfloat16"
@@ -72,8 +77,64 @@ test_configs:
     workload_type: "short_codegen"
     isl: 256
     osl: 2048
+    variability: false
     backend: "openai-completions"
     vllm_args:
       - "--dtype=bfloat16"
       - "--no-enable-prefix-caching"
     kv_cache_space: "50GiB"
+
+  # ============================================================================
+  # Variable Workloads (Realistic Traffic Simulation)
+  # ============================================================================
+
+  # Chat workload with variability (realistic traffic simulation)
+  chat_var:
+    workload_type: "chat_var"
+    isl: 512
+    isl_stdev: 128
+    isl_min: 128
+    isl_max: 1024
+    osl: 256
+    osl_stdev: 64
+    osl_min: 64
+    osl_max: 512
+    variability: true
+    backend: "openai-chat"
+    vllm_args:
+      - "--dtype=bfloat16"
+      - "--no-enable-prefix-caching"
+    kv_cache_space: "40GiB"
+
+  # Code generation workload with variability (realistic output variance)
+  code_var:
+    workload_type: "code_var"
+    isl: 512
+    isl_stdev: 128
+    isl_min: 128
+    isl_max: 1024
+    osl: 4096
+    osl_stdev: 1024
+    osl_min: 512
+    osl_max: 6144
+    variability: true
+    backend: "openai-completions"
+    vllm_args:
+      - "--dtype=bfloat16"
+      - "--no-enable-prefix-caching"
+    kv_cache_space: "90GiB"
+
+# ============================================================================
+# Prefix Caching Mode Configurations
+# ============================================================================
+# Used to toggle between baseline (no caching) and production (with caching) testing
+
+caching_modes:
+  baseline:
+    description: "Baseline performance without caching optimizations"
+    vllm_args:
+      - "--no-enable-prefix-caching"
+
+  production:
+    description: "Production configuration with prefix caching enabled"
+    vllm_args: []  # Omit - prefix caching enabled by default in vLLM

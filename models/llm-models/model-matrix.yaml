@@ -155,6 +155,45 @@ matrix:
       test_suites:
         - scalability
 
+    # OpenAI GPT-OSS Family
+    - name: "gpt-oss-20b"
+      full_name: "openai/gpt-oss-20b"
+      gated: false  # Public model, no token required
+      architecture_family: "Transformer MoE"
+      application_focus: "Scalability Testing (Large-Scale)"
+      parameters: "21B (3.6B active per token)"
+      context_length: 128000
+      inference_characteristics:
+        prefill_performance: "high"
+        decode_performance: "high"
+        balance: "balanced"
+        moe_routing: "Top-4"
+        active_parameters: "3.6B per token"
+      architecture_details:
+        type: "Mixture-of-Experts"
+        layers: 24
+        experts: 32
+        routing: "Top-4"
+        attention: "Grouped Multi-Query (group size 8)"
+        activation: "SwiGLU"
+        positional_encoding: "RoPE"
+        quantization: "MXFP4 (MoE weights)"
+      memory_footprint: "~16GB (MXFP4 quantization)"
+      default_workloads:
+        - rag       # Primary - leverages large context
+        - chat      # Baseline conversational
+        - codegen   # Code generation baseline
+      test_suites:
+        - concurrent-load
+        - scalability
+      notes: |
+        - Largest model in test suite
+        - Excellent for CPU scalability testing at higher parameter counts
+        - MoE architecture provides unique performance characteristics
+        - 3.6B active parameters per token (efficient inference)
+        - Native 128k context support enables long-context testing
+        - Good candidate for tensor parallelism testing (TP=2, TP=4)
+
   # Workload definitions
   workloads:
     chat:
@@ -185,6 +224,27 @@ matrix:
       description: "Medium context, summarization tasks"
       use_case: "Document summarization"
 
+    # Variable Workloads (Realistic Traffic Simulation)
+    chat_var:
+      name: "Chat (Variable)"
+      input_tokens: "512±128"
+      output_tokens: "256±64"
+      input_range: "128-1024"
+      output_range: "64-512"
+      variability: true
+      description: "Variable chat workload with realistic token distribution"
+      use_case: "Realistic conversational AI with variable message lengths"
+
+    codegen_var:
+      name: "Code Generation (Variable)"
+      input_tokens: "512±128"
+      output_tokens: "4096±1024"
+      input_range: "128-1024"
+      output_range: "512-6144"
+      variability: true
+      description: "Variable code generation with realistic output variance"
+      use_case: "Realistic code generation with varying complexity"
+
   # Common test parameters
   common_parameters:
     affinity: "FULL"  # All physical cores
@@ -195,7 +255,7 @@ matrix:
   # Test suite mappings
   test_suite_configs:
     concurrent-load:
-      concurrency_levels: [8, 16, 32, 64, 96, 128]
+      concurrency_levels: [1, 8, 16, 32, 64, 96, 128]
       test_tool: "guidellm"
       profile: "concurrent"
       primary_metrics:
@@ -203,6 +263,23 @@ matrix:
         - "p99_e2el_ms"
         - "throughput_rps"
         - "ttft_ms"
+      test_phases:
+        phase1_baseline:
+          name: "Phase 1: Baseline Tests"
+          description: "Fixed tokens, no caching"
+          workloads: ["chat", "rag", "codegen", "summarization"]
+          caching_mode: "baseline"
+        phase2_realistic:
+          name: "Phase 2: Realistic Tests"
+          description: "Variable tokens, no caching"
+          workloads: ["chat_var", "codegen_var"]
+          caching_mode: "baseline"
+        phase3_production:
+          name: "Phase 3: Production Comparison"
+          description: "Fixed tokens, with caching"
+          workloads: ["chat", "rag"]
+          caching_mode: "production"
+          models: ["llama-3.2-1b-instruct", "granite-3.2-2b-instruct", "gpt-oss-20b"]
 
     scalability:
       test_types:

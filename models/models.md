@@ -53,6 +53,7 @@ The following models provide baseline coverage across key architecture families:
 | Traditional OPT Decoder | facebook/opt-125m | Decode-Heavy (Legacy Baseline) | 125M | Fast decode, minimal prefill, legacy baseline |
 | IBM Granite Decoder | granite-3.2-2b-instruct | Balanced (Enterprise Baseline) | 2B | Enterprise-grade, balanced prefill/decode |
 | Qwen 3 Decoder | Qwen/Qwen3-0.6B | Balanced (High-Efficiency) | 0.6B | Efficient architecture, strong performance/size ratio |
+| Transformer MoE | openai/gpt-oss-20b | Scalability Testing (Large-Scale) | 21B (3.6B active) | MoE architecture, 128k context, CPU scalability testing |
 
 ### Embedding Models (Encoder-Only)
 
@@ -119,7 +120,7 @@ To maintain the focus on establishing stable, predictable baselines for core arc
 
 This section covers Large Language Model (LLM) selection and testing across all test suites.
 
-## Current LLM Models (8 total)
+## Current LLM Models (9 total)
 
 | Architecture | Model | Parameters | Primary Focus | Context Length |
 |--------------|-------|------------|---------------|----------------|
@@ -131,6 +132,7 @@ This section covers Large Language Model (LLM) selection and testing across all 
 | Granite | granite-3.2-2b-instruct | 2B | Balanced (Enterprise) | 4096 |
 | Qwen 3 | Qwen/Qwen3-0.6B | 0.6B | Balanced (Efficient) | 8192 |
 | Qwen 2.5 | Qwen/Qwen2.5-3B-Instruct | 3B | Balanced (Efficient) | 8192 |
+| Transformer MoE | openai/gpt-oss-20b | 21B (3.6B active) | Scalability Testing | 128000 |
 
 ## LLM Model Selection Rationale
 
@@ -163,6 +165,15 @@ This section covers Large Language Model (LLM) selection and testing across all 
 - **Qwen 3** (0.6B) and **Qwen 2.5** (3B) variants
 - **Excellent code generation** capabilities
 - **Balanced prefill/decode** with fast token generation
+
+### OpenAI GPT-OSS
+- **Large-scale testing** - 21B total parameters with MoE architecture
+- **Efficient inference** - Only 3.6B parameters active per token (Top-4 routing)
+- **Extreme long context** - Native 128k context length support
+- **Scalability validation** - Tests CPU performance at higher parameter counts
+- **MoE architecture** - Unique performance characteristics vs dense models
+- **Memory efficient** - MXFP4 quantization enables ~16GB memory footprint
+- **Tensor parallelism candidate** - Good for testing TP=2, TP=4 configurations
 
 ## LLM Workload Details
 
@@ -215,17 +226,30 @@ Models with good prefill and decode performance:
 
 **Best for**: General-purpose deployment, mixed workloads
 
+### Large-Scale / MoE Models
+Models for scalability testing and high parameter counts:
+- openai/gpt-oss-20b (21B total, 3.6B active per token)
+
+**Best for**: CPU scalability testing, long-context RAG (128k), tensor parallelism validation
+
 ## LLM Test Suite Coverage
 
 ### Test Suite 1: Concurrent Load
-Tests all models at concurrency levels: **{8, 16, 32, 64, 96, 128}**
+Tests all models at concurrency levels: **{1, 8, 16, 32, 64, 96, 128}**
+
+**Enhanced v2 Features:**
+- Time-based testing (600 seconds)
+- Single-user baseline (concurrency=1)
+- Variable workloads (chat_var, code_var) for realistic traffic simulation
+- 3-phase testing: Baseline → Realistic → Production
 
 **Participating Models:**
-- Llama-3.2-1B-Instruct (Chat, RAG)
+- Llama-3.2-1B-Instruct (Chat, RAG, CodeGen)
 - TinyLlama-1.1B-Chat (Chat)
 - facebook/opt-125m (Chat, Summarization)
-- granite-3.2-2b-instruct (Chat, RAG)
+- granite-3.2-2b-instruct (Chat, RAG, CodeGen)
 - Qwen/Qwen3-0.6B (Chat, CodeGen)
+- openai/gpt-oss-20b (Chat, RAG, CodeGen) - **NEW**
 
 ### Test Suite 2: Scalability
 Uses sweep, synchronous, and Poisson profiles

@@ -27,8 +27,10 @@
         'use_container': guidellm_use_container | default(guidellm_cfg.use_container | default(true)),
         'cpuset_cpus': guidellm_cpuset_cpus | default(guidellm_cfg.cpuset_cpus | default('16-31')),
         'cpuset_mems': guidellm_cpuset_mems | default(guidellm_cfg.cpuset_mems | default('0')),
-        'max_seconds': guidellm_max_seconds | default(guidellm_cfg.max_seconds | default(120)),
-        'max_requests': guidellm_max_requests | default(guidellm_cfg.max_requests | default(100)),
+        'max_seconds': guidellm_max_seconds | default(guidellm_cfg.max_seconds | default(600)),
+        'max_requests': guidellm_max_requests | default(guidellm_cfg.max_requests | default(1000)),
+        'request_timeout': guidellm_request_timeout | default(guidellm_cfg.request_timeout | default(600)),
+        'warmup': guidellm_warmup | default(guidellm_cfg.warmup | default(0.1)),
         'max_concurrency': guidellm_max_concurrency | default(guidellm_cfg.max_concurrency | default(128)),
         'saturation_threshold': guidellm_saturation_threshold | default(guidellm_cfg.saturation_threshold | default(0.98)),
         'cooldown': guidellm_cooldown | default(guidellm_cfg.cooldown | default(30)),
@@ -86,14 +88,30 @@
       GUIDELLM_PROFILE: "{{ guidellm_cfg.profile }}"
       GUIDELLM_MAX_SECONDS: "{{ guidellm_cfg.max_seconds }}"
       GUIDELLM_MAX_REQUESTS: "{{ guidellm_cfg.max_requests }}"
+      GUIDELLM_REQUEST_TIMEOUT: "{{ guidellm_cfg.request_timeout }}"
+      GUIDELLM_WARMUP: "{{ guidellm_cfg.warmup }}"
       GUIDELLM__MAX_CONCURRENCY: "{{ guidellm_cfg.max_concurrency | default(128) }}"
       GUIDELLM__EXCLUDE_THROUGHPUT_TARGET: "{{ guidellm_cfg.exclude_throughput_target | string | lower }}"
       GUIDELLM__EXCLUDE_THROUGHPUT_RESULT: "{{ guidellm_cfg.exclude_throughput_result | string | lower }}"
       GUIDELLM__SATURATION_THRESHOLD: "{{ guidellm_cfg.saturation_threshold }}"
-      GUIDELLM_DATA: "prompt_tokens={{ workload_cfg.isl }},output_tokens={{ workload_cfg.osl }}"
       GUIDELLM_COOLDOWN: "{{ guidellm_cfg.cooldown }}"
       GUIDELLM_OUTPUTS: "{{ guidellm_cfg.outputs }}"
       HF_TOKEN: "{{ hf_token | default('') }}"
+  no_log: true
+
+- name: Build GUIDELLM_DATA for fixed workloads
+  ansible.builtin.set_fact:
+    guidellm_data_string: "prompt_tokens={{ workload_cfg.isl }},output_tokens={{ workload_cfg.osl }}"
+  when: not (workload_cfg.variability | default(false) | bool)
+
+- name: Build GUIDELLM_DATA for variable workloads
+  ansible.builtin.set_fact:
+    guidellm_data_string: "prompt_tokens={{ workload_cfg.isl }},prompt_tokens_stdev={{ workload_cfg.isl_stdev }},prompt_tokens_min={{ workload_cfg.isl_min }},prompt_tokens_max={{ workload_cfg.isl_max }},output_tokens={{ workload_cfg.osl }},output_tokens_stdev={{ workload_cfg.osl_stdev }},output_tokens_min={{ workload_cfg.osl_min }},output_tokens_max={{ workload_cfg.osl_max }}"
+  when: workload_cfg.variability | default(false) | bool
+
+- name: Add GUIDELLM_DATA to environment
+  ansible.builtin.set_fact:
+    guidellm_env: "{{ guidellm_env | combine({'GUIDELLM_DATA': guidellm_data_string}) }}"
   no_log: true
 
 - name: Add rate parameter for non-synchronous profiles
@@ -217,7 +235,9 @@
       {% endif %}
       --max-seconds {{ guidellm_cfg.max_seconds }}
       --max-requests {{ guidellm_cfg.max_requests }}
-      --data prompt_tokens={{ workload_cfg.isl }},output_tokens={{ workload_cfg.osl }}
+      --request-timeout {{ guidellm_cfg.request_timeout }}
+      --warmup {{ guidellm_cfg.warmup }}
+      --data {{ guidellm_data_string }}
       --saturation-threshold {{ guidellm_cfg.saturation_threshold }}
       --cooldown {{ guidellm_cfg.cooldown }}
       --outputs {{ guidellm_cfg.outputs }}

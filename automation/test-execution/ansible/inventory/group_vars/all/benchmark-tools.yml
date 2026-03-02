@@ -59,8 +59,10 @@ benchmark_tool:
     rate: [10]
 
     # Runtime constraints (apply to all profiles)
-    max_seconds: 120            # Maximum benchmark duration
-    max_requests: 100           # Maximum number of requests (quick test)
+    max_seconds: 600            # Maximum benchmark duration (10 minutes for enhanced methodology)
+    max_requests: 1000          # Maximum number of requests (fallback if max_seconds not reached)
+    request_timeout: 600        # Request timeout matching max_seconds
+    warmup: 0.1                 # Warmup as percentage (10% of time for time-based tests)
     max_concurrency: 128        # Max concurrent requests (for async/sweep profiles)
     saturation_threshold: 0.98  # Saturation detection threshold (0-1)
     cooldown: 30                # Cooldown period between tests (seconds)
@@ -114,5 +116,28 @@ benchmark_tool:
 # Rate-based testing:
 #   profile: "constant"
 #   rate: [10, 20, 30]  # Requests per second
+#
+# ============================================================================
+# Concurrent Load Testing Configuration (Enhanced Methodology v2)
+# ============================================================================
+#
+# For concurrent load tests with enhanced methodology:
+#   profile: "concurrent"
+#   rate: [1, 8, 16, 32, 64, 96, 128]  # Concurrency levels (added 1 for baseline)
+#   max_seconds: 600                   # 10-minute time-based testing
+#   warmup: 0.1                        # 10% warmup (60 seconds)
+#   request_timeout: 600               # Match max_seconds
+#
+# Phase 1 - Baseline (Fixed tokens, No caching):
+#   vllm_caching_mode: "baseline"
+#   workload_type: "chat" | "rag" | "code" | "summarization"
+#
+# Phase 2 - Realistic (Variable tokens, No caching):
+#   vllm_caching_mode: "baseline"
+#   workload_type: "chat_var" | "code_var"
+#
+# Phase 3 - Production (Fixed tokens, With caching):
+#   vllm_caching_mode: "production"
+#   workload_type: "chat" | "rag"
 #
 # ============================================================================

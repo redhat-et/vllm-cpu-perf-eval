@@ -30,10 +30,19 @@ Execute a single LLM benchmark with auto-configured cores:
 ```bash
 cd automation/test-execution/ansible
 
-# Run benchmark against a specific model and workload
+# Run benchmark against a specific model and workload (enhanced methodology v2)
 ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
   -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
   -e "workload_type=chat" \
+  -e "requested_cores=16" \
+  -e "guidellm_profile=concurrent" \
+  -e "guidellm_rate=[1,8,16,32,64,96,128]" \
+  -e "guidellm_max_seconds=600"
+
+# Run with variable workload for realistic traffic simulation
+ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
+  -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
+  -e "workload_type=chat_var" \
   -e "requested_cores=16"
 ```
 
@@ -160,9 +169,20 @@ See individual directory README/markdown files for detailed information.
 
 ### Multiple Test Suites
 
-- **Concurrent Load**: Concurrent load testing
+- **Concurrent Load**: Concurrent load testing (enhanced v2 methodology)
 - **Scalability**: Scalability and sweep testing
 - **Resource Contention**: Resource contention testing (planned)
+
+### Enhanced Concurrent Load Testing (v2)
+
+- ⏱️ **Time-based testing** - Consistent 10-minute tests across CPU types
+- 1️⃣ **Single-user baseline** - Concurrency=1 for efficiency calculations
+- 📊 **Variable workloads** - Realistic traffic simulation with statistical variance
+- 🔄 **Prefix caching control** - Baseline vs production comparison
+- 🎯 **3-phase testing** - Baseline → Realistic → Production methodology
+- 🚀 **Large model support** - Added gpt-oss-20b (21B MoE) for scalability testing
+
+See [3-Phase Testing Strategy](docs/methodology/testing-phases.md) for details.
 
 ## Testing Workflow
 

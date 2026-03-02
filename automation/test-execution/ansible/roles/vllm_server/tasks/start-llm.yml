@@ -27,11 +27,36 @@
     core_cfg: "{{ core_configuration }}"
     container_cfg: "{{ container_runtime }}"
 
+# ============================================================================
+# Caching Mode Configuration
+# ============================================================================
+
+- name: Set caching mode (default to baseline for backward compatibility)
+  ansible.builtin.set_fact:
+    vllm_caching_mode: "{{ vllm_caching_mode | default('baseline') }}"
+
+- name: Get caching configuration
+  ansible.builtin.set_fact:
+    caching_cfg: "{{ caching_modes[vllm_caching_mode] }}"
+  when: vllm_caching_mode is defined and caching_modes is defined
+
+- name: Validate caching mode
+  ansible.builtin.assert:
+    that:
+      - vllm_caching_mode in ['baseline', 'production']
+    fail_msg: "Invalid vllm_caching_mode: {{ vllm_caching_mode }}. Must be 'baseline' or 'production'"
+    success_msg: "Using caching mode: {{ vllm_caching_mode }}"
+  when: vllm_caching_mode is defined
+
+# ============================================================================
+# Workload Validation
+# ============================================================================
+
 - name: Validate workload type
   ansible.builtin.assert:
     that:
-      - workload_type in ['summarization', 'chat', 'code', 'rag']
-    fail_msg: "Invalid workload_type: {{ workload_type }}. Must be one of: summarization, chat, code, rag"
+      - workload_type in ['summarization', 'chat', 'code', 'rag', 'short_codegen', 'chat_var', 'code_var']
+    fail_msg: "Invalid workload_type: {{ workload_type }}. Must be one of: summarization, chat, code, rag, short_codegen, chat_var, code_var"
 
 # ============================================================================
 # CPU Configuration Validation
@@ -145,13 +170,27 @@
     - core_cfg.omp_threads_bind is defined
     - core_cfg.omp_threads_bind is not none
 
+- name: Build base vLLM arguments from workload
+  ansible.builtin.set_fact:
+    vllm_base_args: "{{ workload_cfg.vllm_args | default([]) }}"
+
+- name: Merge caching mode arguments with workload args
+  ansible.builtin.set_fact:
+    vllm_args_merged: "{{ vllm_base_args | difference(['--no-enable-prefix-caching', '--disable-radix-cache', '--enable-prefix-caching']) + caching_cfg.vllm_args }}"
+  when: vllm_caching_mode is defined and caching_cfg is defined
+
+- name: Use default workload args if no caching mode specified
+  ansible.builtin.set_fact:
+    vllm_args_merged: "{{ vllm_base_args }}"
+  when: vllm_caching_mode is not defined or caching_cfg is not defined
+
 - name: Build vLLM command arguments
   ansible.builtin.set_fact:
     vllm_cmd: >-
       --model {{ test_model }}
       --host {{ vllm_server.host }}
       --port {{ vllm_server.port }}
-      {{ workload_cfg.vllm_args | join(' ') }}
+      {{ vllm_args_merged | join(' ') }}
       {% if core_cfg.tensor_parallel > 1 %}-tp {{ core_cfg.tensor_parallel }}{% endif %}
 
 - name: Pull vLLM container image
@@ -169,6 +208,8 @@
       - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       - "Model: {{ test_model }}"
       - "Workload: {{ workload_type }} (ISL:{{ workload_cfg.isl }}/OSL:{{ workload_cfg.osl }})"
+      - "Variability: {{ 'Enabled' if workload_cfg.variability | default(false) else 'Fixed' }}"
+      - "Caching Mode: {{ vllm_caching_mode | default('baseline') }}"
       - "Image: {{ container_cfg.image }}"
       - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       - "Container CPU Allocation:"
@@ -180,6 +221,7 @@
       - "  KV Cache: {{ workload_cfg.kv_cache_space }} (VLLM_CPU_KVCACHE_SPACE={{ workload_cfg.kv_cache_space | extract_size_value }})"
       - "  OMP Threads: {{ core_cfg.omp_num_threads | default('auto') }}"
       - "  OMP Bind: {{ core_cfg.omp_threads_bind | default('auto') }}"
+      - "  Arguments: {{ vllm_args_merged | join(' ') }}"
       - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 - name: Start vLLM LLM server
