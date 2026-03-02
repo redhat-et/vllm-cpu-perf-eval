@@ -38,31 +38,42 @@ test_configs:
   chat:
     workload_type: "chat"
     isl: 512
-    osl: 128
+    osl: 256
     backend: "openai-chat"
     vllm_args:
       - "--dtype=bfloat16"
       - "--no-enable-prefix-caching"
     kv_cache_space: "40GiB"
 
-  # Code generation workload (long input, long output)
-  code:
-    workload_type: "code"
-    isl: 2048
+  # RAG workload (very long input, medium output)
+  rag:
+    workload_type: "rag"
+    isl: 4096
     osl: 512
     backend: "openai-completions"
     vllm_args:
       - "--dtype=bfloat16"
       - "--no-enable-prefix-caching"
-    kv_cache_space: "60GiB"
+    kv_cache_space: "80GiB"
 
-  # RAG workload (very long input, short output)
-  rag:
-    workload_type: "rag"
-    isl: 4096
-    osl: 256
+  # Code generation workload (short input, very long output)
+  code:
+    workload_type: "code"
+    isl: 512
+    osl: 4096
     backend: "openai-completions"
     vllm_args:
       - "--dtype=bfloat16"
       - "--no-enable-prefix-caching"
-    kv_cache_space: "80GiB"
+    kv_cache_space: "90GiB"
+
+  # Short code generation workload (short input, long output)
+  short_codegen:
+    workload_type: "short_codegen"
+    isl: 256
+    osl: 2048
+    backend: "openai-completions"
+    vllm_args:
+      - "--dtype=bfloat16"
+      - "--no-enable-prefix-caching"
+    kv_cache_space: "50GiB"
