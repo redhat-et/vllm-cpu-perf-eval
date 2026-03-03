@@ -1,8 +1,0 @@
----
-# Wrapper task to clean restart vLLM container
-# Calls the vllm_server role's clean-restart task
-
-- name: Clean restart vLLM container
-  ansible.builtin.include_role:
-    name: vllm_server
-    tasks_from: clean-restart
