@@ -1,24 +1,24 @@
 name: Build and Push vLLM CPU Perf Eval Container
 
-on:
+"on":
   push:
     branches:
-      - main
+      - "main"
     paths:
-      - 'Containerfile'
-      - '.github/workflows/build-and-push.yml'
+      - "Containerfile"
+      - ".github/workflows/build-and-push.yml"
   pull_request:
     branches:
-      - main
+      - "main"
     paths:
-      - 'Containerfile'
-      - '.github/workflows/build-and-push.yml'
+      - "Containerfile"
+      - ".github/workflows/build-and-push.yml"
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Image tag (default: latest)'
+        description: "Image tag (default: latest)"
         required: false
-        default: 'latest'
+        default: "latest"
 
 env:
   IMAGE_NAME: vllm-cpu-perf-eval
