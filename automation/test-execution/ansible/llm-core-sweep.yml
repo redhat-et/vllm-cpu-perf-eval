@@ -22,9 +22,12 @@
           -e "workload_type=<summarization|chat|code|rag>"
           -e "core_config_names=['config1','config2',...]"
 
-    - name: Store test run ID in hostvars
+    - name: Store test run ID and config in hostvars
       ansible.builtin.set_fact:
         test_run_id: "{{ test_run_id }}"
+        test_model: "{{ test_model }}"
+        workload_type: "{{ workload_type }}"
+        benchmark_type: "llm"
 
     - name: Get core configurations by names
       ansible.builtin.set_fact:
@@ -63,10 +66,11 @@
     - name: Run test sequence for each core configuration
       ansible.builtin.include_tasks:
         file: tasks/core-sweep-iteration.yml
+      vars:
+        current_core_config: "{{ item }}"
       loop: "{{ selected_core_configs }}"
       loop_control:
-        loop_var: current_core_config
-        label: "{{ current_core_config.name }} ({{ current_core_config.cores }} cores, TP={{ current_core_config.tensor_parallel }})"
+        label: "{{ item.name }} ({{ item.cores }} cores, TP={{ item.tensor_parallel }})"
 
 # ==============================================================================
 # FINAL: Collect All Results
@@ -85,6 +89,39 @@
         dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/"
         mode: pull
         recursive: true
+
+    - name: Copy GuideLLM logs from controller to final results
+      ansible.builtin.shell: |
+        for log_file in {{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}/*/guidellm.log; do
+          if [ -f "$log_file" ]; then
+            config_dir=$(basename $(dirname "$log_file"))
+            mkdir -p "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/$config_dir"
+            cp "$log_file" "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/$config_dir/"
+          fi
+        done
+      delegate_to: localhost
+      changed_when: false
+      failed_when: false
+
+    - name: Extract per-benchmark timings for all configurations
+      ansible.builtin.shell: |
+        for benchmarks_file in {{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/*/benchmarks.json; do
+          if [ -f "$benchmarks_file" ]; then
+            metadata_file="${benchmarks_file%benchmarks.json}test-metadata.json"
+            if [ -f "$metadata_file" ]; then
+              python3 {{ playbook_dir }}/scripts/extract_benchmark_timings.py "$benchmarks_file" "$metadata_file"
+            fi
+          fi
+        done
+      delegate_to: localhost
+      register: timing_extraction
+      changed_when: false
+      failed_when: false
+
+    - name: Display timing extraction result
+      ansible.builtin.debug:
+        msg: "{{ timing_extraction.stdout_lines }}"
+      when: timing_extraction.stdout_lines is defined and timing_extraction.stdout_lines | length > 0
 
     - name: Display results location
       ansible.builtin.debug:

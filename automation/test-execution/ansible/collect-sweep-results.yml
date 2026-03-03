@@ -1,0 +1,53 @@
+---
+# Collect Core Sweep Results
+# Fetches all results from a sweep test and processes them
+#
+# Required variables:
+#   - test_model
+#   - workload_type
+#   - test_run_id
+
+- name: "Collect Core Sweep Results"
+  hosts: load_generator
+  gather_facts: false
+
+  tasks:
+    - name: Fetch all core sweep results
+      ansible.posix.synchronize:
+        src: "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}/"
+        dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/"
+        mode: pull
+        recursive: true
+
+    - name: Copy GuideLLM logs from controller to final results
+      ansible.builtin.shell: |
+        for log_file in {{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}/*/guidellm.log; do
+          if [ -f "$log_file" ]; then
+            config_dir=$(basename $(dirname "$log_file"))
+            mkdir -p "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/$config_dir"
+            cp "$log_file" "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/$config_dir/"
+          fi
+        done
+      delegate_to: localhost
+      changed_when: false
+      failed_when: false
+
+    - name: Extract per-benchmark timings for all configurations
+      ansible.builtin.shell: |
+        for benchmarks_file in {{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/*/benchmarks.json; do
+          if [ -f "$benchmarks_file" ]; then
+            metadata_file="${benchmarks_file%benchmarks.json}test-metadata.json"
+            if [ -f "$metadata_file" ]; then
+              python3 {{ playbook_dir }}/scripts/extract_benchmark_timings.py "$benchmarks_file" "$metadata_file"
+            fi
+          fi
+        done
+      delegate_to: localhost
+      register: timing_extraction
+      changed_when: false
+      failed_when: false
+
+    - name: Display timing extraction result
+      ansible.builtin.debug:
+        msg: "{{ timing_extraction.stdout_lines }}"
+      when: timing_extraction.stdout_lines is defined and timing_extraction.stdout_lines | length > 0
