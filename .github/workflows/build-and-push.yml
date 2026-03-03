@@ -23,7 +23,7 @@ name: Build and Push vLLM CPU Perf Eval Container
 env:
   IMAGE_NAME: vllm-cpu-perf-eval
   REGISTRY: quay.io
-  QUAY_ORG: redhat-et
+  QUAY_ORG: octo-et
 
 jobs:
   build-and-test:

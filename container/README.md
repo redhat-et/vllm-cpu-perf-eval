@@ -6,15 +6,15 @@ UBI 9-based container image for running vLLM CPU performance benchmarks.
 
 ```bash
 # Pull the image
-podman pull quay.io/redhat-et/vllm-cpu-perf-eval:latest
+podman pull quay.io/octo-et/vllm-cpu-perf-eval:latest
 
 # Run interactively
-podman run -it --rm quay.io/redhat-et/vllm-cpu-perf-eval:latest
+podman run -it --rm quay.io/octo-et/vllm-cpu-perf-eval:latest
 
 # Run a benchmark
 podman run --rm \
   -v $(pwd)/results:/opt/vllm-perf/results \
-  quay.io/redhat-et/vllm-cpu-perf-eval:latest \
+  quay.io/octo-et/vllm-cpu-perf-eval:latest \
   guidellm --help
 ```
 
