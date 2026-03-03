@@ -52,6 +52,13 @@ RUN pip install --no-cache-dir \
     'pandas>=3.0.0,<4.0.0' \
     'psutil>=7.0.0,<8.0.0'
 
+# Copy repository files into the container
+COPY --chown=1001:0 automation/ /opt/vllm-perf/automation/
+COPY --chown=1001:0 models/ /opt/vllm-perf/models/
+COPY --chown=1001:0 tests/ /opt/vllm-perf/tests/
+COPY --chown=1001:0 docs/ /opt/vllm-perf/docs/
+COPY --chown=1001:0 README.md /opt/vllm-perf/
+
 # Set environment variables for optimal CPU performance
 # Note: OMP_NUM_THREADS should be set at runtime based on available cores
 ENV VLLM_CPU_KVCACHE_SPACE=40
