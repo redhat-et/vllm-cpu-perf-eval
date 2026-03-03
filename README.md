@@ -30,7 +30,7 @@ Execute a single LLM benchmark with auto-configured cores:
 ```bash
 cd automation/test-execution/ansible
 
-# Run benchmark against a specific model and workload (enhanced methodology v2)
+# Run benchmark against a specific model and workload
 ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
   -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
   -e "workload_type=chat" \
@@ -169,7 +169,7 @@ See individual directory README/markdown files for detailed information.
 
 ### Multiple Test Suites
 
-- **Concurrent Load**: Concurrent load testing (enhanced v2 methodology)
+- **Concurrent Load**: Concurrent load testing
 - **Scalability**: Scalability and sweep testing
 - **Resource Contention**: Resource contention testing (planned)
 

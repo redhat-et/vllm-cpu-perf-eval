@@ -20,15 +20,8 @@ This directory contains Ansible playbooks for automated vLLM performance testing
 |----------|---------|------|---------|
 | **llm-core-sweep-auto.yml** | Auto sweep (Ansible interface) | Ansible playbook | ✅ Working |
 | **scripts/run-core-sweep.sh** | Auto sweep (direct CLI) | Bash script | ✅ Working |
-| **llm-benchmark-auto-simple.yml** | Single iteration playbook | Ansible | ✅ Working |
+| **llm-benchmark-auto.yml** | Single iteration playbook (with shared test_run_id) | Ansible | ✅ Working |
 | **collect-sweep-results.yml** | Results collection | Ansible | ✅ Working |
-
-### Manual Core Sweep (Needs Update)
-
-| Playbook | Purpose | Config Type | Status |
-|----------|---------|-------------|---------|
-| **llm-core-sweep.yml** | Multiple LLM tests | Manual (pre-defined configs) | ⚠️ Needs update to use bash orchestration |
-| **embedding-core-sweep.yml** | Multiple embedding tests | Manual | ⚠️ Needs updates |
 
 ## Core Sweep Architecture
 
@@ -40,14 +33,15 @@ Core sweeps are orchestrated using a **bash script** that calls a simplified pla
 
 1. **run-core-sweep.sh** - Main orchestrator
    - Loops over core counts
-   - Calls llm-benchmark-auto-simple.yml for each iteration
+   - Calls llm-benchmark-auto.yml for each iteration
    - Maintains single test_run_id across all iterations
    - Calls collect-sweep-results.yml at the end
 
-2. **llm-benchmark-auto-simple.yml** - Iteration playbook
-   - Streamlined version of llm-benchmark-auto.yml
-   - Expects test_run_id to be pre-set
-   - Results go to `workload-runid/cores_N/` subdirectories
+2. **llm-benchmark-auto.yml** - Unified playbook for single and sweep tests
+   - Accepts optional test_run_id parameter
+   - Auto-generates test_run_id if not provided (single test mode)
+   - Uses provided test_run_id when passed in (sweep iteration mode)
+   - Results go to `workload-runid/cores_N/` subdirectories in sweep mode
 
 3. **collect-sweep-results.yml** - Results collector
    - Fetches all results from sweep
@@ -189,7 +183,7 @@ Benefits of the bash approach:
 ## Extensibility for Embedding Tests
 
 To extend for embedding tests:
-1. Create `embedding-benchmark-auto-simple.yml` (similar to llm-benchmark-auto-simple.yml)
+1. Update `embedding-benchmark-auto.yml` to accept optional test_run_id (same pattern as llm-benchmark-auto.yml)
 2. Create `scripts/run-embedding-sweep.sh` (similar to run-core-sweep.sh)
 3. Update `collect-sweep-results.yml` to handle embedding benchmark format
 4. Set `benchmark_type: "embedding"` to route to appropriate benchmark role
