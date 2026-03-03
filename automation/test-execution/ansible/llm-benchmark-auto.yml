@@ -14,8 +14,6 @@
 - name: "Auto-Configured LLM Test - Setup"
   hosts: localhost
   gather_facts: false
-  vars:
-    test_run_id: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
 
   tasks:
     - name: Validate required variables
@@ -30,9 +28,10 @@
           -e "workload_type=<summarization|chat|code|rag>"
           -e "requested_cores=<8|16|32|64|...>"
 
-    - name: Store test run ID in hostvars
+    - name: Generate test run ID if not provided
       ansible.builtin.set_fact:
-        test_run_id: "{{ test_run_id }}"
+        test_run_id: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
+      when: test_run_id is not defined
 
     - name: Display auto-config test information
       ansible.builtin.debug:
