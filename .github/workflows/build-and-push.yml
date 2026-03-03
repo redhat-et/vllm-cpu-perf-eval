@@ -41,6 +41,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Validate manual tag policy
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          if [[ "${{ github.event.inputs.tag }}" == "latest" && "${{ github.ref_name }}" != "main" ]]; then
+            echo "::error::Cannot use 'latest' tag from non-main branch '${{ github.ref_name }}'"
+            echo "::error::The 'latest' tag is reserved for the main branch only"
+            echo "::error::Please specify a different tag (e.g., 'dev', 'test-feature', 'pr-123') or merge to main first"
+            exit 1
+          fi
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
         with:
@@ -204,7 +214,7 @@ jobs:
           echo "Resolving digest for tag: $first_tag"
 
           # Get the multi-arch manifest digest (OCI index)
-          manifest_digest=$(docker buildx imagetools inspect "$first_tag" --format '{{json .}}' | jq -r '.manifest.digest')
+          manifest_digest=$(docker buildx imagetools inspect "$first_tag" --format '{{json .Manifest}}' | jq -r '.digest')
 
           echo "Signing manifest digest: $manifest_digest"
 
