@@ -96,10 +96,13 @@ jobs:
         if: github.event_name == 'pull_request'
         run: |
           docker load --input /tmp/image.tar
+          # Capture the first tag to a variable
+          image_tag=$(echo "${{ steps.meta.outputs.tags }}" | head -1)
+          echo "Testing image: $image_tag"
           echo "Testing vLLM installation..."
-          docker run --rm $(echo "${{ steps.meta.outputs.tags }}" | head -1) python -c "import vllm; print(f'vLLM version: {vllm.__version__}')"
+          docker run --rm "$image_tag" python -c "import vllm; print(f'vLLM version: {vllm.__version__}')"
           echo "Testing GuideLLM installation..."
-          docker run --rm $(echo "${{ steps.meta.outputs.tags }}" | head -1) python -c "import guidellm; print('GuideLLM installed successfully')"
+          docker run --rm "$image_tag" python -c "import guidellm; print('GuideLLM installed successfully')"
           echo "✅ Container tests passed!"
 
       # Only sign and push digest if not a PR

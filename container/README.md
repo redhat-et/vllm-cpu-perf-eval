@@ -1,6 +1,6 @@
 # vLLM CPU Performance Evaluation Container
 
-UBI 10-based container image for running vLLM CPU performance benchmarks.
+UBI 9-based container image for running vLLM CPU performance benchmarks.
 
 ## Quick Start
 
@@ -31,7 +31,7 @@ podman run --rm \
 
 ## Environment Variables
 
-- `OMP_NUM_THREADS`: OpenMP thread count (default: auto)
+- `OMP_NUM_THREADS`: OpenMP thread count (not set by container; user must set at runtime based on available cores)
 - `VLLM_CPU_KVCACHE_SPACE`: KV cache size in GB (default: 40)
 
 ## Building Locally

@@ -1,8 +1,9 @@
 # vLLM CPU Performance Evaluation Container
 # Based on Red Hat Universal Base Image 9
 
-# Use UBI 9 with Python 3.11 (good balance of compatibility and features)
-FROM registry.redhat.io/ubi9/python-311:latest
+# Use UBI 9 with Python 3.11 (pinned by digest for reproducibility)
+# Image: registry.redhat.io/ubi9/python-311:latest as of 2026-03-03
+FROM registry.redhat.io/ubi9/python-311@sha256:56193de31c185cebfb8a9f0a7624407f49b1cdf923403d5d777027b285701d78
 
 # Metadata
 LABEL name="vllm-cpu-perf-eval" \
@@ -37,21 +38,19 @@ USER 1001
 # Upgrade pip and install build tools
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel
 
-# Install vLLM with CPU support
-# Note: Adjust version as needed, use --extra-index-url for CPU-optimized builds if available
+# Install vLLM with CPU support (pinned version for reproducibility)
 RUN pip install --no-cache-dir \
-    vllm
+    'vllm>=0.16.0,<0.17.0'
 
-# Install GuideLLM for benchmarking
-# Note: Using Maryam's fork if it has the saturation detection / embedding support
+# Install GuideLLM for benchmarking (pinned version for reproducibility)
 RUN pip install --no-cache-dir \
-    guidellm
+    'guidellm>=0.5.0,<0.6.0'
 
-# Install additional performance tools
+# Install additional performance tools (pinned versions for reproducibility)
 RUN pip install --no-cache-dir \
-    numpy \
-    pandas \
-    psutil
+    'numpy>=2.0.0,<3.0.0' \
+    'pandas>=3.0.0,<4.0.0' \
+    'psutil>=7.0.0,<8.0.0'
 
 # Set environment variables for optimal CPU performance
 # Note: OMP_NUM_THREADS should be set at runtime based on available cores
