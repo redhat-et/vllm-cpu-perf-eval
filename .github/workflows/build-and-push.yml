@@ -1,0 +1,197 @@
+name: Build and Push vLLM CPU Perf Eval Container
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'Containerfile'
+      - '.github/workflows/build-and-push.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'Containerfile'
+      - '.github/workflows/build-and-push.yml'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Image tag (default: latest)'
+        required: false
+        default: 'latest'
+
+env:
+  IMAGE_NAME: vllm-cpu-perf-eval
+  REGISTRY: quay.io
+  QUAY_ORG: redhat-et
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: linux/amd64,linux/arm64
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Only login to Quay if we're going to push (not on PR)
+      - name: Log in to Quay.io
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.QUAY_ORG }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix={{branch}}-
+          flavor: |
+            suffix=-${{ matrix.arch }}
+
+      - name: Build container image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Containerfile
+          platforms: linux/${{ matrix.arch }}
+          # Only push to Quay if not a PR
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=build-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=build-${{ matrix.arch }}
+          build-args: |
+            TARGETARCH=${{ matrix.arch }}
+          # Save to local tar for testing in PRs
+          outputs: ${{ github.event_name == 'pull_request' && 'type=docker,dest=/tmp/image.tar' || '' }}
+
+      # Test the image in PRs
+      - name: Load and test image (PR only)
+        if: github.event_name == 'pull_request'
+        run: |
+          docker load --input /tmp/image.tar
+          echo "Testing vLLM installation..."
+          docker run --rm $(echo "${{ steps.meta.outputs.tags }}" | head -1) python -c "import vllm; print(f'vLLM version: {vllm.__version__}')"
+          echo "Testing GuideLLM installation..."
+          docker run --rm $(echo "${{ steps.meta.outputs.tags }}" | head -1) python -c "import guidellm; print('GuideLLM installed successfully')"
+          echo "✅ Container tests passed!"
+
+      # Only sign and push digest if not a PR
+      - name: Install Cosign
+        if: github.event_name != 'pull_request'
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign the container image
+        if: github.event_name != 'pull_request'
+        env:
+          COSIGN_EXPERIMENTAL: "true"
+        run: |
+          echo "${{ steps.meta.outputs.tags }}" | xargs -I {} cosign sign --yes {}@${{ steps.build.outputs.digest }}
+
+      - name: Export digest
+        if: github.event_name != 'pull_request'
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+
+      - name: Upload digest
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # Only create manifest if not a PR
+  create-manifest:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    needs: build-and-test
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Quay.io
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.QUAY_ORG }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Create manifest list and push
+        working-directory: /tmp/digests
+        run: |
+          docker buildx imagetools create \
+            $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+            $(printf '${{ env.REGISTRY }}/${{ env.QUAY_ORG }}/${{ env.IMAGE_NAME }}@sha256:%s ' *)
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign the manifest
+        env:
+          COSIGN_EXPERIMENTAL: "true"
+        run: |
+          echo "${{ steps.meta.outputs.tags }}" | xargs -I {} cosign sign --yes {}
+
+      - name: Inspect image
+        run: |
+          docker buildx imagetools inspect \
+            ${{ env.REGISTRY }}/${{ env.QUAY_ORG }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.version }}
+
+      - name: Comment on PR with image info
+        if: github.event_name == 'push'
+        run: |
+          echo "✅ Multi-arch container image published!"
+          echo "📦 Image: ${{ env.REGISTRY }}/${{ env.QUAY_ORG }}/${{ env.IMAGE_NAME }}:latest"
+          echo "🔐 Image signed with Cosign"
