@@ -79,8 +79,9 @@
   tasks:
     - block:
         - name: Detect NUMA topology on DUT
-          ansible.builtin.include_tasks:
-            file: playbooks/common/tasks/detect-numa-topology.yml
+          ansible.builtin.include_role:
+            name: common
+            tasks_from: detect-numa-topology
 
       when: hostvars['localhost']['vllm_mode'] == 'managed'
 # ==============================================================================
@@ -99,8 +100,9 @@
   tasks:
     - block:
         - name: Allocate cores from NUMA topology
-          ansible.builtin.include_tasks:
-            file: playbooks/common/tasks/allocate-cores-from-count.yml
+          ansible.builtin.include_role:
+            name: common
+            tasks_from: allocate-cores-from-count
 
         - name: Save auto-allocated config to localhost
           ansible.builtin.set_fact:
@@ -168,8 +170,9 @@
             bench_config: "{{ bench_config | combine({'vllm_host': external_endpoint_parsed.hostname, 'vllm_port': external_endpoint_parsed.port | default(8000) | int}) }}"
 
         - name: Setup API key if enabled
-          ansible.builtin.include_tasks:
-            file: playbooks/common/tasks/setup-vllm-api-key.yml
+          ansible.builtin.include_role:
+            name: common
+            tasks_from: setup-vllm-api-key
           when: vllm_endpoint.external.api_key.enabled | default(false) | bool
 
         - name: Display external endpoint configuration
