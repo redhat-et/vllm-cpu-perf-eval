@@ -52,6 +52,10 @@ RUN pip install --no-cache-dir \
     'pandas>=3.0.0,<4.0.0' \
     'psutil>=7.0.0,<8.0.0'
 
+# Install Ansible for test automation
+RUN pip install --no-cache-dir \
+    'ansible>=2.16.0,<3.0.0'
+
 # Copy repository files into the container
 COPY --chown=1001:0 automation/ /opt/vllm-perf/automation/
 COPY --chown=1001:0 models/ /opt/vllm-perf/models/
