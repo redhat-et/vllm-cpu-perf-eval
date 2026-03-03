@@ -72,6 +72,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.QUAY_ORG }}/${{ env.IMAGE_NAME }}
           tags: |
+            type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event.inputs.tag != '' }}
             type=ref,event=branch
             type=ref,event=pr
             type=semver,pattern={{version}}
@@ -118,12 +119,16 @@ jobs:
         if: github.event_name != 'pull_request'
         uses: sigstore/cosign-installer@v3
 
-      - name: Sign the container image
+      - name: Sign the container image (using immutable digest)
         if: github.event_name != 'pull_request'
         env:
           COSIGN_EXPERIMENTAL: "true"
         run: |
-          echo "${{ steps.meta.outputs.tags }}" | xargs -I {} cosign sign --yes {}@${{ steps.build.outputs.digest }}
+          # Sign using immutable digest reference only (not mutable tags)
+          image_ref="${{ env.REGISTRY }}/${{ env.QUAY_ORG }}/${{ env.IMAGE_NAME }}@${{ steps.build.outputs.digest }}"
+          echo "Signing image at digest: $image_ref"
+          cosign sign --yes "$image_ref"
+          echo "✅ Signed ${{ matrix.arch }} image"
 
       - name: Export digest
         if: github.event_name != 'pull_request'
@@ -175,6 +180,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.QUAY_ORG }}/${{ env.IMAGE_NAME }}
           tags: |
+            type=raw,value=${{ github.event.inputs.tag }},enable=${{ github.event.inputs.tag != '' }}
             type=ref,event=branch
             type=semver,pattern={{version}}
             type=raw,value=latest,enable={{is_default_branch}}
@@ -189,11 +195,23 @@ jobs:
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3
 
-      - name: Sign the manifest
+      - name: Sign the manifest (using immutable digest)
         env:
           COSIGN_EXPERIMENTAL: "true"
         run: |
-          echo "${{ steps.meta.outputs.tags }}" | xargs -I {} cosign sign --yes {}
+          # Get the first tag to resolve the manifest digest
+          first_tag=$(echo "${{ steps.meta.outputs.tags }}" | head -1)
+          echo "Resolving digest for tag: $first_tag"
+
+          # Get the multi-arch manifest digest (OCI index)
+          manifest_digest=$(docker buildx imagetools inspect "$first_tag" --format '{{json .}}' | jq -r '.manifest.digest')
+
+          echo "Signing manifest digest: $manifest_digest"
+
+          # Sign the immutable digest (not mutable tags)
+          cosign sign --yes "${{ env.REGISTRY }}/${{ env.QUAY_ORG }}/${{ env.IMAGE_NAME }}@${manifest_digest}"
+
+          echo "✅ Signed image at digest: $manifest_digest"
 
       - name: Inspect image
         run: |
