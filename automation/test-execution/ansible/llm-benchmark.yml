@@ -87,12 +87,56 @@
     core_configuration: "{{ hostvars['localhost']['core_configuration'] }}"
 
   tasks:
+    - name: Tag results with metadata
+      ansible.builtin.copy:
+        content: |
+          {
+            "test_run_id": "{{ test_run_id }}",
+            "config_type": "manual",
+            "core_config_name": "{{ core_configuration.name }}",
+            "core_count": {{ core_configuration.cores }},
+            "cpuset_cpus": "{{ core_configuration.cpuset_cpus }}",
+            "cpuset_mems": "{{ core_configuration.cpuset_mems }}",
+            "tensor_parallel": {{ core_configuration.tensor_parallel }},
+            "omp_num_threads": {{ core_configuration.omp_num_threads | default('null') }},
+            "omp_threads_bind": "{{ core_configuration.omp_threads_bind | default('null') }}",
+            "model": "{{ test_model }}",
+            "workload": "{{ workload_type }}",
+            "timestamp": "{{ ansible_date_time.iso8601 }}",
+            "test_duration": "{{ test_duration_string | default('unknown') }}",
+            "test_duration_seconds": {{ test_duration_seconds | default('null') }}
+          }
+        dest: "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}/{{ core_configuration.name }}/test-metadata.json"
+
     - name: Fetch results to local machine
       ansible.posix.synchronize:
         src: "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}/{{ core_configuration.name }}/"
         dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/"
         mode: pull
         recursive: true
+
+    - name: Copy GuideLLM log from controller to final results
+      ansible.builtin.copy:
+        src: "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}/{{ core_configuration.name }}/guidellm.log"
+        dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/guidellm.log"
+      delegate_to: localhost
+      failed_when: false
+
+    - name: Extract per-benchmark timings from benchmarks.json
+      ansible.builtin.command:
+        cmd: >-
+          python3 {{ playbook_dir }}/scripts/extract_benchmark_timings.py
+          {{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/benchmarks.json
+          {{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/test-metadata.json
+      delegate_to: localhost
+      register: timing_extraction
+      changed_when: false
+      failed_when: false
+
+    - name: Display timing extraction result
+      ansible.builtin.debug:
+        msg: "{{ timing_extraction.stdout_lines }}"
+      when: timing_extraction.stdout_lines is defined
 
 - name: "Phase 4 - Collect Logs from DUT"
   hosts: dut
@@ -104,9 +148,10 @@
   roles:
     - role: results_collector
       vars:
-        log_collection_dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/"
+        log_collection_dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/"
         journald_identifier: "vllm-{{ workload_type }}-{{ core_configuration.cores }}c-tp{{ core_configuration.tensor_parallel }}"
         log_filename_prefix: "vllm-server"
+        journald_time_range: "1 hour ago"
 
 # ==============================================================================
 # PHASE 5: Cleanup (Optional)
