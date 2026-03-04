@@ -35,7 +35,7 @@
 - name: Set auto-allocated core configuration
   ansible.builtin.set_fact:
     auto_core_config:
-      name: "{{ requested_cores }}cores-auto-numa{{ numa_topology.vllm.node }}"
+      name: "cores-{{ requested_cores }}"
       cores: "{{ requested_cores }}"
       cpuset_cpus: "{{ allocated_cpus_range }}"
       cpuset_mems: "{{ numa_topology.vllm.node }}"
