@@ -173,7 +173,7 @@ See individual directory README/markdown files for detailed information.
 - **Scalability**: Scalability and sweep testing
 - **Resource Contention**: Resource contention testing (planned)
 
-### Enhanced Concurrent Load Testing (v2)
+### Enhanced Concurrent Load Testing
 
 - ⏱️ **Time-based testing** - Consistent 10-minute tests across CPU types
 - 1️⃣ **Single-user baseline** - Concurrency=1 for efficiency calculations
