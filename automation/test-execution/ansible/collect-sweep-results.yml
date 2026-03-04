@@ -1,17 +1,41 @@
 ---
+# ==============================================================================
 # Collect Core Sweep Results
-# Fetches all results from a sweep test and processes them
+# ==============================================================================
+# Fetches all results from a sweep test and consolidates them into a single
+# directory for analysis. This playbook runs after all core count iterations
+# have completed.
+#
+# Workflow:
+#   1. Sync all benchmark results from remote load generator to local machine
+#   2. Copy GuideLLM logs for each configuration
+#   3. Extract per-benchmark timing data and add to metadata files
 #
 # Required variables:
-#   - test_model
-#   - workload_type
-#   - test_run_id
+#   - test_model: Model identifier (e.g., "meta-llama/Llama-3.2-1B-Instruct")
+#   - workload_type: Workload type (e.g., "chat", "code")
+#   - test_run_id: Unique test run identifier (e.g., "20260304-143022")
+#
+# Result structure:
+#   results/llm/{model}/{workload}-{test_run_id}/
+#   ├── cores-8/
+#   │   ├── benchmarks.json
+#   │   ├── benchmarks.html
+#   │   ├── test-metadata.json
+#   │   └── guidellm.log
+#   ├── cores-16/
+#   └── cores-32/
 
 - name: "Collect Core Sweep Results"
   hosts: load_generator
   gather_facts: false
 
   tasks:
+    # ==========================================================================
+    # Step 1: Sync all benchmark results from load generator
+    # ==========================================================================
+    # Uses synchronize (rsync) to efficiently transfer all result directories
+    # from the remote load generator to the local ansible controller
     - name: Fetch all core sweep results
       ansible.posix.synchronize:
         src: "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}/"
@@ -19,20 +43,34 @@
         mode: pull
         recursive: true
 
+    # ==========================================================================
+    # Step 2: Copy GuideLLM logs to final results directory
+    # ==========================================================================
+    # Copies all guidellm.log files from each configuration directory
+    # These logs are useful for debugging and detailed analysis
     - name: Copy GuideLLM logs from controller to final results
       ansible.builtin.script:
         cmd: "{{ playbook_dir }}/scripts/copy-guidellm-logs.sh '{{ test_model }}' '{{ workload_type }}' '{{ test_run_id }}' '{{ bench_config.results_dir }}' '{{ playbook_dir }}/../../../results/llm'"
       delegate_to: localhost
       changed_when: false
-      failed_when: false
+      failed_when: false  # Don't fail if logs are missing
 
+    # ==========================================================================
+    # Step 3: Extract timing metadata from benchmark results
+    # ==========================================================================
+    # Processes each benchmarks.json file and extracts:
+    # - Per-benchmark duration
+    # - Start/end timestamps
+    # - Request counts
+    # - Total test duration
+    # This data is added to test-metadata.json for easy access
     - name: Extract per-benchmark timings for all configurations
       ansible.builtin.script:
         cmd: "{{ playbook_dir }}/scripts/extract-all-timings.sh '{{ test_model }}' '{{ workload_type }}' '{{ test_run_id }}' '{{ playbook_dir }}/../../../results/llm' '{{ playbook_dir }}/scripts'"
       delegate_to: localhost
       register: timing_extraction
       changed_when: false
-      failed_when: false
+      failed_when: false  # Don't fail if extraction fails
 
     - name: Display timing extraction result
       ansible.builtin.debug:
