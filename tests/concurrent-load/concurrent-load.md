@@ -181,30 +181,145 @@ ansible-playbook llm-benchmark-auto.yml \
 
 ## Running Tests
 
-### Option 1: Docker/Podman Compose
+**Choose your testing approach:**
+
+- **Option 1** - Run single model/workload with all 3 phases
+  (recommended for individual tests)
+- **Option 2** - Run complete test suite for all models and workloads
+  (comprehensive validation)
+- **Option 3** - Run individual phases separately
+  (for flexibility and debugging)
+- **Option 4** - Manual GuideLLM execution
+  (for development and testing)
+
+### Option 1: Ansible Automation (Recommended)
+
+The `llm-benchmark-concurrent-load.yml` playbook orchestrates all 3 phases automatically:
 
 ```bash
-# Run all concurrent load tests
-docker compose up
-
-# Run specific model and scenario
-MODEL_NAME=llama-3.2-1b SCENARIO=concurrent-8 docker compose up
-```text
-
-### Option 2: Ansible Automation
-
-```bash
-# Run entire test suite
 cd ../../automation/test-execution/ansible
-ansible-playbook playbooks/run-suite.yml -e "test_suite=concurrent-load"
+export HF_TOKEN=hf_xxxxx
 
-# Run specific model
-ansible-playbook playbooks/run-model.yml \
-  -e "model_name=llama-3.2-1b" \
-  -e "test_suite=concurrent-load"
-```text
+# Run all 3 phases with core sweep
+ansible-playbook -i inventory/hosts.yml \
+  llm-benchmark-concurrent-load.yml \
+  -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
+  -e "base_workload=chat" \
+  -e "core_sweep_counts=[16,32,64]"
 
-### Option 3: Manual Execution (GuideLLM)
+# Run baseline phase only (Phase 1)
+ansible-playbook -i inventory/hosts.yml \
+  llm-benchmark-concurrent-load.yml \
+  -e "test_model=TinyLlama/TinyLlama-1.1B-Chat-v1.0" \
+  -e "base_workload=chat" \
+  -e "requested_cores=16" \
+  -e "skip_phase_2=true" \
+  -e "skip_phase_3=true"
+
+# Run production comparison only (Phase 3)
+ansible-playbook -i inventory/hosts.yml \
+  llm-benchmark-concurrent-load.yml \
+  -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
+  -e "base_workload=rag" \
+  -e "requested_cores=32" \
+  -e "skip_phase_1=true" \
+  -e "skip_phase_2=true"
+```
+
+### Option 2: Run Full Test Suite (All Models × All Workloads)
+
+```bash
+cd ../../automation/test-execution/ansible
+export HF_TOKEN=hf_xxxxx
+
+# Llama-3.2-1B - All workloads
+for workload in chat rag code summarization; do
+  ansible-playbook -i inventory/hosts.yml \
+    llm-benchmark-concurrent-load.yml \
+    -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
+    -e "base_workload=$workload" \
+    -e "core_sweep_counts=[16,32,64]"
+done
+
+# Qwen3-0.6B - Chat and Code workloads
+for workload in chat code; do
+  ansible-playbook -i inventory/hosts.yml \
+    llm-benchmark-concurrent-load.yml \
+    -e "test_model=Qwen/Qwen3-0.6B" \
+    -e "base_workload=$workload" \
+    -e "core_sweep_counts=[16,32,64]"
+done
+
+# granite-3.2-2b - All workloads
+for workload in chat rag code; do
+  ansible-playbook -i inventory/hosts.yml \
+    llm-benchmark-concurrent-load.yml \
+    -e "test_model=ibm-granite/granite-3.2-2b-instruct" \
+    -e "base_workload=$workload" \
+    -e "core_sweep_counts=[16,32,64]"
+done
+
+# gpt-oss-20b (MoE) - All workloads
+for workload in chat rag code; do
+  ansible-playbook -i inventory/hosts.yml \
+    llm-benchmark-concurrent-load.yml \
+    -e "test_model=gpt-oss-20b" \
+    -e "base_workload=$workload" \
+    -e "core_sweep_counts=[16,32,64]"
+done
+
+# TinyLlama-1.1B - Chat workload
+ansible-playbook -i inventory/hosts.yml \
+  llm-benchmark-concurrent-load.yml \
+  -e "test_model=TinyLlama/TinyLlama-1.1B-Chat-v1.0" \
+  -e "base_workload=chat" \
+  -e "core_sweep_counts=[16,32,64]"
+
+# facebook/opt-125m - Chat and Summarization
+for workload in chat summarization; do
+  ansible-playbook -i inventory/hosts.yml \
+    llm-benchmark-concurrent-load.yml \
+    -e "test_model=facebook/opt-125m" \
+    -e "base_workload=$workload" \
+    -e "core_sweep_counts=[16,32,64]"
+done
+```
+
+### Option 3: Individual Phase Execution
+
+```bash
+cd ../../automation/test-execution/ansible
+export HF_TOKEN=hf_xxxxx
+
+# Phase 1: Baseline (Fixed Tokens, No Caching)
+ansible-playbook -i inventory/hosts.yml \
+  llm-benchmark-auto.yml \
+  -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
+  -e "workload_type=chat" \
+  -e "core_sweep_enabled=true" \
+  -e "core_sweep_counts=[16,32]" \
+  -e "vllm_caching_mode=baseline"
+
+# Phase 2: Realistic (Variable Tokens, No Caching)
+ansible-playbook -i inventory/hosts.yml \
+  llm-benchmark-auto.yml \
+  -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
+  -e "workload_type=chat_var" \
+  -e "core_sweep_enabled=true" \
+  -e "core_sweep_counts=[16,32]" \
+  -e "vllm_caching_mode=baseline"
+
+# Phase 3: Production (Fixed Tokens, With Caching)
+ansible-playbook -i inventory/hosts.yml \
+  llm-benchmark-auto.yml \
+  -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
+  -e "workload_type=chat" \
+  -e "core_sweep_enabled=true" \
+  -e "core_sweep_counts=[16,32]" \
+  -e "vllm_caching_mode=production"
+```
+
+### Option 4: Manual Execution (GuideLLM)
 
 #### Baseline Test (Fixed Tokens)
 

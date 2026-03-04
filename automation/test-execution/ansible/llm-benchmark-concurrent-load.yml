@@ -1,0 +1,194 @@
+---
+# ============================================================================
+# Concurrent Load Testing - 3-Phase Benchmark Suite
+# ============================================================================
+# Orchestrates all phases of concurrent load testing for a workload.
+# Runs baseline, realistic, and production configurations in sequence.
+#
+# Usage:
+#   ansible-playbook llm-benchmark-concurrent-load.yml \
+#     -e "test_model=TinyLlama/TinyLlama-1.1B-Chat-v1.0" \
+#     -e "base_workload=chat" \
+#     -e "core_sweep_counts=[16,32]"
+#
+# Optional Parameters:
+#   skip_phase_1: true  # Skip baseline phase (default: false)
+#   skip_phase_2: true  # Skip realistic phase (default: false)
+#   skip_phase_3: true  # Skip production phase (default: false)
+#   requested_cores: 16 # Single core count instead of sweep
+#
+# Workload Types:
+#   - chat: Chat workload (512:256)
+#   - rag: RAG workload (4096:512)
+#   - code: Code generation (512:4096)
+#   - summarization: Summarization (1024:256)
+#
+# Example - Full 3-phase test:
+#   ansible-playbook llm-benchmark-concurrent-load.yml \
+#     -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
+#     -e "base_workload=chat" \
+#     -e "core_sweep_counts=[16,32,64]"
+#
+# Example - Baseline only:
+#   ansible-playbook llm-benchmark-concurrent-load.yml \
+#     -e "test_model=TinyLlama/TinyLlama-1.1B-Chat-v1.0" \
+#     -e "base_workload=chat" \
+#     -e "requested_cores=16" \
+#     -e "skip_phase_2=true" \
+#     -e "skip_phase_3=true"
+#
+# ============================================================================
+
+- name: Concurrent Load Testing - Configuration
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    # Validate required parameters
+    test_model: "{{ test_model | mandatory }}"
+    base_workload: "{{ base_workload | mandatory }}"
+
+    # Optional phase control (default: run all phases)
+    skip_phase_1: "{{ skip_phase_1 | default(false) | bool }}"
+    skip_phase_2: "{{ skip_phase_2 | default(false) | bool }}"
+    skip_phase_3: "{{ skip_phase_3 | default(false) | bool }}"
+
+    # Determine variable workload suffix
+    variable_workload: "{{ base_workload }}_var"
+
+  tasks:
+    - name: Validate base_workload parameter
+      ansible.builtin.assert:
+        that:
+          - base_workload in ['chat', 'rag', 'code', 'summarization', 'short_codegen']
+        fail_msg: "base_workload must be one of: chat, rag, code, summarization, short_codegen"
+
+    - name: Check if variable workload exists
+      ansible.builtin.set_fact:
+        has_variable_workload: "{{ variable_workload in ['chat_var', 'code_var'] }}"
+
+    - name: Display test suite configuration
+      ansible.builtin.debug:
+        msg:
+          - "============================================================"
+          - "Concurrent Load Testing - 3-Phase Suite"
+          - "============================================================"
+          - "Model: {{ test_model }}"
+          - "Base Workload: {{ base_workload }}"
+          - "Phase 1 (Baseline): {{ 'SKIP' if skip_phase_1 else 'RUN' }}"
+          - "Phase 2 (Realistic): {{ 'SKIP' if skip_phase_2 else ('RUN' if has_variable_workload else 'N/A') }}"
+          - "Phase 3 (Production): {{ 'SKIP' if skip_phase_3 else 'RUN' }}"
+          - "Core Configuration: {{ core_sweep_counts | default(requested_cores | default('Not specified')) }}"
+          - "============================================================"
+
+# ==========================================================================
+# Phase 1: Baseline (Fixed Tokens, No Caching)
+# ==========================================================================
+- name: "Phase 1: Baseline Testing (Fixed Tokens, No Caching)"
+  ansible.builtin.import_playbook: llm-benchmark-auto.yml
+  vars:
+    workload_type: "{{ base_workload }}"
+    vllm_caching_mode: "baseline"
+  when: not (skip_phase_1 | default(false) | bool)
+
+- name: Phase 1 Complete
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Phase 1 complete notification
+      ansible.builtin.debug:
+        msg:
+          - "✓ Phase 1 Complete: Baseline ({{ base_workload }})"
+          - "  Workload: {{ base_workload }} (fixed tokens)"
+          - "  Caching: disabled (--no-enable-prefix-caching --disable-radix-cache)"
+      when: not (skip_phase_1 | default(false) | bool)
+
+# ==========================================================================
+# Phase 2: Realistic (Variable Tokens, No Caching)
+# ==========================================================================
+- name: "Phase 2: Realistic Testing (Variable Tokens, No Caching)"
+  ansible.builtin.import_playbook: llm-benchmark-auto.yml
+  vars:
+    workload_type: "{{ base_workload }}_var"
+    vllm_caching_mode: "baseline"
+  when:
+    - not (skip_phase_2 | default(false) | bool)
+    - (base_workload + '_var') in ['chat_var', 'code_var']
+
+- name: Phase 2 Complete
+  hosts: localhost
+  gather_facts: false
+  vars:
+    skip_phase_2: "{{ skip_phase_2 | default(false) | bool }}"
+    has_variable_workload: "{{ (base_workload + '_var') in ['chat_var', 'code_var'] }}"
+  tasks:
+    - name: Phase 2 skipped notification
+      ansible.builtin.debug:
+        msg:
+          - "⊘ Phase 2 Skipped: No variable workload defined for {{ base_workload }}"
+          - "  Variable workloads only available for: chat, code"
+      when:
+        - not skip_phase_2
+        - not has_variable_workload
+
+    - name: Phase 2 complete notification
+      ansible.builtin.debug:
+        msg:
+          - "✓ Phase 2 Complete: Realistic ({{ base_workload }}_var)"
+          - "  Workload: {{ base_workload }}_var (variable tokens)"
+          - "  Caching: disabled (--no-enable-prefix-caching --disable-radix-cache)"
+      when:
+        - not skip_phase_2
+        - has_variable_workload
+
+# ==========================================================================
+# Phase 3: Production (Fixed Tokens, With Caching)
+# ==========================================================================
+- name: "Phase 3: Production Testing (Fixed Tokens, With Caching)"
+  ansible.builtin.import_playbook: llm-benchmark-auto.yml
+  vars:
+    workload_type: "{{ base_workload }}"
+    vllm_caching_mode: "production"
+  when: not (skip_phase_3 | default(false) | bool)
+
+- name: Phase 3 Complete
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Phase 3 complete notification
+      ansible.builtin.debug:
+        msg:
+          - "✓ Phase 3 Complete: Production ({{ base_workload }})"
+          - "  Workload: {{ base_workload }} (fixed tokens)"
+          - "  Caching: enabled (prefix caching + radix cache)"
+      when: not (skip_phase_3 | default(false) | bool)
+
+# ==========================================================================
+# Test Suite Summary
+# ==========================================================================
+- name: Test Suite Summary
+  hosts: localhost
+  gather_facts: false
+  vars:
+    skip_phase_1: "{{ skip_phase_1 | default(false) | bool }}"
+    skip_phase_2: "{{ skip_phase_2 | default(false) | bool }}"
+    skip_phase_3: "{{ skip_phase_3 | default(false) | bool }}"
+    has_variable_workload: "{{ (base_workload + '_var') in ['chat_var', 'code_var'] }}"
+  tasks:
+    - name: Display test suite summary
+      ansible.builtin.debug:
+        msg:
+          - "============================================================"
+          - "Concurrent Load Testing - COMPLETE"
+          - "============================================================"
+          - "Model: {{ test_model }}"
+          - "Base Workload: {{ base_workload }}"
+          - ""
+          - "Phases Completed:"
+          - "  Phase 1 (Baseline): {{ 'SKIPPED' if skip_phase_1 else 'COMPLETE' }}"
+          - "  Phase 2 (Realistic): {{ 'SKIPPED' if skip_phase_2 else ('COMPLETE' if has_variable_workload else 'N/A') }}"
+          - "  Phase 3 (Production): {{ 'SKIPPED' if skip_phase_3 else 'COMPLETE' }}"
+          - ""
+          - "Results Location:"
+          - "  results/llm/{{ test_model | replace('/', '__') }}/"
+          - "============================================================"
