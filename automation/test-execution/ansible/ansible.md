@@ -100,18 +100,18 @@ Pre-configured in [inventory/group_vars/all/test-workloads.yml](inventory/group_
 | Workload | ISL:OSL | Use Case | Baseline vLLM Args |
 |----------|---------|----------|-----------|
 | `embedding` | 512:1 | Embedding models | `--dtype=bfloat16 --max-model-len=512` |
-| `chat` | 512:256 | Chatbots | `--dtype=bfloat16 --no-enable-prefix-caching --disable-radix-cache` |
-| `rag` | 4096:512 | RAG applications | `--dtype=bfloat16 --no-enable-prefix-caching --disable-radix-cache` |
-| `code` | 512:4096 | Code generation | `--dtype=bfloat16 --no-enable-prefix-caching --disable-radix-cache` |
-| `short_codegen` | 256:2048 | Short code generation | `--dtype=bfloat16 --no-enable-prefix-caching --disable-radix-cache` |
-| `summarization` | 1024:256 | Text summarization | `--dtype=bfloat16 --no-enable-prefix-caching --disable-radix-cache` |
+| `chat` | 512:256 | Chatbots | `--dtype=bfloat16 --no-enable-prefix-caching` |
+| `rag` | 4096:512 | RAG applications | `--dtype=bfloat16 --no-enable-prefix-caching` |
+| `code` | 512:4096 | Code generation | `--dtype=bfloat16 --no-enable-prefix-caching` |
+| `short_codegen` | 256:2048 | Short code generation | `--dtype=bfloat16 --no-enable-prefix-caching` |
+| `summarization` | 1024:256 | Text summarization | `--dtype=bfloat16 --no-enable-prefix-caching` |
 
 ### Variable Workloads (Realistic Traffic)
 
 | Workload | ISL±σ:OSL±σ | Use Case | Baseline vLLM Args |
 |----------|---------|----------|-----------|
-| `chat_var` | 512±128:256±64 | Realistic chat traffic | `--dtype=bfloat16 --no-enable-prefix-caching --disable-radix-cache` |
-| `code_var` | 512±128:4096±1024 | Realistic code generation | `--dtype=bfloat16 --no-enable-prefix-caching --disable-radix-cache` |
+| `chat_var` | 512±128:256±64 | Realistic chat traffic | `--dtype=bfloat16 --no-enable-prefix-caching` |
+| `code_var` | 512±128:4096±1024 | Realistic code generation | `--dtype=bfloat16 --no-enable-prefix-caching` |
 
 **Note:** Baseline mode disables both prefix caching and radix cache for true baseline measurements. Production mode enables caching optimizations.
 
@@ -124,14 +124,14 @@ The recommended testing methodology for CPU inference performance evaluation fol
 Establish pure baseline performance without any caching optimizations.
 - **Configuration:** `vllm_caching_mode=baseline`
 - **Workload:** Fixed token counts (e.g., `chat`, `rag`, `code`)
-- **vLLM flags:** `--no-enable-prefix-caching --disable-radix-cache`
+- **vLLM flags:** `--no-enable-prefix-caching`
 - **Concurrency levels:** `[1, 8, 16, 32, 64, 96, 128]`
 
 ### Phase 2: Realistic (Variable Tokens, No Caching)
 Measure performance under realistic traffic variability.
 - **Configuration:** `vllm_caching_mode=baseline`
 - **Workload:** Variable token counts (e.g., `chat_var`, `code_var`)
-- **vLLM flags:** `--no-enable-prefix-caching --disable-radix-cache`
+- **vLLM flags:** `--no-enable-prefix-caching`
 - **Concurrency levels:** `[1, 8, 16, 32, 64, 96, 128]`
 
 ### Phase 3: Production (Fixed Tokens, With Caching)
