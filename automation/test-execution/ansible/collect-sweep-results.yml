@@ -35,10 +35,12 @@
     # Step 1: Sync all benchmark results from load generator
     # ==========================================================================
     # Uses synchronize (rsync) to efficiently transfer all result directories
-    # from the remote load generator to the local ansible controller
-    - name: Fetch all core sweep results
+    # from the remote load generator to the local ansible controller.
+    # Each test run has its own directory on the remote (organized by test_run_id),
+    # so we only sync results from this specific test run.
+    - name: Fetch all core sweep results for this test run
       ansible.posix.synchronize:
-        src: "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}/"
+        src: "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/"
         dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/"
         mode: pull
         recursive: true

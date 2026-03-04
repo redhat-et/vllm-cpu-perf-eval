@@ -237,6 +237,7 @@
   hosts: load_generator
   become: true
   vars:
+    test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
     core_configuration: "{{ hostvars['localhost']['core_configuration'] }}"
 
   roles:
@@ -275,13 +276,13 @@
             "test_duration": "{{ test_duration_string | default('unknown') }}",
             "test_duration_seconds": {{ test_duration_seconds | default('null') }}
           }
-        dest: "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}/{{ core_configuration.name }}/test-metadata.json"
+        dest: "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/test-metadata.json"
 
     # Skip result fetching when running as part of a core sweep
     # The collect-sweep-results.yml playbook will fetch all results at once
     - name: Fetch results to local machine
       ansible.posix.synchronize:
-        src: "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}/{{ core_configuration.name }}/"
+        src: "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/"
         dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/"
         mode: pull
         recursive: true
@@ -289,7 +290,7 @@
 
     - name: Copy GuideLLM log from controller to final results
       ansible.builtin.copy:
-        src: "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}/{{ core_configuration.name }}/guidellm.log"
+        src: "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/guidellm.log"
         dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/guidellm.log"
       delegate_to: localhost
       failed_when: false
@@ -357,12 +358,6 @@
     - name: Skip if external mode
       ansible.builtin.meta: end_host
       when: hostvars['localhost']['vllm_mode'] | default('managed') != 'managed'
-
-    - name: Skip if running as part of core sweep
-      ansible.builtin.meta: end_host
-      when:
-        - hostvars['localhost']['is_core_sweep'] is defined
-        - hostvars['localhost']['is_core_sweep'] | bool
 
   roles:
     - role: results_collector
