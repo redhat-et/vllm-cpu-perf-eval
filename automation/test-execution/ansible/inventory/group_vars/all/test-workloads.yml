@@ -63,7 +63,8 @@ test_configs:
     backend: "openai-completions"
     vllm_args:
       - "--dtype=bfloat16"              # Memory efficient precision
-      - "--no-enable-prefix-caching"    # Baseline mode: no caching
+      - "--no-enable-prefix-caching"    # Baseline mode: no prefix caching
+      - "--disable-radix-cache"         # Baseline mode: no radix cache
     kv_cache_space: "40GiB"             # 1280 total tokens * ~32 concurrent
 
   # Chat workload (short input, short output)
@@ -75,7 +76,8 @@ test_configs:
     backend: "openai-chat"
     vllm_args:
       - "--dtype=bfloat16"              # Memory efficient precision
-      - "--no-enable-prefix-caching"    # Baseline mode: no caching
+      - "--no-enable-prefix-caching"    # Baseline mode: no prefix caching
+      - "--disable-radix-cache"         # Baseline mode: no radix cache
     kv_cache_space: "40GiB"             # 768 total tokens * ~32 concurrent
 
   # RAG workload (very long input, medium output)
@@ -87,7 +89,8 @@ test_configs:
     backend: "openai-completions"
     vllm_args:
       - "--dtype=bfloat16"              # Memory efficient precision
-      - "--no-enable-prefix-caching"    # Baseline mode: no caching
+      - "--no-enable-prefix-caching"    # Baseline mode: no prefix caching
+      - "--disable-radix-cache"         # Baseline mode: no radix cache
     kv_cache_space: "80GiB"             # 4608 total tokens * ~16 concurrent
 
   # Code generation workload (short input, very long output)
@@ -99,7 +102,8 @@ test_configs:
     backend: "openai-completions"
     vllm_args:
       - "--dtype=bfloat16"              # Memory efficient precision
-      - "--no-enable-prefix-caching"    # Baseline mode: no caching
+      - "--no-enable-prefix-caching"    # Baseline mode: no prefix caching
+      - "--disable-radix-cache"         # Baseline mode: no radix cache
     kv_cache_space: "90GiB"             # 4608 total tokens * ~16 concurrent + margin
 
   # Short code generation workload (short input, long output)
@@ -111,7 +115,8 @@ test_configs:
     backend: "openai-completions"
     vllm_args:
       - "--dtype=bfloat16"              # Memory efficient precision
-      - "--no-enable-prefix-caching"    # Baseline mode: no caching
+      - "--no-enable-prefix-caching"    # Baseline mode: no prefix caching
+      - "--disable-radix-cache"         # Baseline mode: no radix cache
     kv_cache_space: "50GiB"             # 2304 total tokens * ~24 concurrent
 
   # ============================================================================
@@ -133,7 +138,8 @@ test_configs:
     backend: "openai-chat"
     vllm_args:
       - "--dtype=bfloat16"              # Memory efficient precision
-      - "--no-enable-prefix-caching"    # Baseline mode: no caching
+      - "--no-enable-prefix-caching"    # Baseline mode: no prefix caching
+      - "--disable-radix-cache"         # Baseline mode: no radix cache
     kv_cache_space: "40GiB"             # ~768 avg tokens * ~32 concurrent
 
   # Code generation workload with variability (realistic output variance)
@@ -151,7 +157,8 @@ test_configs:
     backend: "openai-completions"
     vllm_args:
       - "--dtype=bfloat16"              # Memory efficient precision
-      - "--no-enable-prefix-caching"    # Baseline mode: no caching
+      - "--no-enable-prefix-caching"    # Baseline mode: no prefix caching
+      - "--disable-radix-cache"         # Baseline mode: no radix cache
     kv_cache_space: "90GiB"             # ~4608 avg tokens * ~16 concurrent + margin
 
 # ============================================================================
@@ -164,6 +171,7 @@ caching_modes:
     description: "Baseline performance without caching optimizations"
     vllm_args:
       - "--no-enable-prefix-caching"
+      - "--disable-radix-cache"
 
   production:
     description: "Production configuration with prefix caching enabled"

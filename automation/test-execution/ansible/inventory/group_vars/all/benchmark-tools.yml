@@ -48,7 +48,8 @@ benchmark_tool:
     #    - Best for: Testing specific request rates
     # ========================================================================
 
-    profile: "sweep"
+    # Default profile matching benchmark guide methodology
+    profile: "concurrent"
 
     # Rate parameter (meaning depends on profile - see above)
     # For throughput: max concurrent requests to test
@@ -56,14 +57,15 @@ benchmark_tool:
     # For constant/poisson: list of requests per second [10, 20, 30]
     # For sweep: number of benchmarks to generate (optional)
     # For synchronous: leave empty (will error if provided)
-    rate: [10]
+    # Default concurrency sweep for CPU testing: [1, 8, 16, 32, 64, 96, 128]
+    rate: [1, 8, 16, 32, 64, 96, 128]
 
     # Runtime constraints (apply to all profiles)
     max_seconds: 600            # Maximum benchmark duration (10 minutes for enhanced methodology)
     max_requests: 1000          # Maximum number of requests (fallback if max_seconds not reached)
-    request_timeout: 600        # Request timeout matching max_seconds
+    request_timeout: 600        # Request timeout (matches max_seconds for CPU testing)
     warmup: 0.1                 # Warmup as percentage (10% of time for time-based tests)
-    max_concurrency: 128        # Max concurrent requests (for async/sweep profiles)
+    max_concurrency: 128        # Max concurrent requests (CPU testing)
     saturation_threshold: 0.98  # Saturation detection threshold (0-1)
     cooldown: 30                # Cooldown period between tests (seconds)
 
