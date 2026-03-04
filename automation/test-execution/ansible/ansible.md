@@ -77,6 +77,7 @@ Done!
 |----------|---------|-------|
 | [llm-benchmark.yml](llm-benchmark.yml) | Single LLM test with manual config | `-e "core_config_name=..."` |
 | [llm-benchmark-auto.yml](llm-benchmark-auto.yml) | Single LLM test with auto core allocation | `-e "requested_cores=16"` |
+| **[llm-benchmark-concurrent-load.yml](llm-benchmark-concurrent-load.yml)** | **3-phase concurrent load testing** | `-e "base_workload=chat" -e "core_sweep_counts=[16,32]"` |
 | [llm-core-sweep.yml](llm-core-sweep.yml) | Test multiple core configs | `-e "core_config_names=[...]"` |
 | [llm-core-sweep-auto.yml](llm-core-sweep-auto.yml) | Test multiple core counts (auto-allocated) | `-e "requested_cores_list=[8,16,32]"` |
 | [embedding-benchmark.yml](embedding-benchmark.yml) | Single embedding test | `-e "test_model=..." -e "scenario=baseline"` |
@@ -94,15 +95,93 @@ Done!
 
 Pre-configured in [inventory/group_vars/all/test-workloads.yml](inventory/group_vars/all/test-workloads.yml):
 
-| Workload | ISL:OSL | Use Case | vLLM Args |
+### Baseline Workloads (Fixed Tokens)
+
+| Workload | ISL:OSL | Use Case | Baseline vLLM Args |
 |----------|---------|----------|-----------|
 | `embedding` | 512:1 | Embedding models | `--dtype=bfloat16 --max-model-len=512` |
-| `chat` | 512:256 | Chatbots | `--dtype=bfloat16 --no_enable_prefix_caching` |
-| `rag` | 4096:512 | RAG applications | `--dtype=bfloat16 --no_enable_prefix_caching` |
-| `code` | 512:4096 | Code generation | `--dtype=bfloat16 --no_enable_prefix_caching` |
-| `short_codegen` | 256:2048 | Short code generation | `--dtype=bfloat16 --no_enable_prefix_caching` |
-| `summarization` | 1024:256 | Text summarization | `--dtype=bfloat16 --no_enable_prefix_caching` |
+| `chat` | 512:256 | Chatbots | `--dtype=bfloat16 --no-enable-prefix-caching --disable-radix-cache` |
+| `rag` | 4096:512 | RAG applications | `--dtype=bfloat16 --no-enable-prefix-caching --disable-radix-cache` |
+| `code` | 512:4096 | Code generation | `--dtype=bfloat16 --no-enable-prefix-caching --disable-radix-cache` |
+| `short_codegen` | 256:2048 | Short code generation | `--dtype=bfloat16 --no-enable-prefix-caching --disable-radix-cache` |
+| `summarization` | 1024:256 | Text summarization | `--dtype=bfloat16 --no-enable-prefix-caching --disable-radix-cache` |
 
+### Variable Workloads (Realistic Traffic)
+
+| Workload | ISL±σ:OSL±σ | Use Case | Baseline vLLM Args |
+|----------|---------|----------|-----------|
+| `chat_var` | 512±128:256±64 | Realistic chat traffic | `--dtype=bfloat16 --no-enable-prefix-caching --disable-radix-cache` |
+| `code_var` | 512±128:4096±1024 | Realistic code generation | `--dtype=bfloat16 --no-enable-prefix-caching --disable-radix-cache` |
+
+**Note:** Baseline mode disables both prefix caching and radix cache for true baseline measurements. Production mode enables caching optimizations.
+
+
+## 3-Phase Concurrent Load Testing
+
+The recommended testing methodology for CPU inference performance evaluation follows a 3-phase approach:
+
+### Phase 1: Baseline (Fixed Tokens, No Caching)
+Establish pure baseline performance without any caching optimizations.
+- **Configuration:** `vllm_caching_mode=baseline`
+- **Workload:** Fixed token counts (e.g., `chat`, `rag`, `code`)
+- **vLLM flags:** `--no-enable-prefix-caching --disable-radix-cache`
+- **Concurrency levels:** `[1, 8, 16, 32, 64, 96, 128]`
+
+### Phase 2: Realistic (Variable Tokens, No Caching)
+Measure performance under realistic traffic variability.
+- **Configuration:** `vllm_caching_mode=baseline`
+- **Workload:** Variable token counts (e.g., `chat_var`, `code_var`)
+- **vLLM flags:** `--no-enable-prefix-caching --disable-radix-cache`
+- **Concurrency levels:** `[1, 8, 16, 32, 64, 96, 128]`
+
+### Phase 3: Production (Fixed Tokens, With Caching)
+Quantify production optimization gains from caching.
+- **Configuration:** `vllm_caching_mode=production`
+- **Workload:** Fixed token counts (same as Phase 1)
+- **vLLM flags:** Default (caching enabled)
+- **Concurrency levels:** `[1, 8, 16, 32, 64, 96, 128]`
+
+### Run All 3 Phases (Recommended)
+
+```bash
+export HF_TOKEN=hf_xxxxx
+
+# Full 3-phase concurrent load test with core sweep
+ansible-playbook -i inventory/hosts.yml \
+  llm-benchmark-concurrent-load.yml \
+  -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
+  -e "base_workload=chat" \
+  -e "core_sweep_counts=[16,32,64]"
+```
+
+This runs:
+1. Phase 1: `chat` baseline (fixed tokens, no caching)
+2. Phase 2: `chat_var` realistic (variable tokens, no caching)
+3. Phase 3: `chat` production (fixed tokens, with caching)
+
+All phases use the same concurrency sweep: `[1, 8, 16, 32, 64, 96, 128]`
+
+### Run Individual Phases
+
+```bash
+# Phase 1 only (baseline)
+ansible-playbook -i inventory/hosts.yml \
+  llm-benchmark-concurrent-load.yml \
+  -e "test_model=TinyLlama/TinyLlama-1.1B-Chat-v1.0" \
+  -e "base_workload=chat" \
+  -e "requested_cores=16" \
+  -e "skip_phase_2=true" \
+  -e "skip_phase_3=true"
+
+# Phase 3 only (production)
+ansible-playbook -i inventory/hosts.yml \
+  llm-benchmark-concurrent-load.yml \
+  -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
+  -e "base_workload=rag" \
+  -e "core_sweep_counts=[16,32]" \
+  -e "skip_phase_1=true" \
+  -e "skip_phase_2=true"
+```
 
 ## Common Tasks
 
@@ -292,6 +371,13 @@ core_configs:
 
 ### Override GuideLLM Parameters
 
+**Default Configuration (CPU Testing):**
+- **Profile:** `concurrent` - Fixed concurrency level testing
+- **Concurrency Rates:** `[1, 8, 16, 32, 64, 96, 128]` - CPU-appropriate levels
+- **Test Duration:** `600` seconds (10 minutes per concurrency level)
+- **Request Timeout:** `600` seconds (matches test duration)
+- **Max Concurrency:** `128` (CPU testing limit)
+
 You can customize GuideLLM benchmark parameters in two ways:
 
 **Option 1: Simple flat variables (recommended for quick tests)**
@@ -301,8 +387,8 @@ ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
   -e "test_model=Qwen/Qwen2.5-3B-Instruct" \
   -e "workload_type=chat" \
   -e "requested_cores=16" \
-  -e "guidellm_max_seconds=60" \
-  -e "guidellm_max_requests=50"
+  -e "guidellm_max_seconds=120" \
+  -e "guidellm_rate=[1,8,16]"
 ```
 
 **Option 2: Dictionary syntax (for multiple parameters)**
@@ -312,21 +398,23 @@ ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
   -e "test_model=Qwen/Qwen2.5-3B-Instruct" \
   -e "workload_type=chat" \
   -e "requested_cores=16" \
-  -e '{"benchmark_tool": {"guidellm": {"max_seconds": 60, "max_requests": 50, "profile": "throughput"}}}'
+  -e '{"benchmark_tool": {"guidellm": {"max_seconds": 120, "profile": "throughput", "rate": [32]}}}'
 ```
 
 **Available flat variables:**
-- `guidellm_profile` - Benchmark profile (sweep, throughput, concurrent, synchronous)
-- `guidellm_rate` - Rate parameter (meaning depends on profile)
-- `guidellm_max_seconds` - Maximum test duration
-- `guidellm_max_requests` - Maximum requests to send
-- `guidellm_max_concurrency` - Maximum concurrent requests
-- `guidellm_cooldown` - Cooldown between tests (seconds)
-- `guidellm_outputs` - Output formats (html,json,csv)
+- `guidellm_profile` - Benchmark profile (concurrent, throughput, sweep, synchronous)
+- `guidellm_rate` - Concurrency levels for concurrent profile (e.g., `[1,8,16,32]`)
+- `guidellm_max_seconds` - Maximum test duration (default: 600)
+- `guidellm_max_requests` - Maximum requests to send (default: 1000)
+- `guidellm_request_timeout` - Request timeout (default: 600)
+- `guidellm_max_concurrency` - Maximum concurrent requests (default: 128)
+- `guidellm_warmup` - Warmup percentage (default: 0.1 = 10%)
+- `guidellm_cooldown` - Cooldown between tests in seconds (default: 30)
+- `guidellm_outputs` - Output formats (default: "html,json,csv")
 - `guidellm_container_image` - GuideLLM container image
-- `guidellm_use_container` - Use container mode (true/false)
-- `guidellm_cpuset_cpus` - CPU allocation for GuideLLM
-- `guidellm_cpuset_mems` - NUMA node allocation
+- `guidellm_use_container` - Use container mode (default: true)
+- `guidellm_cpuset_cpus` - CPU allocation for GuideLLM (default: "16-31")
+- `guidellm_cpuset_mems` - NUMA node allocation (default: "0")
 
 Defaults are defined in [inventory/group_vars/all/benchmark-tools.yml](inventory/group_vars/all/benchmark-tools.yml).
 
