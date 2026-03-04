@@ -282,7 +282,7 @@
     - name: Fetch results to local machine
       ansible.posix.synchronize:
         src: "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}/{{ core_configuration.name }}/"
-        dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/"
+        dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/"
         mode: pull
         recursive: true
       when: is_core_sweep is not defined or not is_core_sweep
@@ -290,7 +290,7 @@
     - name: Copy GuideLLM log from controller to final results
       ansible.builtin.copy:
         src: "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}/{{ core_configuration.name }}/guidellm.log"
-        dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/guidellm.log"
+        dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/guidellm.log"
       delegate_to: localhost
       failed_when: false
       when: is_core_sweep is not defined or not is_core_sweep
@@ -299,8 +299,8 @@
       ansible.builtin.command:
         cmd: >-
           python3 {{ playbook_dir }}/scripts/extract_benchmark_timings.py
-          {{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/benchmarks.json
-          {{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/test-metadata.json
+          {{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/benchmarks.json
+          {{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/test-metadata.json
       delegate_to: localhost
       register: timing_extraction
       changed_when: false
@@ -367,7 +367,7 @@
   roles:
     - role: results_collector
       vars:
-        log_collection_dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/"
+        log_collection_dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/"
         journald_identifier: "vllm-{{ workload_type }}-{{ core_configuration.cores }}c-tp{{ core_configuration.tensor_parallel }}"
         log_filename_prefix: "vllm-server"
         journald_time_range: "1 hour ago"
