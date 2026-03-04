@@ -203,6 +203,7 @@ for cores in "${CORE_ARRAY[@]}"; do
     -e "workload_type=$WORKLOAD" \
     -e "requested_cores=$cores" \
     -e "test_run_id=$TEST_RUN_ID" \
+    -e "is_core_sweep=true" \
     $ANSIBLE_VERBOSITY \
     $EXTRA_VARS
 

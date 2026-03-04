@@ -277,12 +277,15 @@
           }
         dest: "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}/{{ core_configuration.name }}/test-metadata.json"
 
+    # Skip result fetching when running as part of a core sweep
+    # The collect-sweep-results.yml playbook will fetch all results at once
     - name: Fetch results to local machine
       ansible.posix.synchronize:
         src: "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}/{{ core_configuration.name }}/"
         dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/"
         mode: pull
         recursive: true
+      when: is_core_sweep is not defined or not is_core_sweep
 
     - name: Copy GuideLLM log from controller to final results
       ansible.builtin.copy:
@@ -290,6 +293,7 @@
         dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/guidellm.log"
       delegate_to: localhost
       failed_when: false
+      when: is_core_sweep is not defined or not is_core_sweep
 
     - name: Extract per-benchmark timings from benchmarks.json
       ansible.builtin.command:
@@ -301,13 +305,16 @@
       register: timing_extraction
       changed_when: false
       failed_when: false
+      when: is_core_sweep is not defined or not is_core_sweep
 
     - name: Display timing extraction result
       ansible.builtin.debug:
         msg: "{{ timing_extraction.stdout_lines }}"
-      when: timing_extraction.stdout_lines is defined
+      when:
+        - timing_extraction.stdout_lines is defined
+        - is_core_sweep is not defined or not is_core_sweep
 
-    - name: Display results location
+    - name: Display results location (standalone run)
       ansible.builtin.debug:
         msg:
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -318,6 +325,22 @@
           - "  NUMA: {{ core_configuration.cpuset_mems }}"
           - "Results: results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/"
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      when: is_core_sweep is not defined or not is_core_sweep
+
+    - name: Display completion status (core sweep iteration)
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "✓ Core sweep iteration completed!"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Configuration: {{ core_configuration.name }}"
+          - "  CPUs: {{ core_configuration.cpuset_cpus }}"
+          - "  NUMA: {{ core_configuration.cpuset_mems }}"
+          - "Note: Results will be collected after all iterations complete"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      when:
+        - is_core_sweep is defined
+        - is_core_sweep | bool
 
 # ==============================================================================
 # STEP 7: Collect Logs (Managed Mode Only)
@@ -334,6 +357,12 @@
     - name: Skip if external mode
       ansible.builtin.meta: end_host
       when: hostvars['localhost']['vllm_mode'] | default('managed') != 'managed'
+
+    - name: Skip if running as part of core sweep
+      ansible.builtin.meta: end_host
+      when:
+        - hostvars['localhost']['is_core_sweep'] is defined
+        - hostvars['localhost']['is_core_sweep'] | bool
 
   roles:
     - role: results_collector
