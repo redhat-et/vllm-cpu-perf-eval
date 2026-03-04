@@ -261,7 +261,7 @@ merged: "{{ ['0-3', '5', '7-9'] | merge_cpu_ranges }}"
 - name: Create config
   set_fact:
     auto_config:
-      name: "16cores-auto-numa2"
+      name: "cores-16"
       cpuset_cpus: "{{ allocated_range }}"
       cpuset_mems: "{{ vllm_node }}"
 ```
