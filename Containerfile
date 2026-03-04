@@ -54,7 +54,7 @@ RUN pip install --no-cache-dir \
 
 # Install Ansible for test automation
 RUN pip install --no-cache-dir \
-    'ansible>=2.16.0,<3.0.0'
+    'ansible>=9.0.0,<13.0.0'
 
 # Copy repository files into the container
 COPY --chown=1001:0 automation/ /opt/vllm-perf/automation/
