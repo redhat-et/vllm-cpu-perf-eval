@@ -33,19 +33,22 @@
       VLLM_CPU_KVCACHE_SPACE: "{{ workload_cfg.kv_cache_space | extract_size_value }}"
       HF_TOKEN: "{{ hf_token }}"
 
-- name: Add OMP configuration if specified
+- name: Add OMP_NUM_THREADS if specified (ONLY for TP > 1)
   ansible.builtin.set_fact:
     vllm_env_vars: "{{ vllm_env_vars | combine({'OMP_NUM_THREADS': core_cfg.omp_num_threads | string}) }}"
   when:
+    - (core_cfg.tensor_parallel | default(1) | int) > 1
     - core_cfg.omp_num_threads is defined
-    - core_cfg.omp_num_threads != none
+    - core_cfg.omp_num_threads is not none
+    - core_cfg.omp_num_threads | int > 0
 
-- name: Add OMP threads bind if specified
+- name: Add VLLM_CPU_OMP_THREADS_BIND if specified (ONLY for TP > 1)
   ansible.builtin.set_fact:
     vllm_env_vars: "{{ vllm_env_vars | combine({'VLLM_CPU_OMP_THREADS_BIND': core_cfg.omp_threads_bind}) }}"
   when:
+    - (core_cfg.tensor_parallel | default(1) | int) > 1
     - core_cfg.omp_threads_bind is defined
-    - core_cfg.omp_threads_bind != none
+    - core_cfg.omp_threads_bind is not none
 
 - name: Pull vLLM container image
   containers.podman.podman_image:
