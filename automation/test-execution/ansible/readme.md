@@ -133,7 +133,7 @@ ansible-playbook llm-core-sweep-auto.yml \
   -e "test_model=TinyLlama/TinyLlama-1.1B-Chat-v1.0" \
   -e "workload_type=chat" \
   -e "requested_cores_list=[8,16]" \
-  -e "ansible_verbosity=-vv"
+  -e "inner_verbosity=-vv"
 
 # Option 2: Via bash script
 ./scripts/run-core-sweep.sh \
