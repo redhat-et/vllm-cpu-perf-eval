@@ -176,7 +176,7 @@
 
 - name: Merge caching mode arguments with workload args
   ansible.builtin.set_fact:
-    vllm_args_merged: "{{ vllm_base_args | difference(['--no-enable-prefix-caching', '--disable-radix-cache', '--enable-prefix-caching']) + caching_cfg.vllm_args }}"
+    vllm_args_merged: "{{ vllm_base_args | difference(['--no-enable-prefix-caching', '--enable-prefix-caching']) + caching_cfg.vllm_args }}"
   when: vllm_caching_mode is defined and caching_cfg is defined
 
 - name: Use default workload args if no caching mode specified

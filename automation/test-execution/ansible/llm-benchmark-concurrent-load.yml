@@ -95,7 +95,7 @@
         msg:
           - "✓ Phase 1 Complete: Baseline ({{ base_workload }})"
           - "  Workload: {{ base_workload }} (fixed tokens)"
-          - "  Caching: disabled (--no-enable-prefix-caching --disable-radix-cache)"
+          - "  Caching: disabled (--no-enable-prefix-caching)"
       when: not (skip_phase_1 | default(false) | bool)
 
 # ==========================================================================
@@ -130,7 +130,7 @@
         msg:
           - "✓ Phase 2 Complete: Realistic ({{ base_workload }}_var)"
           - "  Workload: {{ base_workload }}_var (variable tokens)"
-          - "  Caching: disabled (--no-enable-prefix-caching --disable-radix-cache)"
+          - "  Caching: disabled (--no-enable-prefix-caching)"
       when:
         - not (skip_phase_2 | default(false) | bool)
         - has_variable_workload
