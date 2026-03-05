@@ -304,8 +304,9 @@ kind-deploy-operator: ## Deploy AWX operator to KIND cluster
 		echo "$(COLOR_INFO)Cloning AWX operator (v2.19.1)...$(COLOR_RESET)"; \
 		git clone --depth 1 --branch 2.19.1 https://github.com/ansible/awx-operator.git $(AWX_OPERATOR_DIR); \
 	fi
-	@echo "$(COLOR_INFO)Deploying operator using Makefile...$(COLOR_RESET)"
-	@cd $(AWX_OPERATOR_DIR) && make deploy
+	@echo "$(COLOR_INFO)Deploying operator using kubectl...$(COLOR_RESET)"
+	@kubectl config use-context kind-$(KIND_CLUSTER_NAME)
+	@cd $(AWX_OPERATOR_DIR) && KUBECONFIG=~/.kube/config kubectl apply -k config/default
 	@echo "$(COLOR_INFO)Waiting for operator to be ready...$(COLOR_RESET)"
 	@sleep 10
 	@kubectl wait --for=condition=available --timeout=180s deployment/awx-operator-controller-manager -n awx-operator-system 2>/dev/null || \
