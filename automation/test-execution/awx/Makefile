@@ -67,9 +67,14 @@ check-requirements: ## Check if required tools are installed
 	@if [ "$(CONTAINER_TYPE)" = "podman" ]; then \
 		if ! command -v podman-compose >/dev/null 2>&1; then \
 			echo "$(COLOR_WARNING)⚠ podman-compose not found, installing...$(COLOR_RESET)"; \
-			pip3 install --user podman-compose; \
+			pip3 install --user --break-system-packages podman-compose 2>/dev/null || \
+			pip3 install --user podman-compose 2>/dev/null || true; \
 		fi; \
-		echo "$(COLOR_SUCCESS)✓ podman-compose installed$(COLOR_RESET)"; \
+		if command -v podman-compose >/dev/null 2>&1; then \
+			echo "$(COLOR_SUCCESS)✓ podman-compose installed$(COLOR_RESET)"; \
+		else \
+			echo "$(COLOR_WARNING)⚠ podman-compose not available$(COLOR_RESET)"; \
+		fi; \
 	fi
 	@if ! command -v git >/dev/null 2>&1; then \
 		echo "$(COLOR_ERROR)Error: git not found!$(COLOR_RESET)"; \
@@ -270,9 +275,15 @@ check-kind-requirements: ## Check if KIND dependencies are installed
 	@echo "$(COLOR_SUCCESS)✓ kubectl installed$(COLOR_RESET)"
 	@if ! python3 -c "import openshift" 2>/dev/null; then \
 		echo "$(COLOR_WARNING)⚠ openshift Python module not found, installing...$(COLOR_RESET)"; \
-		pip3 install --user openshift; \
+		pip3 install --user --break-system-packages openshift 2>/dev/null || \
+		pip3 install --user openshift 2>/dev/null || \
+		echo "$(COLOR_WARNING)⚠ Could not install openshift module. Continuing anyway...$(COLOR_RESET)"; \
 	fi
-	@echo "$(COLOR_SUCCESS)✓ openshift Python module installed$(COLOR_RESET)"
+	@if python3 -c "import openshift" 2>/dev/null; then \
+		echo "$(COLOR_SUCCESS)✓ openshift Python module installed$(COLOR_RESET)"; \
+	else \
+		echo "$(COLOR_WARNING)⚠ openshift module not available (configure step may fail)$(COLOR_RESET)"; \
+	fi
 	@echo "$(COLOR_SUCCESS)All KIND requirements met!$(COLOR_RESET)"
 
 .PHONY: kind-create-cluster
