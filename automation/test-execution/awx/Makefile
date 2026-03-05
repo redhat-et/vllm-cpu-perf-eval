@@ -300,9 +300,14 @@ kind-create-cluster: check-kind-requirements ## Create KIND cluster for AWX
 .PHONY: kind-deploy-operator
 kind-deploy-operator: ## Deploy AWX operator to KIND cluster
 	@echo "$(COLOR_INFO)Deploying AWX operator...$(COLOR_RESET)"
-	@echo "$(COLOR_INFO)Using official AWX operator release...$(COLOR_RESET)"
-	@kubectl apply -f https://raw.githubusercontent.com/ansible/awx-operator/2.20.0/deploy/awx-operator.yaml
+	@if [ ! -d "$(AWX_OPERATOR_DIR)" ]; then \
+		echo "$(COLOR_INFO)Cloning AWX operator (v2.19.1)...$(COLOR_RESET)"; \
+		git clone --depth 1 --branch 2.19.1 https://github.com/ansible/awx-operator.git $(AWX_OPERATOR_DIR); \
+	fi
+	@echo "$(COLOR_INFO)Deploying operator using Makefile...$(COLOR_RESET)"
+	@cd $(AWX_OPERATOR_DIR) && make deploy
 	@echo "$(COLOR_INFO)Waiting for operator to be ready...$(COLOR_RESET)"
+	@sleep 10
 	@kubectl wait --for=condition=available --timeout=180s deployment/awx-operator-controller-manager -n awx-operator-system 2>/dev/null || \
 		(echo "$(COLOR_INFO)Checking operator status...$(COLOR_RESET)" && kubectl get pods -n awx-operator-system)
 	@echo "$(COLOR_SUCCESS)✓ AWX operator deployed$(COLOR_RESET)"
