@@ -226,6 +226,10 @@
         inventory: "{{ inventory_name }}"
         variables:
           log_dir: /tmp/vllm-logs
+          bench_config:
+            vllm_host: "{{ hostvars[groups['dut'][0]]['ansible_host'] }}"
+            vllm_port: 8000
+            results_dir: "/tmp/benchmark-results"
         controller_host: "{{ controller_host }}"
         controller_username: "{{ controller_username }}"
         controller_password: "{{ controller_password }}"
@@ -264,10 +268,7 @@
         variables:
           ansible_host: "{{ 'localhost' if loadgen_is_local else lookup('env', 'LOADGEN_HOSTNAME') }}"
           ansible_connection: "{{ 'local' if loadgen_is_local else 'ssh' }}"
-          bench_config:
-            vllm_host: "{{ dut_hostname }}"
-            vllm_port: 8000
-            results_dir: "/tmp/benchmark-results"
+          ansible_become: false
         controller_host: "{{ controller_host }}"
         controller_username: "{{ controller_username }}"
         controller_password: "{{ controller_password }}"
