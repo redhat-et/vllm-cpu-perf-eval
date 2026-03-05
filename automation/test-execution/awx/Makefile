@@ -44,11 +44,14 @@ COLOR_ERROR := \033[31m
 help: ## Show this help message
 	@echo "$(COLOR_INFO)AWX Development Environment$(COLOR_RESET)"
 	@echo ""
-	@echo "$(COLOR_INFO)Container Engine:$(COLOR_RESET) $(CONTAINER_TYPE)"
-	@echo "$(COLOR_INFO)Compose Command:$(COLOR_RESET) $(COMPOSE_CMD)"
+	@echo "$(COLOR_SUCCESS)Recommended Quick Start:$(COLOR_RESET)"
+	@echo "  make kind-quickstart    - Full KIND setup (AWX 24.x+ recommended)"
+	@echo ""
+	@echo "$(COLOR_INFO)AWX Version:$(COLOR_RESET) $(AWX_VERSION)"
+	@echo "$(COLOR_WARNING)Note: AWX 24.x+ removed docker-compose support. Use KIND targets.$(COLOR_RESET)"
 	@echo ""
 	@echo "$(COLOR_INFO)Available targets:$(COLOR_RESET)"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(COLOR_SUCCESS)%-20s$(COLOR_RESET) %s\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(COLOR_SUCCESS)%-25s$(COLOR_RESET) %s\n", $$1, $$2}'
 
 .PHONY: check-requirements
 check-requirements: ## Check if required tools are installed
@@ -86,20 +89,16 @@ clone-awx: check-requirements ## Clone AWX repository (if not already cloned)
 	fi
 
 .PHONY: start
-start: clone-awx ## Start AWX (Docker/Podman Compose)
-	@echo "$(COLOR_INFO)Starting AWX with $(CONTAINER_TYPE)...$(COLOR_RESET)"
-	@echo "$(COLOR_WARNING)This may take 5-10 minutes on first run (downloading images)$(COLOR_RESET)"
-	@cd $(AWX_DIR)/tools/docker-compose && \
-		if [ "$(CONTAINER_TYPE)" = "docker" ]; then \
-			docker compose up -d; \
-		else \
-			COMPOSE_TAG=$(AWX_VERSION) podman-compose up -d; \
-		fi
+start: ## Start AWX (DEPRECATED - use kind-start instead)
+	@echo "$(COLOR_ERROR)ERROR: Docker Compose is not supported in AWX $(AWX_VERSION)$(COLOR_RESET)"
 	@echo ""
-	@echo "$(COLOR_SUCCESS)✓ AWX is starting!$(COLOR_RESET)"
-	@echo "$(COLOR_INFO)Monitor startup progress:$(COLOR_RESET) make logs"
-	@echo "$(COLOR_INFO)Check status:$(COLOR_RESET) make status"
-	@echo "$(COLOR_INFO)When ready, access:$(COLOR_RESET) http://localhost:$(AWX_PORT)"
+	@echo "$(COLOR_INFO)AWX 24.x+ removed docker-compose development environment.$(COLOR_RESET)"
+	@echo "$(COLOR_INFO)Use KIND (Kubernetes) instead:$(COLOR_RESET)"
+	@echo ""
+	@echo "  make kind-quickstart    - Complete setup (recommended)"
+	@echo "  make kind-start         - Start AWX in KIND"
+	@echo ""
+	@exit 1
 
 .PHONY: wait-ready
 wait-ready: ## Wait for AWX to be ready (checks every 5 seconds)
@@ -190,8 +189,10 @@ uninstall: clean-all ## Remove AWX completely (containers, volumes, and cloned r
 	@echo "$(COLOR_SUCCESS)✓ AWX completely uninstalled$(COLOR_RESET)"
 
 .PHONY: install
-install: start wait-ready ## Install AWX and wait for it to be ready (one command setup)
-	@echo "$(COLOR_SUCCESS)AWX installation complete!$(COLOR_RESET)"
+install: ## Install AWX (DEPRECATED - use kind-quickstart instead)
+	@echo "$(COLOR_ERROR)ERROR: Docker Compose is not supported in AWX $(AWX_VERSION)$(COLOR_RESET)"
+	@echo "$(COLOR_INFO)Use: make kind-quickstart$(COLOR_RESET)"
+	@exit 1
 
 .PHONY: url
 url: ## Show AWX access URL and credentials
@@ -243,23 +244,7 @@ backup: ## Backup AWX data (exports to awx-backup-YYYYMMDD.tar.gz)
 	echo "$(COLOR_SUCCESS)✓ Backup saved to $$BACKUP_FILE$(COLOR_RESET)"
 
 .PHONY: quickstart
-quickstart: install ## Full quick start (install + show next steps)
-	@echo ""
-	@echo "$(COLOR_SUCCESS)=====================================$(COLOR_RESET)"
-	@echo "$(COLOR_SUCCESS)  AWX Quick Start Complete!$(COLOR_RESET)"
-	@echo "$(COLOR_SUCCESS)=====================================$(COLOR_RESET)"
-	@echo ""
-	@echo "$(COLOR_INFO)Next steps:$(COLOR_RESET)"
-	@echo "  1. Open AWX: make open (or visit http://localhost:$(AWX_PORT))"
-	@echo "  2. Login with: admin / password"
-	@echo "  3. Follow: QUICKSTART.md to configure your first test"
-	@echo ""
-	@echo "$(COLOR_INFO)Useful commands:$(COLOR_RESET)"
-	@echo "  make logs      - View AWX logs"
-	@echo "  make status    - Check container status"
-	@echo "  make stop      - Stop AWX"
-	@echo "  make restart   - Restart AWX"
-	@echo "  make help      - Show all commands"
+quickstart: kind-quickstart ## Full quick start (use KIND - recommended for AWX 24.x+)
 
 # ============================================================================
 # KIND Targets (macOS-friendly Kubernetes approach)
