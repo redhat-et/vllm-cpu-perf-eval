@@ -67,7 +67,7 @@ check-requirements: ## Check if required tools are installed
 	@if [ "$(CONTAINER_TYPE)" = "podman" ]; then \
 		if ! command -v podman-compose >/dev/null 2>&1; then \
 			echo "$(COLOR_WARNING)⚠ podman-compose not found, installing...$(COLOR_RESET)"; \
-			pip3 install podman-compose; \
+			pip3 install --user podman-compose; \
 		fi; \
 		echo "$(COLOR_SUCCESS)✓ podman-compose installed$(COLOR_RESET)"; \
 	fi
@@ -270,7 +270,7 @@ check-kind-requirements: ## Check if KIND dependencies are installed
 	@echo "$(COLOR_SUCCESS)✓ kubectl installed$(COLOR_RESET)"
 	@if ! python3 -c "import openshift" 2>/dev/null; then \
 		echo "$(COLOR_WARNING)⚠ openshift Python module not found, installing...$(COLOR_RESET)"; \
-		pip3 install openshift; \
+		pip3 install --user openshift; \
 	fi
 	@echo "$(COLOR_SUCCESS)✓ openshift Python module installed$(COLOR_RESET)"
 	@echo "$(COLOR_SUCCESS)All KIND requirements met!$(COLOR_RESET)"
