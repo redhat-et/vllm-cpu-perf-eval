@@ -51,8 +51,8 @@
     physical_cpus_list: "{{ lscpu_data | extract_primary_cpus(item) }}"
     all_cpus_list: "{{ lscpu_data | extract_all_cpus(item) }}"
     node_info:
-      id: "{{ item | string }}"
-      physical_cores: "{{ ((physical_cpus_list.split(',') | length) if physical_cpus_list else 0) | int }}"
+      id: "{{ item }}"
+      physical_cores: "{{ (physical_cpus_list.split(',') | length) | int if physical_cpus_list else 0 }}"
       physical_cpus: "{{ physical_cpus_list | cpu_list_to_range }}"
       physical_cpus_list: "{{ physical_cpus_list }}"
       all_cpus: "{{ all_cpus_list | cpu_list_to_range }}"
@@ -82,31 +82,39 @@
 - name: Set NUMA topology facts
   ansible.builtin.set_fact:
     numa_topology:
-      node_count: "{{ numa_node_count | int }}"
-      total_physical_cores: "{{ numa_nodes_inventory | map(attribute='physical_cores') | map('int') | sum }}"
+      node_count: "{{ numa_node_count }}"
+      total_physical_cores: "{{ numa_nodes_inventory | map(attribute='physical_cores') | sum }}"
       nodes: "{{ numa_nodes_inventory }}"
       allocation_policy: "{{ allocation_policy }}"
 
-# DEPRECATED: Backward compatibility fields for old playbooks
-# TODO: Remove this once setup-platform.yml is updated to use new structure
+# Add backward compatibility fields for existing playbooks
+- name: Calculate node IDs for backward compatibility
+  ansible.builtin.set_fact:
+    housekeeping_node_id: 0
+    guidellm_node_id: "{{ 1 if numa_node_count | int >= 2 else 0 }}"
+    vllm_node_id: "{{ (numa_nodes | last | int) if numa_node_count | int >= 3 else ((numa_nodes | last | int) if numa_node_count | int >= 2 else 0) }}"
+
+- name: Find nodes by ID for backward compatibility
+  ansible.builtin.set_fact:
+    housekeeping_node_info: "{{ numa_nodes_inventory | selectattr('id', 'equalto', housekeeping_node_id | string) | first }}"
+    guidellm_node_info: "{{ numa_nodes_inventory | selectattr('id', 'equalto', guidellm_node_id | string) | first }}"
+    vllm_node_info: "{{ numa_nodes_inventory | selectattr('id', 'equalto', vllm_node_id | string) | first }}"
+
 - name: Add backward compatibility fields
   ansible.builtin.set_fact:
     numa_topology: "{{ numa_topology | combine(compat_fields, recursive=true) }}"
   vars:
-    reserved_node: "{{ allocation_policy.housekeeping.reserved_node }}"
-    guidellm_node: "{{ 1 if numa_node_count | int >= 2 else 0 }}"
-    vllm_node: "{{ numa_nodes[-1] | int if numa_node_count | int >= 3 else (numa_nodes[-1] | int if numa_node_count | int >= 2 else 0) }}"
     compat_fields:
       housekeeping:
-        node: "{{ reserved_node }}"
-        cpus: "{{ (numa_nodes_inventory | selectattr('id', 'equalto', reserved_node | string) | list | first).all_cpus }}"
+        node: "{{ housekeeping_node_id | int }}"
+        cpus: "{{ housekeeping_node_info.all_cpus }}"
       guidellm:
-        node: "{{ guidellm_node }}"
-        cpus: "{{ (numa_nodes_inventory | selectattr('id', 'equalto', guidellm_node | string) | list | first).physical_cpus }}"
+        node: "{{ guidellm_node_id | int }}"
+        cpus: "{{ guidellm_node_info.physical_cpus }}"
       vllm:
-        node: "{{ vllm_node }}"
-        cpus: "{{ (numa_nodes_inventory | selectattr('id', 'equalto', vllm_node | string) | list | first).physical_cpus }}"
-        cpus_list: "{{ (numa_nodes_inventory | selectattr('id', 'equalto', vllm_node | string) | list | first).physical_cpus_list }}"
+        node: "{{ vllm_node_id | int }}"
+        cpus: "{{ vllm_node_info.physical_cpus }}"
+        cpus_list: "{{ vllm_node_info.physical_cpus_list }}"
 
 - name: Display complete NUMA topology
   ansible.builtin.debug:

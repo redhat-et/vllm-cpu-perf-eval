@@ -424,6 +424,9 @@ def allocate_cores_multi_numa(numa_topology, requested_cores, requested_tp=None)
         # Handle Ansible's omit type - treat as None for auto-calculation
         if str(type(requested_tp).__name__) == '_OmitType':
             requested_tp = None
+        # Handle empty string (from Jinja2 None conversion) - treat as None
+        elif requested_tp == '' or requested_tp == 'None':
+            requested_tp = None
         else:
             try:
                 requested_tp = int(requested_tp)
@@ -443,16 +446,26 @@ def allocate_cores_multi_numa(numa_topology, requested_cores, requested_tp=None)
     housekeeping_policy = allocation_policy.get('housekeeping', {})
     housekeeping_node = housekeeping_policy.get('reserved_node', 0)
 
+    # Normalize node data to ensure proper Python types (convert AnsibleUnsafeText)
+    normalized_nodes = []
+    for n in nodes:
+        normalized_nodes.append({
+            'id': str(n['id']),
+            'physical_cores': int(n['physical_cores']),
+            'physical_cpus': str(n.get('physical_cpus', '')),
+            'physical_cpus_list': str(n.get('physical_cpus_list', ''))
+        })
+
     # Determine available nodes (exclude housekeeping if strategy is reserve_node)
     housekeeping_strategy = housekeeping_policy.get('strategy', 'reserve_node')
+    housekeeping_node_str = str(housekeeping_node)
 
-    if housekeeping_strategy == 'reserve_node' and len(nodes) >= 3:
+    if housekeeping_strategy == 'reserve_node' and len(normalized_nodes) >= 3:
         # Reserve entire node 0 for housekeeping (3+ node systems)
-        # Convert housekeeping_node to string for comparison (node IDs are strings)
-        available_nodes = [n for n in nodes if str(n['id']) != str(housekeeping_node)]
+        available_nodes = [n for n in normalized_nodes if n['id'] != housekeeping_node_str]
     else:
         # Use all nodes (2-node or single-node systems)
-        available_nodes = nodes
+        available_nodes = normalized_nodes
 
     if not available_nodes:
         raise AnsibleFilterError("No available NUMA nodes for workload allocation")
@@ -486,6 +499,7 @@ def allocate_with_auto_tp(available_nodes, requested_cores):
     if not available_nodes:
         raise AnsibleFilterError("No available NUMA nodes")
 
+    max_cores_per_node = int(max(n['physical_cores'] for n in available_nodes))
     num_available_nodes = len(available_nodes)
 
     # Try each TP value in ascending order
@@ -500,22 +514,15 @@ def allocate_with_auto_tp(available_nodes, requested_cores):
 
         cores_per_node = requested_cores // tp
 
-        # Filter nodes that have enough cores
-        # Convert physical_cores to int for comparison (may be string from YAML)
-        eligible = [
-            n for n in available_nodes
-            if int(n['physical_cores']) >= cores_per_node
-        ]
-
-        # Check if we have enough eligible nodes
-        if len(eligible) >= tp:
+        # Check if each node can provide this many cores
+        if cores_per_node <= max_cores_per_node:
             # Valid configuration found
-            selected_nodes = eligible[:tp]
+            selected_nodes = available_nodes[:tp]
             return build_allocation(selected_nodes, cores_per_node, tp)
 
     # No valid allocation found - generate helpful error
     valid_allocations = calculate_valid_allocations(available_nodes)
-    total_available = sum(int(n['physical_cores']) for n in available_nodes)
+    total_available = int(sum(n['physical_cores'] for n in available_nodes))
 
     raise AnsibleFilterError(
         f"Cannot allocate {requested_cores} cores with valid TP values.\n"
@@ -539,6 +546,7 @@ def allocate_with_fixed_tp(available_nodes, requested_cores, tp):
     Raises:
         AnsibleFilterError: If allocation not possible with specified TP
     """
+    max_cores_per_node = int(max(n['physical_cores'] for n in available_nodes))
     num_available_nodes = len(available_nodes)
 
     # Validate enough nodes
@@ -555,24 +563,14 @@ def allocate_with_fixed_tp(available_nodes, requested_cores, tp):
 
     cores_per_node = requested_cores // tp
 
-    # Filter nodes that have enough cores
-    # Convert physical_cores to int for comparison (may be string from YAML)
-    eligible = [
-        n for n in available_nodes
-        if int(n['physical_cores']) >= cores_per_node
-    ]
-
-    # Validate we have enough eligible nodes
-    if len(eligible) < tp:
-        max_cores_per_node = max(int(n['physical_cores']) for n in available_nodes)
+    # Validate node capacity
+    if cores_per_node > max_cores_per_node:
         raise AnsibleFilterError(
-            f"Cannot allocate {cores_per_node} cores per node with TP={tp}. "
-            f"Only {len(eligible)} of {num_available_nodes} nodes have "
-            f"{cores_per_node}+ cores (max {max_cores_per_node} per node)"
+            f"Cannot allocate {cores_per_node} cores per node (max {max_cores_per_node} per node)"
         )
 
     # Build allocation
-    selected_nodes = eligible[:tp]
+    selected_nodes = available_nodes[:tp]
     return build_allocation(selected_nodes, cores_per_node, tp)
 
 
@@ -601,18 +599,7 @@ def build_allocation(selected_nodes, cores_per_node, tp):
         physical_cpus_list = physical_cpus_str.split(',')
 
         # Take first N physical cores
-        allocated_cpus = [
-            int(cpu.strip()) for cpu in physical_cpus_list[:cores_per_node]
-        ]
-
-        # Verify allocation completeness
-        if len(allocated_cpus) != cores_per_node:
-            raise AnsibleFilterError(
-                f"Allocation incomplete on NUMA node {node['id']}: "
-                f"requested {cores_per_node} cores but only "
-                f"{len(allocated_cpus)} available "
-                f"(node has {node['physical_cores']} physical cores)"
-            )
+        allocated_cpus = [int(cpu.strip()) for cpu in physical_cpus_list[:cores_per_node]]
 
         # Convert to range format
         cpu_range = cpu_list_to_range(allocated_cpus)
@@ -646,9 +633,9 @@ def calculate_valid_allocations(available_nodes):
     if not available_nodes:
         return "none"
 
-    max_cores = max(int(n['physical_cores']) for n in available_nodes)
+    max_cores = int(max(n['physical_cores'] for n in available_nodes))
     num_nodes = len(available_nodes)
-    total_cores = sum(int(n['physical_cores']) for n in available_nodes)
+    total_cores = int(sum(n['physical_cores'] for n in available_nodes))
 
     valid = []
     seen_core_counts = set()
