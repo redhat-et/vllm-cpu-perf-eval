@@ -1,0 +1,403 @@
+---
+# Automated AWX Configuration for vLLM Performance Testing
+# This playbook configures AWX with projects, inventories, credentials, and job templates
+#
+# Usage:
+#   export CONTROLLER_HOST=http://localhost:30080  # or :8052 for docker-compose
+#   export CONTROLLER_USERNAME=admin
+#   export CONTROLLER_PASSWORD=password
+#   ansible-playbook configure-awx.yml
+
+- name: Configure AWX for vLLM Performance Testing
+  hosts: localhost
+  gather_facts: false
+  vars:
+    # AWX connection settings
+    controller_host: "{{ lookup('env', 'CONTROLLER_HOST') | default('http://localhost:30080', true) }}"
+    controller_username: "{{ lookup('env', 'CONTROLLER_USERNAME') | default('admin', true) }}"
+    controller_password: "{{ lookup('env', 'CONTROLLER_PASSWORD') | default('password', true) }}"
+    validate_certs: false
+
+    # Project settings
+    project_name: "vLLM CPU Perf Eval"
+    project_scm_url: "https://github.com/maryamtahhan/vllm-cpu-perf-eval.git"
+    project_scm_branch: "awx-integration"
+
+    # Inventory settings (customize these for your environment)
+    inventory_name: "vLLM Test Infrastructure"
+    dut_hostname: "{{ lookup('env', 'DUT_HOSTNAME') | default('192.168.1.10', true) }}"
+    dut_username: "{{ lookup('env', 'DUT_USERNAME') | default('ec2-user', true) }}"
+    loadgen_is_local: "{{ lookup('env', 'LOADGEN_LOCAL') | default('true', true) | bool }}"
+
+    # SSH key path (for DUT access)
+    ssh_key_path: "{{ lookup('env', 'SSH_KEY_PATH') | default('~/.ssh/id_rsa', true) }}"
+
+  tasks:
+    - name: Display configuration summary
+      ansible.builtin.debug:
+        msg:
+          - "Configuring AWX at {{ controller_host }}"
+          - "Project: {{ project_name }}"
+          - "SCM URL: {{ project_scm_url }}"
+          - "Branch: {{ project_scm_branch }}"
+          - "DUT: {{ dut_hostname }} (user: {{ dut_username }})"
+          - "Load Generator: {{ 'Local (AWX host)' if loadgen_is_local else 'Remote' }}"
+
+    - name: Create vLLM Performance Testing Project
+      awx.awx.project:
+        name: "{{ project_name }}"
+        organization: "Default"
+        scm_type: git
+        scm_url: "{{ project_scm_url }}"
+        scm_branch: "{{ project_scm_branch }}"
+        scm_update_on_launch: true
+        scm_update_cache_timeout: 0
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: "{{ validate_certs }}"
+        state: present
+
+    - name: Sync project to fetch latest code
+      awx.awx.project_update:
+        name: "{{ project_name }}"
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: "{{ validate_certs }}"
+        wait: true
+
+    - name: Create vLLM Test Infrastructure Inventory
+      awx.awx.inventory:
+        name: "{{ inventory_name }}"
+        organization: "Default"
+        variables:
+          # SSH configuration
+          ansible_ssh_common_args: "-o StrictHostKeyChecking=no"
+
+          # HuggingFace credentials
+          huggingface:
+            token_source: "env"
+            token_env_var: "HF_TOKEN"
+
+          # Container runtime settings
+          container_runtime:
+            engine: "podman"
+            image: "quay.io/mtahhan/vllm:0.14.0"
+            security_opts:
+              - "seccomp=unconfined"
+            capabilities:
+              - "SYS_NICE"
+            network_mode: "host"
+            shm_size: "4g"
+
+          # vLLM server configuration
+          vllm_container_name: "vllm-server"
+          vllm_server:
+            host: "0.0.0.0"
+            port: 8000
+
+          # vLLM endpoint mode
+          vllm_endpoint:
+            mode: "managed"
+            external:
+              url: null
+              api_key:
+                enabled: false
+                source: "env"
+                env_var: "VLLM_API_KEY"
+
+          # Health check configuration
+          health_check:
+            timeout: 300
+            interval: 5
+
+          # Platform setup options
+          platform_setup:
+            numa_balancing_off: true
+            thp_defrag_never: true
+            preempt_full: false
+
+          # Core configurations
+          core_configs:
+            - name: "8cores-single-socket"
+              cores: 8
+              cpuset_cpus: "0-7"
+              cpuset_mems: "0"
+              tensor_parallel: 1
+            - name: "16cores-single-socket"
+              cores: 16
+              cpuset_cpus: "0-15"
+              cpuset_mems: "0"
+              tensor_parallel: 1
+            - name: "32cores-single-socket"
+              cores: 32
+              cpuset_cpus: "0-31"
+              cpuset_mems: "0"
+              tensor_parallel: 1
+            - name: "64cores-single-socket-tp2"
+              cores: 64
+              cpuset_cpus: "0-63"
+              cpuset_mems: "0"
+              omp_num_threads: 32
+              omp_threads_bind: "0-31|32-63"
+              tensor_parallel: 2
+            - name: "96cores-dual-socket-tp3"
+              cores: 96
+              cpuset_cpus: "0-95"
+              cpuset_mems: "0,1"
+              tensor_parallel: 3
+            - name: "128cores-dual-socket-tp4"
+              cores: 128
+              cpuset_cpus: "0-127"
+              cpuset_mems: "0,1"
+              tensor_parallel: 4
+
+          # Test workload configurations
+          test_configs:
+            embedding:
+              workload_type: "embedding"
+              isl: 512
+              osl: 1
+              backend: "openai-embeddings"
+              vllm_args:
+                - "--dtype=bfloat16"
+                - "--max-model-len=512"
+              kv_cache_space: "1GiB"
+            summarization:
+              workload_type: "summarization"
+              isl: 1024
+              osl: 256
+              backend: "openai-completions"
+              vllm_args:
+                - "--dtype=bfloat16"
+                - "--no_enable_prefix_caching"
+              kv_cache_space: "40GiB"
+            chat:
+              workload_type: "chat"
+              isl: 512
+              osl: 128
+              backend: "openai-chat"
+              vllm_args:
+                - "--dtype=bfloat16"
+                - "--no_enable_prefix_caching"
+              kv_cache_space: "40GiB"
+            code:
+              workload_type: "code"
+              isl: 2048
+              osl: 512
+              backend: "openai-completions"
+              vllm_args:
+                - "--dtype=bfloat16"
+                - "--no_enable_prefix_caching"
+              kv_cache_space: "60GiB"
+            rag:
+              workload_type: "rag"
+              isl: 4096
+              osl: 256
+              backend: "openai-completions"
+              vllm_args:
+                - "--dtype=bfloat16"
+                - "--no_enable_prefix_caching"
+              kv_cache_space: "80GiB"
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: "{{ validate_certs }}"
+        state: present
+
+    - name: Create 'dut' inventory group
+      awx.awx.group:
+        name: dut
+        inventory: "{{ inventory_name }}"
+        variables:
+          use_persistent_cache: false
+          model_cache_dir: /var/lib/vllm-models
+          log_dir: /tmp/vllm-logs
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: "{{ validate_certs }}"
+        state: present
+
+    - name: Create 'load_generator' inventory group
+      awx.awx.group:
+        name: load_generator
+        inventory: "{{ inventory_name }}"
+        variables:
+          log_dir: /tmp/vllm-logs
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: "{{ validate_certs }}"
+        state: present
+
+    - name: Add DUT host to inventory
+      awx.awx.host:
+        name: dut-host
+        inventory: "{{ inventory_name }}"
+        variables:
+          ansible_host: "{{ dut_hostname }}"
+          ansible_user: "{{ dut_username }}"
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: "{{ validate_certs }}"
+        state: present
+
+    - name: Add DUT host to 'dut' group
+      awx.awx.group:
+        name: dut
+        inventory: "{{ inventory_name }}"
+        hosts:
+          - dut-host
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: "{{ validate_certs }}"
+        state: present
+
+    - name: Add Load Generator host to inventory
+      awx.awx.host:
+        name: loadgen-host
+        inventory: "{{ inventory_name }}"
+        variables:
+          ansible_host: "{{ 'localhost' if loadgen_is_local else lookup('env', 'LOADGEN_HOSTNAME') }}"
+          ansible_connection: "{{ 'local' if loadgen_is_local else 'ssh' }}"
+          bench_config:
+            vllm_host: "{{ dut_hostname }}"
+            vllm_port: 8000
+            results_dir: "/tmp/benchmark-results"
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: "{{ validate_certs }}"
+        state: present
+
+    - name: Add Load Generator host to 'load_generator' group
+      awx.awx.group:
+        name: load_generator
+        inventory: "{{ inventory_name }}"
+        hosts:
+          - loadgen-host
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: "{{ validate_certs }}"
+        state: present
+
+    - name: Check if SSH key file exists
+      ansible.builtin.stat:
+        path: "{{ ssh_key_path | expanduser }}"
+      register: ssh_key_file
+
+    - name: Read SSH private key
+      ansible.builtin.slurp:
+        src: "{{ ssh_key_path | expanduser }}"
+      register: ssh_key_content
+      when: ssh_key_file.stat.exists
+
+    - name: Create DUT SSH Credential
+      awx.awx.credential:
+        name: "DUT SSH Key"
+        organization: "Default"
+        credential_type: "Machine"
+        inputs:
+          username: "{{ dut_username }}"
+          ssh_key_data: "{{ ssh_key_content['content'] | b64decode }}"
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: "{{ validate_certs }}"
+        state: present
+      when: ssh_key_file.stat.exists
+
+    - name: Warn if SSH key not found
+      ansible.builtin.debug:
+        msg: "WARNING: SSH key not found at {{ ssh_key_path }}. You'll need to add credentials manually."
+      when: not ssh_key_file.stat.exists
+
+    - name: Create HuggingFace Token Credential Type
+      awx.awx.credential_type:
+        name: "HuggingFace Token"
+        kind: cloud
+        inputs:
+          fields:
+            - id: hf_token
+              type: string
+              label: "HuggingFace API Token"
+              secret: true
+          required:
+            - hf_token
+        injectors:
+          env:
+            HF_TOKEN: "{{ '{{ hf_token }}' }}"
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: "{{ validate_certs }}"
+        state: present
+
+    - name: Find all playbooks to auto-import
+      ansible.builtin.find:
+        paths:
+          - "{{ playbook_dir }}/../ansible"
+        patterns: "*.yml"
+        file_type: file
+        recurse: false
+      register: found_playbooks
+      delegate_to: localhost
+
+    - name: Display found playbooks
+      ansible.builtin.debug:
+        msg: "Found {{ found_playbooks.files | length }} playbooks to import"
+
+    - name: Create job template for each discovered playbook
+      awx.awx.job_template:
+        name: "{{ item.path | basename | regex_replace('\\.yml$', '') | regex_replace('-', ' ') | title }}"
+        description: "Auto-imported from {{ item.path | basename }}"
+        job_type: "run"
+        organization: "Default"
+        inventory: "{{ inventory_name }}"
+        project: "{{ project_name }}"
+        playbook: "automation/test-execution/ansible/{{ item.path | basename }}"
+        credentials:
+          - "DUT SSH Key"
+        verbosity: 1
+        ask_credential_on_launch: true
+        ask_variables_on_launch: true
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: "{{ validate_certs }}"
+        state: present
+      loop: "{{ found_playbooks.files }}"
+      when: item.path | basename != 'hosts.yml'
+
+    - name: Configuration complete
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "✓ AWX Configuration Complete!"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - ""
+          - "Access AWX: {{ controller_host }}"
+          - "Login: {{ controller_username }} / {{ controller_password }}"
+          - ""
+          - "Configured:"
+          - "  ✓ Project: {{ project_name }}"
+          - "  ✓ Inventory: {{ inventory_name }}"
+          - "  ✓ Credentials: DUT SSH Key"
+          - "  ✓ Credential Type: HuggingFace Token"
+          - "  ✓ Auto-imported {{ found_playbooks.files | length }} Job Templates"
+          - ""
+          - "Job Templates created:"
+          - "{% for playbook in found_playbooks.files %}"
+          - "  • {{ playbook.path | basename | regex_replace('\\.yml$', '') | regex_replace('-', ' ') | title }}"
+          - "{% endfor %}"
+          - ""
+          - "Next steps:"
+          - "  1. (Optional) Add HuggingFace token credential for gated models"
+          - "  2. Launch a test job from AWX UI"
+          - "  3. View results in /tmp/benchmark-results/"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
