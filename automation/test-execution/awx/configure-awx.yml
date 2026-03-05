@@ -380,6 +380,10 @@
           'concurrency' in (item.path | basename | lower) or
           'llm-benchmark.yml' == (item.path | basename)
 
+    - name: Count imported playbooks
+      ansible.builtin.set_fact:
+        imported_playbooks: "{{ found_playbooks.files | selectattr('path', 'match', '.*concurrent.*') | list + found_playbooks.files | selectattr('path', 'match', '.*llm-benchmark\\.yml$') | list }}"
+
     - name: Configuration complete
       ansible.builtin.debug:
         msg:
@@ -391,19 +395,19 @@
           - "Login: {{ controller_username }} / {{ controller_password }}"
           - ""
           - "Configured:"
-          - "  ✓ Project: {{ project_name }}"
+          - "  ✓ Project: {{ project_name }} (branch: {{ project_scm_branch }})"
           - "  ✓ Inventory: {{ inventory_name }}"
           - "  ✓ Credentials: DUT SSH Key"
           - "  ✓ Credential Type: HuggingFace Token"
-          - "  ✓ Auto-imported {{ found_playbooks.files | length }} Job Templates"
+          - "  ✓ Imported 2 concurrency-focused Job Templates"
           - ""
-          - "Job Templates created:"
-          - "{% for playbook in found_playbooks.files %}"
-          - "  • {{ playbook.path | basename | regex_replace('\\.yml$', '') | regex_replace('-', ' ') | title }}"
-          - "{% endfor %}"
+          - "Job Templates:"
+          - "  • Llm Benchmark Concurrent Load"
+          - "  • Llm Benchmark"
           - ""
           - "Next steps:"
-          - "  1. (Optional) Add HuggingFace token credential for gated models"
-          - "  2. Launch a test job from AWX UI"
-          - "  3. View results in /tmp/benchmark-results/"
+          - "  1. Open AWX: http://localhost:30080"
+          - "  2. (Optional) Add HuggingFace token credential for gated models"
+          - "  3. Launch 'Llm Benchmark Concurrent Load' job"
+          - "  4. View results in /tmp/benchmark-results/"
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
