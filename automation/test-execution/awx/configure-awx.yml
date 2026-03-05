@@ -21,7 +21,7 @@
     # Project settings
     project_name: "vLLM CPU Perf Eval"
     project_scm_url: "https://github.com/maryamtahhan/vllm-cpu-perf-eval.git"
-    project_scm_branch: "awx-integration"
+    project_scm_branch: "{{ lookup('env', 'AWX_PROJECT_BRANCH') | default('concurrency-tests-awx', true) }}"
 
     # Inventory settings (customize these for your environment)
     inventory_name: "vLLM Test Infrastructure"
