@@ -339,6 +339,21 @@
         validate_certs: "{{ validate_certs }}"
         state: present
 
+    - name: Remove old/legacy job templates
+      awx.awx.job_template:
+        name: "{{ item }}"
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: "{{ validate_certs }}"
+        state: absent
+      loop:
+        - "LLM GuideLLM Performance Test"
+        - "Embedding Model Performance Test"
+        - "Llm Benchmark"
+        - "Llm Benchmark Concurrent Load"
+      ignore_errors: true
+
     - name: Find all playbooks to auto-import
       ansible.builtin.find:
         paths:
@@ -353,10 +368,10 @@
       ansible.builtin.debug:
         msg: "Found {{ found_playbooks.files | length }} playbooks to import"
 
-    - name: Create job template for each discovered playbook
+    - name: Create concurrency job templates with clean naming
       awx.awx.job_template:
-        name: "{{ item.path | basename | regex_replace('\\.yml$', '') | regex_replace('-', ' ') | title }}"
-        description: "Auto-imported from {{ item.path | basename }}"
+        name: "{{ job_name_map[item.path | basename] }}"
+        description: "{{ item.path | basename }}"
         job_type: "run"
         organization: "Default"
         inventory: "{{ inventory_name }}"
@@ -373,6 +388,10 @@
         validate_certs: "{{ validate_certs }}"
         state: present
       loop: "{{ found_playbooks.files }}"
+      vars:
+        job_name_map:
+          llm-benchmark-concurrent-load.yml: "LLM Concurrent Load Test"
+          llm-benchmark.yml: "LLM Single Benchmark"
       when:
         - item.path | basename != 'hosts.yml'
         - >
@@ -402,12 +421,12 @@
           - "  ✓ Imported 2 concurrency-focused Job Templates"
           - ""
           - "Job Templates:"
-          - "  • Llm Benchmark Concurrent Load"
-          - "  • Llm Benchmark"
+          - "  • LLM Concurrent Load Test - Run concurrent load tests"
+          - "  • LLM Single Benchmark - Run single benchmark test"
           - ""
           - "Next steps:"
           - "  1. Open AWX: http://localhost:30080"
           - "  2. (Optional) Add HuggingFace token credential for gated models"
-          - "  3. Launch 'Llm Benchmark Concurrent Load' job"
+          - "  3. Launch 'LLM Concurrent Load Test' job"
           - "  4. View results in /tmp/benchmark-results/"
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
