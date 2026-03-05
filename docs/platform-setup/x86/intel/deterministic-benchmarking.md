@@ -335,10 +335,27 @@ numactl -H
 
 Rules:
 
-- One workload per NUMA node
-- No cross-node memory
+- One workload per NUMA node (preferred for single-NUMA workloads)
+- No cross-node memory (enforced via cpuset_mems)
 - One SMT thread per physical core (recommended for stable benchmarking)
 - Pin memory with CPUs
+
+### Note on Multi-NUMA Workload Allocation
+
+The automation framework now supports intelligent multi-NUMA allocation:
+
+- **Single workload per NUMA node (preferred):** When core requirements fit
+  within one NUMA node, workload runs with TP=1 for optimal performance
+
+- **Multi-NUMA with auto-TP:** When cores exceed single node capacity, the
+  automation calculates optimal TP (powers of 2: 1, 2, 4, 8) and distributes
+  cores evenly across nodes
+
+- **Physical cores only:** Hyperthreads are excluded from workload allocation
+  by default (only primary cores per physical core are used)
+
+- **Housekeeping isolation:** NUMA node 0 reserved for system services when
+  possible (on systems with 3+ NUMA nodes)
 
 ---
 
@@ -542,6 +559,111 @@ sudo podman run --rm -it \
 
 **Note**: The main example above already uses the recommended guidellm
 saturation-fix image with proper saturation detection settings.
+
+---
+
+### Multi-NUMA vLLM with Tensor Parallelism
+
+When running vLLM on multi-NUMA systems where core requirements exceed a single
+NUMA node capacity, the automation framework automatically calculates optimal
+tensor parallelism (TP) and distributes cores across nodes.
+
+#### Auto-calculated TP Example (64 cores, 2 NUMA nodes)
+
+```bash
+# Automation automatically allocates:
+# - 32 cores from NUMA node 1
+# - 32 cores from NUMA node 2
+# - Sets TP=2 (one per NUMA node)
+# - Binds each TP instance to its own NUMA node
+
+export HF_TOKEN=<hf_token>
+sudo podman run --rm \
+  --security-opt seccomp=unconfined \
+  --cap-add SYS_NICE \
+  --network=host \
+  --shm-size=4g \
+  --cpuset-cpus=32-63,64-95 \
+  --cpuset-mems=1,2 \
+  -e VLLM_CPU_KVCACHE_SPACE=40 \
+  -e OMP_NUM_THREADS=32 \
+  -e VLLM_CPU_OMP_THREADS_BIND="32-63|64-95" \
+  -e HF_TOKEN=$HF_TOKEN \
+  <vllm-cpu-container-image> \
+  meta-llama/Llama-3.2-1B-Instruct \
+  --dtype=bfloat16 \
+  --no_enable_prefix_caching \
+  -tp 2
+```
+
+#### Multi-NUMA TP=4 Example (96 cores, 4 NUMA nodes)
+
+```bash
+# System with 6 NUMA nodes, 32 physical cores each
+# Request 96 cores → automation uses 4 nodes with 24 cores each
+# TP=4 (one per NUMA node)
+
+export HF_TOKEN=<hf_token>
+sudo podman run --rm \
+  --security-opt seccomp=unconfined \
+  --cap-add SYS_NICE \
+  --network=host \
+  --shm-size=4g \
+  --cpuset-cpus=32-55,64-87,96-119,128-151 \
+  --cpuset-mems=1,2,3,4 \
+  -e VLLM_CPU_KVCACHE_SPACE=40 \
+  -e OMP_NUM_THREADS=24 \
+  -e VLLM_CPU_OMP_THREADS_BIND="32-55|64-87|96-119|128-151" \
+  -e HF_TOKEN=$HF_TOKEN \
+  <vllm-cpu-container-image> \
+  meta-llama/Llama-3.2-1B-Instruct \
+  --dtype=bfloat16 \
+  --no_enable_prefix_caching \
+  -tp 4
+```
+
+#### TP Calculation Rules
+
+**Valid TP values:** 1, 2, 4, 8 (powers of 2, capped at 8)
+
+**Auto-calculation strategy:**
+1. Prefers single NUMA node when possible (TP=1, best performance)
+2. If cores exceed one node, tries TP=2, then TP=4, then TP=8
+3. Distributes cores evenly across TP instances
+4. Binds each TP instance to its own NUMA node (optimal memory locality)
+
+**Requirements:**
+- `requested_cores % TP == 0` (must divide evenly)
+- `cores_per_node <= max_cores_per_node` (each node must have capacity)
+
+**Examples:**
+- 32 cores on 3-node system → TP=1 (single NUMA node)
+- 64 cores on 3-node system → TP=2 (32 cores from 2 nodes)
+- 96 cores on 6-node system → TP=4 (24 cores from 4 nodes)
+- 128 cores on 6-node system → TP=4 (32 cores from 4 nodes)
+
+#### OMP Thread Binding for Multi-NUMA TP
+
+When TP > 1, the `VLLM_CPU_OMP_THREADS_BIND` variable binds each TP instance
+to its allocated CPUs, ensuring NUMA-local memory access:
+
+```
+TP=2: "32-63|64-95"
+  └─ Instance 0: CPUs 32-63 on NUMA node 1
+  └─ Instance 1: CPUs 64-95 on NUMA node 2
+
+TP=4: "32-55|64-87|96-119|128-151"
+  └─ Instance 0: CPUs 32-55 on NUMA node 1
+  └─ Instance 1: CPUs 64-87 on NUMA node 2
+  └─ Instance 2: CPUs 96-119 on NUMA node 3
+  └─ Instance 3: CPUs 128-151 on NUMA node 4
+```
+
+This binding ensures each TP worker:
+- Runs only on its designated NUMA node
+- Accesses only local NUMA memory
+- Avoids cross-NUMA traffic and latency
+- Maintains deterministic performance
 
 ---
 

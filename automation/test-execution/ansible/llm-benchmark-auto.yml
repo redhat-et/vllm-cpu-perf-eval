@@ -9,7 +9,7 @@
 #     -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
 #     -e "workload_type=summarization" \
 #     -e "requested_cores=16"
-#     -e "requested_tensor_parallel=1"  # optional, default=1
+#     -e "requested_tensor_parallel=2"  # optional, auto-calculated if not specified (valid: 1, 2, 4, 8)
 
 - name: "Auto-Configured LLM Test - Setup"
   hosts: localhost
@@ -97,7 +97,7 @@
           cores: "{{ requested_cores | int }}"
           cpuset_cpus: "n/a"
           cpuset_mems: "n/a"
-          tensor_parallel: "{{ requested_tensor_parallel | default(1) | int }}"
+          tensor_parallel: "{{ requested_tensor_parallel | default(1) | int }}"  # External mode: assume TP=1 if not specified
       when: vllm_mode == 'external'
 
     - name: Display vLLM configuration
@@ -131,7 +131,7 @@
   become: true
   vars:
     requested_cores: "{{ hostvars['localhost']['requested_cores'] }}"
-    requested_tensor_parallel: "{{ hostvars['localhost']['requested_tensor_parallel'] | default(1) }}"
+    requested_tensor_parallel: "{{ hostvars['localhost']['requested_tensor_parallel'] | default(omit) }}"
     requested_omp_threads: "{{ hostvars['localhost']['requested_omp_threads'] | default(omit) }}"
     requested_omp_bind: "{{ hostvars['localhost']['requested_omp_bind'] | default(omit) }}"
 

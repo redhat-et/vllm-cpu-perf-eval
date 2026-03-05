@@ -1,73 +1,70 @@
 ---
-# Smart Core Allocation from Simple Core Count
-# Takes simple input like "cores: 8" and auto-generates cpuset/NUMA configuration
-# Uses detected NUMA topology to allocate cores intelligently
-# Uses custom Jinja2 filters instead of awk for better maintainability
+# Multi-NUMA Core Allocation with Auto-TP Calculation
+# Takes simple input like "cores: 64" and auto-generates cpuset/NUMA/TP configuration
+# Intelligently allocates cores across NUMA nodes when needed
+# Auto-calculates optimal tensor parallelism (TP) based on NUMA distribution
 
 # This task requires numa_topology to be set (from detect-numa-topology.yml)
 
-- name: Validate inputs
+- name: Validate required inputs
   ansible.builtin.assert:
     that:
       - requested_cores is defined
+      - requested_cores | int > 0
       - numa_topology is defined
-      - numa_topology.vllm is defined
+      - numa_topology.nodes is defined
     fail_msg: "Missing required variables: requested_cores and numa_topology must be set"
 
-- name: Parse vLLM available CPUs list
-  ansible.builtin.set_fact:
-    vllm_available_cpus: "{{ numa_topology.vllm.cpus_list.split(',') | map('int') | list }}"
-
-- name: Validate enough cores available
+- name: Validate requested_tensor_parallel if provided
   ansible.builtin.assert:
     that:
-      - vllm_available_cpus | length >= requested_cores | int
-    fail_msg: "Requested {{ requested_cores }} cores but only {{ vllm_available_cpus | length }} available on vLLM node {{ numa_topology.vllm.node }}"
+      - requested_tensor_parallel | int in [1, 2, 4, 8]
+    fail_msg: "Invalid tensor_parallel: {{ requested_tensor_parallel }}. Valid values: 1, 2, 4, 8"
+  when:
+    - requested_tensor_parallel is defined
+    - requested_tensor_parallel != omit
+    - requested_tensor_parallel != None
+    - requested_tensor_parallel != ""
 
-- name: Allocate requested cores from vLLM node
+- name: Allocate cores using multi-NUMA algorithm
   ansible.builtin.set_fact:
-    allocated_cpus_list: "{{ vllm_available_cpus[:requested_cores | int] }}"
+    core_allocation_result: "{{ numa_topology | allocate_cores_multi_numa(
+      requested_cores | int,
+      requested_tensor_parallel | default(None)
+    ) }}"
 
-- name: Convert allocated CPUs to range format using custom filter
-  ansible.builtin.set_fact:
-    allocated_cpus_range: "{{ allocated_cpus_list | cpu_list_to_range }}"
-
-- name: Set auto-allocated core configuration
+- name: Build auto-allocated core configuration
   ansible.builtin.set_fact:
     auto_core_config:
-      name: "{{ requested_cores }}cores-auto-numa{{ numa_topology.vllm.node }}"
+      name: "{{ requested_cores }}cores-numa{{ core_allocation_result.allocated_nodes | join('-') }}-tp{{ core_allocation_result.tensor_parallel }}"
       cores: "{{ requested_cores }}"
-      cpuset_cpus: "{{ allocated_cpus_range }}"
-      cpuset_mems: "{{ numa_topology.vllm.node }}"
-      tensor_parallel: "{{ requested_tensor_parallel | default(1) }}"
-      # OMP settings are OPTIONAL - omit for auto-configuration
-      # User can override by setting requested_omp_threads and requested_omp_bind
+      cpuset_cpus: "{{ core_allocation_result.cpuset_cpus }}"
+      cpuset_mems: "{{ core_allocation_result.cpuset_mems }}"
+      tensor_parallel: "{{ core_allocation_result.tensor_parallel }}"
+      omp_num_threads: "{{ core_allocation_result.omp_num_threads }}"
+      allocated_nodes: "{{ core_allocation_result.allocated_nodes }}"
+      cores_per_node: "{{ core_allocation_result.cores_per_node }}"
+      allocation_strategy: "{{ core_allocation_result.allocation_strategy }}"
 
-- name: Add optional OMP configuration if requested
+- name: Add OMP binding if multi-NUMA
   ansible.builtin.set_fact:
-    auto_core_config: "{{ auto_core_config | combine({'omp_num_threads': requested_omp_threads | int}) }}"
-  when:
-    - requested_omp_threads is defined
-    - requested_omp_threads is not none
+    auto_core_config: "{{ auto_core_config | combine({'omp_threads_bind': core_allocation_result.omp_threads_bind}) }}"
+  when: core_allocation_result.omp_threads_bind is not none
 
-- name: Add optional OMP binding if requested
-  ansible.builtin.set_fact:
-    auto_core_config: "{{ auto_core_config | combine({'omp_threads_bind': requested_omp_bind}) }}"
-  when:
-    - requested_omp_bind is defined
-    - requested_omp_bind is not none
-
-- name: Display auto-allocated configuration
+- name: Display allocation summary
   ansible.builtin.debug:
     msg:
       - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-      - "Auto-Allocated Core Configuration"
+      - "Multi-NUMA Core Allocation Complete"
       - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       - "Requested: {{ requested_cores }} cores"
-      - "Name: {{ auto_core_config.name }}"
-      - "CPUs: {{ auto_core_config.cpuset_cpus }}"
-      - "NUMA: {{ auto_core_config.cpuset_mems }}"
-      - "TP: {{ auto_core_config.tensor_parallel }}"
-      - "OMP Threads: {{ auto_core_config.omp_num_threads | default('auto') }}"
-      - "OMP Bind: {{ auto_core_config.omp_threads_bind | default('auto') }}"
+      - "Strategy: {{ core_allocation_result.allocation_strategy }}"
+      - "NUMA Nodes: {{ core_allocation_result.allocated_nodes | join(', ') }}"
+      - "Cores per Node: {{ core_allocation_result.cores_per_node | join(', ') }}"
+      - "Tensor Parallel: {{ core_allocation_result.tensor_parallel }}{{ ' (auto-calculated)' if requested_tensor_parallel is not defined else ' (user-specified)' }}"
+      - "CPU Pinning: {{ core_allocation_result.cpuset_cpus }}"
+      - "Memory Affinity: {{ core_allocation_result.cpuset_mems }}"
+      - "OMP Threads: {{ core_allocation_result.omp_num_threads }}"
+      - "OMP Binding: {{ core_allocation_result.omp_threads_bind | default('auto') }}"
+      - "Config Name: {{ auto_core_config.name }}"
       - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

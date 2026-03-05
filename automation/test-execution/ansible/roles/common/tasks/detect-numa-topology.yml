@@ -43,57 +43,69 @@
     fail_msg: "Failed to detect NUMA topology"
     success_msg: "✓ NUMA topology detected"
 
-- name: Determine node allocation strategy
+# Build generic NUMA node inventory (no fixed role names)
+- name: Build generic NUMA node inventory
   ansible.builtin.set_fact:
-    # For multi-node systems: housekeeping=0, guidellm=1, vllm=last
-    # For single-node: all on node 0
-    housekeeping_node: 0
-    guidellm_node: "{{ 1 if numa_node_count | int >= 2 else 0 }}"
-    vllm_node: "{{ numa_nodes[-1] if numa_node_count | int >= 3 else (numa_nodes[-1] if numa_node_count | int >= 2 else 0) }}"
+    numa_nodes_inventory: "{{ numa_nodes_inventory | default([]) + [node_info] }}"
+  vars:
+    physical_cpus_list: "{{ lscpu_data | extract_primary_cpus(item) }}"
+    all_cpus_list: "{{ lscpu_data | extract_all_cpus(item) }}"
+    node_info:
+      id: "{{ item | int }}"
+      physical_cores: "{{ (physical_cpus_list.split(',') | length) if physical_cpus_list else 0 }}"
+      physical_cpus: "{{ physical_cpus_list | cpu_list_to_range }}"
+      physical_cpus_list: "{{ physical_cpus_list }}"
+      all_cpus: "{{ all_cpus_list | cpu_list_to_range }}"
+      all_cpus_list: "{{ all_cpus_list }}"
+  loop: "{{ numa_nodes }}"
+  loop_control:
+    loop_var: item
 
-- name: Display node allocation
-  ansible.builtin.debug:
-    msg:
-      - "Node Allocation Strategy:"
-      - "  Housekeeping: node {{ housekeeping_node }}"
-      - "  GuideLLM: node {{ guidellm_node }}"
-      - "  vLLM: node {{ vllm_node }}"
-
-# Extract CPUs using custom Jinja2 filters (replaces awk scripts)
-- name: Extract all CPUs for housekeeping node
+# Determine housekeeping strategy based on node count
+- name: Determine housekeeping strategy
   ansible.builtin.set_fact:
-    house_cpus_list: "{{ lscpu_data | extract_all_cpus(housekeeping_node) }}"
+    housekeeping_strategy: "{{ 'reserve_node' if numa_node_count | int >= 3 else 'minimal_reservation' }}"
 
-- name: Extract primary CPUs for guidellm node
+# Set allocation policy
+- name: Set allocation policy
   ansible.builtin.set_fact:
-    guide_cpus_list: "{{ lscpu_data | extract_primary_cpus(guidellm_node) }}"
+    allocation_policy:
+      housekeeping:
+        strategy: "{{ housekeeping_strategy }}"
+        reserved_node: 0  # Always reserve node 0 when possible
+      workload:
+        prefer_same_numa: true
+        allow_multi_numa: true
+        use_physical_cores_only: true
 
-- name: Extract primary CPUs for vLLM node
-  ansible.builtin.set_fact:
-    vllm_cpus_list: "{{ lscpu_data | extract_primary_cpus(vllm_node) }}"
-
-# Convert to ranges using custom filter (replaces awk range conversion)
-- name: Convert CPU lists to ranges
-  ansible.builtin.set_fact:
-    house_cpus_range: "{{ house_cpus_list | cpu_list_to_range }}"
-    guide_cpus_range: "{{ guide_cpus_list | cpu_list_to_range }}"
-    vllm_cpus_range: "{{ vllm_cpus_list | cpu_list_to_range }}"
-
+# Build new NUMA topology structure
 - name: Set NUMA topology facts
   ansible.builtin.set_fact:
     numa_topology:
-      nodes: "{{ numa_nodes }}"
       node_count: "{{ numa_node_count }}"
+      total_physical_cores: "{{ numa_nodes_inventory | map(attribute='physical_cores') | sum }}"
+      nodes: "{{ numa_nodes_inventory }}"
+      allocation_policy: "{{ allocation_policy }}"
+
+# Add backward compatibility fields for existing playbooks
+- name: Add backward compatibility fields
+  ansible.builtin.set_fact:
+    numa_topology: "{{ numa_topology | combine(compat_fields, recursive=true) }}"
+  vars:
+    housekeeping_node: 0
+    guidellm_node: "{{ 1 if numa_node_count | int >= 2 else 0 }}"
+    vllm_node: "{{ numa_nodes[-1] if numa_node_count | int >= 3 else (numa_nodes[-1] if numa_node_count | int >= 2 else 0) }}"
+    compat_fields:
       housekeeping:
         node: "{{ housekeeping_node }}"
-        cpus: "{{ house_cpus_range }}"
+        cpus: "{{ numa_nodes_inventory[housekeeping_node].all_cpus }}"
       guidellm:
         node: "{{ guidellm_node }}"
-        cpus: "{{ guide_cpus_range }}"
+        cpus: "{{ numa_nodes_inventory[guidellm_node].physical_cpus }}"
       vllm:
         node: "{{ vllm_node }}"
-        cpus: "{{ vllm_cpus_range }}"
-        cpus_list: "{{ vllm_cpus_list }}"
+        cpus: "{{ numa_nodes_inventory[vllm_node | int].physical_cpus }}"
+        cpus_list: "{{ numa_nodes_inventory[vllm_node | int].physical_cpus_list }}"
 
 - name: Display complete NUMA topology
   ansible.builtin.debug:
@@ -101,7 +113,9 @@
       - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       - "NUMA Topology Detection Complete"
       - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-      - "Housekeeping: node {{ numa_topology.housekeeping.node }}, CPUs {{ numa_topology.housekeeping.cpus }}"
-      - "GuideLLM: node {{ numa_topology.guidellm.node }}, CPUs {{ numa_topology.guidellm.cpus }}"
-      - "vLLM: node {{ numa_topology.vllm.node }}, CPUs {{ numa_topology.vllm.cpus }}"
+      - "Detected {{ numa_node_count }} NUMA nodes with {{ numa_topology.total_physical_cores }} total physical cores"
+      - "Housekeeping strategy: {{ allocation_policy.housekeeping.strategy }}"
+      - "Node 0: {{ numa_nodes_inventory[0].physical_cores }} physical cores (CPUs {{ numa_nodes_inventory[0].physical_cpus }})"
+      - "{{ 'Node 1: ' + (numa_nodes_inventory[1].physical_cores | string) + ' physical cores (CPUs ' + numa_nodes_inventory[1].physical_cpus + ')' if numa_node_count | int >= 2 else '' }}"
+      - "{{ 'Node 2: ' + (numa_nodes_inventory[2].physical_cores | string) + ' physical cores (CPUs ' + numa_nodes_inventory[2].physical_cpus + ')' if numa_node_count | int >= 3 else '' }}"
       - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
