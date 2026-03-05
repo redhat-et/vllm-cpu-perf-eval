@@ -6,10 +6,17 @@ Or without pytest: python3 test_cpu_utils.py
 """
 
 import sys
+<<<<<<<< HEAD:automation/test-execution/ansible/tests/test_cpu_utils.py
 from pathlib import Path
 
 # Add filter_plugins to path so we can import cpu_utils
 sys.path.insert(0, str(Path(__file__).parent.parent / 'filter_plugins'))
+========
+import os
+
+# Add filter_plugins directory to Python path for imports
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../../filter_plugins'))
+>>>>>>>> fff6542 (fix: move test_cpu_utils.py out of filter_plugins directory):automation/test-execution/ansible/tests/unit/test_cpu_utils.py
 
 try:
     import pytest
