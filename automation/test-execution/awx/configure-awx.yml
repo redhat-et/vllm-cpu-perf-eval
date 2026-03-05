@@ -227,7 +227,7 @@
         variables:
           log_dir: /tmp/vllm-logs
           bench_config:
-            vllm_host: "{{ hostvars[groups['dut'][0]]['ansible_host'] }}"
+            vllm_host: "{{ dut_hostname }}"
             vllm_port: 8000
             results_dir: "/tmp/benchmark-results"
         controller_host: "{{ controller_host }}"
@@ -373,7 +373,12 @@
         validate_certs: "{{ validate_certs }}"
         state: present
       loop: "{{ found_playbooks.files }}"
-      when: item.path | basename != 'hosts.yml'
+      when:
+        - item.path | basename != 'hosts.yml'
+        - >
+          'concurrent' in (item.path | basename | lower) or
+          'concurrency' in (item.path | basename | lower) or
+          'llm-benchmark.yml' == (item.path | basename)
 
     - name: Configuration complete
       ansible.builtin.debug:
