@@ -134,10 +134,10 @@ Measure performance under realistic traffic variability.
 - **vLLM flags:** `--no-enable-prefix-caching`
 - **Concurrency levels:** `[1, 8, 16, 32, 64, 96, 128]`
 
-### Phase 3: Production (Fixed Tokens, With Caching)
-Quantify production optimization gains from caching.
+### Phase 3: Production (Variable Tokens, With Caching)
+Simulate true production conditions with realistic load and optimizations.
 - **Configuration:** `vllm_caching_mode=production`
-- **Workload:** Fixed token counts (same as Phase 1)
+- **Workload:** Variable token counts (e.g., `chat_var`, `code_var`)
 - **vLLM flags:** Default (caching enabled)
 - **Concurrency levels:** `[1, 8, 16, 32, 64, 96, 128]`
 
@@ -157,7 +157,12 @@ ansible-playbook -i inventory/hosts.yml \
 This runs:
 1. Phase 1: `chat` baseline (fixed tokens, no caching)
 2. Phase 2: `chat_var` realistic (variable tokens, no caching)
-3. Phase 3: `chat` production (fixed tokens, with caching)
+3. Phase 3: `chat_var` production (variable tokens, with caching)
+
+**Note:** You specify the base workload (e.g., `base_workload=chat`), and the playbook automatically:
+- Uses `chat` for Phase 1 (fixed)
+- Uses `chat_var` for Phase 2 (adds `_var` suffix)
+- Uses `chat_var` for Phase 3 (adds `_var` suffix)
 
 All phases use the same concurrency sweep: `[1, 8, 16, 32, 64, 96, 128]`
 
