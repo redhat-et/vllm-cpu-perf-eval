@@ -70,9 +70,9 @@
           - "============================================================"
           - "Model: {{ test_model }}"
           - "Base Workload: {{ base_workload }}"
-          - "Phase 1 (Baseline): {{ 'SKIP' if (skip_phase_1 | default(false) | bool) else 'RUN' }}"
-          - "Phase 2 (Realistic): {{ 'SKIP' if (skip_phase_2 | default(false) | bool) else ('RUN' if has_variable_workload else 'N/A') }}"
-          - "Phase 3 (Production): {{ 'SKIP' if (skip_phase_3 | default(false) | bool) else 'RUN' }}"
+          - "Phase 1 (Baseline - Fixed, No Cache): {{ 'SKIP' if (skip_phase_1 | default(false) | bool) else 'RUN' }}"
+          - "Phase 2 (Realistic - Variable, No Cache): {{ 'SKIP' if (skip_phase_2 | default(false) | bool) else ('RUN' if has_variable_workload else 'N/A') }}"
+          - "Phase 3 (Production - Variable, With Cache): {{ 'SKIP' if (skip_phase_3 | default(false) | bool) else ('RUN' if has_variable_workload else 'N/A') }}"
           - "Core Configuration: {{ core_sweep_counts | default(requested_cores | default('Not specified')) }}"
           - "============================================================"
 
@@ -136,26 +136,42 @@
         - has_variable_workload
 
 # ==========================================================================
-# Phase 3: Production (Fixed Tokens, With Caching)
+# Phase 3: Production (Variable Tokens, With Caching)
 # ==========================================================================
-- name: "Phase 3: Production Testing (Fixed Tokens, With Caching)"
+- name: "Phase 3: Production Testing (Variable Tokens, With Caching)"
   ansible.builtin.import_playbook: llm-benchmark-auto.yml
   vars:
-    workload_type: "{{ base_workload }}"
+    workload_type: "{{ base_workload }}_var"
     vllm_caching_mode: "production"
-  when: not (skip_phase_3 | default(false) | bool)
+  when:
+    - not (skip_phase_3 | default(false) | bool)
+    - (base_workload + '_var') in ['chat_var', 'code_var']
 
 - name: Phase 3 Complete
   hosts: localhost
   gather_facts: false
+  vars:
+    has_variable_workload: "{{ (base_workload + '_var') in ['chat_var', 'code_var'] }}"
   tasks:
+    - name: Phase 3 skipped notification
+      ansible.builtin.debug:
+        msg:
+          - "⊘ Phase 3 Skipped: No variable workload defined for {{ base_workload }}"
+          - "  Production testing (Phase 3) requires variable workload"
+          - "  Variable workloads only available for: chat, code"
+      when:
+        - not (skip_phase_3 | default(false) | bool)
+        - not has_variable_workload
+
     - name: Phase 3 complete notification
       ansible.builtin.debug:
         msg:
-          - "✓ Phase 3 Complete: Production ({{ base_workload }})"
-          - "  Workload: {{ base_workload }} (fixed tokens)"
+          - "✓ Phase 3 Complete: Production ({{ base_workload }}_var)"
+          - "  Workload: {{ base_workload }}_var (variable tokens)"
           - "  Caching: enabled (prefix caching + radix cache)"
-      when: not (skip_phase_3 | default(false) | bool)
+      when:
+        - not (skip_phase_3 | default(false) | bool)
+        - has_variable_workload
 
 # ==========================================================================
 # Test Suite Summary
@@ -176,9 +192,9 @@
           - "Base Workload: {{ base_workload }}"
           - ""
           - "Phases Completed:"
-          - "  Phase 1 (Baseline): {{ 'SKIPPED' if (skip_phase_1 | default(false) | bool) else 'COMPLETE' }}"
-          - "  Phase 2 (Realistic): {{ 'SKIPPED' if (skip_phase_2 | default(false) | bool) else ('COMPLETE' if has_variable_workload else 'N/A') }}"
-          - "  Phase 3 (Production): {{ 'SKIPPED' if (skip_phase_3 | default(false) | bool) else 'COMPLETE' }}"
+          - "  Phase 1 (Baseline - Fixed, No Cache): {{ 'SKIPPED' if (skip_phase_1 | default(false) | bool) else 'COMPLETE' }}"
+          - "  Phase 2 (Realistic - Variable, No Cache): {{ 'SKIPPED' if (skip_phase_2 | default(false) | bool) else ('COMPLETE' if has_variable_workload else 'N/A') }}"
+          - "  Phase 3 (Production - Variable, With Cache): {{ 'SKIPPED' if (skip_phase_3 | default(false) | bool) else ('COMPLETE' if has_variable_workload else 'N/A') }}"
           - ""
           - "Results Location:"
           - "  results/llm/{{ test_model | replace('/', '__') }}/"

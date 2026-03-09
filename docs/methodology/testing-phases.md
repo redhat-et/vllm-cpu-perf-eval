@@ -174,17 +174,17 @@ ansible-playbook llm-benchmark-auto.yml \
 
 ---
 
-## Phase 3: Production Comparison
+## Phase 3: Production Tests
 
-**Fixed Tokens, With Caching**
+**Variable Tokens, With Caching**
 
 ### Phase 3: Objectives
 
-- Quantify production optimization gains from prefix caching
-- Compare baseline (no caching) vs production (with caching) performance
-- Measure TTFT improvements from prefix caching
-- Identify which workloads benefit most from caching
-- Validate production configurations
+- Simulate true production conditions with realistic load and optimizations
+- Measure real-world performance with variable traffic and caching enabled
+- Quantify combined impact of variability and caching optimizations
+- Validate production configurations under realistic conditions
+- Establish production performance baselines
 
 ### Phase 3: Configuration
 
@@ -202,9 +202,9 @@ GuideLLM:
   --profile=concurrent
   --rate=1,8,16,32,64,96,128
 
-Workloads (Fixed - for comparison to Phase 1):
-  - chat (512:256)
-  - rag (4096:512)
+Workloads (Variable - true production conditions):
+  - chat_var (512±128:256±64)
+  - code_var (512±128:4096±1024)
 ```
 
 ### Phase 3: Test Execution
@@ -215,20 +215,21 @@ Workloads (Fixed - for comparison to Phase 1):
 - openai/gpt-oss-20b
 
 **Select Workloads:**
-- Chat (512:256) - benefits from prefix caching for conversation history
-- RAG (4096:512) - benefits from caching large context prefixes
+- Chat (variable) - benefits from prefix caching with realistic conversation patterns
+- CodeGen (variable) - benefits from caching with realistic code generation variance
 
 **Rationale:**
 - Focus on workloads where prefix caching provides the most benefit
-- Use fixed tokens for direct comparison to Phase 1 baseline
+- Use variable tokens to simulate true production traffic patterns
 - Select representative models across different sizes
+- Combines both realistic load and production optimizations
 
 **Example command:**
 
 ```bash
 ansible-playbook llm-benchmark-auto.yml \
   -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
-  -e "workload_type=chat" \
+  -e "workload_type=chat_var" \
   -e "requested_cores=16" \
   -e "vllm_caching_mode=production" \
   -e "guidellm_profile=concurrent" \
@@ -239,23 +240,25 @@ ansible-playbook llm-benchmark-auto.yml \
 ### Phase 3: Expected Outcomes
 
 **Metrics to Collect:**
-- TTFT improvements (baseline vs production)
-- Throughput gains
-- P95/P99 latency improvements
-- Cache hit rates (from vLLM logs)
-- Resource efficiency improvements
+- Production latency characteristics (P95/P99) with realistic load
+- Production throughput under variable traffic
+- TTFT with caching under realistic conditions
+- Cache hit rates and effectiveness (from vLLM logs)
+- Resource efficiency in production configuration
 
 **Analysis:**
-- Quantify caching benefits (% improvement over baseline)
-- Identify optimal workloads for caching
-- Measure cost/benefit of caching overhead
+- Compare Phase 3 vs Phase 2 (caching impact with realistic load)
+- Compare Phase 3 vs Phase 1 (total production improvement)
+- Measure production performance stability with variable load + caching
+- Identify cache effectiveness under realistic traffic patterns
 
 ### Phase 3: Success Criteria
 
-- ✅ TTFT improvement measured and significant (>10% for applicable workloads)
-- ✅ Throughput gains documented
-- ✅ Cache hit rates correlate with performance improvements
-- ✅ Clear ROI demonstrated for production caching
+- ✅ True production performance characteristics established
+- ✅ Performance improvements over Phase 2 (caching impact) quantified
+- ✅ Total improvement over Phase 1 (baseline) documented
+- ✅ Cache hit rates under realistic load measured
+- ✅ Production SLOs validated
 
 ---
 
@@ -285,31 +288,55 @@ Conclusion: Variability adds ~13-17% latency overhead
 - **Medium impact (10-20%)**: Expected variance, acceptable
 - **High impact (>20%)**: May indicate bottlenecks under variable load
 
-### Comparing Baseline vs Production
+### Comparing Realistic vs Production (Phase 2 vs Phase 3)
 
-**Question:** What performance gains does prefix caching provide?
+**Question:** What performance gains does caching provide under realistic load?
 
 **Metrics:**
-- TTFT Improvement % = (TTFT_baseline - TTFT_production) / TTFT_baseline * 100
-- Throughput Gain % = (Throughput_production - Throughput_baseline) / Throughput_baseline * 100
-- Latency Reduction % = (P95_baseline - P95_production) / P95_baseline * 100
+- TTFT Improvement % = (TTFT_phase2 - TTFT_phase3) / TTFT_phase2 * 100
+- Throughput Gain % = (Throughput_phase3 - Throughput_phase2) / Throughput_phase2 * 100
+- Latency Reduction % = (P95_phase2 - P95_phase3) / P95_phase2 * 100
 
 **Analysis:**
 ```bash
 # Example comparison
-Phase 1 (No Cache): TTFT=156ms, Throughput=38.2 rps, P95=245ms
-Phase 3 (With Cache): TTFT=89ms, Throughput=52.1 rps, P95=178ms
+Phase 2 (Variable, No Cache): TTFT=165ms, Throughput=35.4 rps, P95=278ms
+Phase 3 (Variable, With Cache): TTFT=98ms, Throughput=48.7 rps, P95=195ms
 
 Gains:
-- TTFT: 43% improvement
-- Throughput: 36% improvement
-- P95 Latency: 27% improvement
+- TTFT: 41% improvement
+- Throughput: 38% improvement
+- P95 Latency: 30% improvement
 ```
 
 **Interpretation:**
-- **RAG workloads**: Expect 30-50% TTFT improvement (large prefix caching)
-- **Chat workloads**: Expect 15-30% improvement (moderate prefix reuse)
-- **Code workloads**: Expect 5-15% improvement (less prefix reuse)
+- **Chat workloads**: Expect 20-40% improvement (conversation history caching)
+- **CodeGen workloads**: Expect 15-30% improvement (prompt caching)
+- Cache effectiveness may vary based on request patterns
+
+### Comparing Baseline vs Production (Phase 1 vs Phase 3)
+
+**Question:** What is the total production improvement over baseline?
+
+**Metrics:**
+- Total TTFT Impact = (TTFT_phase1 - TTFT_phase3) / TTFT_phase1 * 100
+- Total Throughput Impact = (Throughput_phase3 - Throughput_phase1) / Throughput_phase1 * 100
+
+**Analysis:**
+```bash
+# Example comparison
+Phase 1 (Fixed, No Cache): TTFT=156ms, Throughput=38.2 rps, P95=245ms
+Phase 3 (Variable, With Cache): TTFT=98ms, Throughput=48.7 rps, P95=195ms
+
+Total Impact:
+- TTFT: 37% improvement (despite variability)
+- Throughput: 27% improvement
+- P95 Latency: 20% improvement
+```
+
+**Interpretation:**
+- Shows combined effect of caching benefits offsetting variability overhead
+- Production configuration (Phase 3) should outperform baseline (Phase 1) despite variable load
 
 ### Recommended Testing Order
 
@@ -324,10 +351,10 @@ Gains:
    ├── Compare to Phase 1 fixed results
    └── Document variance and stability
 
-3. Phase 3: Production Tests (Fixed, With Caching)
-   ├── Run select models with prefix caching enabled
-   ├── Compare to Phase 1 baseline
-   └── Document caching gains
+3. Phase 3: Production Tests (Variable, With Caching)
+   ├── Run select models with variable traffic + caching enabled
+   ├── Compare to Phase 2 (caching impact) and Phase 1 (total improvement)
+   └── Document true production performance
 ```
 
 ---
@@ -366,7 +393,7 @@ for workload in chat_var code_var; do
 done
 
 # Phase 3: Production Tests
-for workload in chat rag; do
+for workload in chat_var code_var; do
   ansible-playbook llm-benchmark-auto.yml \
     -e "test_model=$MODEL" \
     -e "workload_type=$workload" \
@@ -404,7 +431,7 @@ ansible-playbook llm-benchmark-auto.yml \
 ```bash
 ansible-playbook llm-benchmark-auto.yml \
   -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
-  -e "workload_type=chat" \
+  -e "workload_type=chat_var" \
   -e "requested_cores=16" \
   -e "vllm_caching_mode=production"
 ```
@@ -436,9 +463,9 @@ results/
 │   └── ...
 └── phase3-production/
     ├── llama-3.2-1b-instruct/
-    │   ├── chat-concurrent-1-cached.json
-    │   ├── chat-concurrent-8-cached.json
-    │   ├── rag-concurrent-8-cached.json
+    │   ├── chat_var-concurrent-1-cached.json
+    │   ├── chat_var-concurrent-8-cached.json
+    │   ├── code_var-concurrent-8-cached.json
     │   └── ...
     └── ...
 ```
@@ -447,7 +474,7 @@ results/
 
 - **Phase 1**: `{model}/{workload}-concurrent-{concurrency}.json`
 - **Phase 2**: `{model}/{workload}_var-concurrent-{concurrency}.json`
-- **Phase 3**: `{model}/{workload}-concurrent-{concurrency}-cached.json`
+- **Phase 3**: `{model}/{workload}_var-concurrent-{concurrency}-cached.json`
 
 ---
 
@@ -485,7 +512,7 @@ results/
 |-------|--------------|---------|-------------|----------|
 | **1. Baseline** | Fixed tokens, No caching | Reproducible baseline | P95/P99, TTFT, Throughput | ~2-3 hours per model |
 | **2. Realistic** | Variable tokens, No caching | Real-world simulation | Variance, Stability | ~1-2 hours per model |
-| **3. Production** | Fixed tokens, With caching | Optimization validation | Cache gains, ROI | ~1 hour per model |
+| **3. Production** | Variable tokens, With caching | True production conditions | Production performance, Cache effectiveness | ~1-2 hours per model |
 
 **Total estimated time per model: 4-6 hours**
 

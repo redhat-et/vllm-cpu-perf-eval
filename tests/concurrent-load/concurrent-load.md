@@ -156,24 +156,25 @@ ansible-playbook llm-benchmark-auto.yml \
   -e "guidellm_max_seconds=600"
 ```
 
-### Phase 3: Production Comparison (Fixed Tokens, With Caching)
+### Phase 3: Production Tests (Variable Tokens, With Caching)
 
-**Objective:** Quantify production optimization gains from prefix caching
+**Objective:** Simulate true production conditions with realistic load and
+optimizations enabled
 
 **Configuration:**
 - vLLM: `--enable-prefix-caching` (or omit)
-- Token counts: Fixed (for easier comparison to Phase 1)
+- Token counts: Variable (realistic production traffic)
 - Concurrency: Same as Phase 1
 
 **Tests (Select models):**
 - High-priority models (e.g., Llama-3.2-1B, granite-3.2-2b, gpt-oss-20b)
-- Workloads that benefit most from caching (Chat, RAG)
+- Workloads that benefit most from caching (Chat, CodeGen)
 
 **Example:**
 ```bash
 ansible-playbook llm-benchmark-auto.yml \
   -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
-  -e "workload_type=chat" \
+  -e "workload_type=chat_var" \
   -e "requested_cores=16" \
   -e "vllm_caching_mode=production" \
   -e "guidellm_profile=concurrent" \
@@ -222,7 +223,7 @@ ansible-playbook -i inventory/hosts.yml \
 ansible-playbook -i inventory/hosts.yml \
   llm-benchmark-concurrent-load.yml \
   -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
-  -e "base_workload=rag" \
+  -e "base_workload=chat" \
   -e "requested_cores=32" \
   -e "skip_phase_1=true" \
   -e "skip_phase_2=true"
@@ -311,11 +312,11 @@ ansible-playbook -i inventory/hosts.yml \
   -e "core_sweep_counts=[16,32]" \
   -e "vllm_caching_mode=baseline"
 
-# Phase 3: Production (Fixed Tokens, With Caching)
+# Phase 3: Production (Variable Tokens, With Caching)
 ansible-playbook -i inventory/hosts.yml \
   llm-benchmark-auto.yml \
   -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
-  -e "workload_type=chat" \
+  -e "workload_type=chat_var" \
   -e "core_sweep_enabled=true" \
   -e "core_sweep_counts=[16,32]" \
   -e "vllm_caching_mode=production"
@@ -351,10 +352,10 @@ guidellm benchmark \
   --data "prompt_tokens=512,prompt_tokens_stdev=128,prompt_tokens_min=128,prompt_tokens_max=1024,output_tokens=256,output_tokens_stdev=64,output_tokens_min=64,output_tokens_max=512"
 ```
 
-#### Production Test (With Caching)
+#### Production Test (Variable Tokens, With Caching)
 
 ```bash
-# Example: gpt-oss-20b RAG workload (Production - With Caching)
+# Example: Llama-3.2-1B Chat workload (Production - Variable + Caching)
 # Start vLLM with --enable-prefix-caching (or omit caching flags)
 guidellm benchmark \
   --target "http://localhost:8000" \
@@ -363,7 +364,7 @@ guidellm benchmark \
   --rate 1,8,16,32,64,96,128 \
   --max-seconds 600 \
   --request-timeout 600 \
-  --data "prompt_tokens=4096,output_tokens=512"
+  --data "prompt_tokens=512,prompt_tokens_stdev=128,prompt_tokens_min=128,prompt_tokens_max=1024,output_tokens=256,output_tokens_stdev=64,output_tokens_min=64,output_tokens_max=512"
 ```
 
 ## Key Metrics

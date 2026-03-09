@@ -138,8 +138,8 @@ benchmark_tool:
 #   vllm_caching_mode: "baseline"
 #   workload_type: "chat_var" | "code_var"
 #
-# Phase 3 - Production (Fixed tokens, With caching):
+# Phase 3 - Production (Variable tokens, With caching):
 #   vllm_caching_mode: "production"
-#   workload_type: "chat" | "rag"
+#   workload_type: "chat_var" | "code_var"
 #
 # ============================================================================
