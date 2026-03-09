@@ -26,7 +26,7 @@ jobs:
 
       - name: Run unit tests
         run: |
-          cd automation/test-execution/ansible/filter_plugins
+          cd automation/test-execution/ansible/tests
           python -m pytest test_cpu_utils.py -v
 
       - name: Test results summary

@@ -272,10 +272,11 @@ Run the unit tests to verify filters work correctly:
 
 ```bash
 # With pytest (if available)
-python3 -m pytest filter_plugins/test_cpu_utils.py -v
+cd automation/test-execution/ansible/tests
+python3 -m pytest test_cpu_utils.py -v
 
 # Without pytest (fallback mode)
-python3 filter_plugins/test_cpu_utils.py
+python3 test_cpu_utils.py
 ```
 
 **Expected output:**
@@ -333,8 +334,9 @@ All filters include proper error handling:
 ## Files in This Directory
 
 - **cpu_utils.py** - Custom filter implementations
-- **test_cpu_utils.py** - Unit tests (100+ test cases)
-- **README.md** - This documentation
+- **filter_plugins.md** - This documentation
+
+Unit tests are located in `../tests/test_cpu_utils.py` (100+ test cases)
 
 ## References
 

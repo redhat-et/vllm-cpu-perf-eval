@@ -5,22 +5,34 @@ Run with: python -m pytest test_cpu_utils.py -v
 Or without pytest: python3 test_cpu_utils.py
 """
 
+import sys
+from pathlib import Path
+
+# Add filter_plugins to path so we can import cpu_utils
+sys.path.insert(0, str(Path(__file__).parent.parent / 'filter_plugins'))
+
 try:
     import pytest
     HAS_PYTEST = True
 except ImportError:
     HAS_PYTEST = False
+
     # Mock pytest.raises for fallback tests
     class pytest:
+
         class raises:
+
             def __init__(self, exc):
                 self.exc = exc
+
             def __enter__(self):
                 return self
-            def __exit__(self, *args):
+
+            def __exit__(self, *args):  # noqa: ARG002
                 return False
 
-from cpu_utils import (
+
+from cpu_utils import (  # noqa: E402
     cpu_list_to_range,
     extract_primary_cpus,
     extract_all_cpus,
@@ -31,7 +43,7 @@ from cpu_utils import (
 )
 
 try:
-    from ansible.errors import AnsibleFilterError
+    from ansible.errors import AnsibleFilterError  # noqa: E402
 except ImportError:
     # Fallback if ansible not installed
     class AnsibleFilterError(Exception):
