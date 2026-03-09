@@ -133,7 +133,7 @@ matrix:
         balance: "balanced"
       default_workloads:
         - chat
-        - codegen
+        - code
       test_suites:
         - concurrent-load
         - scalability
@@ -151,7 +151,7 @@ matrix:
         balance: "balanced"
       default_workloads:
         - chat
-        - codegen
+        - code
       test_suites:
         - scalability
 
@@ -182,7 +182,7 @@ matrix:
       default_workloads:
         - rag       # Primary - leverages large context
         - chat      # Baseline conversational
-        - codegen   # Code generation baseline
+        - code      # Code generation baseline
       test_suites:
         - concurrent-load
         - scalability
@@ -210,7 +210,7 @@ matrix:
       description: "Long context prefill, retrieval-augmented generation"
       use_case: "Document Q&A, knowledge retrieval"
 
-    codegen:
+    code:
       name: "Code Generation"
       input_tokens: 512
       output_tokens: 4096
@@ -237,7 +237,7 @@ matrix:
       description: "Variable chat workload with realistic token distribution"
       use_case: "Realistic conversational AI with variable message lengths"
 
-    codegen_var:
+    code_var:
       name: "Code Generation (Variable)"
       input_tokens_mean: 512
       input_tokens_stdev: 128
@@ -271,12 +271,12 @@ matrix:
         phase1_baseline:
           name: "Phase 1: Baseline Tests"
           description: "Fixed tokens, no caching"
-          workloads: ["chat", "rag", "codegen", "summarization"]
+          workloads: ["chat", "rag", "code", "summarization"]
           caching_mode: "baseline"
         phase2_realistic:
           name: "Phase 2: Realistic Tests"
           description: "Variable tokens, no caching"
-          workloads: ["chat_var", "codegen_var"]
+          workloads: ["chat_var", "code_var"]
           caching_mode: "baseline"
         phase3_production:
           name: "Phase 3: Production Comparison"

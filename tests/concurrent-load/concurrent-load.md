@@ -401,7 +401,7 @@ Results are written to:
 │   │   └── ...
 │   └── ...
 └── by-model/llama-3.2-1b/concurrent-load/
-```text
+```
 
 ## Analysis
 
@@ -419,7 +419,7 @@ python generate-report.py \
 python compare-models.py \
   --suite concurrent-load \
   --scenario concurrent-32
-```text
+```
 
 ## Related Documentation
 

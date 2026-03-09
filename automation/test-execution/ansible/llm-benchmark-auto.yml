@@ -269,7 +269,7 @@
             "cpuset_mems": "{{ core_configuration.cpuset_mems }}",
             "tensor_parallel": {{ core_configuration.tensor_parallel }},
             "omp_num_threads": {{ core_configuration.omp_num_threads | default('null') }},
-            "omp_threads_bind": "{{ core_configuration.omp_threads_bind | default('null') }}",
+            "omp_threads_bind": {{ core_configuration.omp_threads_bind | default('null') }},
             "model": "{{ test_model }}",
             "workload": "{{ workload_type }}",
             "timestamp": "{{ lookup('pipe', 'date -Iseconds') }}",

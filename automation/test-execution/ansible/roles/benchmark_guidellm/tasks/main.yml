@@ -40,7 +40,7 @@
         'cpuset_cpus': guidellm_cpuset_cpus | default(guidellm_cfg.cpuset_cpus | default('16-31')),
         'cpuset_mems': guidellm_cpuset_mems | default(guidellm_cfg.cpuset_mems | default('0')),
         'max_seconds': guidellm_max_seconds | default(guidellm_cfg.max_seconds | default(600)),
-        'max_requests': guidellm_max_requests | default(guidellm_cfg.max_requests | default(1000)),
+        'max_requests': guidellm_max_requests | default(guidellm_cfg.max_requests | default(100000)),
         'request_timeout': guidellm_request_timeout | default(guidellm_cfg.request_timeout | default(600)),
         'warmup': guidellm_warmup | default(guidellm_cfg.warmup | default(0.1)),
         'max_concurrency': guidellm_max_concurrency | default(guidellm_cfg.max_concurrency | default(128)),
