@@ -98,14 +98,14 @@
     compat_fields:
       housekeeping:
         node: "{{ housekeeping_node }}"
-        cpus: "{{ numa_nodes_inventory[housekeeping_node].all_cpus }}"
+        cpus: "{{ (numa_nodes_inventory | selectattr('id', 'equalto', housekeeping_node) | list | first).all_cpus }}"
       guidellm:
         node: "{{ guidellm_node }}"
-        cpus: "{{ numa_nodes_inventory[guidellm_node].physical_cpus }}"
+        cpus: "{{ (numa_nodes_inventory | selectattr('id', 'equalto', guidellm_node | int) | list | first).physical_cpus }}"
       vllm:
         node: "{{ vllm_node }}"
-        cpus: "{{ numa_nodes_inventory[vllm_node | int].physical_cpus }}"
-        cpus_list: "{{ numa_nodes_inventory[vllm_node | int].physical_cpus_list }}"
+        cpus: "{{ (numa_nodes_inventory | selectattr('id', 'equalto', vllm_node | int) | list | first).physical_cpus }}"
+        cpus_list: "{{ (numa_nodes_inventory | selectattr('id', 'equalto', vllm_node | int) | list | first).physical_cpus_list }}"
 
 - name: Display complete NUMA topology
   ansible.builtin.debug:

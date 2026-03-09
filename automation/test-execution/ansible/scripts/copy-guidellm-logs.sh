@@ -49,7 +49,7 @@ for log_file in "${SOURCE_PATH}"/*/guidellm.log; do
     cp "$log_file" "$dest_dir/"
 
     echo "  ✓ Copied: ${config_dir}/guidellm.log"
-    ((copied_count++))
+    copied_count=$((copied_count + 1))
   fi
 done
 

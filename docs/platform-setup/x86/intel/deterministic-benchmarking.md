@@ -635,6 +635,8 @@ sudo podman run --rm \
 **Requirements:**
 - `requested_cores % TP == 0` (must divide evenly)
 - `cores_per_node <= max_cores_per_node` (each node must have capacity)
+- `TP <= available_NUMA_nodes` (after housekeeping reservation, computed as
+  total NUMA nodes minus reserved housekeeping nodes)
 
 **Examples:**
 - 32 cores on 3-node system → TP=1 (single NUMA node)
