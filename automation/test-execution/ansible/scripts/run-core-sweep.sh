@@ -17,7 +17,7 @@ set -euo pipefail
 MODEL=""
 WORKLOAD=""
 CORES=""
-EXTRA_VARS=""
+EXTRA_VARS=()
 ANSIBLE_VERBOSITY=""
 
 #
@@ -64,7 +64,7 @@ parse_positional_args() {
     if [[ "$arg" =~ ^-v+$ ]]; then
       ANSIBLE_VERBOSITY="$arg"
     else
-      EXTRA_VARS="$EXTRA_VARS $arg"
+      EXTRA_VARS+=("$arg")
     fi
   done
 }
@@ -89,7 +89,7 @@ parse_named_args() {
         shift 2
         ;;
       --extra-vars)
-        EXTRA_VARS="$2"
+        EXTRA_VARS+=("$2")
         shift 2
         ;;
       -v|-vv|-vvv|-vvvv)
@@ -179,7 +179,7 @@ echo "Model: $MODEL"
 echo "Workload: $WORKLOAD"
 echo "Core Counts: ${CORE_ARRAY[*]}"
 [[ -n "$ANSIBLE_VERBOSITY" ]] && echo "Ansible Verbosity: $ANSIBLE_VERBOSITY"
-[[ -n "$EXTRA_VARS" ]] && echo "Extra Vars: $EXTRA_VARS"
+[[ ${#EXTRA_VARS[@]} -gt 0 ]] && echo "Extra Vars: ${EXTRA_VARS[*]}"
 print_header ""
 echo
 
@@ -197,7 +197,7 @@ for cores in "${CORE_ARRAY[@]}"; do
   print_header "[$CURRENT/$TOTAL] Testing with $cores cores"
 
   # shellcheck disable=SC2086
-  # Note: EXTRA_VARS and ANSIBLE_VERBOSITY must be unquoted for proper expansion
+  # Note: ANSIBLE_VERBOSITY must be unquoted for proper expansion
   ansible-playbook llm-benchmark-auto.yml \
     -e "test_model=$MODEL" \
     -e "workload_type=$WORKLOAD" \
@@ -205,7 +205,7 @@ for cores in "${CORE_ARRAY[@]}"; do
     -e "test_run_id=$TEST_RUN_ID" \
     -e "is_core_sweep=true" \
     $ANSIBLE_VERBOSITY \
-    $EXTRA_VARS
+    "${EXTRA_VARS[@]}"
 
   echo "✓ Completed $cores cores"
 done
