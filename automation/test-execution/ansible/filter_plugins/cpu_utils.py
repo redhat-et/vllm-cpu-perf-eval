@@ -218,7 +218,9 @@ def extract_primary_cpus(lscpu_data: str, numa_node: Union[int, str]) -> str:
         extract_primary_cpus(lscpu_data, 2) -> "64"
     """
     if not lscpu_data or not isinstance(lscpu_data, str):
-        return ""
+        raise AnsibleFilterError(
+            f"Invalid lscpu input {lscpu_data}"
+        )
     
     try:
         numa_node_int = int(numa_node)
@@ -296,7 +298,7 @@ def merge_cpu_ranges(range_list: List[str]) -> str:
         ["0-3", "16-19"] -> "0-3,16-19"
     """
     if not range_list:
-        return ""
+        raise AnsibleFilterError(f"invalid range_list {range_list}")
     # Parse all ranges to CPU list
     all_cpus = []
     for idx, cpu_range in enumerate(range_list):
