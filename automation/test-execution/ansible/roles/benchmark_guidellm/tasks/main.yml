@@ -18,7 +18,6 @@
   when:
     - guidellm_rate is defined
     - guidellm_rate is string
-    - guidellm_rate is match('\\[.*\\]')
 
 - name: Use guidellm_rate as-is if already a list
   ansible.builtin.set_fact:
@@ -208,27 +207,16 @@
     - container_exit_code.stdout is defined
     - container_exit_code.stdout != '0'
 
-- name: Capture GuideLLM container logs
+- name: Stream GuideLLM container logs directly to file
   ansible.builtin.shell:
-    cmd: "podman logs {{ ('guidellm-' ~ workload_type ~ '-' ~ core_cfg.name) | quote }} 2>&1"
+    cmd: "podman logs {{ ('guidellm-' ~ workload_type ~ '-' ~ core_cfg.name) | quote }} > /tmp/guidellm-{{ workload_type }}-{{ core_cfg.name }}.log 2>&1"
   args:
     executable: /bin/bash
-  register: guidellm_full_logs
   changed_when: false
   failed_when: false
   when:
     - use_guidellm_container | bool
     - container_exit_code.stdout is defined
-
-- name: Save GuideLLM logs to temporary file on remote
-  ansible.builtin.copy:
-    content: "{{ guidellm_full_logs.stdout }}"
-    dest: "/tmp/guidellm-{{ workload_type }}-{{ core_cfg.name }}.log"
-    mode: "0644"
-  when:
-    - use_guidellm_container | bool
-    - guidellm_full_logs is defined
-    - guidellm_full_logs.stdout is defined
 
 - name: Fetch GuideLLM logs to controller
   ansible.builtin.fetch:
