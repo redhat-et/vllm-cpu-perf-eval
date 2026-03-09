@@ -167,4 +167,5 @@ caching_modes:
 
   production:
     description: "Production configuration with prefix caching enabled"
-    vllm_args: []  # Omit - prefix caching enabled by default in vLLM
+    vllm_args:
+      - "--enable-prefix-caching"
