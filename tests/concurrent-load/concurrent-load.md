@@ -187,6 +187,59 @@ ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
 
 ## Running Tests
 
+### Quick Start
+
+**Two playbooks for concurrent load testing:**
+
+#### Option A: `llm-benchmark-concurrent-load.yml` (Recommended)
+Runs all 3 phases (baseline, realistic, production) automatically.
+
+**Single core count:**
+```bash
+ansible-playbook -i inventory/hosts.yml \
+  llm-benchmark-concurrent-load.yml \
+  -e "test_model=TinyLlama/TinyLlama-1.1B-Chat-v1.0" \
+  -e "base_workload=chat" \
+  -e "requested_cores=16"
+```
+
+**Core sweep:**
+```bash
+ansible-playbook -i inventory/hosts.yml \
+  llm-benchmark-concurrent-load.yml \
+  -e "test_model=TinyLlama/TinyLlama-1.1B-Chat-v1.0" \
+  -e "base_workload=chat" \
+  -e "core_sweep_counts=[8,16]"
+```
+
+#### Option B: `llm-benchmark-auto.yml` (Manual control)
+Runs ONE phase only - you control everything.
+
+**Single core count:**
+```bash
+ansible-playbook -i inventory/hosts.yml \
+  llm-benchmark-auto.yml \
+  -e "test_model=TinyLlama/TinyLlama-1.1B-Chat-v1.0" \
+  -e "workload_type=chat" \
+  -e "requested_cores=16" \
+  -e "vllm_caching_mode=baseline" \
+  -e "guidellm_profile=concurrent" \
+  -e "guidellm_rate=[1,2,4,8,16,32,64,96,128]"
+```
+
+**Core sweep:**
+```bash
+ansible-playbook -i inventory/hosts.yml \
+  llm-benchmark-auto.yml \
+  -e "test_model=TinyLlama/TinyLlama-1.1B-Chat-v1.0" \
+  -e "workload_type=chat" \
+  -e "core_sweep_enabled=true" \
+  -e "core_sweep_counts=[8,16]" \
+  -e "vllm_caching_mode=baseline" \
+  -e "guidellm_profile=concurrent" \
+  -e "guidellm_rate=[1,2,4,8,16,32,64,96,128]"
+```
+
 ### Playbook Selection Guide
 
 **Use the correct playbook for concurrent load testing:**
