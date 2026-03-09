@@ -51,11 +51,6 @@ class LscpuParser:
                 f"Expected string input, got {type(lscpu_data).__name__}"
             )
 
-        self.__cpu_entries: List[CpuInfo] = []
-        @property
-        def cpu_entries(self) -> Sequence[CpuInfo]:
-            return tuple(self.__cpu_entries)
-
         self._cpu_entries: List[CpuInfo] = []
         self._numa_nodes: Set[int] = set()
         self._node_to_cpus: Dict[int, List[int]] = defaultdict(list)
@@ -386,7 +381,6 @@ def extract_size_value(size_str):
 
 # Valid tensor parallelism values (powers of 2, capped at 8)
 VALID_TP_VALUES = [1, 2, 4, 8]
-
 
 def allocate_cores_multi_numa(numa_topology, requested_cores, requested_tp=None):
     """
