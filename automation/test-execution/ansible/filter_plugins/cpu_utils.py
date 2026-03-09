@@ -51,11 +51,6 @@ class LscpuParser:
                 f"Expected string input, got {type(lscpu_data).__name__}"
             )
 
-        self.__cpu_entries: List[CpuInfo] = []
-        @property
-        def cpu_entries(self) -> Sequence[CpuInfo]:
-            return tuple(self.__cpu_entries)
-
         self._cpu_entries: List[CpuInfo] = []
         self._numa_nodes: Set[int] = set()
         self._node_to_cpus: Dict[int, List[int]] = defaultdict(list)
@@ -394,4 +389,4 @@ class FilterModule:
             'extract_numa_nodes': extract_numa_nodes,
             'merge_cpu_ranges': merge_cpu_ranges,
             'extract_size_value': extract_size_value,
-        } 
+        }
