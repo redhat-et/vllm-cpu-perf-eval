@@ -87,18 +87,19 @@
       nodes: "{{ numa_nodes_inventory }}"
       allocation_policy: "{{ allocation_policy }}"
 
-# Add backward compatibility fields for existing playbooks
+# DEPRECATED: Backward compatibility fields for old playbooks
+# TODO: Remove this once setup-platform.yml is updated to use new structure
 - name: Add backward compatibility fields
   ansible.builtin.set_fact:
     numa_topology: "{{ numa_topology | combine(compat_fields, recursive=true) }}"
   vars:
-    housekeeping_node: 0
+    reserved_node: "{{ allocation_policy.housekeeping.reserved_node }}"
     guidellm_node: "{{ 1 if numa_node_count | int >= 2 else 0 }}"
-    vllm_node: "{{ numa_nodes[-1] if numa_node_count | int >= 3 else (numa_nodes[-1] if numa_node_count | int >= 2 else 0) }}"
+    vllm_node: "{{ numa_nodes[-1] | int if numa_node_count | int >= 3 else (numa_nodes[-1] | int if numa_node_count | int >= 2 else 0) }}"
     compat_fields:
       housekeeping:
-        node: "{{ housekeeping_node }}"
-        cpus: "{{ (numa_nodes_inventory | selectattr('id', 'equalto', housekeeping_node) | list | first).all_cpus }}"
+        node: "{{ reserved_node }}"
+        cpus: "{{ (numa_nodes_inventory | selectattr('id', 'equalto', reserved_node | int) | list | first).all_cpus }}"
       guidellm:
         node: "{{ guidellm_node }}"
         cpus: "{{ (numa_nodes_inventory | selectattr('id', 'equalto', guidellm_node | int) | list | first).physical_cpus }}"
