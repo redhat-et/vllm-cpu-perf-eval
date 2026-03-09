@@ -187,6 +187,32 @@ ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
 
 ## Running Tests
 
+### Playbook Selection Guide
+
+**Use the correct playbook for concurrent load testing:**
+
+<!-- markdownlint-disable MD013 -->
+
+| Playbook | Purpose | Workload | Cores | Use For |
+| --- | --- | --- | --- | --- |
+| `llm-benchmark-concurrent-load.yml` | Concurrent (3-phase) | `base_workload=chat` | `core_sweep_counts=[8,16]` OR `requested_cores=16` | ✅ Recommended |
+| `llm-benchmark-auto.yml` | Concurrent (single) | `workload_type=chat` | `requested_cores=16` | ✅ One phase |
+| `llm-core-sweep-auto.yml` | Scalability tests | `workload_type=chat` | `requested_cores_list=[8,16]` | ❌ NOT concurrent |
+
+<!-- markdownlint-enable MD013 -->
+
+**Common Mistakes:**
+
+❌ **Wrong:** Using `llm-core-sweep-auto.yml` for concurrent load tests
+- This playbook is for **scalability tests** (different test suite)
+- Uses `requested_cores_list` (list of cores) instead of `core_sweep_counts`
+- Uses `sweep`/`synchronous` profiles, not `concurrent`
+
+✅ **Correct:** Using `llm-benchmark-concurrent-load.yml`
+- Automatically orchestrates all 3 phases
+- Uses `base_workload` (not `workload_type`)
+- Uses `core_sweep_counts` or `requested_cores` (not `requested_cores_list`)
+
 **Choose your testing approach:**
 
 - **Option 1** - Run single model/workload with all 3 phases
