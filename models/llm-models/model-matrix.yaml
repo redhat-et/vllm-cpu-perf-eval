@@ -227,8 +227,10 @@ matrix:
     # Variable Workloads (Realistic Traffic Simulation)
     chat_var:
       name: "Chat (Variable)"
-      input_tokens: "512±128"
-      output_tokens: "256±64"
+      input_tokens_mean: 512
+      input_tokens_stdev: 128
+      output_tokens_mean: 256
+      output_tokens_stdev: 64
       input_range: "128-1024"
       output_range: "64-512"
       variability: true
@@ -237,8 +239,10 @@ matrix:
 
     codegen_var:
       name: "Code Generation (Variable)"
-      input_tokens: "512±128"
-      output_tokens: "4096±1024"
+      input_tokens_mean: 512
+      input_tokens_stdev: 128
+      output_tokens_mean: 4096
+      output_tokens_stdev: 1024
       input_range: "128-1024"
       output_range: "512-6144"
       variability: true
