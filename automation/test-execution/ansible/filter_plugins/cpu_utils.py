@@ -404,7 +404,6 @@ def allocate_with_auto_tp(available_nodes, requested_cores):
     if not available_nodes:
         raise AnsibleFilterError("No available NUMA nodes")
 
-    max_cores_per_node = max(n['physical_cores'] for n in available_nodes)
     num_available_nodes = len(available_nodes)
 
     # Try each TP value in ascending order
@@ -419,10 +418,16 @@ def allocate_with_auto_tp(available_nodes, requested_cores):
 
         cores_per_node = requested_cores // tp
 
-        # Check if each node can provide this many cores
-        if cores_per_node <= max_cores_per_node:
+        # Filter nodes that have enough cores
+        eligible = [
+            n for n in available_nodes
+            if n['physical_cores'] >= cores_per_node
+        ]
+
+        # Check if we have enough eligible nodes
+        if len(eligible) >= tp:
             # Valid configuration found
-            selected_nodes = available_nodes[:tp]
+            selected_nodes = eligible[:tp]
             return build_allocation(selected_nodes, cores_per_node, tp)
 
     # No valid allocation found - generate helpful error
@@ -451,7 +456,6 @@ def allocate_with_fixed_tp(available_nodes, requested_cores, tp):
     Raises:
         AnsibleFilterError: If allocation not possible with specified TP
     """
-    max_cores_per_node = max(n['physical_cores'] for n in available_nodes)
     num_available_nodes = len(available_nodes)
 
     # Validate enough nodes
@@ -468,14 +472,23 @@ def allocate_with_fixed_tp(available_nodes, requested_cores, tp):
 
     cores_per_node = requested_cores // tp
 
-    # Validate node capacity
-    if cores_per_node > max_cores_per_node:
+    # Filter nodes that have enough cores
+    eligible = [
+        n for n in available_nodes
+        if n['physical_cores'] >= cores_per_node
+    ]
+
+    # Validate we have enough eligible nodes
+    if len(eligible) < tp:
+        max_cores_per_node = max(n['physical_cores'] for n in available_nodes)
         raise AnsibleFilterError(
-            f"Cannot allocate {cores_per_node} cores per node (max {max_cores_per_node} per node)"
+            f"Cannot allocate {cores_per_node} cores per node with TP={tp}. "
+            f"Only {len(eligible)} of {num_available_nodes} nodes have "
+            f"{cores_per_node}+ cores (max {max_cores_per_node} per node)"
         )
 
     # Build allocation
-    selected_nodes = available_nodes[:tp]
+    selected_nodes = eligible[:tp]
     return build_allocation(selected_nodes, cores_per_node, tp)
 
 
@@ -504,7 +517,18 @@ def build_allocation(selected_nodes, cores_per_node, tp):
         physical_cpus_list = physical_cpus_str.split(',')
 
         # Take first N physical cores
-        allocated_cpus = [int(cpu.strip()) for cpu in physical_cpus_list[:cores_per_node]]
+        allocated_cpus = [
+            int(cpu.strip()) for cpu in physical_cpus_list[:cores_per_node]
+        ]
+
+        # Verify allocation completeness
+        if len(allocated_cpus) != cores_per_node:
+            raise AnsibleFilterError(
+                f"Allocation incomplete on NUMA node {node['id']}: "
+                f"requested {cores_per_node} cores but only "
+                f"{len(allocated_cpus)} available "
+                f"(node has {node['physical_cores']} physical cores)"
+            )
 
         # Convert to range format
         cpu_range = cpu_list_to_range(allocated_cpus)

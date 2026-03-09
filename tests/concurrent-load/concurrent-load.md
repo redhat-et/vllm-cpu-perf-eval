@@ -117,7 +117,7 @@ performance, realistic variability, and production optimization analysis.
 - Token counts: Fixed (no variability)
 - Concurrency: `{1, 2, 4, 8, 16, 32, 64, 96, 128}`
 
-**Tests:** All models × All workload profiles (Chat, RAG, CodeGen, Summarization)
+**Tests:** Selected model × workload combinations (per model-matrix.yaml)
 
 **Example:**
 ```bash
@@ -191,8 +191,8 @@ ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
 
 - **Option 1** - Run single model/workload with all 3 phases
   (recommended for individual tests)
-- **Option 2** - Run complete test suite for all models and workloads
-  (comprehensive validation)
+- **Option 2** - Run test suite for selected model/workload combinations
+  (as defined in model-matrix.yaml)
 - **Option 3** - Run individual phases separately
   (for flexibility and debugging)
 - **Option 4** - Manual GuideLLM execution
@@ -232,7 +232,7 @@ ansible-playbook -i inventory/hosts.yml \
   -e "skip_phase_2=true"
 ```
 
-### Option 2: Run Full Test Suite (All Models × All Workloads)
+### Option 2: Run Test Suite (Selected Model × Workload Combinations)
 
 ```bash
 cd ../../automation/test-execution/ansible

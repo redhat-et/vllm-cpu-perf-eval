@@ -326,12 +326,12 @@ class TestRealWorldScenarios:
 
     def test_large_range_conversion(self):
         """Test converting large CPU lists."""
-        # 96 core system, primary threads
-        cpus = list(range(0, 96, 2))  # Even CPUs only
+        # 96 core system, consecutive CPUs
+        cpus = list(range(0, 96))  # Consecutive CPUs 0-95
         result = cpu_list_to_range(cpus)
 
-        # Should create ranges
-        assert "0-" in result or "0," in result
+        # Should create a single range
+        assert result == "0-95"
         assert len(result) < len(','.join(str(c) for c in cpus))  # Compressed
 
 
@@ -391,14 +391,14 @@ class TestMultiNumaAllocation:
         assert "Valid values: [1, 2, 4, 8]" in str(exc_info.value)
 
     def test_non_divisible_cores(self):
-        """50 cores should fail with helpful error."""
+        """33 cores should fail with helpful error (not divisible by valid TP)."""
         topology = create_numa_topology(num_nodes=3, cores_per_node=32)
 
         with pytest.raises(AnsibleFilterError) as exc_info:
-            allocate_cores_multi_numa(topology, requested_cores=50)
+            allocate_cores_multi_numa(topology, requested_cores=33)
 
         error_msg = str(exc_info.value)
-        assert "Cannot allocate 50 cores" in error_msg
+        assert "Cannot allocate 33 cores" in error_msg
         assert "Valid allocations:" in error_msg
 
     def test_insufficient_cores(self):
@@ -435,8 +435,8 @@ class TestMultiNumaAllocation:
         topology = create_numa_topology(num_nodes=3, cores_per_node=32)
 
         with pytest.raises(AnsibleFilterError) as exc_info:
-            # 50 cores doesn't divide by TP=2
-            allocate_cores_multi_numa(topology, requested_cores=50, requested_tp=2)
+            # 51 cores doesn't divide by TP=2
+            allocate_cores_multi_numa(topology, requested_cores=51, requested_tp=2)
 
         assert "not evenly divisible" in str(exc_info.value)
 
@@ -503,11 +503,11 @@ class TestOmpBinding:
     def test_multi_numa_tp8_binding(self):
         """TP=8 should generate binding for 8 instances."""
         topology = create_numa_topology(num_nodes=10, cores_per_node=32)
-        result = allocate_cores_multi_numa(topology, requested_cores=128)
+        result = allocate_cores_multi_numa(topology, requested_cores=192)
 
         assert result['tensor_parallel'] == 8
-        # Each TP gets 16 cores
-        expected_binding = "32-47|64-79|96-111|128-143|160-175|192-207|224-239|256-271"
+        # Each TP gets 24 cores
+        expected_binding = "32-55|64-87|96-119|128-151|160-183|192-215|224-247|256-279"
         assert result['omp_threads_bind'] == expected_binding
 
 
