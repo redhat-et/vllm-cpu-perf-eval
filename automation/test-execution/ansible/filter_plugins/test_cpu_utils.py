@@ -38,6 +38,55 @@ except ImportError:
         pass
 
 
+# ============================================================================
+# Test Helper Functions
+# ============================================================================
+
+def create_numa_topology(num_nodes, cores_per_node=32):
+    """Helper to create test NUMA topology.
+
+    Args:
+        num_nodes: Number of NUMA nodes
+        cores_per_node: Physical cores per node (default: 32)
+
+    Returns:
+        dict: NUMA topology dictionary with nodes and allocation policy
+    """
+    nodes = []
+    for i in range(num_nodes):
+        base_cpu = i * cores_per_node
+        physical_cpus_list = ','.join(str(base_cpu + j) for j in range(cores_per_node))
+        nodes.append({
+            'id': i,
+            'physical_cores': cores_per_node,
+            'physical_cpus': f"{base_cpu}-{base_cpu + cores_per_node - 1}",
+            'physical_cpus_list': physical_cpus_list,
+            'all_cpus': f"{base_cpu}-{base_cpu + cores_per_node - 1}",
+            'all_cpus_list': physical_cpus_list,
+        })
+
+    return {
+        'node_count': num_nodes,
+        'total_physical_cores': num_nodes * cores_per_node,
+        'nodes': nodes,
+        'allocation_policy': {
+            'housekeeping': {
+                'strategy': 'reserve_node' if num_nodes >= 3 else 'minimal_reservation',
+                'reserved_node': 0
+            },
+            'workload': {
+                'prefer_same_numa': True,
+                'allow_multi_numa': True,
+                'use_physical_cores_only': True
+            }
+        }
+    }
+
+
+# ============================================================================
+# Test Classes
+# ============================================================================
+
 class TestCpuListToRange:
     """Test cpu_list_to_range filter."""
 
@@ -289,41 +338,9 @@ class TestRealWorldScenarios:
 class TestMultiNumaAllocation:
     """Test multi-NUMA allocation with auto-TP calculation."""
 
-    def _create_numa_topology(self, num_nodes, cores_per_node=32):
-        """Helper to create test NUMA topology."""
-        nodes = []
-        for i in range(num_nodes):
-            base_cpu = i * cores_per_node
-            physical_cpus_list = ','.join(str(base_cpu + j) for j in range(cores_per_node))
-            nodes.append({
-                'id': i,
-                'physical_cores': cores_per_node,
-                'physical_cpus': f"{base_cpu}-{base_cpu + cores_per_node - 1}",
-                'physical_cpus_list': physical_cpus_list,
-                'all_cpus': f"{base_cpu}-{base_cpu + cores_per_node - 1}",
-                'all_cpus_list': physical_cpus_list,
-            })
-
-        return {
-            'node_count': num_nodes,
-            'total_physical_cores': num_nodes * cores_per_node,
-            'nodes': nodes,
-            'allocation_policy': {
-                'housekeeping': {
-                    'strategy': 'reserve_node' if num_nodes >= 3 else 'minimal_reservation',
-                    'reserved_node': 0
-                },
-                'workload': {
-                    'prefer_same_numa': True,
-                    'allow_multi_numa': True,
-                    'use_physical_cores_only': True
-                }
-            }
-        }
-
     def test_single_numa_32cores(self):
         """32 cores on 3-node system → single NUMA, TP=1."""
-        topology = self._create_numa_topology(num_nodes=3, cores_per_node=32)
+        topology = create_numa_topology(num_nodes=3, cores_per_node=32)
         result = allocate_cores_multi_numa(topology, requested_cores=32)
 
         assert result['tensor_parallel'] == 1
@@ -337,7 +354,7 @@ class TestMultiNumaAllocation:
 
     def test_multi_numa_64cores(self):
         """64 cores on 3-node system → 2 nodes, TP=2."""
-        topology = self._create_numa_topology(num_nodes=3, cores_per_node=32)
+        topology = create_numa_topology(num_nodes=3, cores_per_node=32)
         result = allocate_cores_multi_numa(topology, requested_cores=64)
 
         assert result['tensor_parallel'] == 2
@@ -351,7 +368,7 @@ class TestMultiNumaAllocation:
 
     def test_multi_numa_96cores_tp4(self):
         """96 cores on 6-node system → 4 nodes, TP=4."""
-        topology = self._create_numa_topology(num_nodes=6, cores_per_node=32)
+        topology = create_numa_topology(num_nodes=6, cores_per_node=32)
         result = allocate_cores_multi_numa(topology, requested_cores=96)
 
         assert result['tensor_parallel'] == 4
@@ -365,7 +382,7 @@ class TestMultiNumaAllocation:
 
     def test_invalid_tp_override(self):
         """TP=3 should raise AnsibleFilterError."""
-        topology = self._create_numa_topology(num_nodes=3, cores_per_node=32)
+        topology = create_numa_topology(num_nodes=3, cores_per_node=32)
 
         with pytest.raises(AnsibleFilterError) as exc_info:
             allocate_cores_multi_numa(topology, requested_cores=64, requested_tp=3)
@@ -375,7 +392,7 @@ class TestMultiNumaAllocation:
 
     def test_non_divisible_cores(self):
         """50 cores should fail with helpful error."""
-        topology = self._create_numa_topology(num_nodes=3, cores_per_node=32)
+        topology = create_numa_topology(num_nodes=3, cores_per_node=32)
 
         with pytest.raises(AnsibleFilterError) as exc_info:
             allocate_cores_multi_numa(topology, requested_cores=50)
@@ -386,7 +403,7 @@ class TestMultiNumaAllocation:
 
     def test_insufficient_cores(self):
         """Request exceeding capacity should fail."""
-        topology = self._create_numa_topology(num_nodes=3, cores_per_node=32)
+        topology = create_numa_topology(num_nodes=3, cores_per_node=32)
 
         with pytest.raises(AnsibleFilterError) as exc_info:
             # Only 64 cores available (node 0 reserved), request 128
@@ -397,7 +414,7 @@ class TestMultiNumaAllocation:
 
     def test_auto_tp_prefers_smaller(self):
         """64 cores with options TP=2 or TP=4 should choose TP=2."""
-        topology = self._create_numa_topology(num_nodes=6, cores_per_node=32)
+        topology = create_numa_topology(num_nodes=6, cores_per_node=32)
         result = allocate_cores_multi_numa(topology, requested_cores=64)
 
         # Should prefer TP=2 (32 cores/node) over TP=4 (16 cores/node)
@@ -406,7 +423,7 @@ class TestMultiNumaAllocation:
 
     def test_user_tp_override_valid(self):
         """User TP override should be respected if valid."""
-        topology = self._create_numa_topology(num_nodes=6, cores_per_node=32)
+        topology = create_numa_topology(num_nodes=6, cores_per_node=32)
         result = allocate_cores_multi_numa(topology, requested_cores=64, requested_tp=4)
 
         assert result['tensor_parallel'] == 4
@@ -415,7 +432,7 @@ class TestMultiNumaAllocation:
 
     def test_user_tp_override_invalid_not_divisible(self):
         """User TP that doesn't divide evenly should fail."""
-        topology = self._create_numa_topology(num_nodes=3, cores_per_node=32)
+        topology = create_numa_topology(num_nodes=3, cores_per_node=32)
 
         with pytest.raises(AnsibleFilterError) as exc_info:
             # 50 cores doesn't divide by TP=2
@@ -425,7 +442,7 @@ class TestMultiNumaAllocation:
 
     def test_user_tp_override_exceeds_nodes(self):
         """User TP exceeding available nodes should fail."""
-        topology = self._create_numa_topology(num_nodes=3, cores_per_node=32)
+        topology = create_numa_topology(num_nodes=3, cores_per_node=32)
 
         with pytest.raises(AnsibleFilterError) as exc_info:
             # TP=8 but only 2 nodes available (node 0 reserved)
@@ -435,7 +452,7 @@ class TestMultiNumaAllocation:
 
     def test_single_numa_node_system(self):
         """Single-NUMA system uses all nodes (no reservation)."""
-        topology = self._create_numa_topology(num_nodes=1, cores_per_node=96)
+        topology = create_numa_topology(num_nodes=1, cores_per_node=96)
         result = allocate_cores_multi_numa(topology, requested_cores=64)
 
         assert result['tensor_parallel'] == 1
@@ -446,7 +463,7 @@ class TestMultiNumaAllocation:
 
     def test_two_numa_node_system(self):
         """2-NUMA system doesn't reserve node 0."""
-        topology = self._create_numa_topology(num_nodes=2, cores_per_node=32)
+        topology = create_numa_topology(num_nodes=2, cores_per_node=32)
         result = allocate_cores_multi_numa(topology, requested_cores=64)
 
         # Should use both nodes (no reservation on 2-node systems)
@@ -458,41 +475,10 @@ class TestMultiNumaAllocation:
 class TestOmpBinding:
     """Test OMP binding string generation."""
 
-    def _create_numa_topology(self, num_nodes, cores_per_node=32):
-        """Helper to create test NUMA topology."""
-        nodes = []
-        for i in range(num_nodes):
-            base_cpu = i * cores_per_node
-            physical_cpus_list = ','.join(str(base_cpu + j) for j in range(cores_per_node))
-            nodes.append({
-                'id': i,
-                'physical_cores': cores_per_node,
-                'physical_cpus': f"{base_cpu}-{base_cpu + cores_per_node - 1}",
-                'physical_cpus_list': physical_cpus_list,
-                'all_cpus': f"{base_cpu}-{base_cpu + cores_per_node - 1}",
-                'all_cpus_list': physical_cpus_list,
-            })
-
-        return {
-            'node_count': num_nodes,
-            'total_physical_cores': num_nodes * cores_per_node,
-            'nodes': nodes,
-            'allocation_policy': {
-                'housekeeping': {
-                    'strategy': 'reserve_node' if num_nodes >= 3 else 'minimal_reservation',
-                    'reserved_node': 0
-                },
-                'workload': {
-                    'prefer_same_numa': True,
-                    'allow_multi_numa': True,
-                    'use_physical_cores_only': True
-                }
-            }
-        }
 
     def test_single_numa_no_binding(self):
         """TP=1 should return None for omp_threads_bind."""
-        topology = self._create_numa_topology(num_nodes=3, cores_per_node=32)
+        topology = create_numa_topology(num_nodes=3, cores_per_node=32)
         result = allocate_cores_multi_numa(topology, requested_cores=32)
 
         assert result['tensor_parallel'] == 1
@@ -500,7 +486,7 @@ class TestOmpBinding:
 
     def test_multi_numa_tp2_binding(self):
         """TP=2 should generate 'range1|range2'."""
-        topology = self._create_numa_topology(num_nodes=3, cores_per_node=32)
+        topology = create_numa_topology(num_nodes=3, cores_per_node=32)
         result = allocate_cores_multi_numa(topology, requested_cores=64)
 
         assert result['tensor_parallel'] == 2
@@ -508,7 +494,7 @@ class TestOmpBinding:
 
     def test_multi_numa_tp4_binding(self):
         """TP=4 should generate 'r1|r2|r3|r4'."""
-        topology = self._create_numa_topology(num_nodes=6, cores_per_node=32)
+        topology = create_numa_topology(num_nodes=6, cores_per_node=32)
         result = allocate_cores_multi_numa(topology, requested_cores=96)
 
         assert result['tensor_parallel'] == 4
@@ -516,7 +502,7 @@ class TestOmpBinding:
 
     def test_multi_numa_tp8_binding(self):
         """TP=8 should generate binding for 8 instances."""
-        topology = self._create_numa_topology(num_nodes=10, cores_per_node=32)
+        topology = create_numa_topology(num_nodes=10, cores_per_node=32)
         result = allocate_cores_multi_numa(topology, requested_cores=128)
 
         assert result['tensor_parallel'] == 8
@@ -531,15 +517,6 @@ class TestValidTpValues:
     def test_valid_tp_values_constant(self):
         """Verify VALID_TP_VALUES is correct."""
         assert VALID_TP_VALUES == [1, 2, 4, 8]
-
-    def test_tp_capped_at_8(self):
-        """TP should be capped at 8 even if more nodes available."""
-        # This is implicitly tested by the constant, but verify in allocation
-        # If we have 16 nodes and request 256 cores (16/node), should use TP=8 max
-        # But 256 cores with 16/node requires all 16 nodes, which exceeds TP=8
-        # So this scenario should actually fail
-        pass  # Covered by other tests
-
 
 if __name__ == "__main__":
     # Run tests if pytest not available

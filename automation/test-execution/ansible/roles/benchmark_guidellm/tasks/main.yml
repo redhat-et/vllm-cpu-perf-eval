@@ -12,12 +12,16 @@
     guidellm_cfg: "{{ benchmark_tool.guidellm }}"
     core_cfg: "{{ core_configuration }}"
 
-- name: Parse guidellm_rate if provided as string (from command line)
+- name: Parse guidellm_rate if provided as string (handles all formats)
   ansible.builtin.set_fact:
     guidellm_rate_parsed: "{{ guidellm_rate | regex_replace('[\\[\\] ]', '') | split(',') | map('int') | list }}"
   when:
     - guidellm_rate is defined
     - guidellm_rate is string
+  # Handles all string formats:
+  # - Bracketed: "[1,2,4]" → [1, 2, 4]
+  # - Plain number: "32" → [32]
+  # - Comma-separated: "1,2,4" → [1, 2, 4]
 
 - name: Use guidellm_rate as-is if already a list
   ansible.builtin.set_fact:

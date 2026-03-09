@@ -121,7 +121,8 @@ performance, realistic variability, and production optimization analysis.
 
 **Example:**
 ```bash
-ansible-playbook llm-benchmark-auto.yml \
+cd ../../automation/test-execution/ansible
+ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
   -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
   -e "workload_type=chat" \
   -e "requested_cores=16" \
@@ -146,7 +147,8 @@ ansible-playbook llm-benchmark-auto.yml \
 
 **Example:**
 ```bash
-ansible-playbook llm-benchmark-auto.yml \
+cd ../../automation/test-execution/ansible
+ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
   -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
   -e "workload_type=chat_var" \
   -e "requested_cores=16" \
@@ -172,7 +174,8 @@ optimizations enabled
 
 **Example:**
 ```bash
-ansible-playbook llm-benchmark-auto.yml \
+cd ../../automation/test-execution/ansible
+ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
   -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
   -e "workload_type=chat_var" \
   -e "requested_cores=16" \
