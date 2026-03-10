@@ -102,6 +102,13 @@
     test_type: "{{ scenario | default('baseline') }}"
 
   tasks:
+    - name: Ensure local results directory exists
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/../../../results/embedding/{{ model_name | replace('/', '__') }}/{{ test_type }}-{{ test_run_id }}"
+        state: directory
+        mode: "0755"
+      delegate_to: localhost
+
     - name: Fetch results to local machine
       ansible.posix.synchronize:
         src: "{{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/{{ test_type }}/"

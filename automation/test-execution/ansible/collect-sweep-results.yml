@@ -38,6 +38,13 @@
     # from the remote load generator to the local ansible controller.
     # Each test run has its own directory on the remote (organized by test_run_id),
     # so we only sync results from this specific test run.
+    - name: Ensure local results directory exists
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}"
+        state: directory
+        mode: "0755"
+      delegate_to: localhost
+
     - name: Fetch all core sweep results for this test run
       ansible.posix.synchronize:
         src: "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/"

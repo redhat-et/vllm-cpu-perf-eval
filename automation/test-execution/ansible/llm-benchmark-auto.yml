@@ -280,6 +280,14 @@
 
     # Skip result fetching when running as part of a core sweep
     # The collect-sweep-results.yml playbook will fetch all results at once
+    - name: Ensure local results directory exists
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}"
+        state: directory
+        mode: "0755"
+      delegate_to: localhost
+      when: is_core_sweep is not defined or not is_core_sweep
+
     - name: Fetch results to local machine
       ansible.posix.synchronize:
         src: "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/"

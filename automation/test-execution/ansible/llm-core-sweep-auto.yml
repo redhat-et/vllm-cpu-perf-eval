@@ -180,6 +180,13 @@
 
   tasks:
     - block:
+        - name: Ensure local results directory exists
+          ansible.builtin.file:
+            path: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}"
+            state: directory
+            mode: "0755"
+          delegate_to: localhost
+
         - name: Fetch all core sweep results
           ansible.posix.synchronize:
             src: "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}/"
