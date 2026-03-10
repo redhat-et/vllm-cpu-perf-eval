@@ -4,6 +4,71 @@
 
 This directory contains Ansible playbooks for automated vLLM performance testing with CPU core configuration sweeps.
 
+## Quick Start
+
+### Prerequisites
+
+#### 1. Ansible Collections (Control Machine)
+
+**On the machine where you run Ansible** (your local machine or jump host), install the required collections:
+
+```bash
+# Navigate to the ansible directory
+cd automation/test-execution/ansible
+
+# Install required Ansible collections
+ansible-galaxy collection install -r requirements.yml
+
+# Or install individually
+ansible-galaxy collection install containers.podman ansible.posix
+```
+
+**Ansible Version Compatibility:**
+- **Ansible 2.14.x**: Uses `requirements.yml` with pinned versions (containers.podman 1.9.x, ansible.posix 1.4.x-1.5.x)
+- **Ansible 2.15+**: Recommended for latest features and security updates
+
+To upgrade Ansible:
+
+```bash
+# Via DNF (RHEL/CentOS)
+sudo dnf upgrade ansible-core
+
+# Via pip
+pip3 install --upgrade ansible-core
+```
+
+#### 2. System Packages (Target System)
+
+**Option 1: Automated setup (Recommended)**
+
+Use the platform setup playbook to install all required packages and configure optimal performance settings:
+
+```bash
+ansible-playbook -i inventory/hosts.yml setup-platform.yml
+```
+
+This installs: `podman`, `numactl`, `tuned`, `kernel-tools`, and configures CPU isolation, performance governor, and systemd CPU pinning.
+
+**Option 2: Manual installation**
+
+If you prefer manual setup, install the required packages:
+
+```bash
+# Install required system utilities (RHEL/CentOS/Fedora)
+sudo dnf install -y podman rsync python3 numactl
+```
+
+#### 3. Verify Installation
+
+```bash
+# On control machine: Check Ansible collections
+ansible-galaxy collection list
+
+# On target system: Verify system packages
+podman --version
+rsync --version
+```
+
 ## Playbook Hierarchy
 
 ### Single Test Playbooks ✅
