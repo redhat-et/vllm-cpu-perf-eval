@@ -74,7 +74,7 @@ benchmark_tool:
     # Override with: -e "guidellm_wait_timeout_seconds=7200" for custom timeout
 
     # Output configuration
-    outputs: "html,json,csv"    # Output formats (comma-separated)
+    outputs: "json,csv"    # Output formats (comma-separated) - HTML disabled due to vllm.ai URL redirect issue
     exclude_throughput_target: false
     exclude_throughput_result: false
 
