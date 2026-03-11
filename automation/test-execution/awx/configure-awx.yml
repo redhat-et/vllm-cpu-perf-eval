@@ -394,18 +394,18 @@
           llm-benchmark-concurrent-load.yml: "LLM Concurrent Load Test"
           llm-benchmark.yml: "LLM Single Benchmark"
         extra_vars_templates:
-          llm-benchmark-concurrent-load.yml: |
+          llm-benchmark-concurrent-load.yml:
             # ============================================================================
             # LLM Concurrent Load Test - 3-Phase Benchmark Suite
             # ============================================================================
-            # REQUIRED VARIABLES (must fill in):
+            # REQUIRED VARIABLES (fill in values below):
 
             # Model to test (HuggingFace model ID or local path)
             # Examples: TinyLlama/TinyLlama-1.1B-Chat-v1.0, meta-llama/Llama-3.2-1B-Instruct
-            test_model: ""
+            test_model: "FILL_ME_IN"
 
             # Base workload type (choose one: chat, rag, code, summarization, short_codegen)
-            base_workload: ""
+            base_workload: "FILL_ME_IN"
 
             # ============================================================================
             # OPTIONAL VARIABLES (uncomment and modify as needed):
@@ -430,21 +430,21 @@
             # - summarization:  Summarization (1024 input : 256 output tokens)
             # - short_codegen:  Short code generation
 
-          llm-benchmark.yml: |
+          llm-benchmark.yml:
             # ============================================================================
             # LLM Single Benchmark Test
             # ============================================================================
-            # REQUIRED VARIABLES (must fill in):
+            # REQUIRED VARIABLES (fill in values below):
 
             # Model to test (HuggingFace model ID or local path)
             # Examples: TinyLlama/TinyLlama-1.1B-Chat-v1.0, meta-llama/Llama-3.2-1B-Instruct
-            test_model: ""
+            test_model: "FILL_ME_IN"
 
             # Workload type (choose one: chat, rag, code, summarization)
-            workload_type: ""
+            workload_type: "FILL_ME_IN"
 
             # Core configuration name (choose one from list below)
-            core_config_name: ""
+            core_config_name: "FILL_ME_IN"
 
             # ============================================================================
             # AVAILABLE CORE CONFIGURATIONS:
