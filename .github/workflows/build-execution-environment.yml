@@ -1,0 +1,152 @@
+---
+name: Build and Push AWX Execution Environment
+
+"on":
+  push:
+    branches:
+      - main
+    paths:
+      - "automation/test-execution/awx/execution-environment.yml"
+      - "automation/test-execution/awx/requirements.yml"
+      - ".github/workflows/build-execution-environment.yml"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag (default: latest + git SHA)"
+        required: false
+        default: "latest"
+
+env:
+  REGISTRY: "quay.io"
+  IMAGE_NAME: "octo-et/vllm-cpu-perf-eval"
+  EE_DIR: "automation/test-execution/awx"
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install ansible-builder
+        run: |
+          python -m pip install --upgrade pip
+          pip install ansible-builder
+
+      - name: Set up Podman
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman
+
+      - name: Log in to Quay.io
+        uses: redhat-actions/podman-login@v1
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.REDHAT_REGISTRY_USERNAME }}
+          password: ${{ secrets.REDHAT_REGISTRY_PASSWORD }}
+
+      - name: Extract metadata for image tags
+        id: meta
+        run: |
+          # Get short SHA
+          SHORT_SHA=$(git rev-parse --short HEAD)
+
+          # Determine tags
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAGS="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.tag }}"
+          else
+            TAGS="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+            TAGS="$TAGS,${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${SHORT_SHA}"
+          fi
+
+          echo "tags=${TAGS}" >> $GITHUB_OUTPUT
+          echo "short-sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
+
+      - name: Build execution environment
+        working-directory: ${{ env.EE_DIR }}
+        run: |
+          echo "Building execution environment..."
+          ansible-builder build \
+            --tag vllm-awx-ee:build \
+            --container-runtime podman \
+            --verbosity 3
+
+      - name: Tag image for registry
+        run: |
+          IFS=',' read -ra TAG_ARRAY <<< "${{ steps.meta.outputs.tags }}"
+          for tag in "${TAG_ARRAY[@]}"; do
+            echo "Tagging: vllm-awx-ee:build -> ${tag}"
+            podman tag vllm-awx-ee:build "${tag}"
+          done
+
+      - name: Push images to Quay.io
+        run: |
+          IFS=',' read -ra TAG_ARRAY <<< "${{ steps.meta.outputs.tags }}"
+          for tag in "${TAG_ARRAY[@]}"; do
+            echo "Pushing: ${tag}"
+            podman push "${tag}"
+          done
+
+      - name: Generate build summary
+        run: |
+          echo "## Execution Environment Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Successfully built and pushed execution environment" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Images" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          IFS=',' read -ra TAG_ARRAY <<< "${{ steps.meta.outputs.tags }}"
+          for tag in "${TAG_ARRAY[@]}"; do
+            echo "- \`${tag}\`" >> $GITHUB_STEP_SUMMARY
+          done
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Included Collections" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`yaml" >> $GITHUB_STEP_SUMMARY
+          cat ${{ env.EE_DIR }}/requirements.yml >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Usage" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Pull the image:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "podman pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Use in AWX:" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`yaml" >> $GITHUB_STEP_SUMMARY
+          echo "spec:" >> $GITHUB_STEP_SUMMARY
+          echo "  ee_images:" >> $GITHUB_STEP_SUMMARY
+          echo "    - name: vllm-awx-ee" >> $GITHUB_STEP_SUMMARY
+          echo "      image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+      - name: Verify image
+        run: |
+          echo "Verifying pushed image..."
+          podman pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          podman inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+      - name: Image scan (optional)
+        continue-on-error: true
+        run: |
+          # Install and run trivy for vulnerability scanning
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+          echo "deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update
+          sudo apt-get install -y trivy
+
+          trivy image \
+            --severity HIGH,CRITICAL \
+            --format table \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
