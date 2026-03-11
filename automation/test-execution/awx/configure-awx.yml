@@ -398,69 +398,32 @@
             # ============================================================================
             # LLM Concurrent Load Test - 3-Phase Benchmark Suite
             # ============================================================================
-            # REQUIRED VARIABLES (fill in values below):
+            # REQUIRED: Fill in these values
 
-            # Model to test (HuggingFace model ID or local path)
-            # Examples: TinyLlama/TinyLlama-1.1B-Chat-v1.0, meta-llama/Llama-3.2-1B-Instruct
-            test_model: "FILL_ME_IN"
-
-            # Base workload type (choose one: chat, rag, code, summarization, short_codegen)
-            base_workload: "FILL_ME_IN"
+            test_model: "REQUIRED - e.g. TinyLlama/TinyLlama-1.1B-Chat-v1.0 or meta-llama/Llama-3.2-1B-Instruct"
+            base_workload: "REQUIRED - choose one: chat, rag, code, summarization, short_codegen"
 
             # ============================================================================
-            # OPTIONAL VARIABLES (uncomment and modify as needed):
+            # OPTIONAL: Uncomment and modify as needed
 
-            # Core count configuration - choose ONE option:
-            # Option 1: Test multiple core counts (recommended for thorough testing)
-            # core_sweep_counts: [16, 32, 64]
+            # Choose ONE core configuration option:
+            # core_sweep_counts: [16, 32, 64]  # Test multiple core counts (recommended)
+            # requested_cores: 16               # Test single core count (faster)
 
-            # Option 2: Test a single core count (faster, single configuration)
-            # requested_cores: 16
-
-            # Phase control (skip phases if needed):
+            # Phase control - skip phases if needed:
             # skip_phase_1: false  # Phase 1: Baseline (Fixed Tokens, No Caching)
             # skip_phase_2: false  # Phase 2: Realistic (Variable Tokens, No Caching)
             # skip_phase_3: false  # Phase 3: Production (Variable Tokens, With Caching)
-
-            # ============================================================================
-            # AVAILABLE WORKLOAD TYPES:
-            # - chat:           Chat workload (512 input : 256 output tokens)
-            # - rag:            RAG workload (4096 input : 512 output tokens)
-            # - code:           Code generation (512 input : 4096 output tokens)
-            # - summarization:  Summarization (1024 input : 256 output tokens)
-            # - short_codegen:  Short code generation
 
           llm-benchmark.yml:
             # ============================================================================
             # LLM Single Benchmark Test
             # ============================================================================
-            # REQUIRED VARIABLES (fill in values below):
+            # REQUIRED: Fill in these values
 
-            # Model to test (HuggingFace model ID or local path)
-            # Examples: TinyLlama/TinyLlama-1.1B-Chat-v1.0, meta-llama/Llama-3.2-1B-Instruct
-            test_model: "FILL_ME_IN"
-
-            # Workload type (choose one: chat, rag, code, summarization)
-            workload_type: "FILL_ME_IN"
-
-            # Core configuration name (choose one from list below)
-            core_config_name: "FILL_ME_IN"
-
-            # ============================================================================
-            # AVAILABLE CORE CONFIGURATIONS:
-            # - 8cores-single-socket      : 8 cores, TP=1, NUMA node 0
-            # - 16cores-single-socket     : 16 cores, TP=1, NUMA node 0
-            # - 32cores-single-socket     : 32 cores, TP=1, NUMA node 0
-            # - 64cores-single-socket-tp2 : 64 cores, TP=2, NUMA node 0
-            # - 96cores-dual-socket-tp3   : 96 cores, TP=3, NUMA nodes 0,1
-            # - 128cores-dual-socket-tp4  : 128 cores, TP=4, NUMA nodes 0,1
-
-            # ============================================================================
-            # AVAILABLE WORKLOAD TYPES:
-            # - chat:          Chat workload (512 input : 256 output tokens)
-            # - rag:           RAG workload (4096 input : 512 output tokens)
-            # - code:          Code generation (512 input : 4096 output tokens)
-            # - summarization: Summarization (1024 input : 256 output tokens)
+            test_model: "REQUIRED - e.g. TinyLlama/TinyLlama-1.1B-Chat-v1.0 or meta-llama/Llama-3.2-1B-Instruct"
+            workload_type: "REQUIRED - choose one: chat, rag, code, summarization"
+            core_config_name: "REQUIRED - choose one: 8cores-single-socket, 16cores-single-socket, 32cores-single-socket, 64cores-single-socket-tp2, 96cores-dual-socket-tp3, 128cores-dual-socket-tp4"
 
       when:
         - item.path | basename != 'hosts.yml'
