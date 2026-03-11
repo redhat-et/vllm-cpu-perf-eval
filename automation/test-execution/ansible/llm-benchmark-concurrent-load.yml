@@ -52,6 +52,20 @@
     variable_workload: "{{ base_workload }}_var"
 
   tasks:
+    - name: Validate required parameters
+      ansible.builtin.assert:
+        that:
+          - requested_cores is defined
+          - requested_cores is not none
+          - requested_cores != None
+          - requested_cores | int > 0
+        fail_msg: |
+          Missing required parameter: requested_cores
+          Please provide: -e "requested_cores=<8|16|32|64|...>"
+
+          The concurrent load test requires a core count to test.
+          This playbook will run 3 phases with the specified core configuration.
+
     - name: Validate base_workload parameter
       ansible.builtin.assert:
         that:
@@ -84,8 +98,6 @@
   vars:
     workload_type: "{{ base_workload }}"
     vllm_caching_mode: "baseline"
-    core_sweep_counts: "{{ core_sweep_counts | default(None) }}"
-    requested_cores: "{{ requested_cores | default(None) }}"
   when: not (skip_phase_1 | default(false) | bool)
 
 - name: Phase 1 Complete
@@ -108,8 +120,6 @@
   vars:
     workload_type: "{{ base_workload }}_var"
     vllm_caching_mode: "baseline"
-    core_sweep_counts: "{{ core_sweep_counts | default(None) }}"
-    requested_cores: "{{ requested_cores | default(None) }}"
   when:
     - not (skip_phase_2 | default(false) | bool)
     - (base_workload + '_var') in ['chat_var', 'code_var']
@@ -147,8 +157,6 @@
   vars:
     workload_type: "{{ base_workload }}_var"
     vllm_caching_mode: "production"
-    core_sweep_counts: "{{ core_sweep_counts | default(None) }}"
-    requested_cores: "{{ requested_cores | default(None) }}"
   when:
     - not (skip_phase_3 | default(false) | bool)
     - (base_workload + '_var') in ['chat_var', 'code_var']
