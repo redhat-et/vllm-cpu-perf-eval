@@ -317,8 +317,30 @@ kind-deploy-operator: ## Deploy AWX operator to KIND cluster
 		(echo "$(COLOR_INFO)Checking operator status...$(COLOR_RESET)" && kubectl get pods -n awx-operator-system)
 	@echo "$(COLOR_SUCCESS)✓ AWX operator deployed$(COLOR_RESET)"
 
+.PHONY: kind-build-ee
+kind-build-ee: ## Build custom execution environment with required collections
+	@echo "$(COLOR_INFO)Building custom execution environment...$(COLOR_RESET)"
+	@if ! command -v ansible-builder >/dev/null 2>&1; then \
+		echo "$(COLOR_WARNING)ansible-builder not found, installing...$(COLOR_RESET)"; \
+		pip3 install --user --break-system-packages ansible-builder 2>/dev/null || \
+		pip3 install --user ansible-builder 2>/dev/null || \
+		(echo "$(COLOR_ERROR)Failed to install ansible-builder$(COLOR_RESET)" && exit 1); \
+	fi
+	@echo "$(COLOR_INFO)Building image vllm-awx-ee:latest...$(COLOR_RESET)"
+	@cd $(PROJECT_ROOT) && ansible-builder build \
+		-f automation/test-execution/awx/execution-environment.yml \
+		-t vllm-awx-ee:latest \
+		-v 3
+	@echo "$(COLOR_SUCCESS)✓ Execution environment built$(COLOR_RESET)"
+
+.PHONY: kind-load-ee
+kind-load-ee: kind-build-ee ## Load custom execution environment into KIND cluster
+	@echo "$(COLOR_INFO)Loading execution environment into KIND cluster...$(COLOR_RESET)"
+	@kind load docker-image vllm-awx-ee:latest --name $(KIND_CLUSTER_NAME)
+	@echo "$(COLOR_SUCCESS)✓ Execution environment loaded into KIND$(COLOR_RESET)"
+
 .PHONY: kind-deploy-awx
-kind-deploy-awx: ## Deploy AWX instance to KIND cluster
+kind-deploy-awx: kind-load-ee ## Deploy AWX instance to KIND cluster
 	@echo "$(COLOR_INFO)Creating awx namespace...$(COLOR_RESET)"
 	@kubectl create namespace awx --dry-run=client -o yaml | kubectl apply -f -
 	@echo "$(COLOR_INFO)Creating AWX secrets...$(COLOR_RESET)"
@@ -471,8 +493,8 @@ kind-quickstart: kind-start kind-configure ## Complete KIND setup (start + confi
 	@echo "$(COLOR_INFO)Access AWX:$(COLOR_RESET) http://localhost:$(KIND_AWX_PORT)"
 	@echo "$(COLOR_INFO)Login:$(COLOR_RESET) admin / password"
 	@echo ""
-	@echo "$(COLOR_SUCCESS)✓ Ansible collections auto-install on first job run$(COLOR_RESET)"
-	@echo "$(COLOR_INFO)  (containers.podman, ansible.posix from collections/requirements.yml)$(COLOR_RESET)"
+	@echo "$(COLOR_SUCCESS)✓ Custom execution environment with pre-installed collections$(COLOR_RESET)"
+	@echo "$(COLOR_INFO)  (vLLM AWX EE includes: containers.podman, ansible.posix)$(COLOR_RESET)"
 	@echo ""
 	@echo "$(COLOR_INFO)Next: Edit host variables in AWX UI, then launch a job!$(COLOR_RESET)"
 	@echo ""

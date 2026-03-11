@@ -381,6 +381,18 @@
       ansible.builtin.debug:
         msg: "Found {{ found_playbooks.files | length }} playbooks to import"
 
+    - name: Create custom execution environment
+      awx.awx.execution_environment:
+        name: "vLLM AWX EE"
+        image: "vllm-awx-ee:latest"
+        pull: missing
+        organization: "Default"
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: "{{ validate_certs }}"
+        state: present
+
     - name: Create concurrency job templates with clean naming
       awx.awx.job_template:
         name: "{{ job_name_map[item.path | basename] }}"
@@ -390,6 +402,7 @@
         inventory: "{{ inventory_name }}"
         project: "{{ project_name }}"
         playbook: "automation/test-execution/ansible/{{ item.path | basename }}"
+        execution_environment: "vLLM AWX EE"
         credentials:
           - "DUT SSH Key"
         verbosity: 1
@@ -464,7 +477,7 @@
           - "  ✓ Inventory: {{ inventory_name }}"
           - "  ✓ Credentials: DUT SSH Key"
           - "  ✓ Credential Type: HuggingFace Token"
-          - "  ✓ Ansible Collections: containers.podman, ansible.posix"
+          - "  ✓ Execution Environment: vLLM AWX EE (with collections pre-installed)"
           - "  ✓ Job Templates: LLM Concurrent Load Test, LLM Single Benchmark"
           - ""
           - "Next steps:"
