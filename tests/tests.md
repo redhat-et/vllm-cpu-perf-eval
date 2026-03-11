@@ -60,7 +60,7 @@ See individual test suite README files for complete test case listings.
 
 Tests model performance under various concurrent request loads.
 
-- **Concurrency levels**: 8, 16, 32, 64, 96, 128
+- **Concurrency levels**: 1, 2, 4, 8, 16, 32
 - **Metrics focus**: P95 latency, TTFT, throughput
 - **Goal**: Understand how models scale with parallel requests
 

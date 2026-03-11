@@ -125,21 +125,21 @@ Establish pure baseline performance without any caching optimizations.
 - **Configuration:** `vllm_caching_mode=baseline`
 - **Workload:** Fixed token counts (e.g., `chat`, `rag`, `code`)
 - **vLLM flags:** `--no-enable-prefix-caching`
-- **Concurrency levels:** `[1, 8, 16, 32, 64, 96, 128]`
+- **Concurrency levels:** `[1, 2, 4, 8, 16, 32]`
 
 ### Phase 2: Realistic (Variable Tokens, No Caching)
 Measure performance under realistic traffic variability.
 - **Configuration:** `vllm_caching_mode=baseline`
 - **Workload:** Variable token counts (e.g., `chat_var`, `code_var`)
 - **vLLM flags:** `--no-enable-prefix-caching`
-- **Concurrency levels:** `[1, 8, 16, 32, 64, 96, 128]`
+- **Concurrency levels:** `[1, 2, 4, 8, 16, 32]`
 
 ### Phase 3: Production (Variable Tokens, With Caching)
 Simulate true production conditions with realistic load and optimizations.
 - **Configuration:** `vllm_caching_mode=production`
 - **Workload:** Variable token counts (e.g., `chat_var`, `code_var`)
 - **vLLM flags:** Default (caching enabled)
-- **Concurrency levels:** `[1, 8, 16, 32, 64, 96, 128]`
+- **Concurrency levels:** `[1, 2, 4, 8, 16, 32]`
 
 ### Run All 3 Phases (Recommended)
 
@@ -164,7 +164,7 @@ This runs:
 - Uses `chat_var` for Phase 2 (adds `_var` suffix)
 - Uses `chat_var` for Phase 3 (adds `_var` suffix)
 
-All phases use the same concurrency sweep: `[1, 8, 16, 32, 64, 96, 128]`
+All phases use the same concurrency sweep: `[1, 2, 4, 8, 16, 32]`
 
 ### Run Individual Phases
 
@@ -378,7 +378,7 @@ core_configs:
 
 **Default Configuration (CPU Testing):**
 - **Profile:** `concurrent` - Fixed concurrency level testing
-- **Concurrency Rates:** `[1, 8, 16, 32, 64, 96, 128]` - CPU-appropriate levels
+- **Concurrency Rates:** `[1, 2, 4, 8, 16, 32]` - CPU-appropriate levels
 - **Test Duration:** `600` seconds (10 minutes per concurrency level)
 - **Request Timeout:** `600` seconds (matches test duration)
 - **Max Concurrency:** `128` (CPU testing limit)

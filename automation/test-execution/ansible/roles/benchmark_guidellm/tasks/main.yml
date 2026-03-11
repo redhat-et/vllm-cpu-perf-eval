@@ -157,9 +157,26 @@
     monitor_cmd: "{{ 'sudo podman logs -f guidellm-' + workload_type + '-' + core_cfg.name if ansible_connection == 'local' else 'ssh ' + ansible_user + '@' + ansible_host + ' sudo podman logs -f guidellm-' + workload_type + '-' + core_cfg.name }}"
   when: use_guidellm_container | bool
 
-- name: Calculate wait timeout
+- name: Calculate wait timeout based on profile and number of benchmarks
   ansible.builtin.set_fact:
-    guidellm_wait_timeout: "{{ [((guidellm_cfg.max_seconds | int) + 600), 14400] | min }}"
+    # For concurrent/constant/poisson profiles with multiple rates:
+    #   Total = num_rates * (max_seconds + overhead_per_round) + buffer
+    # For other profiles:
+    #   Total = max_seconds + buffer
+    # Capped at 14400 seconds (4 hours)
+    guidellm_wait_timeout: >-
+      {{
+        [
+          (
+            (guidellm_cfg.rate | default([]) | length) *
+            ((guidellm_cfg.max_seconds | int) + 70)
+            + 300
+          )
+          if guidellm_cfg.profile in ['concurrent', 'constant', 'poisson']
+          else ((guidellm_cfg.max_seconds | int) + 600),
+          14400
+        ] | min
+      }}
 
 - name: Display benchmark start info (containerized)
   ansible.builtin.debug:

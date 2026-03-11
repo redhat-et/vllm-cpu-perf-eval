@@ -57,8 +57,8 @@ benchmark_tool:
     # For constant/poisson: list of requests per second [10, 20, 30]
     # For sweep: number of benchmarks to generate (optional)
     # For synchronous: leave empty (will error if provided)
-    # Default concurrency sweep for CPU testing: [1, 2, 4, 8, 16, 32, 64, 96, 128]
-    rate: [1, 2, 4, 8, 16, 32, 64, 96, 128]
+    # Default concurrency sweep for CPU testing: [1, 2, 4, 8, 16, 32]
+    rate: [1, 2, 4, 8, 16, 32]
 
     # Runtime constraints (apply to all profiles)
     max_seconds: 600            # Maximum benchmark duration (10 minutes for enhanced methodology)
@@ -70,7 +70,11 @@ benchmark_tool:
     cooldown: 30                # Cooldown period between tests (seconds)
 
     # Safety timeout for podman wait (prevents indefinite hangs)
-    # Calculated as: min(max_seconds + 600, 14400) = max 4 hours
+    # For concurrent/constant/poisson profiles:
+    #   Calculated as: min(num_rates * (max_seconds + 70) + 300, 14400)
+    #   Example: 6 rates * (600s + 70s overhead) + 300s buffer = 4320s (~72 min)
+    # For other profiles:
+    #   Calculated as: min(max_seconds + 600, 14400)
     # Override with: -e "guidellm_wait_timeout_seconds=7200" for custom timeout
 
     # Output configuration
@@ -125,10 +129,11 @@ benchmark_tool:
 #
 # For concurrent load tests with enhanced methodology:
 #   profile: "concurrent"
-#   rate: [1, 8, 16, 32, 64, 96, 128]  # Concurrency levels (added 1 for baseline)
+#   rate: [1, 2, 4, 8, 16, 32]         # Concurrency levels (balanced coverage)
 #   max_seconds: 600                   # 10-minute time-based testing
 #   warmup: 0.1                        # 10% warmup (60 seconds)
 #   request_timeout: 600               # Match max_seconds
+#   Total test time: ~72 min (6 rounds * (600s + 70s overhead) + 300s buffer)
 #
 # Phase 1 - Baseline (Fixed tokens, No caching):
 #   vllm_caching_mode: "baseline"

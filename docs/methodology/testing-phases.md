@@ -30,7 +30,6 @@ The vLLM CPU performance evaluation uses a structured 3-phase testing approach t
 vLLM Server:
   --no-enable-prefix-caching
   --disable-radix-cache
-  --max-model-len=6656
   --dtype=bfloat16
 
 GuideLLM:
@@ -38,7 +37,7 @@ GuideLLM:
   --request-timeout=600
   --warmup=0.1
   --profile=concurrent
-  --rate=1,8,16,32,64,96,128
+  --rate=1,2,4,8,16,32
 
 Workloads:
   - chat (512:256) - Fixed
@@ -60,7 +59,7 @@ ansible-playbook llm-benchmark-auto.yml \
   -e "requested_cores=16" \
   -e "vllm_caching_mode=baseline" \
   -e "guidellm_profile=concurrent" \
-  -e "guidellm_rate=[1,8,16,32,64,96,128]" \
+  -e "guidellm_rate=[1,2,4,8,16,32]" \
   -e "guidellm_max_seconds=600"
 ```
 
@@ -105,7 +104,6 @@ ansible-playbook llm-benchmark-auto.yml \
 vLLM Server:
   --no-enable-prefix-caching
   --disable-radix-cache
-  --max-model-len=6656
   --dtype=bfloat16
 
 GuideLLM:
@@ -113,7 +111,7 @@ GuideLLM:
   --request-timeout=600
   --warmup=0.1
   --profile=concurrent
-  --rate=1,8,16,32,64,96,128
+  --rate=1,2,4,8,16,32
 
 Workloads (with variability):
   - chat_var (512±128:256±64)
@@ -148,7 +146,7 @@ ansible-playbook llm-benchmark-auto.yml \
   -e "requested_cores=16" \
   -e "vllm_caching_mode=baseline" \
   -e "guidellm_profile=concurrent" \
-  -e "guidellm_rate=[1,8,16,32,64,96,128]" \
+  -e "guidellm_rate=[1,2,4,8,16,32]" \
   -e "guidellm_max_seconds=600"
 ```
 
@@ -191,7 +189,6 @@ ansible-playbook llm-benchmark-auto.yml \
 ```yaml
 vLLM Server:
   --enable-prefix-caching  # or omit (enabled by default)
-  --max-model-len=6656
   --dtype=bfloat16
   # Omit: --no-enable-prefix-caching, --disable-radix-cache
 
@@ -200,7 +197,7 @@ GuideLLM:
   --request-timeout=600
   --warmup=0.1
   --profile=concurrent
-  --rate=1,8,16,32,64,96,128
+  --rate=1,2,4,8,16,32
 
 Workloads (Variable - true production conditions):
   - chat_var (512±128:256±64)
@@ -233,7 +230,7 @@ ansible-playbook llm-benchmark-auto.yml \
   -e "requested_cores=16" \
   -e "vllm_caching_mode=production" \
   -e "guidellm_profile=concurrent" \
-  -e "guidellm_rate=[1,8,16,32,64,96,128]" \
+  -e "guidellm_rate=[1,2,4,8,16,32]" \
   -e "guidellm_max_seconds=600"
 ```
 
@@ -378,7 +375,7 @@ for workload in chat rag code summarization; do
     -e "requested_cores=$CORES" \
     -e "vllm_caching_mode=baseline" \
     -e "guidellm_profile=concurrent" \
-    -e "guidellm_rate=[1,8,16,32,64,96,128]"
+    -e "guidellm_rate=[1,2,4,8,16,32]"
 done
 
 # Phase 2: Realistic Tests
@@ -389,7 +386,7 @@ for workload in chat_var code_var; do
     -e "requested_cores=$CORES" \
     -e "vllm_caching_mode=baseline" \
     -e "guidellm_profile=concurrent" \
-    -e "guidellm_rate=[1,8,16,32,64,96,128]"
+    -e "guidellm_rate=[1,2,4,8,16,32]"
 done
 
 # Phase 3: Production Tests
@@ -400,7 +397,7 @@ for workload in chat_var code_var; do
     -e "requested_cores=$CORES" \
     -e "vllm_caching_mode=production" \
     -e "guidellm_profile=concurrent" \
-    -e "guidellm_rate=[1,8,16,32,64,96,128]"
+    -e "guidellm_rate=[1,2,4,8,16,32]"
 done
 ```
 

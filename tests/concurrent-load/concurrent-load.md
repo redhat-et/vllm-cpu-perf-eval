@@ -45,7 +45,7 @@ This test suite evaluates generative LLM models across multiple architecture fam
 | **Test Duration** | Time per profile | `--max-seconds=600` (10 min) | `--max-seconds=600` (10 min) |
 | **Warmup** | Warmup period | `--warmup=0.1` (10% = 60s) | `--warmup=0.1` (10% = 60s) |
 | **Request Timeout** | Max time per request | `--request-timeout=600` | `--request-timeout=600` |
-| **Concurrency** | Parallel request levels | `{1, 2, 4, 8, 16, 32, 64, 96, 128}` | `{1, 2, 4, 8, 16, 32, 64, 96, 128}` |
+| **Concurrency** | Parallel request levels | `{1, 2, 4, 8, 16, 32}` | `{1, 2, 4, 8, 16, 32}` |
 | **Affinity** | Core allocation strategy | FULL: All physical cores | FULL: All physical cores |
 | **Cores** | Number of cores for test | 16, 32, 64 cores | 16, 32, 64 cores |
 | **Dtype** | Data type for weights | bfloat16 | bfloat16 |
@@ -115,7 +115,7 @@ performance, realistic variability, and production optimization analysis.
 **Configuration:**
 - vLLM: `--no-enable-prefix-caching`, `--disable-radix-cache`
 - Token counts: Fixed (no variability)
-- Concurrency: `{1, 2, 4, 8, 16, 32, 64, 96, 128}`
+- Concurrency: `{1, 2, 4, 8, 16, 32}`
 
 **Tests:** Selected model × workload combinations (per model-matrix.yaml)
 
@@ -128,7 +128,7 @@ ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
   -e "requested_cores=16" \
   -e "vllm_caching_mode=baseline" \
   -e "guidellm_profile=concurrent" \
-  -e "guidellm_rate=[1,8,16,32,64,96,128]" \
+  -e "guidellm_rate=[1,2,4,8,16,32]" \
   -e "guidellm_max_seconds=600"
 ```
 
@@ -154,7 +154,7 @@ ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
   -e "requested_cores=16" \
   -e "vllm_caching_mode=baseline" \
   -e "guidellm_profile=concurrent" \
-  -e "guidellm_rate=[1,8,16,32,64,96,128]" \
+  -e "guidellm_rate=[1,2,4,8,16,32]" \
   -e "guidellm_max_seconds=600"
 ```
 
@@ -181,7 +181,7 @@ ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
   -e "requested_cores=16" \
   -e "vllm_caching_mode=production" \
   -e "guidellm_profile=concurrent" \
-  -e "guidellm_rate=[1,8,16,32,64,96,128]" \
+  -e "guidellm_rate=[1,2,4,8,16,32]" \
   -e "guidellm_max_seconds=600"
 ```
 
@@ -224,7 +224,7 @@ ansible-playbook -i inventory/hosts.yml \
   -e "requested_cores=16" \
   -e "vllm_caching_mode=baseline" \
   -e "guidellm_profile=concurrent" \
-  -e "guidellm_rate=[1,2,4,8,16,32,64,96,128]"
+  -e "guidellm_rate=[1,2,4,8,16,32]"
 ```
 
 **Core sweep:**
@@ -237,7 +237,7 @@ ansible-playbook -i inventory/hosts.yml \
   -e "core_sweep_counts=[8,16]" \
   -e "vllm_caching_mode=baseline" \
   -e "guidellm_profile=concurrent" \
-  -e "guidellm_rate=[1,2,4,8,16,32,64,96,128]"
+  -e "guidellm_rate=[1,2,4,8,16,32]"
 ```
 
 ### Playbook Selection Guide
@@ -414,7 +414,7 @@ guidellm benchmark \
   --target "http://localhost:8000" \
   --profile concurrent \
   --warmup 0.1 \
-  --rate 1,8,16,32,64,96,128 \
+  --rate 1,2,4,8,16,32 \
   --max-seconds 600 \
   --request-timeout 600 \
   --data "prompt_tokens=512,output_tokens=256"
@@ -428,7 +428,7 @@ guidellm benchmark \
   --target "http://localhost:8000" \
   --profile concurrent \
   --warmup 0.1 \
-  --rate 1,8,16,32,64,96,128 \
+  --rate 1,2,4,8,16,32 \
   --max-seconds 600 \
   --request-timeout 600 \
   --data "prompt_tokens=512,prompt_tokens_stdev=128,prompt_tokens_min=128,prompt_tokens_max=1024,output_tokens=256,output_tokens_stdev=64,output_tokens_min=64,output_tokens_max=512"
@@ -443,7 +443,7 @@ guidellm benchmark \
   --target "http://localhost:8000" \
   --profile concurrent \
   --warmup 0.1 \
-  --rate 1,8,16,32,64,96,128 \
+  --rate 1,2,4,8,16,32 \
   --max-seconds 600 \
   --request-timeout 600 \
   --data "prompt_tokens=512,prompt_tokens_stdev=128,prompt_tokens_min=128,prompt_tokens_max=1024,output_tokens=256,output_tokens_stdev=64,output_tokens_min=64,output_tokens_max=512"

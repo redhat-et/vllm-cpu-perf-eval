@@ -235,7 +235,7 @@ Models for scalability testing and high parameter counts:
 ## LLM Test Suite Coverage
 
 ### Test Suite 1: Concurrent Load
-Tests all models at concurrency levels: **{1, 8, 16, 32, 64, 96, 128}**
+Tests all models at concurrency levels: **{1, 2, 4, 8, 16, 32}**
 
 **Enhanced v2 Features:**
 - Time-based testing (600 seconds)

@@ -36,7 +36,7 @@ ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
   -e "workload_type=chat" \
   -e "requested_cores=16" \
   -e "guidellm_profile=concurrent" \
-  -e "guidellm_rate=[1,8,16,32,64,96,128]" \
+  -e "guidellm_rate=[1,2,4,8,16,32]" \
   -e "guidellm_max_seconds=600"
 
 # Run with variable workload for realistic traffic simulation
@@ -259,7 +259,7 @@ Full documentation index: [docs/docs.md](docs/docs.md)
 
 Tests model performance under various concurrent request loads.
 
-- Concurrency levels: 8, 16, 32, 64, 96, 128
+- Concurrency levels: 1, 2, 4, 8, 16, 32
 - 8 LLM models + 2 embedding models
 - Focus: P95 latency, TTFT, throughput scaling
 

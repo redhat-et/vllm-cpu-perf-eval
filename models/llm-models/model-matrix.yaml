@@ -259,7 +259,7 @@ matrix:
   # Test suite mappings
   test_suite_configs:
     concurrent-load:
-      concurrency_levels: [1, 8, 16, 32, 64, 96, 128]
+      concurrency_levels: [1, 2, 4, 8, 16, 32]
       test_tool: "guidellm"
       profile: "concurrent"
       primary_metrics:
