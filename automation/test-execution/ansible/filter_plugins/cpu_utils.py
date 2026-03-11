@@ -32,17 +32,17 @@ class LscpuParseError(AnsibleFilterError):
 class LscpuParser:
     """
     Parser for lscpu -e=CPU,NODE,CORE output.
-    
+
     Parses once and provides efficient queries for CPU topology.
     """
-    
+
     def __init__(self, lscpu_data: str):
         """
         Initialize parser with lscpu output data.
-        
+
         Args:
             lscpu_data: String output from lscpu -e=CPU,NODE,CORE
-        
+
         Raises:
             LscpuParseError: If data format is invalid
         """
@@ -55,26 +55,26 @@ class LscpuParser:
         self._numa_nodes: Set[int] = set()
         self._node_to_cpus: Dict[int, List[int]] = defaultdict(list)
         self._node_core_to_min_cpu: Dict[int, Dict[int, int]] = defaultdict(dict)
-        
+
         self._parse(lscpu_data)
-    
+
     def _parse(self, lscpu_data: str) -> None:
         """Parse lscpu data and build indices."""
         if not lscpu_data.strip():
             return
-        
+
         for line_num, line in enumerate(lscpu_data.strip().split('\n'), 1):
             line = line.strip()
             if not line:
                 continue
-            
+
             parts = line.split()
             if len(parts) < 3:
                 raise LscpuParseError(
                     f"Line {line_num}: Expected 3 columns (CPU NODE CORE), "
                     f"got {len(parts)}: '{line}'"
                 )
-            
+
             try:
                 cpu = int(parts[0])
                 node = int(parts[1])
@@ -83,59 +83,57 @@ class LscpuParser:
                 raise LscpuParseError(
                     f"Line {line_num}: Invalid numeric value in '{line}': {e}"
                 )
-            
+
             entry = CpuInfo(cpu=cpu, node=node, core=core)
             self._cpu_entries.append(entry)
-           
             self._node_to_cpus[node].append(cpu)
-            
             # Index by NUMA node and core for primary CPU tracking
             if node not in self._node_core_to_min_cpu:
                 self._node_core_to_min_cpu[node] = {}
-            
+
             core_dict = self._node_core_to_min_cpu[node]
             if core not in core_dict or cpu < core_dict[core]:
                 core_dict[core] = cpu
-            
+
             self._numa_nodes.add(node)
-    
+
     def get_primary_cpus(self, numa_node: int) -> List[int]:
         """
         Get primary CPUs (first thread per core) for a NUMA node.
-        
+
         Args:
             numa_node: NUMA node number
-        
+
         Returns:
             Sorted list of primary CPU IDs
         """
         if numa_node not in self._node_core_to_min_cpu:
             return []
-        
+
         return sorted(self._node_core_to_min_cpu[numa_node].values())
-    
+
     def get_all_cpus(self, numa_node: int) -> List[int]:
         """
         Get all CPUs for a NUMA node.
-        
+
         Args:
             numa_node: NUMA node number
-        
+
         Returns:
             Sorted list of all CPU IDs
         """
         cpus = self._node_to_cpus.get(numa_node, [])
         return sorted(cpus)
-    
+
     def get_numa_nodes(self) -> List[int]:
         """
         Get all unique NUMA node numbers.
-        
+
         Returns:
             Sorted list of NUMA node numbers
         """
         return sorted(self._numa_nodes)
-    
+
     def is_empty(self) -> bool:
         """Check if parser contains no data."""
         return len(self._cpu_entries) == 0
@@ -160,8 +158,8 @@ def cpu_list_to_range(cpu_list: Union[List[int], str]) -> str:
             return ""
         try:
             cpu_list = [
-                int(x.strip()) 
-                for x in cpu_list.split(',') 
+                int(x.strip())
+                for x in cpu_list.split(',')
                 if x.strip()
             ]
         except ValueError as e:
@@ -221,14 +219,14 @@ def extract_primary_cpus(lscpu_data: str, numa_node: Union[int, str]) -> str:
         raise AnsibleFilterError(
             f"Invalid lscpu input {lscpu_data}"
         )
-    
+
     try:
         numa_node_int = int(numa_node)
     except (ValueError, TypeError) as e:
         raise AnsibleFilterError(
             f"Invalid NUMA node '{numa_node}': expected integer, got error: {e}"
         )
-    
+
     try:
         parser = LscpuParser(lscpu_data)
         primary_cpus = parser.get_primary_cpus(numa_node_int)
@@ -250,14 +248,14 @@ def extract_all_cpus(lscpu_data, numa_node):
     """
     if not lscpu_data or not isinstance(lscpu_data, str):
         return ""
-    
+
     try:
         numa_node_int = int(numa_node)
     except (ValueError, TypeError) as e:
         raise AnsibleFilterError(
             f"Invalid NUMA node '{numa_node}': expected integer, got error: {e}"
         )
-    
+
     try:
         parser = LscpuParser(lscpu_data)
         cpus = parser.get_all_cpus(numa_node_int)
@@ -278,7 +276,7 @@ def extract_numa_nodes(lscpu_data):
     """
     if not lscpu_data or not isinstance(lscpu_data, str):
         return []
-    
+
     try:
         parser = LscpuParser(lscpu_data)
         nodes = parser.get_numa_nodes()
@@ -340,7 +338,7 @@ def extract_size_value(size_str):
     Extract numeric value from size string (removing unit suffix).
     vLLM's VLLM_CPU_KVCACHE_SPACE expects just the numeric value (e.g., 40 for 40GB),
     not the full bytes conversion.
-    
+
     Args:
         size_str: Size string with unit (e.g., "40GiB", "1024MiB") or integer
     Returns:
@@ -360,12 +358,12 @@ def extract_size_value(size_str):
         )
 
     size_str = size_str.strip()
-    
+
     if not size_str:
         raise AnsibleFilterError(
             "extract_size_value received empty string"
         )
-    
+
     # Try to parse the number and unit
     match = _SIZE_PATTERN.match(size_str)
     if match:
