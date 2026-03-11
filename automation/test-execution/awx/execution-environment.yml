@@ -6,7 +6,7 @@ images:
     name: "quay.io/ansible/awx-ee:latest"
 
 dependencies:
-  galaxy: "../../collections/requirements.yml"
+  galaxy: "../../../collections/requirements.yml"
   python_interpreter:
     package_system: "python3.11"
 
