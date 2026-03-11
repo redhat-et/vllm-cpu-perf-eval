@@ -424,22 +424,39 @@
             # ============================================================================
             # LLM Concurrent Load Test - 3-Phase Benchmark Suite
             # ============================================================================
-            # REQUIRED: Fill in these values
+            # DEFAULT CONFIGURATION - Phase 1 only (fastest)
+            # Modify values below as needed for your test
 
-            test_model: "REQUIRED - e.g. TinyLlama/TinyLlama-1.1B-Chat-v1.0 or meta-llama/Llama-3.2-1B-Instruct"
-            base_workload: "REQUIRED - choose one: chat, rag, code, summarization, short_codegen"
+            test_model: "meta-llama/Llama-3.2-1B-Instruct"
+            base_workload: "chat"
+            requested_cores: 16
+
+            # Phase control - By default, run Phase 1 only (change to false to enable)
+            skip_phase_2: true   # Phase 2: Realistic (Variable Tokens, No Caching)
+            skip_phase_3: true   # Phase 3: Production (Variable Tokens, With Caching)
+
+            # GuideLLM test parameters
+            guidellm_max_seconds: 300
+            guidellm_rate: [1]
+            guidellm_wait_timeout_seconds: 2400
 
             # ============================================================================
-            # OPTIONAL: Uncomment and modify as needed
+            # ADVANCED OPTIONS - Uncomment to use
 
-            # Choose ONE core configuration option:
-            # core_sweep_counts: [16, 32, 64]  # Test multiple core counts (recommended)
-            # requested_cores: 16               # Test single core count (faster)
+            # Test multiple core counts (replaces requested_cores):
+            # core_sweep_counts: [16, 32, 64]
 
-            # Phase control - skip phases if needed:
+            # Run all 3 phases (comment out skip flags above or set to false):
             # skip_phase_1: false  # Phase 1: Baseline (Fixed Tokens, No Caching)
             # skip_phase_2: false  # Phase 2: Realistic (Variable Tokens, No Caching)
             # skip_phase_3: false  # Phase 3: Production (Variable Tokens, With Caching)
+
+            # ============================================================================
+            # Workload options: chat, rag, code, summarization, short_codegen
+            # Model examples (gated models require HuggingFace token credential):
+            #   - meta-llama/Llama-3.2-1B-Instruct
+            #   - meta-llama/Llama-3.2-3B-Instruct
+            #   - TinyLlama/TinyLlama-1.1B-Chat-v1.0 (no token required)
 
           llm-benchmark.yml:
             # ============================================================================
@@ -483,9 +500,19 @@
           - "Next steps:"
           - "  1. Open AWX: {{ controller_host }}"
           - "  2. Edit host variables for DUT and Load Generator"
+          - "     - Navigate to: Resources > Inventories > vLLM Test Infrastructure > Hosts"
+          - "     - Click on 'dut' or 'load_generator' host"
           - "     - Set ansible_host (e.g. ec2-13-59-64-9.us-east-2.compute.amazonaws.com)"
           - "     - Set ansible_user (e.g. ec2-user)"
           - "  3. (Optional) Add HuggingFace token credential for gated models"
-          - "  4. Launch job template and fill in test parameters"
-          - "  5. View results in /tmp/benchmark-results/"
+          - "     - Navigate to: Resources > Credentials > Add"
+          - "  4. Launch job template with default parameters (Phase 1 only, 5 min test)"
+          - "     - Navigate to: Resources > Templates > LLM Concurrent Load Test"
+          - "     - Click Launch - default params are ready to use!"
+          - "  5. View results in /tmp/benchmark-results/ on load_generator host"
+          - ""
+          - "Tips:"
+          - "  • Change execution environment: Edit Job Template > Execution Environment dropdown"
+          - "  • View all execution environments: Administration > Execution Environments"
+          - "  • Current EE 'vLLM AWX EE' includes: containers.podman, ansible.posix collections"
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
