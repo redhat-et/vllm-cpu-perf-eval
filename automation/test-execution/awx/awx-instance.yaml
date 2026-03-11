@@ -10,3 +10,11 @@ spec:
   admin_user: admin
   admin_password_secret: awx-admin-password  # pragma: allowlist secret
   postgres_configuration_secret: awx-postgres-configuration  # pragma: allowlist secret
+
+  # Use custom execution environment with pre-installed collections
+  ee_images:
+    - name: vllm-awx-ee
+      image: vllm-awx-ee:latest
+
+  # Set as default EE for all jobs
+  ee_pull_credentials_secret: null
