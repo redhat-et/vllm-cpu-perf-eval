@@ -320,14 +320,14 @@ kind-deploy-operator: ## Deploy AWX operator to KIND cluster
 .PHONY: kind-build-ee
 kind-build-ee: ## Build custom execution environment with required collections
 	@echo "$(COLOR_INFO)Building custom execution environment...$(COLOR_RESET)"
-	@if ! command -v ansible-builder >/dev/null 2>&1; then \
+	@if ! python3 -m ansible_builder --version >/dev/null 2>&1; then \
 		echo "$(COLOR_WARNING)ansible-builder not found, installing...$(COLOR_RESET)"; \
 		pip3 install --user --break-system-packages ansible-builder 2>/dev/null || \
 		pip3 install --user ansible-builder 2>/dev/null || \
 		(echo "$(COLOR_ERROR)Failed to install ansible-builder$(COLOR_RESET)" && exit 1); \
 	fi
 	@echo "$(COLOR_INFO)Building image vllm-awx-ee:latest...$(COLOR_RESET)"
-	@cd $(PROJECT_ROOT) && ansible-builder build \
+	@cd $(PROJECT_ROOT) && python3 -m ansible_builder build \
 		-f automation/test-execution/awx/execution-environment.yml \
 		-t vllm-awx-ee:latest \
 		-v 3
