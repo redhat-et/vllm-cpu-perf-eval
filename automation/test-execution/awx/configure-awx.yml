@@ -27,9 +27,10 @@
     inventory_name: "vLLM Test Infrastructure"
     dut_hostname: "{{ lookup('env', 'DUT_HOSTNAME') | default('192.168.1.10', true) }}"
     dut_username: "{{ lookup('env', 'DUT_USERNAME') | default('ec2-user', true) }}"
-    loadgen_is_local: "{{ lookup('env', 'LOADGEN_LOCAL') | default('true', true) | bool }}"
+    loadgen_hostname: "{{ lookup('env', 'LOADGEN_HOSTNAME') | default('192.168.1.11', true) }}"
+    loadgen_username: "{{ lookup('env', 'LOADGEN_USERNAME') | default('ec2-user', true) }}"
 
-    # SSH key path (for DUT access)
+    # SSH key path (for DUT and load generator access)
     ssh_key_path: "{{ lookup('env', 'SSH_KEY_PATH') | default('~/.ssh/id_rsa', true) }}"
 
   tasks:
@@ -41,7 +42,7 @@
           - "SCM URL: {{ project_scm_url }}"
           - "Branch: {{ project_scm_branch }}"
           - "DUT: {{ dut_hostname }} (user: {{ dut_username }})"
-          - "Load Generator: {{ 'Local (AWX host)' if loadgen_is_local else 'Remote' }}"
+          - "Load Generator: {{ loadgen_hostname }} (user: {{ loadgen_username }})"
 
     - name: Create vLLM Performance Testing Project
       awx.awx.project:
@@ -66,6 +67,24 @@
         controller_password: "{{ controller_password }}"
         validate_certs: "{{ validate_certs }}"
         wait: true
+
+    - name: Ensure Ansible collections are available in Organization
+      awx.awx.organization:
+        name: "Default"
+        galaxy_credentials: []
+        default_environment: null
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: "{{ validate_certs }}"
+        state: present
+
+    - name: Display collection requirements info
+      ansible.builtin.debug:
+        msg:
+          - "Note: Playbooks require Ansible collections (containers.podman, ansible.posix)"
+          - "AWX will auto-install from: automation/test-execution/ansible/requirements.yml"
+          - "Ensure your execution environment has ansible-galaxy available"
 
     - name: Create vLLM Test Infrastructure Inventory
       awx.awx.inventory:
@@ -266,8 +285,9 @@
         name: loadgen-host
         inventory: "{{ inventory_name }}"
         variables:
-          ansible_host: "{{ 'localhost' if loadgen_is_local else lookup('env', 'LOADGEN_HOSTNAME') }}"
-          ansible_connection: "{{ 'local' if loadgen_is_local else 'ssh' }}"
+          ansible_host: "{{ loadgen_hostname }}"
+          ansible_connection: ssh
+          ansible_user: "{{ loadgen_username }}"
           ansible_become: false
         controller_host: "{{ controller_host }}"
         controller_username: "{{ controller_username }}"
@@ -457,9 +477,15 @@
           - "  • LLM Concurrent Load Test - Run concurrent load tests"
           - "  • LLM Single Benchmark - Run single benchmark test"
           - ""
+          - "⚠️  IMPORTANT - Collections Setup:"
+          - "  Playbooks require: containers.podman and ansible.posix collections"
+          - "  AWX auto-installs from: automation/test-execution/ansible/requirements.yml"
+          - "  If jobs fail with 'module not found', check execution environment has ansible-galaxy"
+          - ""
           - "Next steps:"
-          - "  1. Open AWX: http://localhost:30080"
-          - "  2. (Optional) Add HuggingFace token credential for gated models"
-          - "  3. Launch 'LLM Concurrent Load Test' job"
-          - "  4. View results in /tmp/benchmark-results/"
+          - "  1. Open AWX: {{ controller_host }}"
+          - "  2. Edit DUT and Load Generator host variables (set ansible_host, ansible_user)"
+          - "  3. (Optional) Add HuggingFace token credential for gated models"
+          - "  4. Launch job template and fill in test parameters"
+          - "  5. View results in /tmp/benchmark-results/"
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
