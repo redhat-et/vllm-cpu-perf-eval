@@ -1,0 +1,10 @@
+---
+# Ansible Galaxy Collections Requirements
+# AWX auto-installs collections from this file location
+# Also available at: automation/test-execution/ansible/requirements.yml
+
+collections:
+  - name: containers.podman
+    version: ">=1.9.0,<2.0.0"
+  - name: ansible.posix
+    version: ">=1.4.0,<1.6.0"
