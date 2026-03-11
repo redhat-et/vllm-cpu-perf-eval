@@ -22,11 +22,16 @@
           - test_model is defined
           - workload_type is defined
           - requested_cores is defined
+          - requested_cores is not none
+          - requested_cores != None
         fail_msg: |
           Missing required variables. Please provide:
           -e "test_model=<model>"
           -e "workload_type=<summarization|chat|code|rag>"
           -e "requested_cores=<8|16|32|64|...>"
+
+          Note: For core sweeps, use llm-core-sweep-auto.yml instead with:
+          -e "requested_cores_list=[8,16,32,64]"
 
     - name: Validate requested_cores is a positive integer
       ansible.builtin.assert:
@@ -131,9 +136,9 @@
   become: true
   vars:
     requested_cores: "{{ hostvars['localhost']['requested_cores'] }}"
-    requested_tensor_parallel: "{{ hostvars['localhost']['requested_tensor_parallel'] | default(omit) }}"
-    requested_omp_threads: "{{ hostvars['localhost']['requested_omp_threads'] | default(omit) }}"
-    requested_omp_bind: "{{ hostvars['localhost']['requested_omp_bind'] | default(omit) }}"
+    requested_tensor_parallel: "{{ hostvars['localhost']['requested_tensor_parallel'] | default(None) }}"
+    requested_omp_threads: "{{ hostvars['localhost']['requested_omp_threads'] | default(None) }}"
+    requested_omp_bind: "{{ hostvars['localhost']['requested_omp_bind'] | default(None) }}"
 
   tasks:
     - block:
