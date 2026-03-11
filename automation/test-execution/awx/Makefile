@@ -300,6 +300,10 @@ kind-create-cluster: check-kind-requirements ## Create KIND cluster for AWX
 .PHONY: kind-deploy-operator
 kind-deploy-operator: ## Deploy AWX operator to KIND cluster
 	@echo "$(COLOR_INFO)Deploying AWX operator...$(COLOR_RESET)"
+	@if [ -d "$(AWX_OPERATOR_DIR)" ] && [ ! -f "$(AWX_OPERATOR_DIR)/config/default/kustomization.yaml" ]; then \
+		echo "$(COLOR_WARNING)Incomplete AWX operator directory found, cleaning up...$(COLOR_RESET)"; \
+		rm -rf "$(AWX_OPERATOR_DIR)"; \
+	fi
 	@if [ ! -d "$(AWX_OPERATOR_DIR)" ]; then \
 		echo "$(COLOR_INFO)Cloning AWX operator (v2.19.1)...$(COLOR_RESET)"; \
 		git clone --depth 1 --branch 2.19.1 https://github.com/ansible/awx-operator.git $(AWX_OPERATOR_DIR); \
