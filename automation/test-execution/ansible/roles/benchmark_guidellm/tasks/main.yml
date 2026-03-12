@@ -150,7 +150,7 @@
       tag: "guidellm-{{ workload_type }}-{{ core_cfg.name }}"
   register: guidellm_container
   when: use_guidellm_container | bool
-  no_log: true
+  no_log: false
 
 - name: Set monitoring command based on connection type
   ansible.builtin.set_fact:
