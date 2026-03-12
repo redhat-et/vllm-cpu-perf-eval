@@ -95,6 +95,7 @@
     - container_cfg.engine == 'podman'
     - core_cfg.cpuset_cpus is defined
   register: vllm_container_pinned
+  no_log: true  # Prevent HF_TOKEN from appearing in logs
 
 - name: Start vLLM embedding server (no CPU pinning)
   containers.podman.podman_container:
@@ -123,6 +124,7 @@
     - container_cfg.engine == 'podman'
     - core_cfg.cpuset_cpus is not defined
   register: vllm_container_no_pin
+  no_log: true  # Prevent HF_TOKEN from appearing in logs
 
 - name: Set container result
   ansible.builtin.set_fact:

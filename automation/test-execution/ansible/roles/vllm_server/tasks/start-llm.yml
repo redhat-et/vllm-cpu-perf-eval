@@ -358,6 +358,7 @@
       tag: "vllm-{{ workload_type }}-{{ core_cfg.cores }}c-tp{{ core_cfg.tensor_parallel }}"
   when: container_cfg.engine == 'podman'
   register: vllm_container
+  no_log: true  # Prevent HF_TOKEN from appearing in logs
 
 - name: Display vLLM container info
   ansible.builtin.debug:
