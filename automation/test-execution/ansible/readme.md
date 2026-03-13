@@ -247,6 +247,11 @@ results/llm/
             └── (same structure)
 ```
 
+> **Note:** `benchmarks.html` files shown in the directory structures above are
+> not currently generated. HTML output is available in GuideLLM but not enabled
+> in this environment. See [GuideLLM issue #627](https://github.com/vllm-project/guidellm/issues/627).
+> JSON and CSV formats are fully functional.
+
 ## Design Decisions
 
 ### Why Bash Orchestration Instead of Pure Ansible?
