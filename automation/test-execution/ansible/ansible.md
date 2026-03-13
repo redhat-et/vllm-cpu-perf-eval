@@ -5,7 +5,48 @@ models with NUMA-aware CPU optimization.
 
 ## Quick Start
 
-### 1. Configure Inventory
+### 1. Install Requirements
+
+**On your control machine (where you run Ansible):**
+
+```bash
+# Install Ansible (if not already installed)
+# On macOS
+brew install ansible
+
+# On Ubuntu/Debian
+sudo apt update && sudo apt install -y ansible
+
+# On RHEL/Fedora
+sudo dnf install -y ansible
+
+# Verify installation
+ansible --version  # Should be 2.14+
+```
+
+**On DUT and Load Generator hosts:**
+
+Ensure the following before running playbooks:
+
+- **OS**: Ubuntu 22.04+, RHEL 9+, or Fedora 38+
+- **SSH Access**: Password-less SSH access from control machine
+- **User privileges**: User should have sudo access (or use root directly)
+- **Python**: Python 3.8+ installed (usually pre-installed)
+- **Network**: Hosts can reach each other (DUT port 8000 accessible from Load Generator)
+
+```bash
+# Verify SSH access from control machine
+ssh -i ~/.ssh/your-key.pem ec2-user@your-dut-hostname
+ssh -i ~/.ssh/your-key.pem ec2-user@your-loadgen-hostname
+
+# Test sudo access on remote hosts
+ssh ec2-user@your-dut-hostname 'sudo whoami'  # Should return 'root'
+```
+
+The playbooks automatically install required software (Podman/Docker, vLLM images, GuideLLM).
+No manual installation needed on remote hosts.
+
+### 2. Configure Inventory
 
 **Option A: Environment Variables (Recommended - No file edits)**
 
@@ -38,14 +79,14 @@ load_generator:
 
 Everything else is pre-configured in `inventory/group_vars/`!
 
-### 2. Test Connectivity
+### 3. Test Connectivity
 
 ```bash
 cd automation/test-execution/ansible
 ansible -i inventory/hosts.yml all -m ping
 ```
 
-### 3. Run Your First Test
+### 4. Run Your First Test
 
 ```bash
 # Set HuggingFace token (if using gated models)
