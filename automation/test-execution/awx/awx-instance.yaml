@@ -11,6 +11,9 @@ spec:
   admin_password_secret: awx-admin-password  # pragma: allowlist secret
   postgres_configuration_secret: awx-postgres-configuration  # pragma: allowlist secret
 
+  # Use alternative Redis image to avoid Docker Hub rate limits
+  redis_image: quay.io/sclorg/redis-7-c9s:latest
+
   # Use custom execution environment with pre-installed collections
   ee_images:
     - name: vllm-awx-ee
