@@ -88,6 +88,10 @@ ansible -i inventory/hosts.yml all -m ping
 
 ### 4. Run Your First Test
 
+> **Note:** For production benchmarking or accurate performance measurements, run
+> [Platform Setup](#run-platform-setup-one-time) first (requires reboot). This is
+> optional for quick testing or development but **highly recommended** for reliable results.
+
 ```bash
 # Set HuggingFace token (if using gated models)
 export HF_TOKEN=hf_xxxxx
