@@ -42,12 +42,13 @@ from cpu_utils import (  # noqa: E402
     VALID_TP_VALUES,
 )
 
+# Import AnsibleFilterError from cpu_utils to ensure we use the same class
 try:
     from ansible.errors import AnsibleFilterError  # noqa: E402
 except ImportError:
-    # Fallback if ansible not installed
-    class AnsibleFilterError(Exception):
-        pass
+    # Use the same fallback class from cpu_utils
+    import cpu_utils
+    AnsibleFilterError = cpu_utils.AnsibleFilterError
 
 
 # ============================================================================
