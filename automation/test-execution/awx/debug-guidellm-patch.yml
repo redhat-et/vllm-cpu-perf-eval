@@ -1,0 +1,58 @@
+---
+# Temporary Debug Patch for GuideLLM Container Issue
+# This patch file shows the changes needed to see the actual error
+#
+# Apply this to: automation/test-execution/ansible/roles/benchmark_guidellm/tasks/main.yml
+#
+# Changes:
+# 1. Disable no_log on line 153 to see container start errors
+# 2. Add debug output before container start
+# 3. Add immediate error capture
+
+# After line 133, add this debug task:
+- name: DEBUG - Display GuideLLM environment variables
+  ansible.builtin.debug:
+    msg:
+      - "Environment variables being passed to container:"
+      - "{{ guidellm_env }}"
+  when: use_guidellm_container | bool
+
+# After line 145, add these debug tasks:
+- name: DEBUG - Display container parameters
+  ansible.builtin.debug:
+    msg:
+      - "Container Name: guidellm-{{ workload_type }}-{{ core_cfg.name }}"
+      - "Image: {{ guidellm_cfg.container_image }}"
+      - "Network: host"
+      - "CPU Set: {{ guidellm_cfg.cpuset_cpus }}"
+      - "Memory Nodes: {{ guidellm_cfg.cpuset_mems }}"
+      - "Results Volume: {{ results_path }}:/results:z"
+      - "System: {{ ansible_facts['system'] | default('unknown') }}"
+  when: use_guidellm_container | bool
+
+# CRITICAL: On line 153, change:
+#   no_log: true
+# To:
+#   no_log: false
+#
+# This will display the actual error from the podman_container module
+
+# After the container start task (line 153), add:
+- name: DEBUG - Display container result
+  ansible.builtin.debug:
+    var: guidellm_container
+  when:
+    - use_guidellm_container | bool
+    - guidellm_container is defined
+
+- name: DEBUG - Check container status immediately
+  ansible.builtin.command:
+    cmd: "podman ps -a --filter name=guidellm-{{ workload_type }}-{{ core_cfg.name }} --format 'table {{.Names}}\t{{.Status}}\t{{.State}}'"
+  register: container_status_check
+  changed_when: false
+  when: use_guidellm_container | bool
+
+- name: DEBUG - Display container status
+  ansible.builtin.debug:
+    var: container_status_check.stdout_lines
+  when: use_guidellm_container | bool
