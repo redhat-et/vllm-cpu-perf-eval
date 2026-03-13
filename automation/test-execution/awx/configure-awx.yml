@@ -380,7 +380,6 @@
           ansible_host: "{{ loadgen_hostname }}"
           ansible_connection: ssh
           ansible_user: "{{ loadgen_username }}"
-          ansible_become: false
         controller_host: "{{ controller_host }}"
         controller_username: "{{ controller_username }}"
         controller_password: "{{ controller_password }}"
