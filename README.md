@@ -184,15 +184,21 @@ usage instructions and advanced options.
 
 ### 3. View Results
 
-Results are collected locally with HTML reports:
+Results are collected locally:
 
 ```bash
-# View LLM results
-open results/llm/meta-llama__Llama-3.2-1B-Instruct/chat-*/benchmarks.html
+# View JSON results
+cat results/llm/meta-llama__Llama-3.2-1B-Instruct/chat-*/benchmarks.json
+
+# View CSV results (for spreadsheets)
+cat results/llm/meta-llama__Llama-3.2-1B-Instruct/chat-*/benchmarks.csv
 
 # Results structure documented in
 cat results/results.md
 ```
+
+> **Note:** HTML reports are not currently generated. See
+> [GuideLLM #627](https://github.com/vllm-project/guidellm/issues/627).
 
 See [Methodology Documentation](docs/methodology/overview.md) for understanding
 metrics and performance analysis.

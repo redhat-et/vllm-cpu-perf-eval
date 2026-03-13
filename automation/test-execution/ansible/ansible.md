@@ -335,19 +335,20 @@ After running tests, results are automatically collected to your local machine:
 # LLM results location
 ls -la results/llm/
 
-# View HTML report in browser
-open results/llm/meta-llama__Llama-3.2-1B-Instruct/chat-*/benchmarks.html
-
-# Or on Linux
-xdg-open results/llm/meta-llama__Llama-3.2-1B-Instruct/chat-*/benchmarks.html
-
 # JSON results for programmatic access
 cat results/llm/meta-llama__Llama-3.2-1B-Instruct/chat-*/benchmarks.json
+
+# CSV results for spreadsheet analysis
+cat results/llm/meta-llama__Llama-3.2-1B-Instruct/chat-*/benchmarks.csv
 ```
 
+> **Note:** HTML output (`benchmarks.html`) is not currently enabled. See
+> [GuideLLM issue #627](https://github.com/vllm-project/guidellm/issues/627)
+> for details.
+
 Results include:
-- **benchmarks.html** - Interactive HTML report with charts
 - **benchmarks.json** - Raw JSON data for analysis
+- **benchmarks.csv** - CSV format for spreadsheet tools
 - **vllm-server.log** - vLLM server logs (collected from DUT)
 
 See [Results Documentation](../../../results/results.md) for more details on
