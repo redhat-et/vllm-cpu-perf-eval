@@ -42,17 +42,19 @@
     # ========================================================================
     # AWX Connection Settings
     # ========================================================================
-    controller_host: "{{ lookup('env', 'CONTROLLER_HOST') | default('http://localhost:30080', true) }}"
+    # SECURITY NOTE: Use HTTPS in production. Set CONTROLLER_INSECURE=true for local testing only.
+    controller_insecure: "{{ lookup('env', 'CONTROLLER_INSECURE') | default('false', true) | bool }}"
+    controller_host: "{{ lookup('env', 'CONTROLLER_HOST') | default('https://localhost:30080', true) if not controller_insecure else lookup('env', 'CONTROLLER_HOST') | default('http://localhost:30080', true) }}"
     controller_username: "{{ lookup('env', 'CONTROLLER_USERNAME') | default('admin', true) }}"
     controller_password: "{{ lookup('env', 'CONTROLLER_PASSWORD') | default('password', true) }}"
-    validate_certs: false
+    validate_certs: "{{ false if controller_insecure else true }}"
 
     # ========================================================================
     # Project Settings
     # ========================================================================
     project_name: "vLLM CPU Perf Eval"
-    project_scm_url: "https://github.com/maryamtahhan/vllm-cpu-perf-eval.git"
-    project_scm_branch: "{{ lookup('env', 'AWX_PROJECT_BRANCH') | default('concurrency-tests-awx', true) }}"
+    project_scm_url: "{{ lookup('env', 'AWX_PROJECT_URL') | default('https://github.com/redhat-et/vllm-cpu-perf-eval.git', true) }}"
+    project_scm_branch: "{{ lookup('env', 'AWX_PROJECT_BRANCH') | default('main', true) }}"
 
     # ========================================================================
     # Infrastructure Settings (from environment variables)
@@ -143,16 +145,8 @@
         validate_certs: "{{ validate_certs }}"
         wait: true
 
-    - name: Ensure Ansible collections are available in Organization
-      awx.awx.organization:
-        name: "Default"
-        galaxy_credentials: []
-        default_environment: null
-        controller_host: "{{ controller_host }}"
-        controller_username: "{{ controller_username }}"
-        controller_password: "{{ controller_password }}"
-        validate_certs: "{{ validate_certs }}"
-        state: present
+    # NOTE: Removed management of Default organization to preserve shared settings
+    # If you need to manage organization-specific settings, create a dedicated organization
 
     - name: Create vLLM Test Infrastructure Inventory
       awx.awx.inventory:
@@ -501,8 +495,7 @@
         project: "{{ project_name }}"
         playbook: "automation/test-execution/ansible/{{ item.path | basename }}"
         execution_environment: "vLLM AWX EE"
-        credentials:
-          - "DUT SSH Key"
+        credentials: "{{ ['DUT SSH Key'] if ssh_key_file.stat.exists else [] }}"
         verbosity: 1
         ask_credential_on_launch: true
         ask_variables_on_launch: true
@@ -561,11 +554,17 @@
             # ============================================================================
             # LLM Single Benchmark Test
             # ============================================================================
-            # REQUIRED: Fill in these values
+            # REQUIRED: Fill in these values when launching the job
+            # Valid options:
+            #   test_model: e.g. TinyLlama/TinyLlama-1.1B-Chat-v1.0 or meta-llama/Llama-3.2-1B-Instruct
+            #   workload_type: chat, rag, code, summarization
+            #   core_config_name: 8cores-single-socket, 16cores-single-socket, 32cores-single-socket,
+            #                     64cores-single-socket-tp2, 96cores-dual-socket-tp3, 128cores-dual-socket-tp4
 
-            test_model: "REQUIRED - e.g. TinyLlama/TinyLlama-1.1B-Chat-v1.0 or meta-llama/Llama-3.2-1B-Instruct"
-            workload_type: "REQUIRED - choose one: chat, rag, code, summarization"
-            core_config_name: "REQUIRED - choose one: 8cores-single-socket, 16cores-single-socket, 32cores-single-socket, 64cores-single-socket-tp2, 96cores-dual-socket-tp3, 128cores-dual-socket-tp4"
+            # NOTE: These are intentionally left empty. The playbook will validate and fail if not provided.
+            test_model: ""
+            workload_type: ""
+            core_config_name: ""
 
       when:
         - item.path | basename != 'hosts.yml'

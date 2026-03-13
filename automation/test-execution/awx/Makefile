@@ -284,6 +284,23 @@ check-kind-requirements: ## Check if KIND dependencies are installed
 	else \
 		echo "$(COLOR_WARNING)⚠ openshift module not available (configure step may fail)$(COLOR_RESET)"; \
 	fi
+	@if ! command -v ansible-playbook >/dev/null 2>&1; then \
+		echo "$(COLOR_ERROR)Error: ansible-playbook not found!$(COLOR_RESET)"; \
+		echo "$(COLOR_INFO)Install Ansible:$(COLOR_RESET)"; \
+		echo "  pip3 install ansible"; \
+		exit 1; \
+	fi
+	@echo "$(COLOR_SUCCESS)✓ ansible-playbook installed$(COLOR_RESET)"
+	@if ! ansible-galaxy collection list | grep -q "awx.awx"; then \
+		echo "$(COLOR_WARNING)⚠ awx.awx collection not found, attempting install...$(COLOR_RESET)"; \
+		ansible-galaxy collection install awx.awx --no-deps 2>/dev/null || \
+		echo "$(COLOR_WARNING)⚠ Could not install awx.awx collection. Configure step may fail.$(COLOR_RESET)"; \
+	fi
+	@if ansible-galaxy collection list | grep -q "awx.awx"; then \
+		echo "$(COLOR_SUCCESS)✓ awx.awx collection installed$(COLOR_RESET)"; \
+	else \
+		echo "$(COLOR_WARNING)⚠ awx.awx collection not available (configure step may fail)$(COLOR_RESET)"; \
+	fi
 	@echo "$(COLOR_SUCCESS)All KIND requirements met!$(COLOR_RESET)"
 
 .PHONY: kind-create-cluster

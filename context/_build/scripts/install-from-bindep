@@ -25,7 +25,7 @@ PYCMD="${PYCMD:=/usr/bin/python3}"
 PIPCMD="${PIPCMD:=$PYCMD -m pip}"
 PIP_OPTS="${PIP_OPTS-}"
 
-if [ -z $PKGMGR ]; then
+if [ -z "$PKGMGR" ]; then
     # Expect dnf to be installed, however if we find microdnf default to it.
     PKGMGR=/usr/bin/dnf
     if [ -f "/usr/bin/microdnf" ]; then

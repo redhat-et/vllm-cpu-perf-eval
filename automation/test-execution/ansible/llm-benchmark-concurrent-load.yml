@@ -52,6 +52,10 @@
     variable_workload: "{{ base_workload }}_var"
 
   tasks:
+    - name: Detect if running from AWX
+      ansible.builtin.set_fact:
+        is_awx_job: "{{ lookup('env', 'AWX_JOB_ID') | length > 0 }}"
+
     - name: Validate required parameters
       ansible.builtin.assert:
         that:
@@ -212,5 +216,5 @@
           - "  Phase 3 (Production - Variable, With Cache): {{ 'SKIPPED' if (skip_phase_3 | default(false) | bool) else ('COMPLETE' if has_variable_workload else 'N/A') }}"
           - ""
           - "Results Location:"
-          - "  results/llm/{{ test_model | replace('/', '__') }}/"
+          - "  {{ '~/benchmark-results' if is_awx_job else 'results/llm' }}/{{ test_model | replace('/', '__') }}/"
           - "============================================================"
