@@ -318,8 +318,34 @@ kind-deploy-operator: ## Deploy AWX operator to KIND cluster
 	@echo "$(COLOR_SUCCESS)✓ AWX operator deployed$(COLOR_RESET)"
 
 .PHONY: kind-build-ee
-kind-build-ee: ## Build custom execution environment with required collections
-	@echo "$(COLOR_INFO)Building custom execution environment...$(COLOR_RESET)"
+kind-build-ee: ## Build custom execution environment with required collections (skips if already exists)
+	@if $(CONTAINER_ENGINE) image inspect vllm-awx-ee:latest >/dev/null 2>&1 || \
+	   $(CONTAINER_ENGINE) image inspect localhost/vllm-awx-ee:latest >/dev/null 2>&1; then \
+		echo "$(COLOR_SUCCESS)✓ Execution environment vllm-awx-ee:latest already exists$(COLOR_RESET)"; \
+		echo "$(COLOR_INFO)  To rebuild: make kind-rebuild-ee$(COLOR_RESET)"; \
+	else \
+		echo "$(COLOR_INFO)Building custom execution environment...$(COLOR_RESET)"; \
+		if ! python3 -m ansible_builder --version >/dev/null 2>&1; then \
+			echo "$(COLOR_WARNING)ansible-builder not found, installing...$(COLOR_RESET)"; \
+			pip3 install --user --break-system-packages ansible-builder 2>/dev/null || \
+			pip3 install --user ansible-builder 2>/dev/null || \
+			(echo "$(COLOR_ERROR)Failed to install ansible-builder$(COLOR_RESET)" && exit 1); \
+		fi; \
+		echo "$(COLOR_INFO)Building image vllm-awx-ee:latest...$(COLOR_RESET)"; \
+		cd $(PROJECT_ROOT) && python3 -m ansible_builder build \
+			-f automation/test-execution/awx/execution-environment.yml \
+			-t vllm-awx-ee:latest \
+			-v 3; \
+		if [ "$(CONTAINER_TYPE)" = "podman" ]; then \
+			echo "$(COLOR_INFO)Ensuring image is tagged without localhost prefix...$(COLOR_RESET)"; \
+			$(CONTAINER_ENGINE) tag localhost/vllm-awx-ee:latest vllm-awx-ee:latest 2>/dev/null || true; \
+		fi; \
+		echo "$(COLOR_SUCCESS)✓ Execution environment built$(COLOR_RESET)"; \
+	fi
+
+.PHONY: kind-rebuild-ee
+kind-rebuild-ee: ## Force rebuild of custom execution environment
+	@echo "$(COLOR_INFO)Force rebuilding custom execution environment...$(COLOR_RESET)"
 	@if ! python3 -m ansible_builder --version >/dev/null 2>&1; then \
 		echo "$(COLOR_WARNING)ansible-builder not found, installing...$(COLOR_RESET)"; \
 		pip3 install --user --break-system-packages ansible-builder 2>/dev/null || \
@@ -330,12 +356,13 @@ kind-build-ee: ## Build custom execution environment with required collections
 	@cd $(PROJECT_ROOT) && python3 -m ansible_builder build \
 		-f automation/test-execution/awx/execution-environment.yml \
 		-t vllm-awx-ee:latest \
-		-v 3
+		-v 3 \
+		--force
 	@if [ "$(CONTAINER_TYPE)" = "podman" ]; then \
 		echo "$(COLOR_INFO)Ensuring image is tagged without localhost prefix...$(COLOR_RESET)"; \
 		$(CONTAINER_ENGINE) tag localhost/vllm-awx-ee:latest vllm-awx-ee:latest 2>/dev/null || true; \
 	fi
-	@echo "$(COLOR_SUCCESS)✓ Execution environment built$(COLOR_RESET)"
+	@echo "$(COLOR_SUCCESS)✓ Execution environment rebuilt$(COLOR_RESET)"
 
 .PHONY: kind-load-ee
 kind-load-ee: kind-build-ee ## Load custom execution environment into KIND cluster

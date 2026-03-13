@@ -604,7 +604,7 @@ sudo podman logs vllm-server --tail 100
 
 **Fixes:**
 - Out of memory? Reduce `requested_cores` or model size
-- Permission error? `sudo setenforce 0`
+- Permission error? Use Podman with `--security-opt label=disable` or apply correct SELinux labels with `restorecon -Rv <path>` (see [Podman SELinux docs](https://docs.podman.io/en/latest/markdown/podman-run.1.html#security-opt-option))
 
 #### 4. Network/Firewall Issue
 

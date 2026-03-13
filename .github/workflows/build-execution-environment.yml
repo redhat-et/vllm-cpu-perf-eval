@@ -9,6 +9,7 @@ name: Build and Push AWX Execution Environment
       - "automation/test-execution/awx/execution-environment.yml"
       - "automation/test-execution/awx/requirements.yml"
       - ".github/workflows/build-execution-environment.yml"
+      - "context/**"
   workflow_dispatch:
     inputs:
       tag:
@@ -62,12 +63,15 @@ jobs:
           # Determine tags
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             TAGS="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.tag }}"
+            PRIMARY_TAG="${{ inputs.tag }}"
           else
             TAGS="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
             TAGS="$TAGS,${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${SHORT_SHA}"
+            PRIMARY_TAG="latest"
           fi
 
           echo "tags=${TAGS}" >> $GITHUB_OUTPUT
+          echo "primary-tag=${PRIMARY_TAG}" >> $GITHUB_OUTPUT
           echo "short-sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
 
       - name: Build execution environment
@@ -120,7 +124,7 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Pull the image:" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
-          echo "podman pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_STEP_SUMMARY
+          echo "podman pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.primary-tag }}" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "Use in AWX:" >> $GITHUB_STEP_SUMMARY
@@ -128,14 +132,14 @@ jobs:
           echo "spec:" >> $GITHUB_STEP_SUMMARY
           echo "  ee_images:" >> $GITHUB_STEP_SUMMARY
           echo "    - name: vllm-awx-ee" >> $GITHUB_STEP_SUMMARY
-          echo "      image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_STEP_SUMMARY
+          echo "      image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.primary-tag }}" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
 
       - name: Verify image
         run: |
           echo "Verifying pushed image..."
-          podman pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          podman inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          podman pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.primary-tag }}
+          podman inspect ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.primary-tag }}
 
       - name: Image scan (optional)
         continue-on-error: true
@@ -149,4 +153,4 @@ jobs:
           trivy image \
             --severity HIGH,CRITICAL \
             --format table \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.primary-tag }}
