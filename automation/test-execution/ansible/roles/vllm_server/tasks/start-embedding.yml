@@ -51,6 +51,7 @@
     - (core_cfg.tensor_parallel | default(1) | int) > 1
     - core_cfg.omp_threads_bind is defined
     - core_cfg.omp_threads_bind is not none
+  no_log: true  # Prevent HF_TOKEN from appearing in logs
 
 - name: Pull vLLM container image
   containers.podman.podman_image:
