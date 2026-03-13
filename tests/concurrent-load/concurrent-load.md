@@ -2,6 +2,15 @@
 
 Tests model performance under various concurrent request loads.
 
+> **📚 Testing Methodology**
+>
+> This test suite implements the [3-Phase Testing Methodology](../../docs/methodology/testing-phases.md):
+> - **Phase 1**: Baseline tests with fixed tokens and no caching
+> - **Phase 2**: Realistic tests with variable tokens and no caching
+> - **Phase 3**: Production tests with realistic datasets and caching enabled
+>
+> See [testing-phases.md](../../docs/methodology/testing-phases.md) for the general methodology that applies to all test suites.
+
 ## Overview
 
 This test suite focuses on measuring how P95 latency and throughput scale as the
@@ -56,41 +65,89 @@ This test suite evaluates generative LLM models across multiple architecture fam
 
 ## Test Cases
 
-### LLM Models - Concurrent Tests
+### Phase 1: Baseline Tests (Fixed Tokens, No Caching)
 
-Concurrency levels: **{1, 2, 4, 8, 16, 32, 64, 96, 128}**
+Concurrency levels: **{1, 2, 4, 8, 16, 32}**
 
 <!-- markdownlint-disable MD013 -->
 
 | Test ID | Model | Workload | Primary Metric Focus |
 | --- | --- | --- | --- |
 | CONC-LLAMA32-CHAT | Llama-3.2-1B | Chat (512:256) | P95 Latency Scaling (Baseline) |
-| CONC-LLAMA32-CHAT-VAR | Llama-3.2-1B | Chat (512±128:256±64) | P95 Latency (Realistic) |
 | CONC-LLAMA32-RAG | Llama-3.2-1B | RAG (4096:512) | P95 Latency for Long Context RAG |
 | CONC-LLAMA32-CODE | Llama-3.2-1B | CodeGen (512:4096) | P95 Latency for Long Output (Baseline) |
-| CONC-LLAMA32-CODE-VAR | Llama-3.2-1B | CodeGen (512±128:4096±1024) | P95 Latency for Long Output (Realistic) |
 | CONC-QWEN06-CHAT | Qwen/Qwen3-0.6B | Chat (512:256) | P95 Latency (Efficient Model) |
-| CONC-QWEN06-CHAT-VAR | Qwen/Qwen3-0.6B | Chat (512±128:256±64) | P95 Latency (Realistic) |
 | CONC-QWEN06-CODE | Qwen/Qwen3-0.6B | CodeGen (512:4096) | P95 Latency for Long Output |
-| CONC-QWEN06-CODE-VAR | Qwen/Qwen3-0.6B | CodeGen (512±128:4096±1024) | P95 Latency for Long Output (Realistic) |
 | CONC-GRANITE32-CHAT | granite-3.2-2b-instruct | Chat (512:256) | P95 Latency (Enterprise) |
-| CONC-GRANITE32-CHAT-VAR | granite-3.2-2b-instruct | Chat (512±128:256±64) | P95 Latency (Realistic) |
 | CONC-GRANITE32-RAG | granite-3.2-2b-instruct | RAG (4096:512) | P95 Latency for Enterprise RAG |
 | CONC-GRANITE32-CODE | granite-3.2-2b-instruct | CodeGen (512:4096) | P95 Latency for Code Generation |
 | CONC-GPT20B-CHAT | gpt-oss-20b | Chat (512:256) | P95 Latency (Large-Scale MoE) |
-| CONC-GPT20B-CHAT-VAR | gpt-oss-20b | Chat (512±128:256±64) | P95 Latency (Realistic, Large-Scale) |
 | CONC-GPT20B-RAG | gpt-oss-20b | RAG (4096:512) | P95 Latency for Long Context RAG (128k capable) |
 | CONC-GPT20B-CODE | gpt-oss-20b | CodeGen (512:4096) | P95 Latency for Code Generation (MoE) |
 | CONC-TINY11-CHAT | TinyLlama-1.1B | Chat (512:256) | P95 Latency (Small Llama) |
-| CONC-TINY11-CHAT-VAR | TinyLlama-1.1B | Chat (512±128:256±64) | P95 Latency (Realistic) |
 | CONC-OPT125M-SUMM | facebook/opt-125m | Summarization (1024:256) | P95 Latency for Summarization |
 | CONC-OPT125M-CHAT | facebook/opt-125m | Chat (512:256) | P95 Latency (Small Baseline) |
 
-**Notes:**
-- Tests with `-VAR` suffix include statistical variability. Run these after baseline tests for comparison.
-- The table above shows representative test coverage. The complete test matrix is defined in [`model-matrix.yaml`](../../models/llm-models/model-matrix.yaml), which serves as the source-of-truth for execution. Not all models are tested with all workload profiles - combinations are selected based on model characteristics and primary use cases.
+<!-- markdownlint-enable MD013 -->
+
+### Phase 2: Realistic Tests (Variable Tokens, No Caching)
+
+Concurrency levels: **{1, 2, 4, 8, 16, 32}**
+
+<!-- markdownlint-disable MD013 -->
+
+| Test ID | Model | Workload | Primary Metric Focus |
+| --- | --- | --- | --- |
+| CONC-LLAMA32-CHAT-VAR | Llama-3.2-1B | Chat (512±128:256±64) | P95 Latency (Realistic) |
+| CONC-LLAMA32-CODE-VAR | Llama-3.2-1B | CodeGen (512±128:4096±1024) | P95 Latency for Long Output (Realistic) |
+| CONC-QWEN06-CHAT-VAR | Qwen/Qwen3-0.6B | Chat (512±128:256±64) | P95 Latency (Realistic) |
+| CONC-QWEN06-CODE-VAR | Qwen/Qwen3-0.6B | CodeGen (512±128:4096±1024) | P95 Latency for Long Output (Realistic) |
+| CONC-GRANITE32-CHAT-VAR | granite-3.2-2b-instruct | Chat (512±128:256±64) | P95 Latency (Realistic) |
+| CONC-GPT20B-CHAT-VAR | gpt-oss-20b | Chat (512±128:256±64) | P95 Latency (Realistic, Large-Scale) |
+| CONC-TINY11-CHAT-VAR | TinyLlama-1.1B | Chat (512±128:256±64) | P95 Latency (Realistic) |
+| CONC-OPT125M-SUMM-VAR | facebook/opt-125m | Summarization (1024±256:256±64) | P95 Latency for Summarization (Realistic) |
 
 <!-- markdownlint-enable MD013 -->
+
+### Phase 3: Production Tests (Realistic Datasets, With Caching)
+
+> **⚠️ PHASE 3 NOT YET SUPPORTED**
+>
+> Phase 3 testing requires realistic prompt datasets that simulate
+> production traffic patterns. Currently, we use synthetic data with
+> statistical variability (Phase 2), but true production testing requires
+> actual conversation histories, code repositories, or document collections.
+>
+> **Blocked by:** Selection and integration of realistic datasets for each
+> workload type (Chat, RAG, CodeGen). Once datasets are available, Phase 3
+> will use the same infrastructure as Phase 2 but with
+> `vllm_caching_mode=production` and real-world prompts.
+
+Concurrency levels: **{1, 2, 4, 8, 16, 32}** (when implemented)
+
+<!-- markdownlint-disable MD013 -->
+
+| Test ID | Model | Workload | Primary Metric Focus |
+| --- | --- | --- | --- |
+| CONC-LLAMA32-CHAT-PROD | Llama-3.2-1B | Chat (realistic dataset) | Production P95 Latency with Caching |
+| CONC-LLAMA32-CODE-PROD | Llama-3.2-1B | CodeGen (realistic dataset) | Production P95 Latency with Caching |
+| CONC-GRANITE32-CHAT-PROD | granite-3.2-2b-instruct | Chat (realistic dataset) | Production P95 Latency (Enterprise) |
+| CONC-GPT20B-CHAT-PROD | gpt-oss-20b | Chat (realistic dataset) | Production P95 Latency (Large-Scale) |
+
+<!-- markdownlint-enable MD013 -->
+
+**Notes:**
+- **Phase 1 (Baseline)**: All models tested with fixed token counts to
+  establish reproducible baselines
+- **Phase 2 (Realistic)**: Priority models tested with variable token
+  distributions (synthetic)
+- **Phase 3 (Production)**: Subset of models tested with real-world
+  datasets and caching enabled (pending dataset selection)
+- The complete test matrix is defined in
+  [`model-matrix.yaml`](../../models/llm-models/model-matrix.yaml), which
+  serves as the source-of-truth for execution
+- Not all models are tested with all workload profiles - combinations are
+  selected based on model characteristics and primary use cases
 
 ## Embedding Models
 
@@ -108,16 +165,21 @@ This test suite focuses exclusively on **generative LLM models**.
 This test suite implements a phased testing methodology to separate baseline
 performance, realistic variability, and production optimization analysis.
 
-### Phase 1: Baseline Tests (Fixed Tokens, No Caching)
+See the [Test Cases](#test-cases) section above for the complete breakdown
+of which tests run in each phase.
 
-**Objective:** Establish pure baseline performance without caching optimizations
+### Phase 1 Configuration: Baseline Tests
+
+**Objective:** Establish pure baseline performance without caching
+optimizations
 
 **Configuration:**
-- vLLM: `--no-enable-prefix-caching`, `--disable-radix-cache`
+- vLLM: `--no-enable-prefix-caching`
 - Token counts: Fixed (no variability)
 - Concurrency: `{1, 2, 4, 8, 16, 32}`
+- Data: Synthetic prompts with fixed token counts
 
-**Tests:** Selected model × workload combinations (per model-matrix.yaml)
+**Tests:** All models × All 4 workload types (Chat, RAG, CodeGen, Summarization)
 
 **Example:**
 ```bash
@@ -132,18 +194,19 @@ ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
   -e "guidellm_max_seconds=600"
 ```
 
-### Phase 2: Realistic Tests (Variable Tokens, No Caching)
+### Phase 2 Configuration: Realistic Tests
 
 **Objective:** Understand performance under realistic traffic variability
 
 **Configuration:**
-- vLLM: `--no-enable-prefix-caching`, `--disable-radix-cache`
+- vLLM: `--no-enable-prefix-caching`
 - Token counts: Variable (with stdev)
-- Concurrency: Same as Phase 1
+- Concurrency: `{1, 2, 4, 8, 16, 32}`
+- Data: Synthetic prompts with statistical variability
 
-**Tests (Priority):**
-1. Chat workload - All models with variability
-2. CodeGen workload - All models with variability
+**Tests:** Priority models × Chat and CodeGen workloads (with variability)
+- Focus on most common production use cases (Chat) and highest variability
+  workloads (CodeGen)
 
 **Example:**
 ```bash
@@ -158,15 +221,34 @@ ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
   -e "guidellm_max_seconds=600"
 ```
 
-### Phase 3: Production Tests (Variable Tokens, With Caching)
+### Phase 3 Configuration: Production Tests
 
-**Objective:** Simulate true production conditions with realistic load and
+> **⚠️ NOT YET IMPLEMENTED - PENDING REALISTIC DATASET SELECTION**
+>
+> **Current Status:** Phase 3 testing infrastructure is ready, but we need
+> to select and integrate realistic prompt datasets that properly simulate
+> production traffic.
+>
+> **What's Needed:**
+> - **Chat workload**: Real conversation histories or customer support transcripts
+> - **CodeGen workload**: Real code repositories or GitHub issue descriptions
+> - **RAG workload**: Real document collections and queries
+>
+> **Difference from Phase 2:** Phase 2 uses synthetic prompts with statistical
+> variability (random token counts). Phase 3 will use actual realistic prompts
+> that represent true production traffic patterns, enabling accurate prefix
+> caching evaluation.
+>
+> **Timeline:** Blocked pending dataset selection and integration
+
+**Objective:** Simulate true production conditions with realistic datasets and
 optimizations enabled
 
-**Configuration:**
+**Configuration (when implemented):**
 - vLLM: `--enable-prefix-caching` (or omit)
-- Token counts: Variable (realistic production traffic)
-- Concurrency: Same as Phase 1
+- Token counts: Natural distribution from realistic prompts
+- Concurrency: `{1, 2, 4, 8, 16, 32}`
+- Data: **Realistic prompt datasets** (not synthetic)
 
 **Tests (Select models):**
 - High-priority models (e.g., Llama-3.2-1B, granite-3.2-2b, gpt-oss-20b)
