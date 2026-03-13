@@ -62,22 +62,32 @@ The inventory automatically uses these variables with sensible defaults.
 
 **Option B: Edit inventory/hosts.yml directly**
 
-Edit [inventory/hosts.yml](inventory/hosts.yml) - **only change the
-IP addresses** (see [inventory documentation](inventory/README.md) for details):
+Edit [inventory/hosts.yml](inventory/hosts.yml) - change the IP addresses on **lines 63 and 73**
+(see [inventory documentation](inventory/README.md) for details):
 
 ```yaml
-dut:
-  hosts:
-    vllm-server:
-      ansible_host: 192.168.1.10              # ⚠️ YOUR DUT IP
+all:
+  vars:
+    # Common settings (pre-configured with defaults)
+    ansible_user: "{{ lookup('env', 'ANSIBLE_SSH_USER') | default('ec2-user', true) }}"
+    # ...
 
-load_generator:
-  hosts:
-    guidellm-client:
-      ansible_host: 192.168.1.20              # ⚠️ YOUR LOAD GEN IP
+  children:
+    # ...
+
+    dut:
+      hosts:
+        vllm-server:
+          ansible_host: "{{ lookup('env', 'DUT_HOSTNAME') | default('192.168.1.10', true) }}"  # ⚠️ Line 63
+
+    load_generator:
+      hosts:
+        guidellm-client:
+          ansible_host: "{{ lookup('env', 'LOADGEN_HOSTNAME') | default('192.168.1.20', true) }}"  # ⚠️ Line 73
 ```
 
-Everything else is pre-configured in `inventory/group_vars/`!
+The file uses Jinja2 templating to read environment variables. If not set, it falls back to the
+default IPs shown above. Everything else is pre-configured in `inventory/group_vars/`!
 
 ### 3. Test Connectivity
 
