@@ -609,7 +609,7 @@ def build_allocation(selected_nodes, cores_per_node, tp):
         cpuset_mems_parts.append(str(node['id']))
 
     return {
-        'allocated_nodes': [n['id'] for n in selected_nodes],
+        'allocated_nodes': [int(n['id']) for n in selected_nodes],
         'cores_per_node': [cores_per_node] * len(selected_nodes),
         'cpuset_cpus': ','.join(cpuset_cpus_parts),
         'cpuset_mems': ','.join(cpuset_mems_parts),
