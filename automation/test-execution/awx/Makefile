@@ -340,7 +340,14 @@ kind-build-ee: ## Build custom execution environment with required collections
 .PHONY: kind-load-ee
 kind-load-ee: kind-build-ee ## Load custom execution environment into KIND cluster
 	@echo "$(COLOR_INFO)Loading execution environment into KIND cluster...$(COLOR_RESET)"
-	@kind load docker-image vllm-awx-ee:latest --name $(KIND_CLUSTER_NAME)
+	@if [ "$(CONTAINER_TYPE)" = "podman" ]; then \
+		echo "$(COLOR_INFO)Using Podman - saving image to tar and loading into KIND...$(COLOR_RESET)"; \
+		$(CONTAINER_ENGINE) save -o /tmp/vllm-awx-ee.tar localhost/vllm-awx-ee:latest && \
+		kind load image-archive /tmp/vllm-awx-ee.tar --name $(KIND_CLUSTER_NAME) && \
+		rm -f /tmp/vllm-awx-ee.tar; \
+	else \
+		kind load docker-image vllm-awx-ee:latest --name $(KIND_CLUSTER_NAME); \
+	fi
 	@echo "$(COLOR_SUCCESS)✓ Execution environment loaded into KIND$(COLOR_RESET)"
 
 .PHONY: kind-deploy-awx
