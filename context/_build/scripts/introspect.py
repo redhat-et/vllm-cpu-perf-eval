@@ -88,7 +88,7 @@ class CollectionDefinition:
             )
 
         # Validate path doesn't escape collection root
-        collection_root = os.path.dirname(self.reference_path)
+        collection_root = self.reference_path
         abs_collection_root = os.path.abspath(collection_root)
         candidate_path = os.path.join(collection_root, req_file)
         abs_candidate_path = os.path.abspath(candidate_path)
@@ -117,6 +117,7 @@ def read_req_file(path):
     """Provide some minimal error and display handling for file reading"""
     if not os.path.exists(path):
         print(f'Expected requirements file not present at: {os.path.abspath(path)}')
+        raise FileNotFoundError(f'Requirements file not found: {path}')
     with open(path, 'r') as f:
         return f.read()
 

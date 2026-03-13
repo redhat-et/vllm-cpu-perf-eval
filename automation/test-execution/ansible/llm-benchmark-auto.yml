@@ -16,6 +16,11 @@
   gather_facts: false
 
   tasks:
+    - name: Detect if running from AWX
+      ansible.builtin.set_fact:
+        is_awx_job: "{{ lookup('env', 'AWX_JOB_ID') | length > 0 }}"
+        local_results_base: "{{ lookup('env', 'HOME') ~ '/benchmark-results' if (lookup('env', 'AWX_JOB_ID') | length > 0) else playbook_dir ~ '/../../../results/llm' }}"
+
     - name: Validate required variables are defined
       ansible.builtin.assert:
         that:
@@ -287,7 +292,7 @@
     # The collect-sweep-results.yml playbook will fetch all results at once
     - name: Ensure local results directory exists
       ansible.builtin.file:
-        path: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}"
+        path: "{{ hostvars['localhost']['local_results_base'] }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}"
         state: directory
         mode: "0755"
       delegate_to: localhost
@@ -296,25 +301,20 @@
     - name: Fetch results to local machine
       ansible.posix.synchronize:
         src: "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/"
-        dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/"
+        dest: "{{ hostvars['localhost']['local_results_base'] }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/"
         mode: pull
         recursive: true
       when: is_core_sweep is not defined or not is_core_sweep
 
-    - name: Copy GuideLLM log from controller to final results
-      ansible.builtin.copy:
-        src: "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/guidellm.log"
-        dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/guidellm.log"
-      delegate_to: localhost
-      failed_when: false
-      when: is_core_sweep is not defined or not is_core_sweep
+    # Note: GuideLLM log is already included in the synchronize task above
+    # No separate copy needed
 
     - name: Extract per-benchmark timings from benchmarks.json
       ansible.builtin.command:
         cmd: >-
           python3 {{ playbook_dir }}/scripts/extract_benchmark_timings.py
-          {{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/benchmarks.json
-          {{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/test-metadata.json
+          {{ hostvars['localhost']['local_results_base'] }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/benchmarks.json
+          {{ hostvars['localhost']['local_results_base'] }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/test-metadata.json
       delegate_to: localhost
       register: timing_extraction
       changed_when: false
@@ -337,7 +337,7 @@
           - "Configuration: {{ core_configuration.name }}"
           - "  CPUs: {{ core_configuration.cpuset_cpus }}"
           - "  NUMA: {{ core_configuration.cpuset_mems }}"
-          - "Results: results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/"
+          - "Results: {{ '~/benchmark-results' if hostvars['localhost']['is_awx_job'] else 'results/llm' }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/"
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       when: is_core_sweep is not defined or not is_core_sweep
 

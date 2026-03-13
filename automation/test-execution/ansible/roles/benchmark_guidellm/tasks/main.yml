@@ -254,8 +254,6 @@
     flat: true
   when:
     - use_guidellm_container | bool
-    - guidellm_full_logs is defined
-    - guidellm_full_logs.stdout is defined
 
 
 - name: Remove completed container
