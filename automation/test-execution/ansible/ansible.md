@@ -7,50 +7,62 @@ models with NUMA-aware CPU optimization.
 
 ### 1. Configure Inventory
 
+**Option A: Environment Variables (Recommended - No file edits)**
+
+```bash
+export DUT_HOSTNAME=your-dut-hostname.compute.amazonaws.com
+export LOADGEN_HOSTNAME=your-loadgen-hostname.compute.amazonaws.com
+export ANSIBLE_SSH_USER=ec2-user
+export ANSIBLE_SSH_KEY=~/.ssh/your-key.pem
+export HF_TOKEN=hf_xxxxx  # If using gated models like Llama
+```
+
+The inventory automatically uses these variables with sensible defaults.
+
+**Option B: Edit inventory/hosts.yml directly**
+
 Edit [inventory/hosts.yml](inventory/hosts.yml) - **only change the
 IP addresses** (see [inventory documentation](inventory/README.md) for details):
 
 ```yaml
 dut:
   hosts:
-    my-dut:
+    vllm-server:
       ansible_host: 192.168.1.10              # ⚠️ YOUR DUT IP
-      ansible_user: ec2-user                  # ⚠️ YOUR SSH USER
-      ansible_ssh_private_key_file: ~/.ssh/your-key.pem
 
 load_generator:
   hosts:
-    my-loadgen:
+    guidellm-client:
       ansible_host: 192.168.1.20              # ⚠️ YOUR LOAD GEN IP
-      ansible_user: ec2-user
-      ansible_ssh_private_key_file: ~/.ssh/your-key.pem
-      bench_config:
-        vllm_host: 192.168.1.10               # ⚠️ MUST MATCH DUT IP
 ```
 
-Everything else is pre-configured!
+Everything else is pre-configured in `inventory/group_vars/`!
 
 ### 2. Test Connectivity
 
 ```bash
+cd automation/test-execution/ansible
 ansible -i inventory/hosts.yml all -m ping
 ```
 
-### 3. Run a Test
+### 3. Run Your First Test
 
 ```bash
-# Set HuggingFace token
+# Set HuggingFace token (if using gated models)
 export HF_TOKEN=hf_xxxxx
 
-# Run LLM benchmark (manual config)
+# Run LLM benchmark with auto-configured cores
 ansible-playbook -i inventory/hosts.yml \
-  llm-benchmark.yml \
+  llm-benchmark-auto.yml \
   -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
-  -e "workload_type=summarization" \
-  -e "core_config_name=32cores-single-socket"
+  -e "workload_type=chat" \
+  -e "requested_cores=16"
+
+# Results are saved locally at:
+# results/llm/meta-llama__Llama-3.2-1B-Instruct/chat-*/benchmarks.html
 ```
 
-Done!
+Done! See sections below for advanced usage and additional playbooks.
 
 ## Architecture
 
@@ -193,6 +205,8 @@ ansible-playbook -i inventory/hosts.yml \
 ### Run Platform Setup (One-Time)
 
 ```bash
+cd automation/test-execution/ansible
+
 # Configure CPU isolation, tuned profile, systemd pinning
 ansible-playbook -i inventory/hosts.yml setup-platform.yml
 
@@ -203,23 +217,37 @@ ansible -i inventory/hosts.yml all -b -m reboot
 ansible -i inventory/hosts.yml dut -b -a "tuned-adm active"
 ```
 
+See [Platform Setup Guide](../../../docs/platform-setup/x86/intel/deterministic-benchmarking.md)
+for detailed information on platform optimization.
+
 ### Run LLM Benchmark
 
 Test with specific core configuration:
 
 ```bash
+cd automation/test-execution/ansible
 export HF_TOKEN=hf_xxxxx
 
+# Manual core config
 ansible-playbook -i inventory/hosts.yml \
   llm-benchmark.yml \
   -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
   -e "workload_type=summarization" \
   -e "core_config_name=32cores-single-socket"
+
+# Or auto-configured cores (recommended)
+ansible-playbook -i inventory/hosts.yml \
+  llm-benchmark-auto.yml \
+  -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
+  -e "workload_type=chat" \
+  -e "requested_cores=32"
 ```
 
 ### Run Embedding Benchmark
 
 ```bash
+cd automation/test-execution/ansible
+
 ansible-playbook -i inventory/hosts.yml \
   embedding-benchmark.yml \
   -e "test_model=ibm-granite/granite-embedding-278m-multilingual" \
@@ -229,6 +257,7 @@ ansible-playbook -i inventory/hosts.yml \
 ### Test Multiple Models
 
 ```bash
+cd automation/test-execution/ansible
 export HF_TOKEN=hf_xxxxx
 
 for model in \
@@ -236,12 +265,38 @@ for model in \
   "meta-llama/Llama-3.2-3B-Instruct"; do
 
   ansible-playbook -i inventory/hosts.yml \
-    llm-benchmark.yml \
+    llm-benchmark-auto.yml \
     -e "test_model=$model" \
-    -e "workload_type=summarization" \
-    -e "core_config_name=16cores-single-socket"
+    -e "workload_type=chat" \
+    -e "requested_cores=16"
 done
 ```
+
+### View Results
+
+After running tests, results are automatically collected to your local machine:
+
+```bash
+# LLM results location
+ls -la results/llm/
+
+# View HTML report in browser
+open results/llm/meta-llama__Llama-3.2-1B-Instruct/chat-*/benchmarks.html
+
+# Or on Linux
+xdg-open results/llm/meta-llama__Llama-3.2-1B-Instruct/chat-*/benchmarks.html
+
+# JSON results for programmatic access
+cat results/llm/meta-llama__Llama-3.2-1B-Instruct/chat-*/benchmarks.json
+```
+
+Results include:
+- **benchmarks.html** - Interactive HTML report with charts
+- **benchmarks.json** - Raw JSON data for analysis
+- **vllm-server.log** - vLLM server logs (collected from DUT)
+
+See [Results Documentation](../../../results/results.md) for more details on
+result organization and analysis.
 
 ## Directory Structure
 
@@ -256,11 +311,10 @@ automation/test-execution/ansible/
 │   │   │   ├── credentials.yml      # HuggingFace token setup
 │   │   │   ├── endpoints.yml        # Network endpoints
 │   │   │   ├── hardware-profiles.yml # Core configurations
-│   │   │   ├── infrastructure.yml    # Paths, directories
+│   │   │   ├── infrastructure.yml   # Platform setup config
 │   │   │   └── test-workloads.yml   # Workload definitions
 │   │   ├── dut/main.yml             # DUT-specific vars
 │   │   └── load_generator/main.yml  # Load gen-specific vars
-│   ├── examples/                    # Example inventory files
 │   └── README.md                    # Inventory documentation
 │
 ├── roles/                           # Reusable roles
@@ -286,25 +340,30 @@ automation/test-execution/ansible/
 │   ├── benchmark_vllm_bench/        # vllm-bench base
 │   │   └── tasks/main.yml
 │   └── results_collector/           # Log/result collection
+│       ├── README.md                # Role documentation
 │       └── tasks/
 │           ├── main.yml
 │           ├── collect-vllm-logs.yml
 │           └── collect-test-results.yml
 │
-├── llm-benchmark.yml                # LLM playbook
-├── llm-benchmark-auto.yml           # Auto-config LLM test
-├── llm-core-sweep.yml               # LLM sweep
-├── llm-core-sweep-auto.yml          # Auto-config sweep
+├── playbooks/                       # Shared playbook tasks
+│   └── common/tasks/                # Common task definitions
+│
+├── llm-benchmark.yml                # LLM playbook (manual config)
+├── llm-benchmark-auto.yml           # LLM playbook (auto-config cores)
+├── llm-core-sweep.yml               # LLM sweep (manual configs)
+├── llm-core-sweep-auto.yml          # LLM sweep (auto-config cores)
 ├── embedding-benchmark.yml          # Embedding playbook
 ├── embedding-core-sweep.yml         # Embedding sweep
 ├── setup-platform.yml               # Platform setup
-├── collect-logs.yml                 # Log collection
 ├── health-check.yml                 # Health check
 ├── start-vllm-server.yml            # vLLM starter
 │
 ├── filter_plugins/                  # Custom Jinja2 filters
 │   ├── cpu_utils.py                 # CPU topology filters
 │   └── test_cpu_utils.py            # Unit tests
+│
+├── tests/                           # Ansible tests
 │
 └── ansible.md                       # This file
 ```
@@ -500,7 +559,7 @@ ssh <DUT_IP> "sudo podman inspect <container-name> --format '{{.State.Status}}'"
 ## References
 
 - [Inventory Documentation](inventory/README.md) - Detailed inventory guide
-- [Filter Plugins](filter_plugins/filter_plugins.md) - Custom filter documentation
+- [Results Collector Role](roles/results_collector/README.md) - Log collection documentation
 - [vLLM Documentation](https://docs.vllm.ai/)
 - [GuideLLM Documentation](https://github.com/neuralmagic/guidellm)
 - [Ansible Best Practices](https://docs.ansible.com/projects/ansible/latest/tips_tricks/sample_setup.html)

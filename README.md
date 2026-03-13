@@ -8,58 +8,17 @@ systems.
 
 ## Quick Start
 
-### 1. Configure Environment
+See the [Ansible Quick Start Guide](automation/test-execution/ansible/ansible.md#quick-start)
+for step-by-step instructions to:
 
-Set up your test infrastructure and credentials:
+1. Configure your test inventory (DUT and load generator hosts)
+2. Run your first LLM benchmark
+3. View and analyze results
 
-```bash
-# Configure test hosts
-export DUT_HOSTNAME=your-dut-hostname.compute.amazonaws.com
-export LOADGEN_HOSTNAME=your-loadgen-hostname.compute.amazonaws.com
-export ANSIBLE_SSH_USER=ec2-user
-export ANSIBLE_SSH_KEY=~/.ssh/your-key.pem
-
-# Configure HuggingFace token for model access
-export HF_TOKEN=hf_your_token_here
-```
-
-### 2. Run a Benchmark Test
-
-Execute a single LLM benchmark with auto-configured cores:
-
-```bash
-cd automation/test-execution/ansible
-
-# Run benchmark against a specific model and workload
-ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
-  -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
-  -e "workload_type=chat" \
-  -e "requested_cores=16" \
-  -e "guidellm_profile=concurrent" \
-  -e "guidellm_rate=[1,2,4,8,16,32]" \
-  -e "guidellm_max_seconds=600"
-
-# Run with variable workload for realistic traffic simulation
-ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
-  -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
-  -e "workload_type=chat_var" \
-  -e "requested_cores=16"
-```
-
-### 3. View Results
-
-Results are saved locally:
-
-```bash
-# Results location
-ls results/llm/meta-llama__Llama-3.2-1B-Instruct/chat-*/
-
-# View HTML report
-open results/llm/meta-llama__Llama-3.2-1B-Instruct/chat-*/benchmarks.html
-```
-
-See [Ansible Documentation](automation/test-execution/ansible/ansible.md) for
-detailed instructions and advanced usage.
+The guide includes complete examples for:
+- **Manual test execution** with Ansible playbooks
+- **Platform setup** for optimal performance
+- **Custom configurations** and advanced usage
 
 ## Repository Structure
 
@@ -92,18 +51,20 @@ vllm-cpu-perf-eval/
 │       └── latency-concurrent.yaml    # Latency tests
 │
 ├── automation/                         # Automation framework
-│   ├── automation.md                   # Automation guide
 │   ├── test-execution/                 # Test orchestration
 │   │   ├── ansible/                   # Ansible playbooks (primary)
+│   │   │   ├── ansible.md             # Ansible documentation
 │   │   │   ├── inventory/             # Host configurations
 │   │   │   ├── playbooks/             # Test execution playbooks
 │   │   │   ├── filter_plugins/        # Custom Ansible filters
-│   │   │   └── roles/                 # Ansible roles
-│   │   ├── bash/                      # Bash automation scripts
-│   │   │   └── embedding/             # Embedding test scripts
-│   │   └── results/                   # Temporary results (gitignored)
+│   │   │   ├── roles/                 # Ansible roles
+│   │   │   ├── tasks/                 # Task definitions
+│   │   │   └── tests/                 # Ansible tests
+│   │   └── bash/                      # Bash automation scripts
+│   │       └── embedding/             # Embedding test scripts
 │   ├── platform-setup/                 # Platform configuration
-│   │   └── bash/intel/                # Intel platform setup scripts
+│   │   └── bash/                      # Platform setup scripts
+│   │       └── intel/                 # Intel-specific setup
 │   └── utilities/                      # Helper utilities
 │       ├── health-checks/             # Health check scripts
 │       └── log-monitoring/            # Log analysis tools
@@ -115,11 +76,8 @@ vllm-cpu-perf-eval/
 │   └── platform-setup/                 # Platform setup guides
 │
 ├── results/                            # Test results (gitignored)
-│   ├── by-suite/                      # Results organized by test suite
-│   ├── by-model/                      # Results organized by model
-│   ├── by-host/                       # Results organized by test host
-│   ├── reports/                       # Generated reports
-│   └── metrics/                       # Exported metrics
+│   ├── llm/                           # LLM test results
+│   └── results.md                     # Results documentation
 │
 ├── utils/                              # Utility scripts and tools
 │
@@ -132,13 +90,13 @@ vllm-cpu-perf-eval/
 
 **Key Directories:**
 
-- **models/** - Model definitions reused across all test suites
-- **tests/** - Test suite definitions organized by testing focus
-- **automation/** - Ansible playbooks and bash scripts for test execution
-- **docs/** - Comprehensive testing methodology and guides
-- **results/** - Local test results (not committed to git)
+- **[models/](models/models.md)** - Model definitions reused across all test suites
+- **[tests/](tests/tests.md)** - Test suite definitions organized by testing focus
+- **[automation/test-execution/ansible/](automation/test-execution/ansible/ansible.md)** - Ansible playbooks for test execution
+- **[docs/](docs/docs.md)** - Comprehensive testing methodology and guides
+- **results/** - Local test results (gitignored, see [results.md](results/results.md))
 
-See individual directory README/markdown files for detailed information.
+See individual directory markdown files for detailed information.
 
 ## Key Features
 
@@ -192,54 +150,61 @@ Configure your system for deterministic performance testing:
 
 ```bash
 # With Ansible (recommended)
-cd automation/platform-setup/ansible
-ansible-playbook playbooks/site.yml
+cd automation/test-execution/ansible
+ansible-playbook setup-platform.yml
 
 # With bash script
 cd automation/platform-setup/bash/intel
 sudo ./setup-guidellm-platform.sh --apply
 ```
 
-See [Platform Setup Guide](docs/platform-setup/) for details.
+See [Intel Platform Setup Guide](docs/platform-setup/x86/intel/deterministic-benchmarking.md)
+for detailed platform configuration.
 
 ### 2. Run Tests
 
-Execute performance tests using Ansible or Docker/Podman:
+Execute performance tests using Ansible playbooks:
 
 ```bash
-# Ansible - Run entire test suite
 cd automation/test-execution/ansible
-ansible-playbook playbooks/run-suite.yml -e "test_suite=concurrent-load"
 
-# Docker/Podman - Run specific test
-cd tests/concurrent-load
-MODEL_NAME=llama-3.2-1b SCENARIO=concurrent-8 docker compose up
+# Run single LLM benchmark
+ansible-playbook llm-benchmark-auto.yml \
+  -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
+  -e "workload_type=chat" \
+  -e "requested_cores=16"
+
+# Run embedding benchmark
+ansible-playbook embedding-benchmark.yml \
+  -e "test_model=ibm-granite/granite-embedding-278m-multilingual" \
+  -e "scenario=baseline"
 ```
 
-See [Test Execution Guide](docs/ansible/test-execution.md) for details.
+See [Ansible Documentation](automation/test-execution/ansible/ansible.md) for complete
+usage instructions and advanced options.
 
-### 3. Analyze Results
+### 3. View Results
 
-Generate reports and compare results:
+Results are collected locally with HTML reports:
 
 ```bash
-cd automation/analysis
-python generate-report.py \
-  --input ../../results/concurrent-load/ \
-  --format html \
-  --output ../../results/reports/concurrent-load.html
+# View LLM results
+open results/llm/meta-llama__Llama-3.2-1B-Instruct/*/benchmarks.html
+
+# Results structure documented in
+cat results/results.md
 ```
 
-See [Reporting Guide](docs/methodology/reporting.md) for details.
+See [Methodology Documentation](docs/methodology/overview.md) for understanding
+metrics and performance analysis.
 
 ## Documentation
 
-- **[Getting Started](docs/getting-started/)** - Quick start guides
-- **[Methodology](docs/methodology/)** - Testing methodology and metrics
-- **[Platform Setup](docs/platform-setup/)** - Platform configuration guides
-- **[Containers](docs/containers/)** - Docker/Podman guides
-- **[Ansible](docs/ansible/)** - Ansible playbook documentation
-- **[Reference](docs/reference/)** - Schema and CLI reference
+- **[Ansible Testing](automation/test-execution/ansible/ansible.md)** - Complete Ansible usage guide
+- **[Methodology](docs/methodology/overview.md)** - Testing methodology and metrics
+- **[Platform Setup](docs/platform-setup/x86/intel/deterministic-benchmarking.md)** - Intel platform configuration
+- **[Models](models/models.md)** - Model definitions and selection
+- **[Tests](tests/tests.md)** - Test suite documentation
 
 Full documentation index: [docs/docs.md](docs/docs.md)
 
@@ -313,8 +278,8 @@ selection rationale, and how to add new models.
 - GuideLLM v0.5.0+
 - vLLM
 
-See [docs/getting-started/quick-start.md](docs/getting-started/quick-start.md)
-for installation instructions.
+See [Ansible Documentation](automation/test-execution/ansible/ansible.md) for
+setup and configuration instructions.
 
 ## Container Runtime Support
 
@@ -324,20 +289,9 @@ This repository supports both Docker and Podman:
 - **Podman**: Daemonless, rootless-capable alternative
 - **Auto-detection**: Automatically uses available runtime
 
-Set runtime preference:
-
-```bash
-# Use Docker
-export CONTAINER_RUNTIME=docker
-
-# Use Podman
-export CONTAINER_RUNTIME=podman
-
-# Auto-detect (default)
-export CONTAINER_RUNTIME=auto
-```
-
-See [Container Guide](docs/containers/) for details.
+The Ansible playbooks automatically detect and use the available container runtime.
+For manual configuration, see the [vllm_server role](automation/test-execution/ansible/roles/vllm_server/)
+documentation.
 
 ## Contributing
 
