@@ -384,15 +384,18 @@ automation/test-execution/ansible/
 │   │       └── latency.yml
 │   ├── benchmark_vllm_bench/        # vllm-bench base
 │   │   └── tasks/main.yml
-│   └── results_collector/           # Log/result collection
-│       ├── README.md                # Role documentation
-│       └── tasks/
-│           ├── main.yml
-│           ├── collect-vllm-logs.yml
-│           └── collect-test-results.yml
-│
-├── playbooks/                       # Shared playbook tasks
-│   └── common/tasks/                # Common task definitions
+│   ├── results_collector/           # Log/result collection
+│   │   ├── defaults/main.yml        # Default variables
+│   │   ├── README.md                # Role documentation
+│   │   └── tasks/
+│   │       ├── main.yml
+│   │       ├── collect-vllm-logs.yml
+│   │       └── collect-test-results.yml
+│   └── common/                      # Common role
+│       └── tasks/                   # Shared task definitions
+│           ├── allocate-cores-from-count.yml
+│           ├── detect-numa-topology.yml
+│           └── setup-vllm-api-key.yml
 │
 ├── llm-benchmark.yml                # LLM playbook (manual config)
 ├── llm-benchmark-auto.yml           # LLM playbook (auto-config cores)

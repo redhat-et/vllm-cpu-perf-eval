@@ -55,11 +55,10 @@ vllm-cpu-perf-eval/
 │   │   ├── ansible/                   # Ansible playbooks (primary)
 │   │   │   ├── ansible.md             # Ansible documentation
 │   │   │   ├── inventory/             # Host configurations
-│   │   │   ├── playbooks/             # Test execution playbooks
 │   │   │   ├── filter_plugins/        # Custom Ansible filters
 │   │   │   ├── roles/                 # Ansible roles
-│   │   │   ├── tasks/                 # Task definitions
-│   │   │   └── tests/                 # Ansible tests
+│   │   │   ├── tests/                 # Ansible tests
+│   │   │   └── *.yml                  # Playbook files
 │   │   └── bash/                      # Bash automation scripts
 │   │       └── embedding/             # Embedding test scripts
 │   ├── platform-setup/                 # Platform configuration
@@ -189,7 +188,7 @@ Results are collected locally with HTML reports:
 
 ```bash
 # View LLM results
-open results/llm/meta-llama__Llama-3.2-1B-Instruct/*/benchmarks.html
+open results/llm/meta-llama__Llama-3.2-1B-Instruct/chat-*/benchmarks.html
 
 # Results structure documented in
 cat results/results.md
