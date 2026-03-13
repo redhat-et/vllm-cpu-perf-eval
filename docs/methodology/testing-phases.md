@@ -1,14 +1,21 @@
-# 3-Phase Concurrent Load Testing Strategy
+# 3-Phase Testing Methodology
 
 ## Overview
 
-The vLLM CPU performance evaluation uses a structured 3-phase testing approach to separate baseline performance measurement, realistic variability analysis, and production optimization evaluation. This methodology ensures comprehensive performance characterization while maintaining clear comparisons between different testing scenarios.
+The vLLM CPU performance evaluation uses a structured 3-phase testing approach to separate baseline performance measurement, realistic variability analysis, and production optimization evaluation. This methodology applies to **all test suites** (concurrent load, scalability, embedding models) and ensures comprehensive performance characterization while maintaining clear comparisons between different testing scenarios.
 
 **Key Benefits:**
 - **Reproducible baselines**: Fixed workloads eliminate variability for apples-to-apples comparisons
 - **Realistic insights**: Variable workloads simulate real-world traffic patterns
 - **Production validation**: Caching comparison quantifies optimization benefits
 - **Clear progression**: Each phase builds on previous results
+
+> **📚 Test Suite Implementations**
+>
+> This document describes the **general methodology**. For specific test implementations:
+> - **Concurrent Load Tests**: See [tests/concurrent-load/concurrent-load.md](../../tests/concurrent-load/concurrent-load.md)
+> - **Scalability Tests**: See [tests/scalability/scalability.md](../../tests/scalability/scalability.md)
+> - **Embedding Models**: See [tests/embedding-models/embedding-models.md](../../tests/embedding-models/embedding-models.md)
 
 ---
 
@@ -21,69 +28,47 @@ The vLLM CPU performance evaluation uses a structured 3-phase testing approach t
 - Establish pure baseline performance without caching optimizations
 - Create reproducible performance benchmarks for cross-architecture comparison
 - Identify maximum throughput without production optimizations
-- Measure single-user latency (concurrency=1) for efficiency calculations
+- Measure single-user/minimal load baseline for efficiency calculations
 - Determine saturation points for each model/workload combination
 
-### Phase 1: Configuration
+### Phase 1: Configuration Pattern
 
-```yaml
-vLLM Server:
-  --no-enable-prefix-caching
-  --disable-radix-cache
-  --dtype=bfloat16
+**vLLM Server:**
+- Disable prefix caching: `--no-enable-prefix-caching`
+- Data type: `--dtype=bfloat16`
 
-GuideLLM:
-  --max-seconds=600
-  --request-timeout=600
-  --warmup=0.1
-  --profile=concurrent
-  --rate=1,2,4,8,16,32
+**Load Generator (GuideLLM or vllm bench):**
+- Time-based testing for consistency
+- Warmup period to exclude cold start effects
+- Fixed token counts (no variability)
 
-Workloads:
-  - chat (512:256) - Fixed
-  - rag (4096:512) - Fixed
-  - code (512:4096) - Fixed
-  - summarization (1024:256) - Fixed
-```
-
-### Phase 1: Test Execution
-
-All models × All 4 workload profiles × All concurrency levels
-
-**Example command:**
-
-```bash
-ansible-playbook llm-benchmark-auto.yml \
-  -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
-  -e "workload_type=chat" \
-  -e "requested_cores=16" \
-  -e "vllm_caching_mode=baseline" \
-  -e "guidellm_profile=concurrent" \
-  -e "guidellm_rate=[1,2,4,8,16,32]" \
-  -e "guidellm_max_seconds=600"
-```
+**Workload Characteristics:**
+- Fixed input token counts
+- Fixed output token counts
+- Synthetic prompts with deterministic behavior
 
 ### Phase 1: Expected Outcomes
 
 **Metrics to Collect:**
-- P95/P99 latency curves across concurrency levels
+- P95/P99 latency across different load levels
 - Maximum throughput without caching
-- Single-user latency baseline (concurrency=1)
+- Baseline latency at minimal load
 - Time to First Token (TTFT) baseline
 - Time Per Output Token (TPOT) baseline
 - Saturation points for each model/workload
 
 **Analysis:**
-- Identify concurrency sweet spots (best latency/throughput trade-off)
+- Identify optimal operating points (best latency/throughput trade-off)
 - Compare model efficiency across architectures
 - Establish baseline for future comparisons
+- Determine which models work well on CPU
 
 ### Phase 1: Success Criteria
 
 - ✅ All tests complete without errors
-- ✅ Consistent P95/P99 latency measurements (low variance across runs)
+- ✅ Consistent latency measurements (low variance across runs)
 - ✅ Clear saturation point identification
-- ✅ Single-user latency (concurrency=1) provides efficiency baseline
+- ✅ Minimal load baseline provides efficiency reference
 
 ---
 
@@ -97,58 +82,23 @@ ansible-playbook llm-benchmark-auto.yml \
 - Identify performance stability under variable load
 - Compare realistic vs baseline to understand variability impact
 - Understand real-world traffic pattern effects
+- Validate that systems can handle realistic workload distributions
 
-### Phase 2: Configuration
+### Phase 2: Configuration Pattern
 
-```yaml
-vLLM Server:
-  --no-enable-prefix-caching
-  --disable-radix-cache
-  --dtype=bfloat16
+**vLLM Server:**
+- Disable prefix caching: `--no-enable-prefix-caching` (same as Phase 1)
+- Data type: `--dtype=bfloat16`
 
-GuideLLM:
-  --max-seconds=600
-  --request-timeout=600
-  --warmup=0.1
-  --profile=concurrent
-  --rate=1,2,4,8,16,32
+**Load Generator:**
+- Time-based testing (same duration as Phase 1)
+- Warmup period
+- Variable token counts with statistical distribution
 
-Workloads (with variability):
-  - chat_var (512±128:256±64)
-    - Input: mean=512, stdev=128, min=128, max=1024
-    - Output: mean=256, stdev=64, min=64, max=512
-
-  - code_var (512±128:4096±1024)
-    - Input: mean=512, stdev=128, min=128, max=1024
-    - Output: mean=4096, stdev=1024, min=512, max=6144
-```
-
-### Phase 2: Test Execution
-
-**Priority Models:**
-- All models in test suite
-
-**Priority Workloads:**
-1. Chat with variability (chat_var)
-2. CodeGen with variability (code_var)
-
-**Rationale:**
-- Chat: Most common production use case
-- CodeGen: Highest output variability (code length varies significantly)
-- RAG/Summarization: Less critical for variability testing (documents/outputs more stable)
-
-**Example command:**
-
-```bash
-ansible-playbook llm-benchmark-auto.yml \
-  -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
-  -e "workload_type=chat_var" \
-  -e "requested_cores=16" \
-  -e "vllm_caching_mode=baseline" \
-  -e "guidellm_profile=concurrent" \
-  -e "guidellm_rate=[1,2,4,8,16,32]" \
-  -e "guidellm_max_seconds=600"
-```
+**Workload Characteristics:**
+- Token counts with mean, standard deviation, min, and max
+- Synthetic prompts with statistical variability
+- Example: Input tokens ~ N(512, 128) with bounds [128, 1024]
 
 ### Phase 2: Expected Outcomes
 
@@ -157,11 +107,13 @@ ansible-playbook llm-benchmark-auto.yml \
 - Latency distribution spread (compare to Phase 1)
 - Throughput stability with variable requests
 - TTFT/TPOT variance
+- Performance degradation from baseline
 
 **Analysis:**
 - Quantify latency variance increase (realistic vs fixed)
 - Identify models with better variance handling
 - Understand performance stability characteristics
+- Compare to Phase 1 to isolate variability impact
 
 ### Phase 2: Success Criteria
 
@@ -174,65 +126,37 @@ ansible-playbook llm-benchmark-auto.yml \
 
 ## Phase 3: Production Tests
 
-**Variable Tokens, With Caching**
+**Realistic Datasets, With Caching**
+
+> **⚠️ PHASE 3 STATUS**
+>
+> Phase 3 requires realistic prompt datasets that simulate actual production traffic patterns.
+> Different test suites may have different Phase 3 readiness levels. Check the individual
+> test suite documentation for current status and dataset availability.
 
 ### Phase 3: Objectives
 
-- Simulate true production conditions with realistic load and optimizations
+- Simulate true production conditions with realistic datasets and optimizations
 - Measure real-world performance with variable traffic and caching enabled
 - Quantify combined impact of variability and caching optimizations
 - Validate production configurations under realistic conditions
 - Establish production performance baselines
 
-### Phase 3: Configuration
+### Phase 3: Configuration Pattern
 
-```yaml
-vLLM Server:
-  --enable-prefix-caching  # or omit (enabled by default)
-  --dtype=bfloat16
-  # Omit: --no-enable-prefix-caching, --disable-radix-cache
+**vLLM Server:**
+- Enable prefix caching: `--enable-prefix-caching` (or omit - enabled by default)
+- Data type: `--dtype=bfloat16`
 
-GuideLLM:
-  --max-seconds=600
-  --request-timeout=600
-  --warmup=0.1
-  --profile=concurrent
-  --rate=1,2,4,8,16,32
+**Load Generator:**
+- Time-based testing (same duration as Phase 1/2)
+- Warmup period
+- **Realistic prompt datasets** (not synthetic)
 
-Workloads (Variable - true production conditions):
-  - chat_var (512±128:256±64)
-  - code_var (512±128:4096±1024)
-```
-
-### Phase 3: Test Execution
-
-**Select Models (High-Priority):**
-- meta-llama/Llama-3.2-1B-Instruct
-- ibm-granite/granite-3.2-2b-instruct
-- openai/gpt-oss-20b
-
-**Select Workloads:**
-- Chat (variable) - benefits from prefix caching with realistic conversation patterns
-- CodeGen (variable) - benefits from caching with realistic code generation variance
-
-**Rationale:**
-- Focus on workloads where prefix caching provides the most benefit
-- Use variable tokens to simulate true production traffic patterns
-- Select representative models across different sizes
-- Combines both realistic load and production optimizations
-
-**Example command:**
-
-```bash
-ansible-playbook llm-benchmark-auto.yml \
-  -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
-  -e "workload_type=chat_var" \
-  -e "requested_cores=16" \
-  -e "vllm_caching_mode=production" \
-  -e "guidellm_profile=concurrent" \
-  -e "guidellm_rate=[1,2,4,8,16,32]" \
-  -e "guidellm_max_seconds=600"
-```
+**Workload Characteristics:**
+- Natural token distribution from real prompts
+- Actual conversation histories, code repositories, or document collections
+- Representative production traffic patterns
 
 ### Phase 3: Expected Outcomes
 
@@ -261,7 +185,7 @@ ansible-playbook llm-benchmark-auto.yml \
 
 ## Cross-Phase Analysis
 
-### Comparing Baseline vs Realistic
+### Comparing Baseline vs Realistic (Phase 1 vs Phase 2)
 
 **Question:** How does token variability impact performance?
 
@@ -270,9 +194,8 @@ ansible-playbook llm-benchmark-auto.yml \
 - ΔP99 Latency = P99_realistic - P99_baseline
 - Latency Variance Ratio = StdDev_realistic / StdDev_baseline
 
-**Analysis:**
-```bash
-# Example comparison
+**Example Analysis:**
+```
 Phase 1 (Fixed): P95=245ms, P99=312ms
 Phase 2 (Variable): P95=278ms, P99=365ms
 
@@ -290,13 +213,12 @@ Conclusion: Variability adds ~13-17% latency overhead
 **Question:** What performance gains does caching provide under realistic load?
 
 **Metrics:**
-- TTFT Improvement % = (TTFT_phase2 - TTFT_phase3) / TTFT_phase2 * 100
-- Throughput Gain % = (Throughput_phase3 - Throughput_phase2) / Throughput_phase2 * 100
-- Latency Reduction % = (P95_phase2 - P95_phase3) / P95_phase2 * 100
+- TTFT Improvement % = (TTFT_phase2 - TTFT_phase3) / TTFT_phase2 × 100
+- Throughput Gain % = (Throughput_phase3 - Throughput_phase2) / Throughput_phase2 × 100
+- Latency Reduction % = (P95_phase2 - P95_phase3) / P95_phase2 × 100
 
-**Analysis:**
-```bash
-# Example comparison
+**Example Analysis:**
+```
 Phase 2 (Variable, No Cache): TTFT=165ms, Throughput=35.4 rps, P95=278ms
 Phase 3 (Variable, With Cache): TTFT=98ms, Throughput=48.7 rps, P95=195ms
 
@@ -309,19 +231,18 @@ Gains:
 **Interpretation:**
 - **Chat workloads**: Expect 20-40% improvement (conversation history caching)
 - **CodeGen workloads**: Expect 15-30% improvement (prompt caching)
-- Cache effectiveness may vary based on request patterns
+- Cache effectiveness varies based on request patterns and dataset
 
 ### Comparing Baseline vs Production (Phase 1 vs Phase 3)
 
 **Question:** What is the total production improvement over baseline?
 
 **Metrics:**
-- Total TTFT Impact = (TTFT_phase1 - TTFT_phase3) / TTFT_phase1 * 100
-- Total Throughput Impact = (Throughput_phase3 - Throughput_phase1) / Throughput_phase1 * 100
+- Total TTFT Impact = (TTFT_phase1 - TTFT_phase3) / TTFT_phase1 × 100
+- Total Throughput Impact = (Throughput_phase3 - Throughput_phase1) / Throughput_phase1 × 100
 
-**Analysis:**
-```bash
-# Example comparison
+**Example Analysis:**
+```
 Phase 1 (Fixed, No Cache): TTFT=156ms, Throughput=38.2 rps, P95=245ms
 Phase 3 (Variable, With Cache): TTFT=98ms, Throughput=48.7 rps, P95=195ms
 
@@ -334,144 +255,64 @@ Total Impact:
 **Interpretation:**
 - Shows combined effect of caching benefits offsetting variability overhead
 - Production configuration (Phase 3) should outperform baseline (Phase 1) despite variable load
+- Validates that production optimizations compensate for realistic traffic complexity
 
-### Recommended Testing Order
+---
+
+## Testing Order and Dependencies
+
+### Recommended Testing Sequence
 
 ```
 1. Phase 1: Baseline Tests (Fixed, No Caching)
-   ├── Run all models on all 4 workloads
+   ├── Run all models on all workload types
    ├── Document: P95/P99 latency, throughput, TTFT, TPOT
    └── Establish performance baselines
 
 2. Phase 2: Realistic Tests (Variable, No Caching)
-   ├── Run Chat and CodeGen workloads with variability
+   ├── Run priority models/workloads with variability
    ├── Compare to Phase 1 fixed results
    └── Document variance and stability
 
-3. Phase 3: Production Tests (Variable, With Caching)
-   ├── Run select models with variable traffic + caching enabled
+3. Phase 3: Production Tests (Realistic Datasets, With Caching)
+   ├── Run select models with realistic datasets + caching enabled
    ├── Compare to Phase 2 (caching impact) and Phase 1 (total improvement)
    └── Document true production performance
 ```
 
----
+### Dependencies Between Phases
 
-## Automation Examples
-
-### Running Complete 3-Phase Suite
-
-**For a single model:**
-
-```bash
-#!/bin/bash
-MODEL="meta-llama/Llama-3.2-1B-Instruct"
-CORES=16
-
-# Phase 1: Baseline Tests
-for workload in chat rag code summarization; do
-  ansible-playbook llm-benchmark-auto.yml \
-    -e "test_model=$MODEL" \
-    -e "workload_type=$workload" \
-    -e "requested_cores=$CORES" \
-    -e "vllm_caching_mode=baseline" \
-    -e "guidellm_profile=concurrent" \
-    -e "guidellm_rate=[1,2,4,8,16,32]"
-done
-
-# Phase 2: Realistic Tests
-for workload in chat_var code_var; do
-  ansible-playbook llm-benchmark-auto.yml \
-    -e "test_model=$MODEL" \
-    -e "workload_type=$workload" \
-    -e "requested_cores=$CORES" \
-    -e "vllm_caching_mode=baseline" \
-    -e "guidellm_profile=concurrent" \
-    -e "guidellm_rate=[1,2,4,8,16,32]"
-done
-
-# Phase 3: Production Tests
-for workload in chat_var code_var; do
-  ansible-playbook llm-benchmark-auto.yml \
-    -e "test_model=$MODEL" \
-    -e "workload_type=$workload" \
-    -e "requested_cores=$CORES" \
-    -e "vllm_caching_mode=production" \
-    -e "guidellm_profile=concurrent" \
-    -e "guidellm_rate=[1,2,4,8,16,32]"
-done
-```
-
-### Running Specific Phases
-
-**Phase 1 only:**
-
-```bash
-ansible-playbook llm-benchmark-auto.yml \
-  -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
-  -e "workload_type=chat" \
-  -e "requested_cores=16" \
-  -e "vllm_caching_mode=baseline"
-```
-
-**Phase 2 only:**
-
-```bash
-ansible-playbook llm-benchmark-auto.yml \
-  -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
-  -e "workload_type=chat_var" \
-  -e "requested_cores=16" \
-  -e "vllm_caching_mode=baseline"
-```
-
-**Phase 3 only:**
-
-```bash
-ansible-playbook llm-benchmark-auto.yml \
-  -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
-  -e "workload_type=chat_var" \
-  -e "requested_cores=16" \
-  -e "vllm_caching_mode=production"
-```
+- **Phase 2** depends on **Phase 1** for baseline comparison
+- **Phase 3** depends on **Phase 2** for caching impact measurement
+- **Phase 3** depends on **Phase 1** for total improvement calculation
+- All phases should use **consistent test configuration** (duration, warmup, cores, etc.)
 
 ---
 
-## Results Organization
+## Test Suite Adaptations
 
-### Directory Structure
+This 3-phase methodology applies to all test suites, but implementation details vary:
 
-```
-results/
-├── phase1-baseline/
-│   ├── llama-3.2-1b-instruct/
-│   │   ├── chat-concurrent-1.json
-│   │   ├── chat-concurrent-8.json
-│   │   ├── chat-concurrent-16.json
-│   │   ├── rag-concurrent-8.json
-│   │   ├── code-concurrent-8.json
-│   │   └── ...
-│   └── granite-3.2-2b-instruct/
-│       └── ...
-├── phase2-realistic/
-│   ├── llama-3.2-1b-instruct/
-│   │   ├── chat_var-concurrent-1.json
-│   │   ├── chat_var-concurrent-8.json
-│   │   ├── code_var-concurrent-8.json
-│   │   └── ...
-│   └── ...
-└── phase3-production/
-    ├── llama-3.2-1b-instruct/
-    │   ├── chat_var-concurrent-1-cached.json
-    │   ├── chat_var-concurrent-8-cached.json
-    │   ├── code_var-concurrent-8-cached.json
-    │   └── ...
-    └── ...
-```
+### Concurrent Load Tests
 
-### Results Naming Convention
+- **Load Pattern**: Fixed concurrency levels (e.g., {1, 2, 4, 8, 16, 32})
+- **Primary Metric**: P95 latency scaling with concurrency
+- **Phase Focus**: Identify optimal concurrency for different workloads
+- **See**: [tests/concurrent-load/concurrent-load.md](../../tests/concurrent-load/concurrent-load.md)
 
-- **Phase 1**: `{model}/{workload}-concurrent-{concurrency}.json`
-- **Phase 2**: `{model}/{workload}_var-concurrent-{concurrency}.json`
-- **Phase 3**: `{model}/{workload}_var-concurrent-{concurrency}-cached.json`
+### Scalability Tests (Sweep)
+
+- **Load Pattern**: Range of request rates (synchronous → throughput)
+- **Primary Metric**: Load-latency curves, maximum throughput
+- **Phase Focus**: Find saturation points and optimal operating ranges
+- **See**: [tests/scalability/scalability.md](../../tests/scalability/scalability.md)
+
+### Embedding Model Tests
+
+- **Load Pattern**: High concurrency levels optimized for embedding workloads
+- **Primary Metric**: Embedding-specific latency and throughput
+- **Phase Focus**: Embedding model performance characteristics
+- **See**: [tests/embedding-models/embedding-models.md](../../tests/embedding-models/embedding-models.md)
 
 ---
 
@@ -496,28 +337,36 @@ results/
 ### Common Pitfalls
 
 ❌ **Comparing different phases directly** - Fixed vs variable comparisons require careful interpretation
-❌ **Ignoring single-user baseline** - Concurrency=1 is critical for efficiency calculations
+
+❌ **Ignoring minimal load baseline** - Essential for efficiency calculations
+
 ❌ **Skipping warmup** - Cold starts skew initial measurements
-❌ **Running too short** - 600 seconds allows stable measurement collection
+
+❌ **Running too short** - Allow sufficient time for stable measurements
+
 ❌ **Mixing caching modes** - Always document baseline vs production clearly
 
 ---
 
 ## Summary
 
-| Phase | Configuration | Purpose | Key Metrics | Duration |
-|-------|--------------|---------|-------------|----------|
-| **1. Baseline** | Fixed tokens, No caching | Reproducible baseline | P95/P99, TTFT, Throughput | ~2-3 hours per model |
-| **2. Realistic** | Variable tokens, No caching | Real-world simulation | Variance, Stability | ~1-2 hours per model |
-| **3. Production** | Variable tokens, With caching | True production conditions | Production performance, Cache effectiveness | ~1-2 hours per model |
+| Phase | Configuration | Purpose | Key Metrics | Applies To |
+|-------|--------------|---------|-------------|------------|
+| **1. Baseline** | Fixed tokens, No caching | Reproducible baseline | P95/P99, TTFT, Throughput | All test suites |
+| **2. Realistic** | Variable tokens, No caching | Real-world simulation | Variance, Stability | All test suites |
+| **3. Production** | Realistic datasets, With caching | True production conditions | Production performance, Cache effectiveness | All test suites |
 
-**Total estimated time per model: 4-6 hours**
+**Estimated time per model/test suite: 4-6 hours**
 
 ---
 
 ## References
 
+- [Testing Methodology Overview](overview.md)
 - [Concurrent Load Test Suite](../../tests/concurrent-load/concurrent-load.md)
+- [Scalability Test Suite](../../tests/scalability/scalability.md)
+- [Embedding Models Test Suite](../../tests/embedding-models/embedding-models.md)
 - [Model Selection Strategy](../../models/models.md)
+- [Metrics Guide](metrics.md)
 - [GuideLLM Documentation](https://github.com/neuralmagic/guidellm)
 - [vLLM Prefix Caching](https://docs.vllm.ai/en/latest/models/performance.html#automatic-prefix-caching-apc)

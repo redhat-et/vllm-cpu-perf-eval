@@ -139,6 +139,31 @@ your evaluation needs. For detailed test case specifications, models
 under test, and execution instructions, see the README in each test
 suite directory.
 
+### 3-Phase Testing Methodology
+
+**All test suites** implement a structured 3-phase testing approach:
+
+1. **Phase 1: Baseline Tests** - Fixed tokens, no caching
+   - Establishes reproducible performance baselines
+   - Enables cross-architecture comparison
+   - Provides pure performance characteristics
+
+2. **Phase 2: Realistic Tests** - Variable tokens, no caching
+   - Simulates real-world traffic variability
+   - Quantifies impact of token distribution variance
+   - Tests performance stability under realistic load
+
+3. **Phase 3: Production Tests** - Realistic datasets, with caching
+   - Simulates true production conditions
+   - Measures performance with optimizations enabled
+   - Validates production configurations
+
+Each test suite adapts this methodology to its specific testing patterns
+(concurrent load, sweep, etc.). For detailed 3-phase methodology, see
+[Testing Phases](testing-phases.md).
+
+---
+
 ### Test Suite 1: Concurrent Load
 
 **Goal:** Measure P95 latency and throughput scaling under concurrent load
@@ -186,6 +211,8 @@ for status and planned tests**
 
 ## Related Documentation
 
+- **[3-Phase Testing Methodology](testing-phases.md)** - General testing
+  approach for all suites
 - **[Metrics Guide](metrics.md)** - Definitions of all measured metrics
 - **[Test Reporting](reporting.md)** - Test report structure and formats
 - **[Manual Sweep Testing](manual-sweep.md)** - Detailed manual testing
@@ -194,3 +221,5 @@ for status and planned tests**
   deterministic testing
 - **[Test Execution](../../tests/)** - Actual test implementations and
   scenarios
+- **[Model Selection](../../models/models.md)** - Centralized model
+  definitions and rationale
