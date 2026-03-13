@@ -601,12 +601,18 @@ done
 ### Generate Graphs
 
 ```bash
-cd automation/analysis
-python generate-embedding-report.py \
-  --input ../../results/embedding-models/ \
-  --format html \
-  --output ../../results/reports/embedding-models.html
+# Generate reports using vllm bench (embedding-specific)
+cd ../../results/embedding-models
+
+# View results in console
+cat granite-embedding-english/latency-concurrent-16.json
+
+# Combine results for analysis
+jq -s '.' granite-embedding-english/*.json > combined-results.json
 ```
+
+> **Note:** Custom embedding-specific analysis scripts are planned but not yet
+> implemented. Use standard JSON tools or vllm bench output for now.
 
 ### Expected Visualizations
 
@@ -754,10 +760,9 @@ for model in \
   automation/test-execution/bash/embedding/run-latency.sh "$model"
 done
 
-# Generate comparison report
-automation/analysis/generate-embedding-report.py \
-  --input results/embedding-models/ \
-  --format html
+# View results (custom analysis scripts not yet implemented)
+# Use standard JSON tools for now
+jq -s '.' results/embedding-models/*/*.json > results/combined-analysis.json
 ```
 
 ### Workflow 4: Continuous Integration Testing

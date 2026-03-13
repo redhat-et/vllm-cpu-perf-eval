@@ -211,12 +211,21 @@ Results are written to:
 ### Generate Load-Latency Curves
 
 ```bash
-cd ../../automation/analysis
-python generate-report.py \
-  --input ../../results/by-suite/scalability \
-  --format html \
-  --include-curves
-```text
+# Generate reports using GuideLLM
+cd ../../results/by-suite/scalability
+
+# Console report for sweep results
+guidellm report generate --input llama-3.2-1b/sweep-*.json
+
+# JSON report for programmatic analysis
+guidellm report generate \
+  --input llama-3.2-1b/sweep-*.json \
+  --output-format json \
+  --output-path llama-3.2-1b-sweep-analysis.json
+```
+
+> **Note:** Custom analysis scripts with curve visualization are planned but
+> not yet implemented. Use GuideLLM's built-in reporting for now.text
 
 ### Compare Sweep Results
 

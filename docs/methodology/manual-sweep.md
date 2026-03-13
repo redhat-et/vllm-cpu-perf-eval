@@ -739,11 +739,15 @@ guidellm benchmark run \
 ### Analysis and Conclusion
 
 ```bash
-# Generate comparative report
+# Generate comparative report (console output)
+guidellm report generate \
+  --input stage*.json
+
+# Or save to JSON for further analysis
 guidellm report generate \
   --input stage*.json \
-  --output-format html \
-  --output-path sweep-analysis.html
+  --output-format json \
+  --output-path sweep-analysis.json
 ```
 
 **Summary**:

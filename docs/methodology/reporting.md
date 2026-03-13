@@ -24,24 +24,12 @@ Benchmark results should provide test configuration details per test case:
 ### Workload/GuideLLM Outputs
 
 GuideLLM describes output types, console and file-based, their sections and
-configuration options (URL). Supported file formats are: json, yaml, csv, html
-and console. By default, json, csv and html are generated in the current
-directory.
+configuration options. Supported file formats are: json, yaml, csv, and
+console. By default, json and csv are generated in the current directory.
 
-### Output Results - HTML Example Graphs
-
-Opening the `benchmarks.html` file in a web-browser presents a GuideLLM
-Workload Report. The webpage contains sections for Workload Details, Metrics
-Summary and Metrics Details. Example graphs from the Metrics Details section
-are shown below:
-
-#### Latency Graphs
-
-TODO
-
-#### Throughput Graphs
-
-TODO
+> **Note:** HTML output is available in GuideLLM but not currently enabled in
+> this test environment. See [GuideLLM issue #627](https://github.com/vllm-project/guidellm/issues/627)
+> for details.
 
 ## Other Configuration Details
 

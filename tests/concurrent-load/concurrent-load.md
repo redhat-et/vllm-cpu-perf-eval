@@ -487,18 +487,21 @@ Results are written to:
 Generate reports after completing tests:
 
 ```bash
-cd ../../automation/analysis
+# Generate reports using GuideLLM
+cd ../../results/by-suite/concurrent-load
 
-# HTML report for entire test suite
-python generate-report.py \
-  --input ../../results/by-suite/concurrent-load \
-  --format html
+# Console report for a specific test
+guidellm report generate --input llama-3.2-1b/concurrent-16.json
 
-# Compare models at specific concurrency
-python compare-models.py \
-  --suite concurrent-load \
-  --scenario concurrent-32
+# JSON report for programmatic analysis
+guidellm report generate \
+  --input llama-3.2-1b/concurrent-*.json \
+  --output-format json \
+  --output-path llama-3.2-1b-analysis.json
 ```
+
+> **Note:** Custom analysis scripts (`generate-report.py`, `compare-models.py`)
+> are planned but not yet implemented. Use GuideLLM's built-in reporting for now.
 
 ## Related Documentation
 
