@@ -107,6 +107,18 @@
           - "  Rate: {{ default_guidellm_rate }}"
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
+    - name: Wait for AWX API to be fully ready
+      ansible.builtin.uri:
+        url: "{{ controller_host }}/api/v2/ping/"
+        method: GET
+        validate_certs: "{{ validate_certs }}"
+        status_code: 200
+      register: awx_ping
+      until: awx_ping.status == 200
+      retries: 30
+      delay: 2
+      changed_when: false
+
     - name: Create vLLM Performance Testing Project
       awx.awx.project:
         name: "{{ project_name }}"
@@ -575,7 +587,7 @@
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           - ""
           - "Access AWX: {{ controller_host }}"
-          - "Login: {{ controller_username }} / {{ controller_password }}"
+          - "Login: {{ controller_username }} / ********"
           - ""
           - "Configured Resources:"
           - "  ✓ Project: {{ project_name }} ({{ project_scm_branch }})"

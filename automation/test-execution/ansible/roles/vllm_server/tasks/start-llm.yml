@@ -152,6 +152,7 @@
     vllm_env_vars:
       VLLM_CPU_KVCACHE_SPACE: "{{ workload_cfg.kv_cache_space | extract_size_value }}"
       HF_TOKEN: "{{ hf_token }}"
+  no_log: true  # Prevent HF_TOKEN from appearing in logs
 
 - name: Add OMP_NUM_THREADS if specified (ONLY for TP > 1)
   ansible.builtin.set_fact:
@@ -161,6 +162,7 @@
     - core_cfg.omp_num_threads is defined
     - core_cfg.omp_num_threads is not none
     - core_cfg.omp_num_threads | int > 0
+  no_log: true  # Prevent HF_TOKEN from appearing in logs
 
 - name: Add VLLM_CPU_OMP_THREADS_BIND if specified (ONLY for TP > 1)
   ansible.builtin.set_fact:
@@ -169,6 +171,7 @@
     - (core_cfg.tensor_parallel | default(1) | int) > 1
     - core_cfg.omp_threads_bind is defined
     - core_cfg.omp_threads_bind is not none
+  no_log: true  # Prevent HF_TOKEN from appearing in logs
 
 - name: Build base vLLM arguments from workload
   ansible.builtin.set_fact:

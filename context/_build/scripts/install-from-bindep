@@ -90,7 +90,7 @@ else
       $PIPCMD uninstall -y /output/wheels/*.whl
       $PIPCMD install $CONSTRAINTS $PIP_OPTS --cache-dir=/output/wheels /output/wheels/*.whl $EXTRAS
   elif [ ! -z "$EXTRAS" ] ; then
-      $PIPCMD uninstall -y $EXTRAS
+      # Skip uninstall for EXTRAS as it may contain -r references which pip uninstall doesn't support
       $PIPCMD install $CONSTRAINTS $PIP_OPTS --cache-dir=/output/wheels $EXTRAS
   fi
 fi
