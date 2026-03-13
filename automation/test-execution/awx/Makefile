@@ -331,6 +331,10 @@ kind-build-ee: ## Build custom execution environment with required collections
 		-f automation/test-execution/awx/execution-environment.yml \
 		-t vllm-awx-ee:latest \
 		-v 3
+	@if [ "$(CONTAINER_TYPE)" = "podman" ]; then \
+		echo "$(COLOR_INFO)Ensuring image is tagged without localhost prefix...$(COLOR_RESET)"; \
+		$(CONTAINER_ENGINE) tag localhost/vllm-awx-ee:latest vllm-awx-ee:latest 2>/dev/null || true; \
+	fi
 	@echo "$(COLOR_SUCCESS)✓ Execution environment built$(COLOR_RESET)"
 
 .PHONY: kind-load-ee
