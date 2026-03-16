@@ -516,12 +516,14 @@ kind-health: ## Check AWX health in KIND
 .PHONY: kind-configure
 kind-configure: ## Configure AWX with projects, inventories, and job templates (KIND)
 	@echo "$(COLOR_INFO)Configuring AWX...$(COLOR_RESET)"
-	@CURRENT_BRANCH=$$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main"); \
-	echo "$(COLOR_INFO)Using branch: $$CURRENT_BRANCH$(COLOR_RESET)"; \
+	@if [ -z "$$AWX_PROJECT_BRANCH" ]; then \
+		CURRENT_BRANCH=$$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main"); \
+		export AWX_PROJECT_BRANCH=$$CURRENT_BRANCH; \
+	fi; \
+	echo "$(COLOR_INFO)Using branch: $$AWX_PROJECT_BRANCH$(COLOR_RESET)"; \
 	export CONTROLLER_HOST=http://localhost:$(KIND_AWX_PORT); \
 	export CONTROLLER_USERNAME=$(AWX_ADMIN_USER); \
 	export CONTROLLER_PASSWORD=$(AWX_ADMIN_PASSWORD); \
-	export AWX_PROJECT_BRANCH=$$CURRENT_BRANCH; \
 	ansible-playbook configure-awx.yml
 	@echo ""
 	@echo "$(COLOR_SUCCESS)✓ AWX configuration complete!$(COLOR_RESET)"
@@ -530,12 +532,14 @@ kind-configure: ## Configure AWX with projects, inventories, and job templates (
 .PHONY: configure
 configure: ## Configure AWX with projects, inventories, and job templates (Docker Compose)
 	@echo "$(COLOR_INFO)Configuring AWX...$(COLOR_RESET)"
-	@CURRENT_BRANCH=$$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main"); \
-	echo "$(COLOR_INFO)Using branch: $$CURRENT_BRANCH$(COLOR_RESET)"; \
+	@if [ -z "$$AWX_PROJECT_BRANCH" ]; then \
+		CURRENT_BRANCH=$$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "main"); \
+		export AWX_PROJECT_BRANCH=$$CURRENT_BRANCH; \
+	fi; \
+	echo "$(COLOR_INFO)Using branch: $$AWX_PROJECT_BRANCH$(COLOR_RESET)"; \
 	export CONTROLLER_HOST=http://localhost:$(AWX_PORT); \
 	export CONTROLLER_USERNAME=$(AWX_ADMIN_USER); \
 	export CONTROLLER_PASSWORD=$(AWX_ADMIN_PASSWORD); \
-	export AWX_PROJECT_BRANCH=$$CURRENT_BRANCH; \
 	ansible-playbook configure-awx.yml
 	@echo ""
 	@echo "$(COLOR_SUCCESS)✓ AWX configuration complete!$(COLOR_RESET)"
