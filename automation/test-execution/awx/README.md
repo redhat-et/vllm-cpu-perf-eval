@@ -639,31 +639,32 @@ See [GUIDELLM-DEBUG-GUIDE.md](GUIDELLM-DEBUG-GUIDE.md) for detailed troubleshoot
 make kind-load-ee
 ```
 
-### DNS Resolution Failures in KIND (Linux with firewalld)
+### DNS Resolution Failures in KIND (Linux)
 
 **Symptoms**:
-- AWX operator pods show `ImagePullBackOff`
+- AWX project sync fails with "Could not resolve host: github.com"
 - Container image pulls timeout or fail
 - Error logs show DNS resolution failures
 
-**Cause**: On Linux systems with firewalld, the docker/podman firewall zone may block outbound DNS queries (UDP port 53) from containers, preventing KIND cluster pods from resolving external hostnames.
+**Cause**: On Linux systems, DNS resolution from within the KIND cluster may fail due to:
+1. Firewall blocking DNS queries (UDP port 53) from containers
+2. CoreDNS unable to reach upstream DNS servers
 
-**Check if this is your issue**:
+**Automatic Fix**: The Makefile now automatically configures CoreDNS on Linux to use your host's DNS servers. This happens automatically when you run `make kind-quickstart` or `make kind-deploy-awx`.
+
+**Manual Firewall Configuration** (Linux with firewalld only - **one-time setup**):
+
+If you still experience DNS issues after the automatic CoreDNS configuration, you need to configure firewall rules to allow DNS traffic:
+
 ```bash
 # Check if firewalld is running
 sudo firewall-cmd --state
 
-# Try pulling an image from within a KIND node (should timeout if DNS is blocked)
-kubectl run dns-test --image=busybox:1.28 --restart=Never --rm -it -- nslookup google.com
-```
-
-**Fix** (Linux with firewalld only):
-```bash
 # Add DNS service to docker zone (allows UDP port 53 outbound)
 sudo firewall-cmd --zone=docker --add-service=dns
 sudo firewall-cmd --zone=docker --add-port=53/udp
 
-# Make permanent
+# Make permanent (survives reboots and cluster recreations)
 sudo firewall-cmd --zone=docker --add-service=dns --permanent
 sudo firewall-cmd --zone=docker --add-port=53/udp --permanent
 
@@ -671,13 +672,16 @@ sudo firewall-cmd --zone=docker --add-port=53/udp --permanent
 sudo firewall-cmd --zone=docker --list-all
 ```
 
-After applying the fix, delete and recreate any failing pods:
+**Test DNS resolution**:
 ```bash
-kubectl delete pod -n awx --field-selector=status.phase=Failed
-kubectl delete pod -n awx-operator-system --all
+# Should successfully resolve github.com
+kubectl run dns-test --image=busybox:1.28 --restart=Never --rm -it -- nslookup github.com
 ```
 
-**Note**: This is only needed on Linux systems with firewalld. macOS and other firewall solutions don't require this.
+**Note**:
+- CoreDNS configuration is automatic on Linux
+- Firewall rules are a **one-time setup** and persist across reboots and cluster recreations
+- macOS users don't need any special configuration
 
 ### Collections Not Found
 

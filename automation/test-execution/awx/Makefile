@@ -397,8 +397,25 @@ kind-load-ee: kind-build-ee ## Load custom execution environment into KIND clust
 	fi
 	@echo "$(COLOR_SUCCESS)✓ Execution environment loaded into KIND$(COLOR_RESET)"
 
+.PHONY: kind-fix-coredns-dns
+kind-fix-coredns-dns: ## Fix CoreDNS to use host DNS servers (Linux only)
+	@if [ "$$(uname)" = "Linux" ]; then \
+		echo "$(COLOR_INFO)Configuring CoreDNS to use host DNS servers...$(COLOR_RESET)"; \
+		NAMESERVERS=$$(grep "^nameserver" /etc/resolv.conf | awk '{print $$2}' | head -3 | tr '\n' ' '); \
+		if [ -z "$$NAMESERVERS" ]; then \
+			echo "$(COLOR_WARNING)⚠ No nameservers found in /etc/resolv.conf, using Google DNS$(COLOR_RESET)"; \
+			NAMESERVERS="8.8.8.8 8.8.4.4"; \
+		fi; \
+		echo "$(COLOR_INFO)  Using DNS servers: $$NAMESERVERS$(COLOR_RESET)"; \
+		kubectl patch configmap coredns -n kube-system --type merge -p "{\"data\":{\"Corefile\":\".:53 {\n    errors\n    health {\n       lameduck 5s\n    }\n    ready\n    kubernetes cluster.local in-addr.arpa ip6.arpa {\n       pods insecure\n       fallthrough in-addr.arpa ip6.arpa\n       ttl 30\n    }\n    prometheus :9153\n    forward . $$NAMESERVERS {\n       max_concurrent 1000\n    }\n    cache 30 {\n       disable success cluster.local\n       disable denial cluster.local\n    }\n    loop\n    reload\n    loadbalance\n}\"}}"; \
+		kubectl rollout restart deployment coredns -n kube-system; \
+		echo "$(COLOR_SUCCESS)✓ CoreDNS configured with host DNS servers$(COLOR_RESET)"; \
+	else \
+		echo "$(COLOR_INFO)Skipping CoreDNS DNS fix (not on Linux)$(COLOR_RESET)"; \
+	fi
+
 .PHONY: kind-deploy-awx
-kind-deploy-awx: kind-load-ee ## Deploy AWX instance to KIND cluster
+kind-deploy-awx: kind-load-ee kind-fix-coredns-dns ## Deploy AWX instance to KIND cluster
 	@echo "$(COLOR_INFO)Creating awx namespace...$(COLOR_RESET)"
 	@kubectl create namespace awx --dry-run=client -o yaml | kubectl apply -f -
 	@echo "$(COLOR_INFO)Creating AWX secrets...$(COLOR_RESET)"
