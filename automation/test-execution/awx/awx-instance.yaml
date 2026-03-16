@@ -12,7 +12,8 @@ spec:
   postgres_configuration_secret: awx-postgres-configuration  # pragma: allowlist secret
 
   # Use alternative Redis image to avoid Docker Hub rate limits
-  redis_image: quay.io/sclorg/redis-7-c9s:latest
+  redis_image: quay.io/sclorg/redis-7-c9s
+  redis_image_version: latest
 
   # Use custom execution environment with pre-installed collections
   ee_images:
