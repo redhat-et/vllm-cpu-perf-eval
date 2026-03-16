@@ -172,7 +172,7 @@
     # For other profiles:
     #   Total = max_seconds + buffer
     # Capped at 14400 seconds (4 hours)
-    guidellm_wait_timeout: >-
+    guidellm_wait_timeout_seconds: >-
       {{
         [
           (
@@ -194,7 +194,7 @@
       - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       - "Container: {{ guidellm_container.container.Id[:12] }}"
       - "Max Duration: {{ guidellm_cfg.max_seconds }}s | Max Requests: {{ guidellm_cfg.max_requests }}"
-      - "Safety Timeout: {{ guidellm_wait_timeout }}s ({{ (guidellm_wait_timeout | int / 60) | round(1) }} min)"
+      - "Safety Timeout: {{ guidellm_wait_timeout_seconds }}s ({{ (guidellm_wait_timeout_seconds | int / 60) | round(1) }} min)"
       - "{{ 'Location: localhost' if ansible_connection == 'local' else 'Location: ' + ansible_host }}"
       - ""
       - "⚠️  Ansible will now wait silently for completion"
@@ -207,7 +207,7 @@
 
 - name: Wait for GuideLLM benchmark to complete (containerized)
   ansible.builtin.command:
-    cmd: "timeout {{ guidellm_wait_timeout_seconds | default(guidellm_wait_timeout) }} podman wait guidellm-{{ workload_type }}-{{ core_cfg.name }}"
+    cmd: "timeout {{ guidellm_wait_timeout_seconds }} podman wait guidellm-{{ workload_type }}-{{ core_cfg.name }}"
   register: guidellm_exit_code_container
   changed_when: false
   failed_when: guidellm_exit_code_container.rc != 0
