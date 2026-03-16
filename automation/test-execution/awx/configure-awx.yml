@@ -550,10 +550,17 @@
       ansible.builtin.debug:
         msg: "Found {{ found_playbooks.files | length }} playbooks to import"
 
+    - name: Detect execution environment image name in KIND
+      ansible.builtin.shell: |
+        kubectl get nodes -o jsonpath='{.items[0].status.nodeInfo.containerRuntimeVersion}' | grep -q podman && echo "localhost/vllm-awx-ee:latest" || echo "vllm-awx-ee:latest"
+      register: ee_image_name
+      changed_when: false
+      failed_when: false
+
     - name: Create custom execution environment
       awx.awx.execution_environment:
         name: "vLLM AWX EE"
-        image: "vllm-awx-ee:latest"
+        image: "{{ ee_image_name.stdout if ee_image_name.rc == 0 and ee_image_name.stdout | length > 0 else 'vllm-awx-ee:latest' }}"
         pull: missing
         organization: "Default"
         controller_host: "{{ controller_host }}"
