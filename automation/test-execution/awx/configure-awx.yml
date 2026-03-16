@@ -363,6 +363,10 @@
         validate_certs: "{{ validate_certs }}"
         state: present
 
+    - name: Wait for task workers to be ready for inventory operations
+      ansible.builtin.pause:
+        seconds: 10
+
     - name: Create 'dut' inventory group
       awx.awx.group:
         name: dut
@@ -376,6 +380,10 @@
         controller_password: "{{ controller_password }}"
         validate_certs: "{{ validate_certs }}"
         state: present
+      retries: 5
+      delay: 5
+      register: result
+      until: result is not failed
 
     - name: Create 'load_generator' inventory group
       awx.awx.group:
@@ -393,6 +401,10 @@
         controller_password: "{{ controller_password }}"
         validate_certs: "{{ validate_certs }}"
         state: present
+      retries: 5
+      delay: 5
+      register: result_loadgen
+      until: result_loadgen is not failed
 
     - name: Add DUT host to inventory
       awx.awx.host:
