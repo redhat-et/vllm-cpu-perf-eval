@@ -121,6 +121,21 @@
       delay: 2
       changed_when: false
 
+    - name: Wait for AWX projects API to be accessible
+      ansible.builtin.uri:
+        url: "{{ controller_host }}/api/v2/projects/"
+        method: GET
+        validate_certs: "{{ validate_certs }}"
+        status_code: 200
+        user: "{{ controller_username }}"
+        password: "{{ controller_password }}"
+        force_basic_auth: true
+      register: awx_projects_check
+      until: awx_projects_check.status == 200 and awx_projects_check.json is defined
+      retries: 30
+      delay: 5
+      changed_when: false
+
     - name: Create vLLM Performance Testing Project
       awx.awx.project:
         name: "{{ project_name }}"
