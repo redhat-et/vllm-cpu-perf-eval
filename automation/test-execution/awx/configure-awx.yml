@@ -82,6 +82,11 @@
     default_guidellm_rate: "{{ lookup('env', 'GUIDELLM_RATE') | default('[1]', true) }}"
     default_guidellm_wait_timeout: "{{ lookup('env', 'GUIDELLM_WAIT_TIMEOUT_SECONDS') | default('2400', true) }}"
 
+    # ========================================================================
+    # HuggingFace Token (from environment variable)
+    # ========================================================================
+    hf_token: "{{ lookup('env', 'HF_TOKEN') | default('', true) }}"
+
   tasks:
     - name: Display configuration summary
       ansible.builtin.debug:
@@ -188,6 +193,10 @@
           Project sync failed (this is normal for KIND clusters due to DNS limitations).
           The project will sync automatically when you launch a job (scm_update_on_launch is enabled).
           {% endif %}
+
+    - name: Wait for task workers to become available
+      ansible.builtin.pause:
+        seconds: 5
 
     # NOTE: Removed management of Default organization to preserve shared settings
     # If you need to manage organization-specific settings, create a dedicated organization
@@ -487,6 +496,30 @@
         controller_password: "{{ controller_password }}"
         validate_certs: "{{ validate_certs }}"
         state: present
+
+    - name: Create HuggingFace Token Credential
+      awx.awx.credential:
+        name: "HuggingFace Token"
+        organization: "Default"
+        credential_type: "HuggingFace Token"
+        inputs:
+          hf_token: "{{ hf_token }}"
+        controller_host: "{{ controller_host }}"
+        controller_username: "{{ controller_username }}"
+        controller_password: "{{ controller_password }}"
+        validate_certs: "{{ validate_certs }}"
+        state: present
+      when: hf_token | length > 0
+      no_log: true  # Prevent token from appearing in logs
+
+    - name: Display HuggingFace token status
+      ansible.builtin.debug:
+        msg: >-
+          {% if hf_token | length > 0 %}
+          HuggingFace Token credential created successfully!
+          {% else %}
+          HuggingFace Token not set. You can add it later in AWX UI for gated models.
+          {% endif %}
 
     - name: Remove old/legacy job templates
       awx.awx.job_template:
