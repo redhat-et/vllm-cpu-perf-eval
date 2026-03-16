@@ -550,17 +550,33 @@
       ansible.builtin.debug:
         msg: "Found {{ found_playbooks.files | length }} playbooks to import"
 
-    - name: Detect execution environment image name in KIND
-      ansible.builtin.shell: |
-        kubectl get nodes -o jsonpath='{.items[0].status.nodeInfo.containerRuntimeVersion}' | grep -q podman && echo "localhost/vllm-awx-ee:latest" || echo "vllm-awx-ee:latest"
-      register: ee_image_name
+    - name: Check if running in KIND cluster
+      ansible.builtin.shell: kubectl config current-context 2>/dev/null | grep -q kind
+      register: is_kind
       changed_when: false
       failed_when: false
+
+    - name: Detect container runtime in KIND
+      ansible.builtin.shell: |
+        NODE=$(kubectl get nodes -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+        docker exec "$NODE" crictl images 2>/dev/null | grep -q "localhost/vllm-awx-ee" && echo "localhost/vllm-awx-ee:latest" || echo "vllm-awx-ee:latest"
+      register: ee_image_detected
+      when: is_kind.rc == 0
+      changed_when: false
+      failed_when: false
+
+    - name: Set execution environment image name
+      ansible.builtin.set_fact:
+        ee_image_name: "{{ ee_image_detected.stdout if (is_kind.rc == 0 and ee_image_detected.stdout is defined and ee_image_detected.stdout | length > 0) else 'vllm-awx-ee:latest' }}"
+
+    - name: Display detected execution environment image
+      ansible.builtin.debug:
+        msg: "Using execution environment image: {{ ee_image_name }}"
 
     - name: Create custom execution environment
       awx.awx.execution_environment:
         name: "vLLM AWX EE"
-        image: "{{ ee_image_name.stdout if ee_image_name.rc == 0 and ee_image_name.stdout | length > 0 else 'vllm-awx-ee:latest' }}"
+        image: "{{ ee_image_name }}"
         pull: missing
         organization: "Default"
         controller_host: "{{ controller_host }}"
@@ -662,11 +678,12 @@
     - name: Display job template creation status
       ansible.builtin.debug:
         msg: >-
-          {% set succeeded = job_template_results.results | selectattr('failed', 'equalto', false) | list | length %}
-          {% set failed = job_template_results.results | selectattr('failed', 'equalto', true) | list | length %}
-          Job templates: {{ succeeded }} created successfully
-          {% if failed > 0 %}
-          , {{ failed }} skipped (playbooks will sync when jobs are launched)
+          {% set total = job_template_results.results | length %}
+          {% set succeeded = job_template_results.results | selectattr('changed', 'equalto', true) | list | length %}
+          {% set skipped = job_template_results.results | selectattr('skipped', 'defined') | selectattr('skipped', 'equalto', true) | list | length %}
+          Job templates: {{ succeeded }} created/updated, {{ skipped }} skipped
+          {% if total - succeeded - skipped > 0 %}
+          ({{ total - succeeded - skipped }} will sync when jobs are launched)
           {% endif %}
 
     - name: Count imported playbooks
