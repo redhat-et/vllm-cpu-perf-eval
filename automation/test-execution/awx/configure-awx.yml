@@ -121,7 +121,7 @@
       delay: 2
       changed_when: false
 
-    - name: Wait for AWX projects API to be accessible
+    - name: Wait for AWX migrations to complete
       ansible.builtin.uri:
         url: "{{ controller_host }}/api/v2/projects/"
         method: GET
@@ -130,11 +130,20 @@
         user: "{{ controller_username }}"
         password: "{{ controller_password }}"
         force_basic_auth: true
+        follow_redirects: none
       register: awx_projects_check
-      until: awx_projects_check.status == 200 and awx_projects_check.json is defined
-      retries: 30
+      until: >
+        awx_projects_check.status == 200 and
+        awx_projects_check.json is defined and
+        'url' in awx_projects_check and
+        '/migrations_notran/' not in awx_projects_check.url
+      retries: 60
       delay: 5
       changed_when: false
+
+    - name: Wait for AWX to fully stabilize after migrations
+      ansible.builtin.pause:
+        seconds: 10
 
     - name: Create vLLM Performance Testing Project
       awx.awx.project:
@@ -150,6 +159,10 @@
         controller_password: "{{ controller_password }}"
         validate_certs: "{{ validate_certs }}"
         state: present
+      register: project_create
+      until: project_create is succeeded
+      retries: 3
+      delay: 10
 
     - name: Sync project to fetch latest code
       awx.awx.project_update:
@@ -159,6 +172,11 @@
         controller_password: "{{ controller_password }}"
         validate_certs: "{{ validate_certs }}"
         wait: true
+        timeout: 300
+      register: project_sync
+      until: project_sync is succeeded
+      retries: 3
+      delay: 10
 
     # NOTE: Removed management of Default organization to preserve shared settings
     # If you need to manage organization-specific settings, create a dedicated organization
