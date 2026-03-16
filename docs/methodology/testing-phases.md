@@ -35,7 +35,7 @@ The vLLM CPU performance evaluation uses a structured 3-phase testing approach t
 
 **vLLM Server:**
 - Disable prefix caching: `--no-enable-prefix-caching`
-- Data type: `--dtype=bfloat16`
+- Data type: `--dtype=bfloat16` (for FP16 models) or `--dtype=auto` (for other precisions)
 
 **Load Generator (GuideLLM or vllm bench):**
 - Time-based testing for consistency
@@ -88,7 +88,7 @@ The vLLM CPU performance evaluation uses a structured 3-phase testing approach t
 
 **vLLM Server:**
 - Disable prefix caching: `--no-enable-prefix-caching` (same as Phase 1)
-- Data type: `--dtype=bfloat16`
+- Data type: `--dtype=bfloat16` (for FP16 models) or `--dtype=auto` (for other precisions)
 
 **Load Generator:**
 - Time-based testing (same duration as Phase 1)
@@ -146,7 +146,7 @@ The vLLM CPU performance evaluation uses a structured 3-phase testing approach t
 
 **vLLM Server:**
 - Enable prefix caching: `--enable-prefix-caching` (or omit - enabled by default)
-- Data type: `--dtype=bfloat16`
+- Data type: `--dtype=bfloat16` (for FP16 models) or `--dtype=auto` (for other precisions)
 
 **Load Generator:**
 - Time-based testing (same duration as Phase 1/2)

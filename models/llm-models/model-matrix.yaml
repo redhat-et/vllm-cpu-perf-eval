@@ -252,7 +252,7 @@ matrix:
   # Common test parameters
   common_parameters:
     affinity: "FULL"  # All physical cores
-    dtype: "bfloat16"
+    dtype: "bfloat16 (for FP16 models) or auto (for other precisions)"
     kv_cache: "auto"  # Let vLLM determine based on workload
     quantization: false  # Full precision for baseline
 
@@ -279,11 +279,13 @@ matrix:
           workloads: ["chat_var", "code_var"]
           caching_mode: "baseline"
         phase3_production:
-          name: "Phase 3: Production Comparison"
-          description: "Fixed tokens, with caching"
+          name: "Phase 3: Production Tests"
+          description: "Realistic datasets, with caching"
           workloads: ["chat", "rag"]
           caching_mode: "production"
           models: ["llama-3.2-1b-instruct", "granite-3.2-2b-instruct", "gpt-oss-20b"]
+          status: "not_yet_implemented"
+          note: "Pending realistic dataset selection and integration"
 
     scalability:
       test_types:

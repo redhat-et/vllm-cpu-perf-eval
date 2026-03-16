@@ -46,7 +46,7 @@ test_configs:
     variability: false
     backend: "openai-embeddings"
     vllm_args:
-      - "--dtype=bfloat16"        # 16-bit brain floating point for efficiency
+      - "--dtype=bfloat16"        # Use bfloat16 for FP16 models, auto for other precisions
       - "--max-model-len=512"     # Limit context to input length
     kv_cache_space: "1GiB"        # Minimal cache (no generation)
 

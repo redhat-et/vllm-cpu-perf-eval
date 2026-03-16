@@ -141,7 +141,7 @@ suite directory.
 
 ### 3-Phase Testing Methodology
 
-**All test suites** implement a structured 3-phase testing approach:
+**Currently implemented test suites follow** a structured 3-phase testing approach:
 
 1. **Phase 1: Baseline Tests** - Fixed tokens, no caching
    - Establishes reproducible performance baselines
