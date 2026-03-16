@@ -590,6 +590,8 @@
         validate_certs: "{{ validate_certs }}"
         state: present
       loop: "{{ found_playbooks.files }}"
+      register: job_template_results
+      failed_when: false  # Don't fail if playbook not found (will sync on job launch)
       vars:
         job_name_map:
           llm-benchmark-concurrent-load.yml: "LLM Concurrent Load Test"
@@ -656,6 +658,16 @@
           'concurrent' in (item.path | basename | lower) or
           'concurrency' in (item.path | basename | lower) or
           'llm-benchmark.yml' == (item.path | basename)
+
+    - name: Display job template creation status
+      ansible.builtin.debug:
+        msg: >-
+          {% set succeeded = job_template_results.results | selectattr('failed', 'equalto', false) | list | length %}
+          {% set failed = job_template_results.results | selectattr('failed', 'equalto', true) | list | length %}
+          Job templates: {{ succeeded }} created successfully
+          {% if failed > 0 %}
+          , {{ failed }} skipped (playbooks will sync when jobs are launched)
+          {% endif %}
 
     - name: Count imported playbooks
       ansible.builtin.set_fact:
