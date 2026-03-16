@@ -639,6 +639,46 @@ See [GUIDELLM-DEBUG-GUIDE.md](GUIDELLM-DEBUG-GUIDE.md) for detailed troubleshoot
 make kind-load-ee
 ```
 
+### DNS Resolution Failures in KIND (Linux with firewalld)
+
+**Symptoms**:
+- AWX operator pods show `ImagePullBackOff`
+- Container image pulls timeout or fail
+- Error logs show DNS resolution failures
+
+**Cause**: On Linux systems with firewalld, the docker/podman firewall zone may block outbound DNS queries (UDP port 53) from containers, preventing KIND cluster pods from resolving external hostnames.
+
+**Check if this is your issue**:
+```bash
+# Check if firewalld is running
+sudo firewall-cmd --state
+
+# Try pulling an image from within a KIND node (should timeout if DNS is blocked)
+kubectl run dns-test --image=busybox:1.28 --restart=Never --rm -it -- nslookup google.com
+```
+
+**Fix** (Linux with firewalld only):
+```bash
+# Add DNS service to docker zone (allows UDP port 53 outbound)
+sudo firewall-cmd --zone=docker --add-service=dns
+sudo firewall-cmd --zone=docker --add-port=53/udp
+
+# Make permanent
+sudo firewall-cmd --zone=docker --add-service=dns --permanent
+sudo firewall-cmd --zone=docker --add-port=53/udp --permanent
+
+# Verify
+sudo firewall-cmd --zone=docker --list-all
+```
+
+After applying the fix, delete and recreate any failing pods:
+```bash
+kubectl delete pod -n awx --field-selector=status.phase=Failed
+kubectl delete pod -n awx-operator-system --all
+```
+
+**Note**: This is only needed on Linux systems with firewalld. macOS and other firewall solutions don't require this.
+
 ### Collections Not Found
 
 **Symptom**: "Collection not found" in job output
