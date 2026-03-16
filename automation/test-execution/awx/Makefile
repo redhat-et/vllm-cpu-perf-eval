@@ -332,6 +332,9 @@ kind-deploy-operator: ## Deploy AWX operator to KIND cluster
 	@sleep 10
 	@kubectl wait --for=condition=available --timeout=180s deployment/awx-operator-controller-manager -n awx-operator-system 2>/dev/null || \
 		(echo "$(COLOR_INFO)Checking operator status...$(COLOR_RESET)" && kubectl get pods -n awx-operator-system)
+	@echo "$(COLOR_INFO)Patching kube-rbac-proxy image to use quay.io registry...$(COLOR_RESET)"
+	@kubectl set image deployment/awx-operator-controller-manager kube-rbac-proxy=quay.io/brancz/kube-rbac-proxy:v0.15.0 -n awx-operator-system 2>/dev/null || \
+		kubectl set image deployment/awx-operator-controller-manager kube-rbac-proxy=quay.io/brancz/kube-rbac-proxy:v0.15.0 -n awx 2>/dev/null || true
 	@echo "$(COLOR_SUCCESS)✓ AWX operator deployed$(COLOR_RESET)"
 
 .PHONY: kind-build-ee
