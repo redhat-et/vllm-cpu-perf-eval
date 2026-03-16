@@ -174,9 +174,18 @@
         wait: true
         timeout: 300
       register: project_sync
-      until: project_sync is succeeded
-      retries: 3
-      delay: 10
+      failed_when: false  # Don't fail if sync fails (e.g., DNS issues in KIND)
+      changed_when: project_sync is succeeded
+
+    - name: Display project sync status
+      ansible.builtin.debug:
+        msg: >-
+          {% if project_sync is succeeded %}
+          Project synced successfully!
+          {% else %}
+          Project sync failed (this is normal for KIND clusters due to DNS limitations).
+          The project will sync automatically when you launch a job (scm_update_on_launch is enabled).
+          {% endif %}
 
     # NOTE: Removed management of Default organization to preserve shared settings
     # If you need to manage organization-specific settings, create a dedicated organization
