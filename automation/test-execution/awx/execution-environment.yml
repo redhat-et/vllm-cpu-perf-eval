@@ -11,7 +11,7 @@ dependencies:
 additional_build_steps:
   prepend_base:
     - RUN dnf install -y gcc make zlib-devel bzip2-devel openssl-devel libffi-devel sqlite-devel readline-devel xz-devel tk-devel ncurses-devel && dnf clean all
-    - RUN cd /tmp && curl -O https://www.python.org/ftp/python/3.11.9/Python-3.11.9.tgz && tar xzf Python-3.11.9.tgz && cd Python-3.11.9 && ./configure --enable-optimizations --enable-shared --prefix=/usr/local && make -j$(nproc) && make altinstall && echo "/usr/local/lib" > /etc/ld.so.conf.d/python3.11.conf && ldconfig && cd / && rm -rf /tmp/Python-3.11.9*
+    - RUN cd /tmp && curl -O https://www.python.org/ftp/python/3.12.8/Python-3.12.8.tgz && echo "5978435c479a376648cb02854df3b892ace9ed7d32b1fead652712bee9d03a45  Python-3.12.8.tgz" | sha256sum -c - && tar xzf Python-3.12.8.tgz && cd Python-3.12.8 && ./configure --enable-optimizations --enable-shared --prefix=/usr/local && make -j$(nproc) && make altinstall && echo "/usr/local/lib" > /etc/ld.so.conf.d/python3.12.conf && ldconfig && cd / && rm -rf /tmp/Python-3.12.8*
 
 build_arg_defaults:
   ANSIBLE_GALAXY_CLI_COLLECTION_OPTS: "-v"
