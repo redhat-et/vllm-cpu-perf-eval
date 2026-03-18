@@ -74,36 +74,16 @@ class CollectionDefinition:
         return tuple(path_parts[-2:])
 
     def get_dependency(self, entry):
-        """A collection is only allowed to reference a file by a relative
-        path which is relative to the collection root
+        """A collection is only allowed to reference a file by a relative path
+        which is relative to the collection root
         """
         req_file = self.raw.get('dependencies', {}).get(entry)
         if req_file is None:
             return None
         if os.path.isabs(req_file):
             raise RuntimeError(
-                'Collections must specify relative paths for '
-                f'requirements files. The file {req_file} specified '
-                f'by {self.reference_path} violates this.'
-            )
-
-        # Validate path doesn't escape collection root
-        collection_root = self.reference_path
-        abs_collection_root = os.path.abspath(collection_root)
-        candidate_path = os.path.join(collection_root, req_file)
-        abs_candidate_path = os.path.abspath(candidate_path)
-
-        # Ensure resolved path is within collection root
-        path_prefix = abs_collection_root + os.sep
-        is_inside = (
-            abs_candidate_path.startswith(path_prefix) or
-            abs_candidate_path == abs_collection_root
-        )
-        if not is_inside:
-            raise RuntimeError(
-                f'Requirements file path {req_file} escapes '
-                f'collection root. Specified by '
-                f'{self.reference_path}.'
+                'Collections must specify relative paths for requirements files. '
+                f'The file {req_file} specified by {self.reference_path} violates this.'
             )
 
         return req_file
@@ -117,50 +97,12 @@ def read_req_file(path):
     """Provide some minimal error and display handling for file reading"""
     if not os.path.exists(path):
         print(f'Expected requirements file not present at: {os.path.abspath(path)}')
-        raise FileNotFoundError(f'Requirements file not found: {path}')
     with open(path, 'r') as f:
         return f.read()
 
 
-def pip_file_data(path, root_dir=None, visited=None):
-    """Parse pip requirements file with cycle detection and path
-    validation.
-
-    Args:
-        path: Path to requirements file
-        root_dir: Root directory to validate paths against (prevents
-                  escaping)
-        visited: Set of already visited paths (prevents cycles)
-    """
-    if visited is None:
-        visited = set()
-
-    # Resolve and validate path
-    abs_path = os.path.abspath(path)
-
-    # Check for cycles
-    if abs_path in visited:
-        return []  # Skip already processed files
-    visited.add(abs_path)
-
-    # Validate path is within root if specified
-    if root_dir is not None:
-        abs_root = os.path.abspath(root_dir)
-        path_prefix = abs_root + os.sep
-        is_inside = (
-            abs_path.startswith(path_prefix) or abs_path == abs_root
-        )
-        if not is_inside:
-            raise RuntimeError(
-                f'Requirements file {path} is outside allowed root '
-                f'directory {root_dir}'
-            )
-
-    # Set root_dir for nested calls if not already set
-    if root_dir is None:
-        root_dir = os.path.dirname(abs_path)
-
-    pip_content = read_req_file(abs_path)
+def pip_file_data(path):
+    pip_content = read_req_file(path)
 
     pip_lines = []
     for line in pip_content.split('\n'):
@@ -168,15 +110,8 @@ def pip_file_data(path, root_dir=None, visited=None):
             continue
         if line.startswith('-r') or line.startswith('--requirement'):
             _, new_filename = line.split(None, 1)
-            base_dir = os.path.dirname(abs_path)
-            new_path = os.path.join(base_dir, new_filename)
-            # Reject absolute paths in -r references
-            if os.path.isabs(new_filename):
-                raise RuntimeError(
-                    f'Absolute path not allowed in requirements: '
-                    f'{new_filename} in {path}'
-                )
-            pip_lines.extend(pip_file_data(new_path, root_dir, visited))
+            new_path = os.path.join(os.path.dirname(path or '.'), new_filename)
+            pip_lines.extend(pip_file_data(new_path))
         else:
             pip_lines.append(line)
 
@@ -207,8 +142,7 @@ def process_collection(path):
     py_file = col_def.get_dependency('python')
     pip_lines = []
     if py_file:
-        file_path = os.path.join(path, py_file)
-        pip_lines = pip_file_data(file_path, root_dir=path)
+        pip_lines = pip_file_data(os.path.join(path, py_file))
 
     sys_file = col_def.get_dependency('system')
     bindep_lines = []

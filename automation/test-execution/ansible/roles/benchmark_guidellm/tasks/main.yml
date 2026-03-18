@@ -238,7 +238,7 @@
 
 - name: Stream GuideLLM container logs directly to file
   ansible.builtin.shell:
-    cmd: "podman logs {{ ('guidellm-' ~ workload_type ~ '-' ~ core_cfg.name) | quote }} > /tmp/guidellm-{{ workload_type }}-{{ core_cfg.name }}.log 2>&1"
+    cmd: "podman logs {{ ('guidellm-' ~ workload_type ~ '-' ~ core_cfg.name) | quote }} > /tmp/guidellm-{{ workload_type }}-{{ core_cfg.name }}-{{ test_run_id }}.log 2>&1"
   args:
     executable: /bin/bash
   changed_when: false
@@ -249,7 +249,7 @@
 
 - name: Fetch GuideLLM logs to controller
   ansible.builtin.fetch:
-    src: "/tmp/guidellm-{{ workload_type }}-{{ core_cfg.name }}.log"
+    src: "/tmp/guidellm-{{ workload_type }}-{{ core_cfg.name }}-{{ test_run_id }}.log"
     dest: "{{ results_path }}/guidellm.log"
     flat: true
   when:
