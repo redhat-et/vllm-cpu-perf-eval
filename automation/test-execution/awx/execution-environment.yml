@@ -10,7 +10,8 @@ dependencies:
 
 additional_build_steps:
   prepend_base:
-    - RUN alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 && alternatives --set python3 /usr/bin/python3.11
+    - RUN dnf install -y gcc make zlib-devel bzip2-devel openssl-devel libffi-devel sqlite-devel readline-devel xz-devel tk-devel ncurses-devel && dnf clean all
+    - RUN cd /tmp && curl -O https://www.python.org/ftp/python/3.11.9/Python-3.11.9.tgz && tar xzf Python-3.11.9.tgz && cd Python-3.11.9 && ./configure --enable-optimizations --enable-shared --prefix=/usr/local && make -j$(nproc) && make altinstall && echo "/usr/local/lib" > /etc/ld.so.conf.d/python3.11.conf && ldconfig && cd / && rm -rf /tmp/Python-3.11.9*
 
 build_arg_defaults:
   ANSIBLE_GALAXY_CLI_COLLECTION_OPTS: "-v"
