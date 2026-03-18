@@ -79,7 +79,7 @@
     default_base_workload: "{{ lookup('env', 'BASE_WORKLOAD') | default('chat', true) }}"
     default_requested_cores: "{{ lookup('env', 'REQUESTED_CORES') | default('16', true) }}"
     default_guidellm_max_seconds: "{{ lookup('env', 'GUIDELLM_MAX_SECONDS') | default('300', true) }}"
-    default_guidellm_rate: "{{ lookup('env', 'GUIDELLM_RATE') | default('[1]', true) }}"
+    default_guidellm_rate: "{{ lookup('env', 'GUIDELLM_RATE') | default('[1]', true) | from_yaml }}"
     default_guidellm_wait_timeout: "{{ lookup('env', 'GUIDELLM_WAIT_TIMEOUT_SECONDS') | default('2400', true) }}"
 
     # ========================================================================
@@ -481,6 +481,7 @@
         src: "{{ ssh_key_path | expanduser }}"
       register: ssh_key_content
       when: ssh_key_file.stat.exists
+      no_log: true  # Prevent SSH private key from appearing in logs
 
     - name: Create DUT SSH Credential
       awx.awx.credential:
@@ -496,6 +497,7 @@
         validate_certs: "{{ validate_certs }}"
         state: present
       when: ssh_key_file.stat.exists
+      no_log: true  # Prevent SSH private key from appearing in logs
 
     - name: Warn if SSH key not found
       ansible.builtin.debug:
@@ -593,7 +595,12 @@
 
     - name: Set execution environment image name
       ansible.builtin.set_fact:
-        ee_image_name: "{{ ee_image_detected.stdout if (is_kind.rc == 0 and ee_image_detected.stdout is defined and ee_image_detected.stdout | length > 0) else 'vllm-awx-ee:latest' }}"
+        ee_image_name: >-
+          {{
+            ee_image_detected.stdout
+            if (is_kind.rc == 0 and ee_image_detected.stdout is defined and ee_image_detected.stdout | length > 0)
+            else lookup('env', 'AWX_EE_IMAGE') | default('quay.io/octo-et/vllm-cpu-perf-eval:latest', true)
+          }}
 
     - name: Display detected execution environment image
       ansible.builtin.debug:
@@ -731,7 +738,7 @@
           - "  ✓ Inventory: {{ inventory_name }}"
           - "    - DUT Host: {{ dut_hostname }}"
           - "    - Load Generator: {{ loadgen_hostname }}"
-          - "  ✓ Credentials: DUT SSH Key"
+          - "  {{ '✓' if ssh_key_file.stat.exists else '⚠' }} Credentials: {{ 'DUT SSH Key' if ssh_key_file.stat.exists else 'Not configured (add manually or use ask_credential_on_launch)' }}"
           - "  ✓ Credential Type: HuggingFace Token"
           - "  ✓ Execution Environment: vLLM AWX EE"
           - "  ✓ Job Templates: LLM Concurrent Load Test, LLM Single Benchmark"
