@@ -152,6 +152,20 @@
       ansible.builtin.pause:
         seconds: 10
 
+    - name: Configure AWX instances as hybrid nodes
+      ansible.builtin.shell: |
+        kubectl exec -n awx deployment/awx-postgres-15 -- psql -U awx -d awx -c "UPDATE main_instance SET node_type = 'hybrid' WHERE node_type = 'control';"
+      args:
+        executable: /bin/bash
+      register: hybrid_config
+      failed_when: false
+      changed_when: hybrid_config.rc == 0 and 'UPDATE' in hybrid_config.stdout
+      delegate_to: localhost
+
+    - name: Display instance configuration result
+      ansible.builtin.debug:
+        msg: "{{ hybrid_config.stdout if hybrid_config.rc == 0 else 'Unable to configure instances (might not be running in Kubernetes)' }}"
+
     - name: Create vLLM Performance Testing Project
       awx.awx.project:
         name: "{{ project_name }}"
