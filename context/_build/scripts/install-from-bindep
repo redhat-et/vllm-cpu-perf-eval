@@ -71,15 +71,15 @@ if [ -f /output/requirements.txt ] ; then
 fi
 
 # Add any requested extras to the list of things to install
-EXTRAS_ARRAY=()
-for extra in "$@" ; do
-    EXTRAS_ARRAY+=(-r "/output/$extra/requirements.txt")
+EXTRAS=""
+for extra in $* ; do
+    EXTRAS="${EXTRAS} -r /output/$extra/requirements.txt"
 done
 
 if [ -f /output/packages.txt ] ; then
   # If a package list was passed to assemble, install that in the final
   # image.
-  $PIPCMD install $CONSTRAINTS $PIP_OPTS --cache-dir=/output/wheels -r /output/packages.txt "${EXTRAS_ARRAY[@]}"
+  $PIPCMD install $CONSTRAINTS $PIP_OPTS --cache-dir=/output/wheels -r /output/packages.txt $EXTRAS
 else
   # Install the wheels. Uninstall any existing version as siblings maybe
   # be built with the same version number as the latest release, but we
@@ -88,10 +88,10 @@ else
   # NOTE(pabelanger): It is possible a project may not have a wheel, but does have requirements.txt
   if [ $(ls -1 /output/wheels/*whl 2>/dev/null | wc -l) -gt 0 ]; then
       $PIPCMD uninstall -y /output/wheels/*.whl
-      $PIPCMD install $CONSTRAINTS $PIP_OPTS --cache-dir=/output/wheels /output/wheels/*.whl "${EXTRAS_ARRAY[@]}"
-  elif [ ${#EXTRAS_ARRAY[@]} -gt 0 ] ; then
-      # Skip uninstall for EXTRAS as it may contain -r references which pip uninstall doesn't support
-      $PIPCMD install $CONSTRAINTS $PIP_OPTS --cache-dir=/output/wheels "${EXTRAS_ARRAY[@]}"
+      $PIPCMD install $CONSTRAINTS $PIP_OPTS --cache-dir=/output/wheels /output/wheels/*.whl $EXTRAS
+  elif [ ! -z "$EXTRAS" ] ; then
+      $PIPCMD uninstall -y $EXTRAS
+      $PIPCMD install $CONSTRAINTS $PIP_OPTS --cache-dir=/output/wheels $EXTRAS
   fi
 fi
 
