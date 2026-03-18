@@ -66,15 +66,22 @@ jobs:
           # Determine tags
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             # Only allow 'latest' tag on main branch
-            if [ "${{ github.ref }}" = "refs/heads/main" ] && [ "${{ inputs.tag }}" = "latest" ]; then
-              TAGS="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
-              PRIMARY_TAG="latest"
+            if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+              # On main branch: allow any tag including 'latest'
+              TAGS="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.tag }}"
+              PRIMARY_TAG="${{ inputs.tag }}"
             else
-              # For non-main branches or non-latest tags, use the specified tag
+              # On non-main branches: reject 'latest' tag to prevent accidental overwrites
+              if [ "${{ inputs.tag }}" = "latest" ]; then
+                echo "::error::Cannot use 'latest' tag from non-main branch '${{ github.ref }}'. Please specify a custom tag (e.g., 'dev', 'test-feature') or push to main branch."
+                exit 1
+              fi
+              # For non-main branches with explicit non-latest tag, allow it
               TAGS="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ inputs.tag }}"
               PRIMARY_TAG="${{ inputs.tag }}"
             fi
           else
+            # Automatic push to main: use both 'latest' and SHA tags
             TAGS="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
             TAGS="$TAGS,${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${SHORT_SHA}"
             PRIMARY_TAG="latest"
