@@ -70,7 +70,7 @@
       ansible.builtin.file:
         path: "{{ debug_results_path }}"
         state: directory
-        mode: "0777"
+        mode: "0755"
 
     - name: Test vLLM connectivity
       ansible.builtin.uri:
