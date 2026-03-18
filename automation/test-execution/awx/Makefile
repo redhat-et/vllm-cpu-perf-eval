@@ -355,12 +355,19 @@ kind-build-ee: ## Build custom execution environment with required collections (
 		cd $(PROJECT_ROOT) && python3 -m ansible_builder build \
 			-f automation/test-execution/awx/execution-environment.yml \
 			-t vllm-awx-ee:latest \
-			-v 3; \
+			-v 3 \
+			--build-arg PYCMD=/usr/bin/python3.12; \
+		BUILD_EXIT_CODE=$$?; \
 		if [ "$(CONTAINER_TYPE)" = "podman" ]; then \
 			echo "$(COLOR_INFO)Ensuring image is tagged without localhost prefix...$(COLOR_RESET)"; \
 			$(CONTAINER_ENGINE) tag localhost/vllm-awx-ee:latest vllm-awx-ee:latest 2>/dev/null || true; \
 		fi; \
-		echo "$(COLOR_SUCCESS)✓ Execution environment built$(COLOR_RESET)"; \
+		if [ $$BUILD_EXIT_CODE -eq 0 ]; then \
+			echo "$(COLOR_SUCCESS)✓ Execution environment built$(COLOR_RESET)"; \
+		else \
+			echo "$(COLOR_ERROR)✗ Execution environment build failed$(COLOR_RESET)"; \
+			exit $$BUILD_EXIT_CODE; \
+		fi; \
 	fi
 
 .PHONY: kind-rebuild-ee
@@ -372,17 +379,26 @@ kind-rebuild-ee: ## Force rebuild of custom execution environment
 		pip3 install --user ansible-builder 2>/dev/null || \
 		(echo "$(COLOR_ERROR)Failed to install ansible-builder$(COLOR_RESET)" && exit 1); \
 	fi
+	@echo "$(COLOR_INFO)Removing existing images to force rebuild...$(COLOR_RESET)"
+	@$(CONTAINER_ENGINE) rmi -f vllm-awx-ee:latest 2>/dev/null || true
+	@$(CONTAINER_ENGINE) rmi -f localhost/vllm-awx-ee:latest 2>/dev/null || true
 	@echo "$(COLOR_INFO)Building image vllm-awx-ee:latest...$(COLOR_RESET)"
 	@cd $(PROJECT_ROOT) && python3 -m ansible_builder build \
 		-f automation/test-execution/awx/execution-environment.yml \
 		-t vllm-awx-ee:latest \
 		-v 3 \
-		--force
-	@if [ "$(CONTAINER_TYPE)" = "podman" ]; then \
+		--build-arg PYCMD=/usr/bin/python3.12; \
+	BUILD_EXIT_CODE=$$?; \
+	if [ "$(CONTAINER_TYPE)" = "podman" ]; then \
 		echo "$(COLOR_INFO)Ensuring image is tagged without localhost prefix...$(COLOR_RESET)"; \
 		$(CONTAINER_ENGINE) tag localhost/vllm-awx-ee:latest vllm-awx-ee:latest 2>/dev/null || true; \
+	fi; \
+	if [ $$BUILD_EXIT_CODE -eq 0 ]; then \
+		echo "$(COLOR_SUCCESS)✓ Execution environment rebuilt$(COLOR_RESET)"; \
+	else \
+		echo "$(COLOR_ERROR)✗ Execution environment rebuild failed$(COLOR_RESET)"; \
+		exit $$BUILD_EXIT_CODE; \
 	fi
-	@echo "$(COLOR_SUCCESS)✓ Execution environment rebuilt$(COLOR_RESET)"
 
 .PHONY: kind-load-ee
 kind-load-ee: kind-build-ee ## Load custom execution environment into KIND cluster
