@@ -356,7 +356,7 @@ kind-build-ee: ## Build custom execution environment with required collections (
 			-f automation/test-execution/awx/execution-environment.yml \
 			-t vllm-awx-ee:latest \
 			-v 3 \
-			--build-arg PYCMD=/usr/bin/python3.12; \
+			--build-arg PYCMD=/usr/local/bin/python3.11; \
 		BUILD_EXIT_CODE=$$?; \
 		if [ "$(CONTAINER_TYPE)" = "podman" ]; then \
 			echo "$(COLOR_INFO)Ensuring image is tagged without localhost prefix...$(COLOR_RESET)"; \
@@ -387,7 +387,7 @@ kind-rebuild-ee: ## Force rebuild of custom execution environment
 		-f automation/test-execution/awx/execution-environment.yml \
 		-t vllm-awx-ee:latest \
 		-v 3 \
-		--build-arg PYCMD=/usr/bin/python3.12; \
+		--build-arg PYCMD=/usr/local/bin/python3.11; \
 	BUILD_EXIT_CODE=$$?; \
 	if [ "$(CONTAINER_TYPE)" = "podman" ]; then \
 		echo "$(COLOR_INFO)Ensuring image is tagged without localhost prefix...$(COLOR_RESET)"; \

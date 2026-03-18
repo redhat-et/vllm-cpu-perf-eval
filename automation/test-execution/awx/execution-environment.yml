@@ -3,7 +3,7 @@ version: 3
 
 images:
   base_image:
-    name: "quay.io/ansible/awx-ee:latest"
+    name: "quay.io/ansible/awx-ee:24.6.1"
 
 dependencies:
   galaxy: requirements.yml
