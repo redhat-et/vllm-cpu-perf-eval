@@ -17,10 +17,24 @@ matrix:
       application_focus: "Prefill-Heavy (Baseline)"
       parameters: "1.2B"
       context_length: 8192
+      dtype: "bfloat16"
+      architecture_specs:
+        hidden_size: 2048
+        num_attention_heads: 32
+        num_hidden_layers: 16
+        num_key_value_heads: 8
       inference_characteristics:
         prefill_performance: "high"
         decode_performance: "medium"
         balance: "prefill-heavy"
+      kv_cache_sizes:
+        chat: "2GiB"          # 1024 tokens, 32 concurrent
+        rag: "5GiB"           # 8704 tokens, 16 concurrent
+        code: "2GiB"          # 2048 tokens, 24 concurrent
+        summarization: "3GiB" # 2304 tokens, 32 concurrent
+        reasoning: "2GiB"     # 2304 tokens, 24 concurrent
+        chat_var: "2GiB"      # Same as chat
+        code_var: "2GiB"      # Same as code
       default_workloads:
         - chat
         - rag
@@ -35,10 +49,24 @@ matrix:
       application_focus: "Prefill-Heavy (Baseline)"
       parameters: "3.2B"
       context_length: 8192
+      dtype: "bfloat16"
+      architecture_specs:
+        hidden_size: 3072
+        num_attention_heads: 24
+        num_hidden_layers: 28
+        num_key_value_heads: 8
       inference_characteristics:
         prefill_performance: "high"
         decode_performance: "medium"
         balance: "prefill-heavy"
+      kv_cache_sizes:
+        chat: "5GiB"          # 1024 tokens, 32 concurrent
+        rag: "18GiB"          # 8704 tokens, 16 concurrent
+        code: "5GiB"          # 2048 tokens, 24 concurrent
+        summarization: "9GiB" # 2304 tokens, 32 concurrent
+        reasoning: "6GiB"     # 2304 tokens, 24 concurrent
+        chat_var: "5GiB"      # Same as chat
+        code_var: "5GiB"      # Same as code
       default_workloads:
         - chat
         - rag
@@ -54,10 +82,24 @@ matrix:
       application_focus: "Prefill/Decode (Small-Scale)"
       parameters: "1.1B"
       context_length: 2048
+      dtype: "bfloat16"
+      architecture_specs:
+        hidden_size: 2048
+        num_attention_heads: 32
+        num_hidden_layers: 22
+        num_key_value_heads: 4
       inference_characteristics:
         prefill_performance: "medium"
         decode_performance: "medium"
         balance: "balanced"
+      kv_cache_sizes:
+        chat: "1GiB"          # 1024 tokens, 32 concurrent
+        rag: "3GiB"           # 8704 tokens, 16 concurrent
+        code: "2GiB"          # 2048 tokens, 24 concurrent
+        summarization: "2GiB" # 2304 tokens, 32 concurrent
+        reasoning: "2GiB"     # 2304 tokens, 24 concurrent
+        chat_var: "1GiB"      # Same as chat
+        code_var: "2GiB"      # Same as code
       default_workloads:
         - chat
       test_suites:
@@ -72,10 +114,24 @@ matrix:
       application_focus: "Decode-Heavy (Legacy Baseline)"
       parameters: "125M"
       context_length: 2048
+      dtype: "bfloat16"
+      architecture_specs:
+        hidden_size: 768
+        num_attention_heads: 12
+        num_hidden_layers: 12
+        num_key_value_heads: 12
       inference_characteristics:
         prefill_performance: "low"
         decode_performance: "high"
         balance: "decode-heavy"
+      kv_cache_sizes:
+        chat: "1GiB"          # 1024 tokens, 32 concurrent
+        rag: "3GiB"           # 8704 tokens, 16 concurrent
+        code: "2GiB"          # 2048 tokens, 24 concurrent
+        summarization: "2GiB" # 2304 tokens, 32 concurrent
+        reasoning: "2GiB"     # 2304 tokens, 24 concurrent
+        chat_var: "1GiB"      # Same as chat
+        code_var: "2GiB"      # Same as code
       default_workloads:
         - chat
         - summarization
@@ -90,10 +146,24 @@ matrix:
       application_focus: "Decode-Heavy (Legacy Baseline)"
       parameters: "1.3B"
       context_length: 2048
+      dtype: "bfloat16"
+      architecture_specs:
+        hidden_size: 2048
+        num_attention_heads: 32
+        num_hidden_layers: 24
+        num_key_value_heads: 32
       inference_characteristics:
         prefill_performance: "low"
         decode_performance: "high"
         balance: "decode-heavy"
+      kv_cache_sizes:
+        chat: "2GiB"          # 1024 tokens, 32 concurrent
+        rag: "7GiB"           # 8704 tokens, 16 concurrent
+        code: "4GiB"          # 2048 tokens, 24 concurrent
+        summarization: "4GiB" # 2304 tokens, 32 concurrent
+        reasoning: "3GiB"     # 2304 tokens, 24 concurrent
+        chat_var: "2GiB"      # Same as chat
+        code_var: "4GiB"      # Same as code
       default_workloads:
         - chat
         - summarization
@@ -108,10 +178,24 @@ matrix:
       application_focus: "Balanced (Enterprise Baseline)"
       parameters: "2B"
       context_length: 4096
+      dtype: "bfloat16"
+      architecture_specs:
+        hidden_size: 2048
+        num_attention_heads: 32
+        num_hidden_layers: 40
+        num_key_value_heads: 8
       inference_characteristics:
         prefill_performance: "medium"
         decode_performance: "medium"
         balance: "balanced"
+      kv_cache_sizes:
+        chat: "3GiB"          # 1024 tokens, 32 concurrent
+        rag: "9GiB"           # 8704 tokens, 16 concurrent
+        code: "3GiB"          # 2048 tokens, 24 concurrent
+        summarization: "4GiB" # 2304 tokens, 32 concurrent
+        reasoning: "3GiB"     # 2304 tokens, 24 concurrent
+        chat_var: "3GiB"      # Same as chat
+        code_var: "3GiB"      # Same as code
       default_workloads:
         - chat
         - rag
@@ -127,10 +211,24 @@ matrix:
       application_focus: "Balanced (High-Efficiency)"
       parameters: "0.6B"
       context_length: 8192
+      dtype: "bfloat16"
+      architecture_specs:
+        hidden_size: 1024
+        num_attention_heads: 16
+        num_hidden_layers: 28
+        num_key_value_heads: 8
       inference_characteristics:
         prefill_performance: "medium"
         decode_performance: "high"
         balance: "balanced"
+      kv_cache_sizes:
+        chat: "2GiB"          # 1024 tokens, 32 concurrent
+        rag: "6GiB"           # 8704 tokens, 16 concurrent
+        code: "2GiB"          # 2048 tokens, 24 concurrent
+        summarization: "3GiB" # 2304 tokens, 32 concurrent
+        reasoning: "2GiB"     # 2304 tokens, 24 concurrent
+        chat_var: "2GiB"      # Same as chat
+        code_var: "2GiB"      # Same as code
       default_workloads:
         - chat
         - code
@@ -145,10 +243,24 @@ matrix:
       application_focus: "Balanced (High-Efficiency)"
       parameters: "3B"
       context_length: 8192
+      dtype: "bfloat16"
+      architecture_specs:
+        hidden_size: 2048
+        num_attention_heads: 16
+        num_hidden_layers: 36
+        num_key_value_heads: 2
       inference_characteristics:
         prefill_performance: "medium"
         decode_performance: "high"
         balance: "balanced"
+      kv_cache_sizes:
+        chat: "1GiB"          # 1024 tokens, 32 concurrent
+        rag: "3GiB"           # 8704 tokens, 16 concurrent
+        code: "2GiB"          # 2048 tokens, 24 concurrent
+        summarization: "2GiB" # 2304 tokens, 32 concurrent
+        reasoning: "2GiB"     # 2304 tokens, 24 concurrent
+        chat_var: "1GiB"      # Same as chat
+        code_var: "2GiB"      # Same as code
       default_workloads:
         - chat
         - code
@@ -163,6 +275,12 @@ matrix:
       application_focus: "Scalability Testing (Large-Scale)"
       parameters: "21B (3.6B active per token)"
       context_length: 128000
+      dtype: "bfloat16"  # Activations and KV cache use bfloat16, MoE weights use MXFP4
+      architecture_specs:
+        hidden_size: 2880
+        num_attention_heads: 64
+        num_hidden_layers: 24
+        num_key_value_heads: 8
       inference_characteristics:
         prefill_performance: "high"
         decode_performance: "high"
@@ -179,6 +297,14 @@ matrix:
         positional_encoding: "RoPE"
         quantization: "MXFP4 (MoE weights)"
       memory_footprint: "~16GB (MXFP4 quantization)"
+      kv_cache_sizes:
+        chat: "2GiB"          # 1024 tokens, 32 concurrent
+        rag: "7GiB"           # 8704 tokens, 16 concurrent
+        code: "2GiB"          # 2048 tokens, 24 concurrent
+        summarization: "3GiB" # 2304 tokens, 32 concurrent
+        reasoning: "2GiB"     # 2304 tokens, 24 concurrent
+        chat_var: "2GiB"      # Same as chat
+        code_var: "2GiB"      # Same as code
       default_workloads:
         - rag       # Primary - leverages large context
         - chat      # Baseline conversational
@@ -199,52 +325,59 @@ matrix:
     chat:
       name: "Chat"
       input_tokens: 512
-      output_tokens: 256
-      description: "Balanced prefill/decode, typical conversational AI"
+      output_tokens: 512
+      description: "Primary working point for conversational AI"
       use_case: "General chat applications"
 
     rag:
       name: "RAG (Retrieval-Augmented Generation)"
-      input_tokens: 4096
+      input_tokens: 8192
       output_tokens: 512
-      description: "Long context prefill, retrieval-augmented generation"
+      description: "ISL-heavy is fine, keep OSL short"
       use_case: "Document Q&A, knowledge retrieval"
 
     code:
       name: "Code Generation"
-      input_tokens: 512
-      output_tokens: 4096
-      description: "Long output decode, code generation scenarios"
+      input_tokens: 1024
+      output_tokens: 1024
+      description: "1024 OSL is near practical ceiling on CPU"
       use_case: "Code completion, generation"
 
     summarization:
       name: "Summarization"
-      input_tokens: 1024
+      input_tokens: 2048
       output_tokens: 256
-      description: "Medium context, summarization tasks"
+      description: "Short output is realistic and achievable"
       use_case: "Document summarization"
+
+    reasoning:
+      name: "Reasoning"
+      input_tokens: 256
+      output_tokens: 2048
+      description: "New workload for reasoning tasks with longer outputs"
+      use_case: "Chain-of-thought reasoning, problem solving"
 
     # Variable Workloads (Realistic Traffic Simulation)
     chat_var:
       name: "Chat (Variable)"
       input_tokens_mean: 512
       input_tokens_stdev: 128
-      output_tokens_mean: 256
-      output_tokens_stdev: 64
+      output_tokens_mean: 512
+      output_tokens_stdev: 128
       input_range: "128-1024"
-      output_range: "64-512"
+      output_range: "256-1024"
       variability: true
       description: "Variable chat workload with realistic token distribution"
       use_case: "Realistic conversational AI with variable message lengths"
 
     code_var:
       name: "Code Generation (Variable)"
-      input_tokens_mean: 512
-      input_tokens_stdev: 128
-      output_tokens_mean: 4096
-      output_tokens_stdev: 1024
-      input_range: "128-1024"
-      output_range: "512-6144"
+      input_tokens_mean: 1024
+      input_tokens_stdev: 256
+      output_tokens_mean: 1024
+      output_tokens_stdev: 256
+      input_range: "512-2048"
+      output_range: "512-2048"
       variability: true
       description: "Variable code generation with realistic output variance"
       use_case: "Realistic code generation with varying complexity"
@@ -252,9 +385,9 @@ matrix:
   # Common test parameters
   common_parameters:
     affinity: "FULL"  # All physical cores
-    dtype: "bfloat16 (for FP16 models) or auto (for other precisions)"
-    kv_cache: "auto"  # Let vLLM determine based on workload
-    quantization: false  # Full precision for baseline
+    dtype: "Model-specific (defined per model)"
+    kv_cache: "Model and workload specific (defined per model)"
+    quantization: false  # Full precision for baseline (except gpt-oss-20b with MXFP4 MoE weights)
 
   # Test suite mappings
   test_suite_configs:
@@ -271,7 +404,7 @@ matrix:
         phase1_baseline:
           name: "Phase 1: Baseline Tests"
           description: "Fixed tokens, no caching"
-          workloads: ["chat", "rag", "code", "summarization"]
+          workloads: ["chat", "rag", "code", "summarization", "reasoning"]
           caching_mode: "baseline"
         phase2_realistic:
           name: "Phase 2: Realistic Tests"
