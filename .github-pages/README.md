@@ -16,28 +16,107 @@ This directory contains the Jekyll configuration for generating GitHub Pages doc
 
 ## Local Preview
 
-### Using the Preview Script (Recommended)
+The preview script (`hack/preview-site.sh`) provides an easy way to test the GitHub Pages site locally before deploying.
+
+### Quick Start
+
+```bash
+# Start the preview server
+./hack/preview-site.sh --port 4001
+
+# Stop the preview server
+./hack/preview-site.sh --stop
+```
+
+Then open **http://localhost:4001** in your browser.
+
+### Preview Script Features
+
+- **Auto-detects** Docker or Podman
+- **Installs** GitHub Pages gems automatically (first run takes 2-3 minutes)
+- **Live reload** - Changes to markdown/CSS reload automatically
+- **Custom port** - Use `--port` to avoid conflicts (default: 4000)
+- **Easy stop** - Use `--stop` to cleanly shut down the server
+
+### First Run
+
+The first time you run the preview, it will:
+
+1. Pull the `jekyll/jekyll:latest` Docker image (~500MB)
+2. Install the `github-pages` gem and all dependencies (~2-3 minutes)
+3. Build the site from your markdown files
+4. Start a local web server
+
+**Subsequent runs are much faster** as gems are cached.
+
+### Making Changes
+
+The server watches for changes and automatically rebuilds:
+
+**Markdown changes** (docs, tests, models):
+- Edit any `.md` file
+- Save the file
+- Browser auto-refreshes (live reload)
+
+**Configuration changes** (`_config.yml`):
+- Stop the server: `./hack/preview-site.sh --stop`
+- Restart: `./hack/preview-site.sh --port 4001`
+- Configuration changes require a restart
+
+**CSS/Layout changes**:
+- Changes to `assets/css/custom.css` reload automatically
+- Changes to `_layouts/` or `_includes/` reload automatically
+- Use hard refresh (Cmd+Shift+R / Ctrl+Shift+R) to clear browser cache
+
+### Troubleshooting
+
+**Port already in use:**
+```bash
+# Use a different port
+./hack/preview-site.sh --port 8080
+```
+
+**Container won't start:**
+```bash
+# Stop any existing containers
+./hack/preview-site.sh --stop
+
+# Or manually
+docker stop jekyll-preview
+docker rm jekyll-preview
+```
+
+**Changes not showing:**
+```bash
+# Hard refresh in browser
+# Mac: Cmd+Shift+R
+# Windows/Linux: Ctrl+Shift+R
+
+# Or restart the server
+./hack/preview-site.sh --stop
+./hack/preview-site.sh --port 4001
+```
+
+**Gems installation fails:**
+```bash
+# Clear the bundle cache
+rm -rf .github-pages/vendor/
+./hack/preview-site.sh --port 4001
+```
+
+### Manual Docker Usage
+
+If you prefer to run Docker commands directly:
 
 ```bash
 # From project root
-./hack/preview-site.sh --port 4001
-
-# Or from hack/ directory
-cd hack
-./preview-site.sh --port 4001
-```
-
-### Using Docker Directly
-
-```bash
-# From .github-pages/ directory
-cd .github-pages
 docker run --rm -it \
-  -v "$PWD/..:/srv/jekyll:Z" \
+  -v "$PWD:/srv/jekyll:Z" \
   -p 4001:4000 \
+  -e JEKYLL_ENV=development \
   -w /srv/jekyll/.github-pages \
   jekyll/jekyll:latest \
-  sh -c "bundle install && bundle exec jekyll serve --config _config.yml --host 0.0.0.0"
+  sh -c "bundle install --path vendor/bundle && bundle exec jekyll serve --config _config.yml --watch --force_polling --host 0.0.0.0"
 ```
 
 Then open http://localhost:4001 in your browser.

@@ -8,30 +8,46 @@ Developer utilities and helper scripts.
 
 Preview the GitHub Pages site locally using Docker.
 
-**Usage:**
+**Quick Start:**
 ```bash
-# From project root
-./hack/preview-site.sh
-
-# With custom port
+# Start preview server
 ./hack/preview-site.sh --port 4001
+
+# Stop preview server
+./hack/preview-site.sh --stop
 
 # Help
 ./hack/preview-site.sh --help
 ```
 
-**What it does:**
-- Detects Docker or Podman
-- Runs Jekyll in a container with GitHub Pages gems
-- Serves the site at http://localhost:PORT
-- Supports live reload for markdown changes
+**Features:**
+- Auto-detects Docker or Podman
+- Installs GitHub Pages gems automatically
+- Serves site with live reload at http://localhost:PORT
+- Clean start/stop commands
 
-**Configuration:**
-- Uses Jekyll config from `.github-pages/_config.yml`
-- Builds site from project root
-- Excludes `automation/` directory (Ansible/Jinja2 templates)
+**First Run:**
+- Takes 2-3 minutes to install gems
+- Subsequent runs are instant
 
-See [.github-pages/README.md](../.github-pages/README.md) for more details.
+**Making Changes:**
+- Markdown files reload automatically
+- CSS/layout changes reload automatically
+- Config changes require restart
+
+**Troubleshooting:**
+```bash
+# Port conflict
+./hack/preview-site.sh --port 8080
+
+# Clean restart
+./hack/preview-site.sh --stop
+./hack/preview-site.sh --port 4001
+
+# Hard refresh browser (Cmd+Shift+R / Ctrl+Shift+R)
+```
+
+**See** [.github-pages/README.md](../.github-pages/README.md) for complete documentation, troubleshooting, and manual Docker usage.
 
 ## Future Utilities
 
