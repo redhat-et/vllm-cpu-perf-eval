@@ -11,8 +11,8 @@
 #   osl: Output Sequence Length (tokens)
 #   variability: Whether to use variable sequence lengths (for realistic traffic)
 #   backend: GuideLLM backend type (openai-chat, openai-completions, openai-embeddings)
-#   vllm_args: Arguments passed to vLLM server
-#   kv_cache_space: KV cache allocation for this workload
+#   vllm_args: Arguments passed to vLLM server (NOTE: --dtype is model-specific and will be overridden)
+#   kv_cache_space: KV cache allocation for this workload (NOTE: will be overridden by model-specific value)
 #
 # Variable Workload Parameters (when variability: true):
 #   isl_stdev: Standard deviation for input length
@@ -21,19 +21,19 @@
 #   osl_min/osl_max: Output length bounds
 #
 # KV Cache Sizing Guidelines:
+#   NOTE: The kv_cache_space values below are FALLBACK values only.
+#   Model-specific KV cache sizes are defined in models/llm-models/model-matrix.yaml
+#   and will override these values during test execution.
+#
 #   The kv_cache_space is calculated based on:
 #   - Total sequence length (isl + osl)
 #   - Expected concurrent requests
-#   - Model size and parameters
+#   - Model architecture (hidden_size, num_layers, num_kv_heads)
+#   - Data type (bfloat16 = 2 bytes per element)
 #   - Safety margin for variable workloads
 #
-#   Formula approximation: (isl + osl) * expected_concurrency * safety_factor
-#   - chat (768 tokens): 40GiB (~32 concurrent requests)
-#   - summarization (1280 tokens): 40GiB (~32 concurrent requests)
-#   - rag (4608 tokens): 80GiB (~16 concurrent requests, larger context)
-#   - code (4608 tokens): 90GiB (~16 concurrent requests, extra for long outputs)
-#   - short_codegen (2304 tokens): 50GiB (~24 concurrent requests)
-#   - embedding (512 tokens): 1GiB (no generation, minimal cache needed)
+#   Formula: 2 × num_hidden_layers × tokens × num_key_value_heads × head_size × dtype_bytes
+#   See kv_cache_calculations.md for detailed per-model calculations.
 
 test_configs:
   # ============================================================================
@@ -46,7 +46,7 @@ test_configs:
     variability: false
     backend: "openai-embeddings"
     vllm_args:
-      - "--dtype=bfloat16"        # Use bfloat16 for FP16 models, auto for other precisions
+      - "--dtype=auto"            # Fallback dtype - overridden by model-specific dtype
       - "--max-model-len=512"     # Limit context to input length
     kv_cache_space: "1GiB"        # Minimal cache (no generation)
 
@@ -54,65 +54,65 @@ test_configs:
   # LLM Generative Models - Various Workloads
   # ============================================================================
 
-  # Summarization workload (medium input, short output)
-  summarization:
-    workload_type: "summarization"
-    isl: 1024                           # Medium input: document to summarize
-    osl: 256                            # Short output: summary
-    variability: false
-    backend: "openai-completions"
-    vllm_args:
-      - "--dtype=bfloat16"              # Memory efficient precision
-      - "--no-enable-prefix-caching"    # Baseline mode: no prefix caching
-    kv_cache_space: "40GiB"             # 1280 total tokens * ~32 concurrent
-
-  # Chat workload (short input, short output)
+  # Chat workload (primary working point)
   chat:
     workload_type: "chat"
-    isl: 512                            # Short input: user query
-    osl: 256                            # Short output: assistant response
+    isl: 512                            # Standard input: user query
+    osl: 512                            # Standard output: assistant response
     variability: false
     backend: "openai-chat"
     vllm_args:
-      - "--dtype=bfloat16"              # Memory efficient precision
+      - "--dtype=auto"                  # Fallback dtype - overridden by model-specific dtype
       - "--no-enable-prefix-caching"    # Baseline mode: no prefix caching
-    kv_cache_space: "40GiB"             # 768 total tokens * ~32 concurrent
+    kv_cache_space: "40GiB"             # Fallback value - should be overridden by model-specific kv_cache_sizes
 
   # RAG workload (very long input, medium output)
   rag:
     workload_type: "rag"
-    isl: 4096                           # Very long input: retrieved context
-    osl: 512                            # Medium output: answer with citations
+    isl: 8192                           # Very long input: retrieved context (ISL-heavy is fine)
+    osl: 512                            # Medium output: answer with citations (keep OSL short)
     variability: false
     backend: "openai-completions"
     vllm_args:
-      - "--dtype=bfloat16"              # Memory efficient precision
+      - "--dtype=auto"                  # Fallback dtype - overridden by model-specific dtype
       - "--no-enable-prefix-caching"    # Baseline mode: no prefix caching
-    kv_cache_space: "80GiB"             # 4608 total tokens * ~16 concurrent
+    kv_cache_space: "40GiB"             # Fallback value - should be overridden by model-specific kv_cache_sizes
 
-  # Code generation workload (short input, very long output)
+  # Code generation workload (medium input, practical CPU ceiling output)
   code:
     workload_type: "code"
-    isl: 512                            # Short input: code prompt/requirements
-    osl: 4096                           # Very long output: generated code
+    isl: 1024                           # Medium input: code prompt/requirements
+    osl: 1024                           # Practical output: generated code (1024 OSL near CPU ceiling)
     variability: false
     backend: "openai-completions"
     vllm_args:
-      - "--dtype=bfloat16"              # Memory efficient precision
+      - "--dtype=auto"                  # Fallback dtype - overridden by model-specific dtype
       - "--no-enable-prefix-caching"    # Baseline mode: no prefix caching
-    kv_cache_space: "90GiB"             # 4608 total tokens * ~16 concurrent + margin
+    kv_cache_space: "40GiB"             # Fallback value - should be overridden by model-specific kv_cache_sizes
 
-  # Short code generation workload (short input, long output)
-  short_codegen:
-    workload_type: "short_codegen"
-    isl: 256                            # Short input: brief code request
-    osl: 2048                           # Long output: code snippet/function
+  # Summarization workload (long input, short output)
+  summarization:
+    workload_type: "summarization"
+    isl: 2048                           # Long input: document to summarize
+    osl: 256                            # Short output: summary (realistic and achievable)
     variability: false
     backend: "openai-completions"
     vllm_args:
-      - "--dtype=bfloat16"              # Memory efficient precision
+      - "--dtype=auto"                  # Fallback dtype - overridden by model-specific dtype
       - "--no-enable-prefix-caching"    # Baseline mode: no prefix caching
-    kv_cache_space: "50GiB"             # 2304 total tokens * ~24 concurrent
+    kv_cache_space: "40GiB"             # Fallback value - should be overridden by model-specific kv_cache_sizes
+
+  # Reasoning workload (short input, long output)
+  reasoning:
+    workload_type: "reasoning"
+    isl: 256                            # Short input: reasoning prompt
+    osl: 2048                           # Long output: chain-of-thought reasoning
+    variability: false
+    backend: "openai-completions"
+    vllm_args:
+      - "--dtype=auto"                  # Fallback dtype - overridden by model-specific dtype
+      - "--no-enable-prefix-caching"    # Baseline mode: no prefix caching
+    kv_cache_space: "40GiB"             # Fallback value - should be overridden by model-specific kv_cache_sizes
 
   # ============================================================================
   # Variable Workloads (Realistic Traffic Simulation)
@@ -125,34 +125,34 @@ test_configs:
     isl_stdev: 128                      # Input length std dev (~25% variance)
     isl_min: 128                        # Minimum input (short questions)
     isl_max: 1024                       # Maximum input (detailed queries)
-    osl: 256                            # Mean output length
-    osl_stdev: 64                       # Output length std dev (~25% variance)
-    osl_min: 64                         # Minimum output (brief answers)
-    osl_max: 512                        # Maximum output (detailed responses)
+    osl: 512                            # Mean output length
+    osl_stdev: 128                      # Output length std dev (~25% variance)
+    osl_min: 256                        # Minimum output (brief answers)
+    osl_max: 1024                       # Maximum output (detailed responses)
     variability: true                   # Enable statistical distribution
     backend: "openai-chat"
     vllm_args:
-      - "--dtype=bfloat16"              # Memory efficient precision
+      - "--dtype=auto"                  # Fallback dtype - overridden by model-specific dtype
       - "--no-enable-prefix-caching"    # Baseline mode: no prefix caching
-    kv_cache_space: "40GiB"             # ~768 avg tokens * ~32 concurrent
+    kv_cache_space: "40GiB"             # Fallback value - should be overridden by model-specific kv_cache_sizes
 
   # Code generation workload with variability (realistic output variance)
   code_var:
     workload_type: "code_var"
-    isl: 512                            # Mean input length
-    isl_stdev: 128                      # Input length std dev (~25% variance)
-    isl_min: 128                        # Minimum input (simple requests)
-    isl_max: 1024                       # Maximum input (complex specs)
-    osl: 4096                           # Mean output length
-    osl_stdev: 1024                     # Output length std dev (~25% variance)
+    isl: 1024                           # Mean input length
+    isl_stdev: 256                      # Input length std dev (~25% variance)
+    isl_min: 512                        # Minimum input (simple requests)
+    isl_max: 2048                       # Maximum input (complex specs)
+    osl: 1024                           # Mean output length
+    osl_stdev: 256                      # Output length std dev (~25% variance)
     osl_min: 512                        # Minimum output (small functions)
-    osl_max: 6144                       # Maximum output (large modules)
+    osl_max: 2048                       # Maximum output (large modules)
     variability: true                   # Enable statistical distribution
     backend: "openai-completions"
     vllm_args:
-      - "--dtype=bfloat16"              # Memory efficient precision
+      - "--dtype=auto"                  # Fallback dtype - overridden by model-specific dtype
       - "--no-enable-prefix-caching"    # Baseline mode: no prefix caching
-    kv_cache_space: "90GiB"             # ~4608 avg tokens * ~16 concurrent + margin
+    kv_cache_space: "40GiB"             # Fallback value - should be overridden by model-specific kv_cache_sizes
 
 # ============================================================================
 # Prefix Caching Mode Configurations

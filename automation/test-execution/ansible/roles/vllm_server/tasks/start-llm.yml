@@ -27,6 +27,35 @@
     core_cfg: "{{ core_configuration }}"
     container_cfg: "{{ container_runtime }}"
 
+- name: Load model matrix configuration
+  ansible.builtin.include_vars:
+    file: "{{ playbook_dir }}/../../../models/llm-models/model-matrix.yaml"
+    name: model_matrix
+
+- name: Find model configuration in matrix
+  ansible.builtin.set_fact:
+    model_config: "{{ model_matrix.matrix.llm_models | selectattr('full_name', 'equalto', test_model) | first | default(none) }}"
+
+- name: Get model-specific KV cache size for this workload
+  ansible.builtin.set_fact:
+    model_kv_cache: "{{ model_config.kv_cache_sizes[workload_type] | default(workload_cfg.kv_cache_space) }}"
+  when: model_config is not none and model_config.kv_cache_sizes is defined
+
+- name: Use fallback KV cache size if model-specific not found
+  ansible.builtin.set_fact:
+    model_kv_cache: "{{ workload_cfg.kv_cache_space }}"
+  when: model_config is none or model_config.kv_cache_sizes is not defined or model_kv_cache is not defined
+
+- name: Get model-specific dtype
+  ansible.builtin.set_fact:
+    model_dtype: "{{ model_config.dtype | default('auto') }}"
+  when: model_config is not none and model_config.dtype is defined
+
+- name: Use fallback dtype if model-specific not found
+  ansible.builtin.set_fact:
+    model_dtype: "auto"
+  when: model_config is none or model_config.dtype is not defined or model_dtype is not defined
+
 # ============================================================================
 # Caching Mode Configuration
 # ============================================================================
@@ -55,8 +84,8 @@
 - name: Validate workload type
   ansible.builtin.assert:
     that:
-      - workload_type in ['summarization', 'chat', 'code', 'rag', 'short_codegen', 'chat_var', 'code_var']
-    fail_msg: "Invalid workload_type: {{ workload_type }}. Must be one of: summarization, chat, code, rag, short_codegen, chat_var, code_var"
+      - workload_type in ['chat', 'rag', 'code', 'summarization', 'reasoning', 'chat_var', 'code_var']
+    fail_msg: "Invalid workload_type: {{ workload_type }}. Must be one of: chat, rag, code, summarization, reasoning, chat_var, code_var"
 
 # ============================================================================
 # CPU Configuration Validation
@@ -150,7 +179,7 @@
 - name: Prepare base environment variables
   ansible.builtin.set_fact:
     vllm_env_vars:
-      VLLM_CPU_KVCACHE_SPACE: "{{ workload_cfg.kv_cache_space | extract_size_value }}"
+      VLLM_CPU_KVCACHE_SPACE: "{{ model_kv_cache | extract_size_value }}"
       HF_TOKEN: "{{ hf_token }}"
 
 - name: Add OMP_NUM_THREADS if specified (ONLY for TP > 1)
@@ -170,9 +199,9 @@
     - core_cfg.omp_threads_bind is defined
     - core_cfg.omp_threads_bind is not none
 
-- name: Build base vLLM arguments from workload
+- name: Build base vLLM arguments from workload (without dtype)
   ansible.builtin.set_fact:
-    vllm_base_args: "{{ workload_cfg.vllm_args | default([]) }}"
+    vllm_base_args: "{{ workload_cfg.vllm_args | default([]) | reject('match', '^--dtype=.*') | list }}"
 
 - name: Merge caching mode arguments with workload args
   ansible.builtin.set_fact:
@@ -183,6 +212,10 @@
   ansible.builtin.set_fact:
     vllm_args_merged: "{{ vllm_base_args }}"
   when: vllm_caching_mode is not defined or caching_cfg is not defined
+
+- name: Add model-specific dtype to vLLM arguments
+  ansible.builtin.set_fact:
+    vllm_args_merged: "{{ vllm_args_merged + ['--dtype=' + model_dtype] }}"
 
 - name: Build vLLM command arguments
   ansible.builtin.set_fact:
@@ -218,7 +251,8 @@
       - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       - "vLLM Configuration:"
       - "  Tensor Parallel: {{ core_cfg.tensor_parallel }}"
-      - "  KV Cache: {{ workload_cfg.kv_cache_space }} (VLLM_CPU_KVCACHE_SPACE={{ workload_cfg.kv_cache_space | extract_size_value }})"
+      - "  Data Type: {{ model_dtype }} (Model-Specific)"
+      - "  KV Cache: {{ model_kv_cache }} (Model-Specific) (VLLM_CPU_KVCACHE_SPACE={{ model_kv_cache | extract_size_value }})"
       - "  OMP Threads: {{ core_cfg.omp_num_threads | default('auto') }}"
       - "  OMP Bind: {{ core_cfg.omp_threads_bind | default('auto') }}"
       - "  Arguments: {{ vllm_args_merged | join(' ') }}"

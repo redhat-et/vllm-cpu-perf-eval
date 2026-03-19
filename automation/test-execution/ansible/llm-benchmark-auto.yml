@@ -257,6 +257,12 @@
     core_configuration: "{{ hostvars['localhost']['core_configuration'] }}"
 
   tasks:
+    - name: Get vLLM configuration from DUT
+      ansible.builtin.set_fact:
+        vllm_kv_cache: "{{ hostvars[groups['dut'][0]]['model_kv_cache'] | default('unknown') }}"
+        vllm_dtype: "{{ hostvars[groups['dut'][0]]['model_dtype'] | default('unknown') }}"
+        vllm_caching_mode: "{{ hostvars[groups['dut'][0]]['vllm_caching_mode'] | default('unknown') }}"
+
     - name: Tag results with auto-config metadata
       ansible.builtin.copy:
         content: |
@@ -272,6 +278,9 @@
             "omp_threads_bind": {{ core_configuration.omp_threads_bind | default('null') }},
             "model": "{{ test_model }}",
             "workload": "{{ workload_type }}",
+            "vllm_dtype": "{{ vllm_dtype }}",
+            "vllm_kv_cache_size": "{{ vllm_kv_cache }}",
+            "vllm_caching_mode": "{{ vllm_caching_mode }}",
             "timestamp": "{{ lookup('pipe', 'date -Iseconds') }}",
             "test_duration": "{{ test_duration_string | default('unknown') }}",
             "test_duration_seconds": {{ test_duration_seconds | default('null') }}
