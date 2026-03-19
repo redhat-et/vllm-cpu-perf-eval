@@ -175,7 +175,11 @@ class TestExtractPrimaryCpus:
 
     def test_empty_input(self):
         """Test empty input returns empty string."""
-        assert extract_primary_cpus("", 0) == ""
+        with pytest.raises(AnsibleFilterError) as exc_info:
+            extract_primary_cpus("",0)
+
+        error_msg = str(exc_info.value)
+        assert "Invalid lscpu input" in error_msg
 
     def test_node_not_found(self):
         """Test NUMA node not in data returns empty."""
@@ -189,8 +193,11 @@ class TestExtractPrimaryCpus:
 invalid line
 1 0 0
 2 0 1"""
-        result = extract_primary_cpus(lscpu_data, 0)
-        assert result == "0,2"
+        with pytest.raises(AnsibleFilterError) as exc_info:
+            extract_primary_cpus(lscpu_data,0)
+
+        error_msg = str(exc_info.value)
+        assert "Failed to parse lscpu data: Line 2: Expected 3 columns (CPU NODE CORE), got 2: 'invalid line'" in error_msg
 
 
 class TestExtractAllCpus:
@@ -276,7 +283,11 @@ class TestMergeCpuRanges:
 
     def test_empty_list(self):
         """Test empty list returns empty string."""
-        assert merge_cpu_ranges([]) == ""
+        with pytest.raises(AnsibleFilterError) as exc_info:
+            merge_cpu_ranges([])
+
+        error_msg = str(exc_info.value)
+        assert "invalid range_list []" in error_msg
 
     def test_invalid_range_format(self):
         """Test invalid range format raises error."""
