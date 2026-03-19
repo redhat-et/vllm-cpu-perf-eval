@@ -168,7 +168,7 @@ For detailed 3-phase methodology and how it applies to concurrent load testing, 
 - Concurrency levels: {4, 8, 16, 32, 64} for embeddings
 - Workloads: Chat, RAG, CodeGen, Summarization, Embedding
 
-**📚 See [Concurrent Load Test Suite](../../tests/concurrent-load/) for
+**📚 See [Concurrent Load Test Suite](../../tests/concurrent-load/concurrent-load) for
 complete test specifications**
 
 ### Test Suite 2: Scalability
@@ -180,7 +180,7 @@ complete test specifications**
 - Poisson tests for bursty traffic
 - Focus on max throughput (OTPS/TTPS), TTFT scaling, and KV cache efficiency
 
-**📚 See [Scalability Test Suite](../../tests/scalability/) for
+**📚 See [Scalability Test Suite](../../tests/scalability/scalability) for
 complete test specifications**
 
 ### Test Suite 3: Resource Contention (Planned)
@@ -192,7 +192,7 @@ complete test specifications**
 - Co-located workloads
 - Multi-tenant scenarios
 
-**📚 See [Resource Contention Test Suite](../../tests/resource-contention/)
+**📚 See [Resource Contention Test Suite](../../tests/resource-contention/resource-contention)
 for status and planned tests**
 
 ### Test Suite 4: Configuration Tuning (Future)
@@ -212,9 +212,9 @@ for status and planned tests**
 - **[Test Reporting](reporting.md)** - Test report structure and formats
 - **[Manual Sweep Testing](manual-sweep.md)** - Detailed manual testing
   procedures
-- **[Platform Setup](../platform-setup/)** - System configuration for
+- **[Platform Setup](../platform-setup/x86/intel/deterministic-benchmarking)** - System configuration for
   deterministic testing
-- **[Test Execution](../../tests/)** - Actual test implementations and
+- **[Test Execution](../../tests/tests)** - Actual test implementations and
   scenarios
 - **[Model Selection](../../models/models.md)** - Centralized model
   definitions and rationale
