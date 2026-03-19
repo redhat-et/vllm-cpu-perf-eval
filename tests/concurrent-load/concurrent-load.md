@@ -539,4 +539,4 @@ guidellm report generate \
 - [Testing Methodology](../../docs/methodology/overview.md)
 - [Metrics Guide](../../docs/methodology/metrics.md)
 - [Manual Testing](../../docs/methodology/manual-sweep.md)
-- [Scalability Test Suite](../scalability/)
+- [Scalability Test Suite](../scalability/scalability.md)

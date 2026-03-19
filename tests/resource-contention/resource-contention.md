@@ -69,9 +69,9 @@ If you'd like to help design or implement Resource Contention tests, please:
 
 ## Related Documentation
 
-- [Concurrent Load Test Suite](../concurrent-load/) - Concurrent load testing
-- [Scalability Test Suite](../scalability/) - Scalability testing
-- [Platform Setup](../../docs/platform-setup/) - CPU isolation and NUMA
+- [Concurrent Load Test Suite](../concurrent-load/concurrent-load.md) - Concurrent load testing
+- [Scalability Test Suite](../scalability/scalability.md) - Scalability testing
+- [Platform Setup](../../docs/platform-setup/x86/intel/deterministic-benchmarking.md) - CPU isolation and NUMA
   configuration
 - [Testing Methodology](../../docs/methodology/overview.md) - Overall test
   strategy
