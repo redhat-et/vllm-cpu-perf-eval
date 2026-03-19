@@ -68,10 +68,11 @@ Each model is tested across workloads that stress different aspects of inference
 
 ### LLM Workloads
 
-- **Chat (512:256)**: Balanced prefill/decode, typical conversational AI
-- **RAG (4096:512)**: Long context prefill, retrieval-augmented generation
-- **CodeGen (512:4K)**: Long output decode, code generation scenarios
-- **Summarization (1024:256)**: Medium context, summarization tasks
+- **Chat (512:512)**: Balanced prefill/decode, typical conversational AI
+- **RAG (8192:512)**: Long context prefill, retrieval-augmented generation
+- **Code Generation (1024:1024)**: Balanced code generation scenarios
+- **Summarization (2048:256)**: Medium context, summarization tasks
+- **Reasoning (256:2048)**: Long output decode, chain-of-thought reasoning
 
 ### Embedding Workloads
 
@@ -177,29 +178,47 @@ This section covers Large Language Model (LLM) selection and testing across all 
 
 ## LLM Workload Details
 
-### Chat (512:256)
+**Note**: All workloads are optimized for **absolute best performance** by setting `--max-model-len` to the minimum required for each workload. This minimizes KV cache allocation and maximizes throughput.
+
+### Chat (512:512)
 - **Input**: 512 tokens (conversation history)
-- **Output**: 256 tokens (response)
+- **Output**: 512 tokens (response)
+- **Total**: 1024 tokens
+- **Max Model Len**: 2048
 - **Focus**: Balanced prefill/decode
 - **Use Case**: Conversational AI, chatbots
 
-### RAG (4096:512)
-- **Input**: 4096 tokens (retrieved documents + query)
+### RAG (8192:512)
+- **Input**: 8192 tokens (retrieved documents + query)
 - **Output**: 512 tokens (answer)
+- **Total**: 8704 tokens
+- **Max Model Len**: 16384
 - **Focus**: Long context prefill
 - **Use Case**: Document Q&A, knowledge retrieval
 
-### CodeGen (512:4096)
-- **Input**: 512 tokens (code prompt/context)
-- **Output**: 4096 tokens (generated code)
-- **Focus**: Long output decode
+### Code Generation (1024:1024)
+- **Input**: 1024 tokens (code prompt/context)
+- **Output**: 1024 tokens (generated code)
+- **Total**: 2048 tokens
+- **Max Model Len**: 4096
+- **Focus**: Balanced code generation
 - **Use Case**: Code completion, generation
 
-### Summarization (1024:256)
-- **Input**: 1024 tokens (document to summarize)
+### Summarization (2048:256)
+- **Input**: 2048 tokens (document to summarize)
 - **Output**: 256 tokens (summary)
-- **Focus**: Medium context, balanced
+- **Total**: 2304 tokens
+- **Max Model Len**: 4096
+- **Focus**: Medium context, short output
 - **Use Case**: Document summarization
+
+### Reasoning (256:2048)
+- **Input**: 256 tokens (problem statement)
+- **Output**: 2048 tokens (reasoning chain)
+- **Total**: 2304 tokens
+- **Max Model Len**: 4096
+- **Focus**: Long output decode for reasoning
+- **Use Case**: Chain-of-thought reasoning, problem solving
 
 ## LLM Inference Characteristics
 
@@ -244,12 +263,12 @@ Tests all models at concurrency levels: **{1, 2, 4, 8, 16, 32}**
 - 3-phase testing: Baseline → Realistic → Production
 
 **Participating Models:**
-- Llama-3.2-1B-Instruct (Chat, RAG, CodeGen)
+- Llama-3.2-1B-Instruct (Chat, RAG, Code, Summarization, Reasoning)
 - TinyLlama-1.1B-Chat (Chat)
 - facebook/opt-125m (Chat, Summarization)
-- granite-3.2-2b-instruct (Chat, RAG, CodeGen)
-- Qwen/Qwen3-0.6B (Chat, CodeGen)
-- openai/gpt-oss-20b (Chat, RAG, CodeGen) - **NEW**
+- granite-3.2-2b-instruct (Chat, RAG, Code, Summarization, Reasoning)
+- Qwen/Qwen3-0.6B (Chat, Code)
+- openai/gpt-oss-20b (Chat, RAG, Code)
 
 ### Test Suite 2: Scalability
 Uses sweep, synchronous, and Poisson profiles
@@ -314,16 +333,161 @@ Uses sweep profile for maximum throughput testing
 
 ## Model Configuration
 
-All models use baseline configuration for fair comparison:
+All models use baseline configuration with model-specific optimizations:
 
 ```yaml
-dtype: bfloat16
+dtype: Model-specific (defined per model, default: auto)
 quantization: false  # Full precision
-kv_cache: auto       # vLLM auto-sizing (1GiB for embeddings)
+kv_cache: Model and workload specific (calculated per model/workload)
+max_model_len: Workload-optimized (minimizes KV cache for best performance)
 affinity: FULL       # All physical cores
 ```
 
+**Model-Specific Configuration:**
+- Each model has its own `dtype` defined in the model matrix (fallback: `auto`)
+- KV cache sizes are calculated based on model architecture and workload requirements
+- `max_model_len` is set per workload to minimize memory allocation and maximize throughput
+
+**See**: [KV Cache Calculations](#kv-cache-size-calculations) for detailed sizing methodology.
+
 Advanced configurations (quantization, custom KV cache) are tested in Test Suite 4 (Configuration Tuning).
+
+---
+
+## KV Cache Size Calculations
+
+### Performance Optimization Strategy
+
+**These configurations are optimized for ABSOLUTE BEST PERFORMANCE per workload.**
+
+Each workload uses `--max-model-len` set to the minimum required for that specific workload:
+- Minimizes KV cache memory allocation
+- Reduces memory bandwidth pressure
+- Optimizes cache locality
+- **Result**: Best possible throughput and latency for each workload type
+
+**Important**: These are workload-optimized settings. Production deployments may use larger `max-model-len` values for flexibility, which would require larger KV cache and may show different performance characteristics.
+
+### Calculation Formula
+
+```
+Total Elements = 2 × num_hidden_layers × tokens × num_key_value_heads × head_size
+Where: head_size = hidden_size ÷ num_attention_heads
+Total Bytes = Total Elements × dtype_size (bfloat16 = 2 bytes)
+KV Cache Size (GB) = Total Bytes ÷ (1024³)
+```
+
+### Model Architecture Specifications
+
+| Model | Hidden Size | Num Heads | Num Layers | KV Heads | Head Size | Dtype |
+|-------|-------------|-----------|------------|----------|-----------|-------|
+| llama-3.2-1b-instruct | 2048 | 32 | 16 | 8 | 64 | bfloat16 |
+| llama-3.2-3b-instruct | 3072 | 24 | 28 | 8 | 128 | bfloat16 |
+| tinyllama-1.1b-chat | 2048 | 32 | 22 | 4 | 64 | bfloat16 |
+| opt-125m | 768 | 12 | 12 | 12 | 64 | bfloat16 |
+| opt-1.3b | 2048 | 32 | 24 | 32 | 64 | bfloat16 |
+| granite-3.2-2b-instruct | 2048 | 32 | 40 | 8 | 64 | bfloat16 |
+| qwen3-0.6b | 1024 | 16 | 28 | 8 | 64 | bfloat16 |
+| qwen2.5-3b-instruct | 2048 | 16 | 36 | 2 | 128 | bfloat16 |
+| gpt-oss-20b | 2880 | 64 | 24 | 8 | 45 | bfloat16* |
+
+*gpt-oss-20b uses MXFP4 for MoE weights, bfloat16 for activations/KV cache
+
+### KV Cache Sizes by Model and Workload
+
+Calculated with concurrency targets and 25% safety margin (1.25x):
+- **chat**: 32 concurrent requests
+- **rag**: 16 concurrent (large context)
+- **code**: 24 concurrent
+- **summarization**: 32 concurrent
+- **reasoning**: 24 concurrent
+
+#### Chat Workload (512:512, 1024 tokens)
+
+| Model | Per-Request | 32 × 1.25x | Configured |
+|-------|-------------|------------|------------|
+| llama-3.2-1b-instruct | 0.0312 GB | 1.25 GB | 2 GiB |
+| llama-3.2-3b-instruct | 0.1094 GB | 4.38 GB | 5 GiB |
+| tinyllama-1.1b-chat | 0.0215 GB | 0.86 GB | 1 GiB |
+| opt-125m | 0.0226 GB | 0.90 GB | 1 GiB |
+| opt-1.3b | 0.0477 GB | 1.91 GB | 2 GiB |
+| granite-3.2-2b-instruct | 0.0521 GB | 2.08 GB | 3 GiB |
+| qwen3-0.6b | 0.0365 GB | 1.46 GB | 2 GiB |
+| qwen2.5-3b-instruct | 0.0179 GB | 0.72 GB | 1 GiB |
+| gpt-oss-20b | 0.0424 GB | 1.70 GB | 2 GiB |
+
+#### RAG Workload (8192:512, 8704 tokens)
+
+| Model | Per-Request | 16 × 1.25x | Configured |
+|-------|-------------|------------|------------|
+| llama-3.2-1b-instruct | 0.2656 GB | 5.31 GB | 5 GiB |
+| llama-3.2-3b-instruct | 0.9297 GB | 18.59 GB | 18 GiB |
+| tinyllama-1.1b-chat | 0.1828 GB | 3.66 GB | 3 GiB |
+| opt-125m | 0.1920 GB | 3.84 GB | 3 GiB |
+| opt-1.3b | 0.4053 GB | 8.11 GB | 7 GiB |
+| granite-3.2-2b-instruct | 0.4427 GB | 8.85 GB | 9 GiB |
+| qwen3-0.6b | 0.3102 GB | 6.20 GB | 6 GiB |
+| qwen2.5-3b-instruct | 0.1520 GB | 3.04 GB | 3 GiB |
+| gpt-oss-20b | 0.3604 GB | 7.21 GB | 7 GiB |
+
+#### Code Generation Workload (1024:1024, 2048 tokens)
+
+| Model | Per-Request | 24 × 1.25x | Configured |
+|-------|-------------|------------|------------|
+| llama-3.2-1b-instruct | 0.0625 GB | 1.88 GB | 2 GiB |
+| llama-3.2-3b-instruct | 0.2188 GB | 6.56 GB | 5 GiB |
+| tinyllama-1.1b-chat | 0.0430 GB | 1.29 GB | 1 GiB |
+| opt-125m | 0.0452 GB | 1.36 GB | 2 GiB |
+| opt-1.3b | 0.0954 GB | 2.86 GB | 4 GiB |
+| granite-3.2-2b-instruct | 0.1042 GB | 3.13 GB | 3 GiB |
+| qwen3-0.6b | 0.0730 GB | 2.19 GB | 2 GiB |
+| qwen2.5-3b-instruct | 0.0358 GB | 1.07 GB | 2 GiB |
+| gpt-oss-20b | 0.0848 GB | 2.54 GB | 2 GiB |
+
+#### Summarization Workload (2048:256, 2304 tokens)
+
+| Model | Per-Request | 32 × 1.25x | Configured |
+|-------|-------------|------------|------------|
+| llama-3.2-1b-instruct | 0.0703 GB | 2.81 GB | 3 GiB |
+| llama-3.2-3b-instruct | 0.2461 GB | 9.84 GB | 9 GiB |
+| tinyllama-1.1b-chat | 0.0483 GB | 1.93 GB | 2 GiB |
+| opt-125m | 0.0509 GB | 2.04 GB | 2 GiB |
+| opt-1.3b | 0.1074 GB | 4.30 GB | 4 GiB |
+| granite-3.2-2b-instruct | 0.1172 GB | 4.69 GB | 4 GiB |
+| qwen3-0.6b | 0.0821 GB | 3.28 GB | 3 GiB |
+| qwen2.5-3b-instruct | 0.0403 GB | 1.61 GB | 2 GiB |
+| gpt-oss-20b | 0.0954 GB | 3.81 GB | 3 GiB |
+
+#### Reasoning Workload (256:2048, 2304 tokens)
+
+| Model | Per-Request | 24 × 1.25x | Configured |
+|-------|-------------|------------|------------|
+| llama-3.2-1b-instruct | 0.0703 GB | 2.11 GB | 2 GiB |
+| llama-3.2-3b-instruct | 0.2461 GB | 7.38 GB | 6 GiB |
+| tinyllama-1.1b-chat | 0.0483 GB | 1.45 GB | 2 GiB |
+| opt-125m | 0.0509 GB | 1.53 GB | 2 GiB |
+| opt-1.3b | 0.1074 GB | 3.22 GB | 3 GiB |
+| granite-3.2-2b-instruct | 0.1172 GB | 3.52 GB | 3 GiB |
+| qwen3-0.6b | 0.0821 GB | 2.46 GB | 2 GiB |
+| qwen2.5-3b-instruct | 0.0403 GB | 1.21 GB | 2 GiB |
+| gpt-oss-20b | 0.0954 GB | 2.86 GB | 2 GiB |
+
+### Usage in Test Automation
+
+KV cache sizes are configured in `models/llm-models/model-matrix.yaml` under the `kv_cache_sizes` field for each model. The Ansible playbook automatically:
+
+1. Loads the model configuration from the model matrix
+2. Extracts the model-specific KV cache size for the workload being tested
+3. Sets the `VLLM_CPU_KVCACHE_SPACE` environment variable accordingly
+4. Falls back to workload defaults if model-specific values aren't found
+
+Similarly, the `dtype` parameter is model-specific and defined in the model matrix, with a fallback to `auto` for automatic detection by vLLM.
+
+**Test metadata captures**:
+- `vllm_dtype`: Data type used (e.g., bfloat16)
+- `vllm_kv_cache_size`: KV cache allocation (e.g., 2GiB)
+- `vllm_max_model_len`: Maximum sequence length for workload
+- `vllm_caching_mode`: Caching configuration (baseline/production)
 
 ---
 
@@ -422,6 +586,7 @@ When evaluating whether to add a new model:
 ## Related Documentation
 
 - **[LLM Model Matrix](llm-models/model-matrix.yaml)** - Complete LLM model definitions
+- **[KV Cache Calculations](kv_cache_calculations.md)** - Detailed KV cache sizing calculations
 - **[Embedding Model Matrix](embedding-models/model-matrix.yaml)** - Complete embedding model definitions
 - **[Embedding Models Extended Docs](embedding-models/embedding-models.md)** - Detailed embedding testing documentation
 - **[Test Suites](../tests/)** - How models are tested
