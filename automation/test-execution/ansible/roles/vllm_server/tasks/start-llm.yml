@@ -217,6 +217,10 @@
   ansible.builtin.set_fact:
     vllm_args_merged: "{{ vllm_args_merged + ['--dtype=' + model_dtype] }}"
 
+- name: Extract max-model-len from vLLM arguments
+  ansible.builtin.set_fact:
+    model_max_len: "{{ (vllm_args_merged | select('match', '^--max-model-len=.*') | list | first | default('--max-model-len=unknown')).split('=')[1] }}"
+
 - name: Build vLLM command arguments
   ansible.builtin.set_fact:
     vllm_cmd: >-

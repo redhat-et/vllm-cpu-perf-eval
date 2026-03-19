@@ -1,5 +1,17 @@
 # KV Cache Size Calculations for LLM Models
 
+## Performance Optimization Strategy
+
+**These configurations are optimized for ABSOLUTE BEST PERFORMANCE per workload.**
+
+Each workload uses `--max-model-len` set to the minimum required for that specific workload:
+- Minimizes KV cache memory allocation
+- Reduces memory bandwidth pressure
+- Optimizes cache locality
+- **Result**: Best possible throughput and latency for each workload type
+
+**Important**: These are workload-optimized settings. Production deployments may use larger `max-model-len` values for flexibility, which would require larger KV cache and may show different performance characteristics.
+
 ## Formula
 ```
 Total Elements = 2 × num_hidden_layers × tokens × num_key_value_heads × head_size
