@@ -132,6 +132,7 @@ Calculated with concurrency targets and 25% safety margin (1.25x):
 - reasoning: 24 concurrent
 
 ### chat workload (512:512, 1024 tokens, 32 concurrent)
+
 | Model | Per-Request (GB) | 32 × 1.25x | Recommended |
 |-------|------------------|------------|-------------|
 | llama-3.2-1b-instruct | 0.0312 | 1.25 | **2 GiB** |
@@ -145,6 +146,7 @@ Calculated with concurrency targets and 25% safety margin (1.25x):
 | gpt-oss-20b | 0.0424 | 1.70 | **2 GiB** |
 
 ### rag workload (8192:512, 8704 tokens, 16 concurrent)
+
 | Model | Per-Request (GB) | 16 × 1.25x | Recommended |
 |-------|------------------|------------|-------------|
 | llama-3.2-1b-instruct | 0.2656 | 5.31 | **5 GiB** |
@@ -158,6 +160,7 @@ Calculated with concurrency targets and 25% safety margin (1.25x):
 | gpt-oss-20b | 0.3604 | 7.21 | **7 GiB** |
 
 ### code workload (1024:1024, 2048 tokens, 24 concurrent)
+
 | Model | Per-Request (GB) | 24 × 1.25x | Recommended |
 |-------|------------------|------------|-------------|
 | llama-3.2-1b-instruct | 0.0625 | 1.88 | **2 GiB** |
@@ -171,6 +174,7 @@ Calculated with concurrency targets and 25% safety margin (1.25x):
 | gpt-oss-20b | 0.0848 | 2.54 | **2 GiB** |
 
 ### summarization workload (2048:256, 2304 tokens, 32 concurrent)
+
 | Model | Per-Request (GB) | 32 × 1.25x | Recommended |
 |-------|------------------|------------|-------------|
 | llama-3.2-1b-instruct | 0.0703 | 2.81 | **3 GiB** |
@@ -184,6 +188,7 @@ Calculated with concurrency targets and 25% safety margin (1.25x):
 | gpt-oss-20b | 0.0954 | 3.81 | **3 GiB** |
 
 ### reasoning workload (256:2048, 2304 tokens, 24 concurrent)
+
 | Model | Per-Request (GB) | 24 × 1.25x | Recommended |
 |-------|------------------|------------|-------------|
 | llama-3.2-1b-instruct | 0.0703 | 2.11 | **2 GiB** |
