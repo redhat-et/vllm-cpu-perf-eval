@@ -58,3 +58,5 @@ results/*
 tmp/
 temp/
 *.tmp
+_site/
+vendor/

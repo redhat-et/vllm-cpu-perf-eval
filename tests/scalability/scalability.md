@@ -1,5 +1,9 @@
 # Test Suite: Scalability
 
+> **🚧 Status: Work in Progress**
+>
+> This test suite is under development. Implementation may change and results are provided as-is with no guarantees.
+
 Characterizes maximum throughput and generates complete load-latency curves.
 
 ## Overview

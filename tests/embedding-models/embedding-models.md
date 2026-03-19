@@ -1,5 +1,9 @@
 # Embedding Models Performance Testing
 
+> **🚧 Status: Work in Progress**
+>
+> This test suite is under development. Implementation may change and results are provided as-is with no guarantees.
+
 Comprehensive guide for running and analyzing embedding model performance tests on vLLM CPU platforms.
 
 ## Overview

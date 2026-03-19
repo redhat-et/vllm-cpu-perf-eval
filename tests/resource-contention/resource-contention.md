@@ -1,5 +1,9 @@
 # Test Suite: Resource Contention
 
+> **📋 Status: Planned**
+>
+> This test suite is not yet implemented. Design and implementation are planned for future releases.
+
 Tests platform stability under real-world server deployment scenarios.
 
 ## Overview
@@ -8,10 +12,6 @@ This test suite focuses on resource contention scenarios including fractional co
 allocation, NUMA node isolation, and "noisy neighbor" effects. This suite
 evaluates how vLLM CPU inference performs when sharing resources with other
 workloads.
-
-## Status
-
-**Planned** - Not yet implemented
 
 ## Goals (Planned)
 

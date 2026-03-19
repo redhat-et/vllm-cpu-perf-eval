@@ -1,0 +1,103 @@
+/* Custom CSS for left sidebar navigation */
+
+/* Main layout adjustments - override theme defaults */
+.main-content {
+  max-width: none !important;
+  padding: 2rem 4rem !important;
+  margin: 0 auto !important;
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 2rem !important;
+  align-items: flex-start !important;
+}
+
+/* Left sidebar navigation */
+.sidebar-nav {
+  width: 250px !important;
+  flex-shrink: 0 !important;
+  position: sticky !important;
+  top: 2rem !important;
+  height: fit-content !important;
+  max-height: calc(100vh - 4rem) !important;
+  overflow-y: auto !important;
+  padding: 1.5rem !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  border-radius: 0.5rem !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+}
+
+.sidebar-nav h3 {
+  font-size: 0.85rem !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.1em !important;
+  margin-top: 1.5rem !important;
+  margin-bottom: 0.75rem !important;
+  opacity: 0.8 !important;
+  font-weight: 600 !important;
+  color: #fff !important;
+}
+
+.sidebar-nav h3:first-child {
+  margin-top: 0 !important;
+}
+
+.sidebar-nav ul {
+  list-style: none !important;
+  padding-left: 0 !important;
+  margin: 0 0 1rem 0 !important;
+}
+
+.sidebar-nav li {
+  margin: 0.25rem 0 !important;
+}
+
+.sidebar-nav a {
+  display: block !important;
+  padding: 0.5rem 0.8rem !important;
+  text-decoration: none !important;
+  color: #159957 !important;
+  border-radius: 0.3rem !important;
+  transition: all 0.2s ease !important;
+  font-size: 0.9rem !important;
+  border-left: 3px solid transparent !important;
+}
+
+.sidebar-nav a:hover {
+  background: rgba(21, 153, 87, 0.15) !important;
+  padding-left: 1rem !important;
+  border-left-color: #159957 !important;
+}
+
+.sidebar-nav a.active {
+  background: rgba(21, 153, 87, 0.25) !important;
+  font-weight: 600 !important;
+  border-left-color: #159957 !important;
+}
+
+/* Content area */
+.content-area {
+  flex: 1 !important;
+  min-width: 0 !important;
+  max-width: 64rem !important;
+}
+
+/* Mobile responsive */
+@media screen and (max-width: 768px) {
+  .main-content {
+    flex-direction: column !important;
+    padding: 2rem 1rem !important;
+  }
+
+  .sidebar-nav {
+    width: 100% !important;
+    position: static !important;
+    max-height: none !important;
+    margin-bottom: 2rem !important;
+  }
+}
+
+/* Smooth scrolling */
+html {
+  scroll-behavior: smooth;
+}
