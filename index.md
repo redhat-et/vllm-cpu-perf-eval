@@ -166,8 +166,8 @@ pre-commit run --all-files
 ## Support
 
 - **Documentation**: Browse this site for comprehensive guides
-- **Repository**: [GitHub Repository](https://github.com/YOUR_ORG/vllm-cpu-perf-eval)
-- **Issues**: [Report Issues](https://github.com/YOUR_ORG/vllm-cpu-perf-eval/issues)
+- **Repository**: [GitHub Repository](https://github.com/redhat-et/vllm-cpu-perf-eval)
+- **Issues**: [Report Issues](https://github.com/redhat-et/vllm-cpu-perf-eval/issues)
 
 ## Acknowledgments
 

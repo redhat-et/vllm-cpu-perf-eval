@@ -167,13 +167,34 @@ Alternatively, you could publish from the `docs/` folder on the main branch:
 
 1. Move `.github-pages/` contents to `docs/`:
    ```bash
+   # Move Jekyll configuration and dependencies
    mv .github-pages/_config.yml docs/
    mv .github-pages/Gemfile docs/
+
+   # Move Jekyll layouts and includes
+   mv .github-pages/_layouts docs/
+   mv .github-pages/_includes docs/
+
+   # Move custom assets
+   mv .github-pages/assets docs/
+
+   # Move or copy the landing page
+   mv index.md docs/
    ```
 
-2. Update `_config.yml` to use `docs/` as source
+2. Update `_config.yml` source path:
+   ```yaml
+   # Change from:
+   source: ..
+   # To:
+   source: .
+   ```
 
-3. Configure GitHub Pages to use `main` branch `/docs` folder
+3. Configure GitHub Pages:
+   - Go to repository Settings → Pages
+   - Source: `Deploy from a branch`
+   - Branch: `main`
+   - Folder: `/docs`
 
 ## Theme
 

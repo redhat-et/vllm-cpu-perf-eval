@@ -29,7 +29,7 @@ matrix:
         balance: "prefill-heavy"
       kv_cache_sizes:
         chat: "2GiB"          # 1024 tokens, 32 concurrent
-        rag: "11GiB"          # 8704 tokens, 32 concurrent
+        rag: "11GiB"          # 8704 tokens, 32 concurrent (NOTE: context_length 8192 < 8704 required)
         code: "3GiB"          # 2048 tokens, 32 concurrent
         summarization: "3GiB" # 2304 tokens, 32 concurrent
         reasoning: "3GiB"     # 2304 tokens, 32 concurrent
@@ -37,7 +37,6 @@ matrix:
         code_var: "3GiB"      # Same as code
       default_workloads:
         - chat
-        - rag
       test_suites:
         - concurrent-load
         - scalability
@@ -61,7 +60,7 @@ matrix:
         balance: "prefill-heavy"
       kv_cache_sizes:
         chat: "5GiB"          # 1024 tokens, 32 concurrent
-        rag: "38GiB"          # 8704 tokens, 32 concurrent
+        rag: "38GiB"          # 8704 tokens, 32 concurrent (NOTE: context_length 8192 < 8704 required)
         code: "9GiB"          # 2048 tokens, 32 concurrent
         summarization: "9GiB" # 2304 tokens, 32 concurrent
         reasoning: "10GiB"    # 2304 tokens, 32 concurrent
@@ -69,7 +68,6 @@ matrix:
         code_var: "9GiB"      # Same as code
       default_workloads:
         - chat
-        - rag
       test_suites:
         - concurrent-load
         - scalability
@@ -190,7 +188,7 @@ matrix:
         balance: "balanced"
       kv_cache_sizes:
         chat: "3GiB"          # 1024 tokens, 32 concurrent
-        rag: "18GiB"          # 8704 tokens, 32 concurrent
+        rag: "18GiB"          # 8704 tokens, 32 concurrent (NOTE: context_length 4096 < 8704 required)
         code: "5GiB"          # 2048 tokens, 32 concurrent
         summarization: "4GiB" # 2304 tokens, 32 concurrent
         reasoning: "5GiB"     # 2304 tokens, 32 concurrent
@@ -198,7 +196,6 @@ matrix:
         code_var: "5GiB"      # Same as code
       default_workloads:
         - chat
-        - rag
       test_suites:
         - concurrent-load
         - scalability

@@ -18,6 +18,16 @@ STOP_SERVER=false
 while [[ $# -gt 0 ]]; do
     case $1 in
         --port)
+            if [[ -z "$2" || "$2" == -* ]]; then
+                echo "❌ Error: --port requires a valid port number"
+                echo "Usage: $0 --port PORT"
+                exit 1
+            fi
+            if ! [[ "$2" =~ ^[0-9]+$ ]] || [ "$2" -lt 1 ] || [ "$2" -gt 65535 ]; then
+                echo "❌ Error: Invalid port number '$2'"
+                echo "Port must be a number between 1 and 65535"
+                exit 1
+            fi
             PORT="$2"
             shift 2
             ;;
