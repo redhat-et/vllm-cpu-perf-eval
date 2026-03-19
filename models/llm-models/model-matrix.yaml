@@ -29,12 +29,12 @@ matrix:
         balance: "prefill-heavy"
       kv_cache_sizes:
         chat: "2GiB"          # 1024 tokens, 32 concurrent
-        rag: "5GiB"           # 8704 tokens, 16 concurrent
-        code: "2GiB"          # 2048 tokens, 24 concurrent
+        rag: "11GiB"          # 8704 tokens, 32 concurrent
+        code: "3GiB"          # 2048 tokens, 32 concurrent
         summarization: "3GiB" # 2304 tokens, 32 concurrent
-        reasoning: "2GiB"     # 2304 tokens, 24 concurrent
+        reasoning: "3GiB"     # 2304 tokens, 32 concurrent
         chat_var: "2GiB"      # Same as chat
-        code_var: "2GiB"      # Same as code
+        code_var: "3GiB"      # Same as code
       default_workloads:
         - chat
         - rag
@@ -61,12 +61,12 @@ matrix:
         balance: "prefill-heavy"
       kv_cache_sizes:
         chat: "5GiB"          # 1024 tokens, 32 concurrent
-        rag: "18GiB"          # 8704 tokens, 16 concurrent
-        code: "5GiB"          # 2048 tokens, 24 concurrent
+        rag: "38GiB"          # 8704 tokens, 32 concurrent
+        code: "9GiB"          # 2048 tokens, 32 concurrent
         summarization: "9GiB" # 2304 tokens, 32 concurrent
-        reasoning: "6GiB"     # 2304 tokens, 24 concurrent
+        reasoning: "10GiB"    # 2304 tokens, 32 concurrent
         chat_var: "5GiB"      # Same as chat
-        code_var: "5GiB"      # Same as code
+        code_var: "9GiB"      # Same as code
       default_workloads:
         - chat
         - rag
@@ -94,10 +94,10 @@ matrix:
         balance: "balanced"
       kv_cache_sizes:
         chat: "1GiB"          # 1024 tokens, 32 concurrent
-        rag: "3GiB"           # 8704 tokens, 16 concurrent
-        code: "2GiB"          # 2048 tokens, 24 concurrent
+        rag: "8GiB"           # 8704 tokens, 32 concurrent
+        code: "2GiB"          # 2048 tokens, 32 concurrent
         summarization: "2GiB" # 2304 tokens, 32 concurrent
-        reasoning: "2GiB"     # 2304 tokens, 24 concurrent
+        reasoning: "2GiB"     # 2304 tokens, 32 concurrent
         chat_var: "1GiB"      # Same as chat
         code_var: "2GiB"      # Same as code
       default_workloads:
@@ -126,10 +126,10 @@ matrix:
         balance: "decode-heavy"
       kv_cache_sizes:
         chat: "1GiB"          # 1024 tokens, 32 concurrent
-        rag: "3GiB"           # 8704 tokens, 16 concurrent
-        code: "2GiB"          # 2048 tokens, 24 concurrent
+        rag: "8GiB"           # 8704 tokens, 32 concurrent
+        code: "2GiB"          # 2048 tokens, 32 concurrent
         summarization: "2GiB" # 2304 tokens, 32 concurrent
-        reasoning: "2GiB"     # 2304 tokens, 24 concurrent
+        reasoning: "3GiB"     # 2304 tokens, 32 concurrent
         chat_var: "1GiB"      # Same as chat
         code_var: "2GiB"      # Same as code
       default_workloads:
@@ -158,10 +158,10 @@ matrix:
         balance: "decode-heavy"
       kv_cache_sizes:
         chat: "2GiB"          # 1024 tokens, 32 concurrent
-        rag: "7GiB"           # 8704 tokens, 16 concurrent
-        code: "4GiB"          # 2048 tokens, 24 concurrent
+        rag: "17GiB"          # 8704 tokens, 32 concurrent
+        code: "4GiB"          # 2048 tokens, 32 concurrent
         summarization: "4GiB" # 2304 tokens, 32 concurrent
-        reasoning: "3GiB"     # 2304 tokens, 24 concurrent
+        reasoning: "5GiB"     # 2304 tokens, 32 concurrent
         chat_var: "2GiB"      # Same as chat
         code_var: "4GiB"      # Same as code
       default_workloads:
@@ -190,12 +190,12 @@ matrix:
         balance: "balanced"
       kv_cache_sizes:
         chat: "3GiB"          # 1024 tokens, 32 concurrent
-        rag: "9GiB"           # 8704 tokens, 16 concurrent
-        code: "3GiB"          # 2048 tokens, 24 concurrent
+        rag: "18GiB"          # 8704 tokens, 32 concurrent
+        code: "5GiB"          # 2048 tokens, 32 concurrent
         summarization: "4GiB" # 2304 tokens, 32 concurrent
-        reasoning: "3GiB"     # 2304 tokens, 24 concurrent
+        reasoning: "5GiB"     # 2304 tokens, 32 concurrent
         chat_var: "3GiB"      # Same as chat
-        code_var: "3GiB"      # Same as code
+        code_var: "5GiB"      # Same as code
       default_workloads:
         - chat
         - rag
@@ -223,12 +223,12 @@ matrix:
         balance: "balanced"
       kv_cache_sizes:
         chat: "2GiB"          # 1024 tokens, 32 concurrent
-        rag: "6GiB"           # 8704 tokens, 16 concurrent
-        code: "2GiB"          # 2048 tokens, 24 concurrent
+        rag: "13GiB"          # 8704 tokens, 32 concurrent
+        code: "3GiB"          # 2048 tokens, 32 concurrent
         summarization: "3GiB" # 2304 tokens, 32 concurrent
-        reasoning: "2GiB"     # 2304 tokens, 24 concurrent
+        reasoning: "4GiB"     # 2304 tokens, 32 concurrent
         chat_var: "2GiB"      # Same as chat
-        code_var: "2GiB"      # Same as code
+        code_var: "3GiB"      # Same as code
       default_workloads:
         - chat
         - code
@@ -255,10 +255,10 @@ matrix:
         balance: "balanced"
       kv_cache_sizes:
         chat: "1GiB"          # 1024 tokens, 32 concurrent
-        rag: "3GiB"           # 8704 tokens, 16 concurrent
-        code: "2GiB"          # 2048 tokens, 24 concurrent
+        rag: "7GiB"           # 8704 tokens, 32 concurrent
+        code: "2GiB"          # 2048 tokens, 32 concurrent
         summarization: "2GiB" # 2304 tokens, 32 concurrent
-        reasoning: "2GiB"     # 2304 tokens, 24 concurrent
+        reasoning: "2GiB"     # 2304 tokens, 32 concurrent
         chat_var: "1GiB"      # Same as chat
         code_var: "2GiB"      # Same as code
       default_workloads:
@@ -299,12 +299,12 @@ matrix:
       memory_footprint: "~16GB (MXFP4 quantization)"
       kv_cache_sizes:
         chat: "2GiB"          # 1024 tokens, 32 concurrent
-        rag: "7GiB"           # 8704 tokens, 16 concurrent
-        code: "2GiB"          # 2048 tokens, 24 concurrent
+        rag: "15GiB"          # 8704 tokens, 32 concurrent
+        code: "4GiB"          # 2048 tokens, 32 concurrent
         summarization: "3GiB" # 2304 tokens, 32 concurrent
-        reasoning: "2GiB"     # 2304 tokens, 24 concurrent
+        reasoning: "4GiB"     # 2304 tokens, 32 concurrent
         chat_var: "2GiB"      # Same as chat
-        code_var: "2GiB"      # Same as code
+        code_var: "4GiB"      # Same as code
       default_workloads:
         - rag       # Primary - leverages large context
         - chat      # Baseline conversational

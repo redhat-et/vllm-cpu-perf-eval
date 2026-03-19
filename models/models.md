@@ -370,9 +370,13 @@ Each workload uses `--max-model-len` set to the minimum required for that specif
 
 ### Calculation Formula
 
+Formula from [LMCache KV Cache Calculator](https://lmcache.ai/kv_cache_calculator.html):
+
 ```
-Total Elements = 2 × num_hidden_layers × tokens × num_key_value_heads × head_size
-Where: head_size = hidden_size ÷ num_attention_heads
+Total Elements = 2 × num_hidden_layers × total_tokens × num_key_value_heads × head_size
+Where:
+  - total_tokens = input_tokens + output_tokens (ISL + OSL)
+  - head_size = hidden_size ÷ num_attention_heads
 Total Bytes = Total Elements × dtype_size (bfloat16 = 2 bytes)
 KV Cache Size (GB) = Total Bytes ÷ (1024³)
 ```
@@ -396,11 +400,7 @@ KV Cache Size (GB) = Total Bytes ÷ (1024³)
 ### KV Cache Sizes by Model and Workload
 
 Calculated with concurrency targets and 25% safety margin (1.25x):
-- **chat**: 32 concurrent requests
-- **rag**: 16 concurrent (large context)
-- **code**: 24 concurrent
-- **summarization**: 32 concurrent
-- **reasoning**: 24 concurrent
+- **All workloads**: 32 concurrent requests (max concurrency level in concurrent load tests)
 
 #### Chat Workload (512:512, 1024 tokens)
 
@@ -416,33 +416,33 @@ Calculated with concurrency targets and 25% safety margin (1.25x):
 | qwen2.5-3b-instruct | 0.0179 GB | 0.72 GB | 1 GiB |
 | gpt-oss-20b | 0.0424 GB | 1.70 GB | 2 GiB |
 
-#### RAG Workload (8192:512, 8704 tokens)
+#### RAG Workload (8192:512, 8704 tokens, 32 concurrent)
 
-| Model | Per-Request | 16 × 1.25x | Configured |
+| Model | Per-Request | 32 × 1.25x | Configured |
 |-------|-------------|------------|------------|
-| llama-3.2-1b-instruct | 0.2656 GB | 5.31 GB | 5 GiB |
-| llama-3.2-3b-instruct | 0.9297 GB | 18.59 GB | 18 GiB |
-| tinyllama-1.1b-chat | 0.1828 GB | 3.66 GB | 3 GiB |
-| opt-125m | 0.1920 GB | 3.84 GB | 3 GiB |
-| opt-1.3b | 0.4053 GB | 8.11 GB | 7 GiB |
-| granite-3.2-2b-instruct | 0.4427 GB | 8.85 GB | 9 GiB |
-| qwen3-0.6b | 0.3102 GB | 6.20 GB | 6 GiB |
-| qwen2.5-3b-instruct | 0.1520 GB | 3.04 GB | 3 GiB |
-| gpt-oss-20b | 0.3604 GB | 7.21 GB | 7 GiB |
+| llama-3.2-1b-instruct | 0.2656 GB | 10.6 GB | 11 GiB |
+| llama-3.2-3b-instruct | 0.9297 GB | 37.2 GB | 38 GiB |
+| tinyllama-1.1b-chat | 0.1828 GB | 7.31 GB | 8 GiB |
+| opt-125m | 0.1920 GB | 7.68 GB | 8 GiB |
+| opt-1.3b | 0.4053 GB | 16.2 GB | 17 GiB |
+| granite-3.2-2b-instruct | 0.4427 GB | 17.7 GB | 18 GiB |
+| qwen3-0.6b | 0.3102 GB | 12.4 GB | 13 GiB |
+| qwen2.5-3b-instruct | 0.1520 GB | 6.08 GB | 7 GiB |
+| gpt-oss-20b | 0.3604 GB | 14.4 GB | 15 GiB |
 
-#### Code Generation Workload (1024:1024, 2048 tokens)
+#### Code Generation Workload (1024:1024, 2048 tokens, 32 concurrent)
 
-| Model | Per-Request | 24 × 1.25x | Configured |
+| Model | Per-Request | 32 × 1.25x | Configured |
 |-------|-------------|------------|------------|
-| llama-3.2-1b-instruct | 0.0625 GB | 1.88 GB | 2 GiB |
-| llama-3.2-3b-instruct | 0.2188 GB | 6.56 GB | 5 GiB |
-| tinyllama-1.1b-chat | 0.0430 GB | 1.29 GB | 1 GiB |
-| opt-125m | 0.0452 GB | 1.36 GB | 2 GiB |
-| opt-1.3b | 0.0954 GB | 2.86 GB | 4 GiB |
-| granite-3.2-2b-instruct | 0.1042 GB | 3.13 GB | 3 GiB |
-| qwen3-0.6b | 0.0730 GB | 2.19 GB | 2 GiB |
-| qwen2.5-3b-instruct | 0.0358 GB | 1.07 GB | 2 GiB |
-| gpt-oss-20b | 0.0848 GB | 2.54 GB | 2 GiB |
+| llama-3.2-1b-instruct | 0.0625 GB | 2.50 GB | 3 GiB |
+| llama-3.2-3b-instruct | 0.2188 GB | 8.75 GB | 9 GiB |
+| tinyllama-1.1b-chat | 0.0430 GB | 1.72 GB | 2 GiB |
+| opt-125m | 0.0452 GB | 1.81 GB | 2 GiB |
+| opt-1.3b | 0.0954 GB | 3.82 GB | 4 GiB |
+| granite-3.2-2b-instruct | 0.1042 GB | 4.17 GB | 5 GiB |
+| qwen3-0.6b | 0.0730 GB | 2.92 GB | 3 GiB |
+| qwen2.5-3b-instruct | 0.0358 GB | 1.43 GB | 2 GiB |
+| gpt-oss-20b | 0.0848 GB | 3.39 GB | 4 GiB |
 
 #### Summarization Workload (2048:256, 2304 tokens)
 
@@ -458,19 +458,19 @@ Calculated with concurrency targets and 25% safety margin (1.25x):
 | qwen2.5-3b-instruct | 0.0403 GB | 1.61 GB | 2 GiB |
 | gpt-oss-20b | 0.0954 GB | 3.81 GB | 3 GiB |
 
-#### Reasoning Workload (256:2048, 2304 tokens)
+#### Reasoning Workload (256:2048, 2304 tokens, 32 concurrent)
 
-| Model | Per-Request | 24 × 1.25x | Configured |
+| Model | Per-Request | 32 × 1.25x | Configured |
 |-------|-------------|------------|------------|
-| llama-3.2-1b-instruct | 0.0703 GB | 2.11 GB | 2 GiB |
-| llama-3.2-3b-instruct | 0.2461 GB | 7.38 GB | 6 GiB |
-| tinyllama-1.1b-chat | 0.0483 GB | 1.45 GB | 2 GiB |
-| opt-125m | 0.0509 GB | 1.53 GB | 2 GiB |
-| opt-1.3b | 0.1074 GB | 3.22 GB | 3 GiB |
-| granite-3.2-2b-instruct | 0.1172 GB | 3.52 GB | 3 GiB |
-| qwen3-0.6b | 0.0821 GB | 2.46 GB | 2 GiB |
-| qwen2.5-3b-instruct | 0.0403 GB | 1.21 GB | 2 GiB |
-| gpt-oss-20b | 0.0954 GB | 2.86 GB | 2 GiB |
+| llama-3.2-1b-instruct | 0.0703 GB | 2.81 GB | 3 GiB |
+| llama-3.2-3b-instruct | 0.2461 GB | 9.84 GB | 10 GiB |
+| tinyllama-1.1b-chat | 0.0483 GB | 1.93 GB | 2 GiB |
+| opt-125m | 0.0509 GB | 2.04 GB | 3 GiB |
+| opt-1.3b | 0.1074 GB | 4.30 GB | 5 GiB |
+| granite-3.2-2b-instruct | 0.1172 GB | 4.69 GB | 5 GiB |
+| qwen3-0.6b | 0.0821 GB | 3.28 GB | 4 GiB |
+| qwen2.5-3b-instruct | 0.0403 GB | 1.61 GB | 2 GiB |
+| gpt-oss-20b | 0.0954 GB | 3.82 GB | 4 GiB |
 
 ### Usage in Test Automation
 
