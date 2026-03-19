@@ -36,15 +36,28 @@
   ansible.builtin.set_fact:
     model_config: "{{ model_matrix.matrix.llm_models | selectattr('full_name', 'equalto', test_model) | first | default(none) }}"
 
+- name: Override KV cache size if explicitly provided
+  ansible.builtin.set_fact:
+    model_kv_cache: "{{ kv_cache_override }}"
+  when:
+    - kv_cache_override is defined
+    - kv_cache_override is not none
+    - kv_cache_override | length > 0
+
 - name: Get model-specific KV cache size for this workload
   ansible.builtin.set_fact:
     model_kv_cache: "{{ model_config.kv_cache_sizes[workload_type] | default(workload_cfg.kv_cache_space) }}"
-  when: model_config is not none and model_config.kv_cache_sizes is defined
+  when:
+    - kv_cache_override is not defined or kv_cache_override is none or (kv_cache_override | string | length == 0)
+    - model_config is not none
+    - model_config.kv_cache_sizes is defined
 
 - name: Use fallback KV cache size if model-specific not found
   ansible.builtin.set_fact:
     model_kv_cache: "{{ workload_cfg.kv_cache_space }}"
-  when: model_config is none or model_config.kv_cache_sizes is not defined or model_kv_cache is not defined
+  when:
+    - kv_cache_override is not defined or kv_cache_override is none or (kv_cache_override | string | length == 0)
+    - (model_config is none or model_config.kv_cache_sizes is not defined or model_kv_cache is not defined)
 
 - name: Get model-specific dtype
   ansible.builtin.set_fact:
