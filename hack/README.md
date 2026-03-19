@@ -23,7 +23,7 @@ Preview the GitHub Pages site locally using Docker.
 **Features:**
 - Auto-detects Docker or Podman
 - Installs GitHub Pages gems automatically
-- Serves site with live reload at http://localhost:PORT
+- Serves site with live reload at <http://localhost:PORT>
 - Clean start/stop commands
 
 **First Run:**

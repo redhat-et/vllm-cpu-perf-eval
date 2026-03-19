@@ -136,7 +136,9 @@ suite directory.
 
 ### 3-Phase Testing Methodology
 
-> **Note:** 3-phase testing is currently **only implemented for concurrent load tests**. Other test suites (scalability, embedding models) use baseline testing approaches.
+> **Note:** 3-phase testing is currently **only implemented for concurrent
+> load tests**. Other test suites (scalability, embedding models) use baseline
+> testing approaches.
 
 The **Concurrent Load Test Suite** implements a structured 3-phase testing approach:
 
@@ -155,7 +157,8 @@ The **Concurrent Load Test Suite** implements a structured 3-phase testing appro
    - Measures performance with optimizations enabled
    - Validates production configurations
 
-For detailed 3-phase methodology and how it applies to concurrent load testing, see [Testing Phases](testing-phases.md).
+For detailed 3-phase methodology and how it applies to concurrent load
+testing, see [Testing Phases](testing-phases.md).
 
 ---
 
@@ -212,8 +215,8 @@ for status and planned tests**
 - **[Test Reporting](reporting.md)** - Test report structure and formats
 - **[Manual Sweep Testing](manual-sweep.md)** - Detailed manual testing
   procedures
-- **[Platform Setup](../platform-setup/x86/intel/deterministic-benchmarking.md)** - System configuration for
-  deterministic testing
+- **[Platform Setup](../platform-setup/x86/intel/deterministic-benchmarking.md)**
+  \- System configuration for deterministic testing
 - **[Test Execution](../../tests/tests.md)** - Actual test implementations and
   scenarios
 - **[Model Selection](../../models/models.md)** - Centralized model

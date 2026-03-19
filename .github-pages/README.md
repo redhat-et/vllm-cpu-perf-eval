@@ -28,7 +28,7 @@ The preview script (`hack/preview-site.sh`) provides an easy way to test the Git
 ./hack/preview-site.sh --stop
 ```
 
-Then open **http://localhost:4001** in your browser.
+Then open **<http://localhost:4001>** in your browser.
 
 ### Preview Script Features
 
@@ -119,7 +119,7 @@ docker run --rm -it \
   sh -c "bundle install --path vendor/bundle && bundle exec jekyll serve --config _config.yml --watch --force_polling --host 0.0.0.0"
 ```
 
-Then open http://localhost:4001 in your browser.
+Then open <http://localhost:4001> in your browser.
 
 ## Configuration Details
 
@@ -185,7 +185,7 @@ remote_theme: pages-themes/cayman@v0.2.0
 
 This is compatible with GitHub Pages and doesn't require the theme gem to be installed locally.
 
-## Troubleshooting
+## Advanced Troubleshooting
 
 ### Port Already in Use
 
@@ -203,7 +203,7 @@ If you see errors about Liquid syntax in Ansible files, ensure `automation/` is 
 
 The site uses `remote_theme` which is fetched from GitHub. Ensure you have internet connectivity and the `jekyll-remote-theme` plugin is listed in `_config.yml`.
 
-## First Run
+## Initial Setup
 
 The first time you run the preview, it will:
 1. Download the Jekyll Docker image (~500MB)

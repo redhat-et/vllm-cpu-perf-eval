@@ -3,8 +3,6 @@ layout: default
 title: vLLM CPU Performance Evaluation
 ---
 
-# vLLM CPU Performance Evaluation
-
 Comprehensive performance evaluation framework for vLLM on CPU platforms.
 
 This site provides complete testing methodology, automation tools, and platform configurations for evaluating vLLM inference performance on CPU-based systems.

@@ -166,14 +166,20 @@ This test suite focuses exclusively on **generative LLM models**.
 
 ## Testing Strategy: 3-Phase Approach
 
-This test suite implements the [3-Phase Testing Methodology](../../docs/methodology/testing-phases.md) to separate baseline performance, realistic variability, and production optimization analysis.
+This test suite implements the
+[3-Phase Testing Methodology](../../docs/methodology/testing-phases.md) to
+separate baseline performance, realistic variability, and production
+optimization analysis.
 
 **Quick Reference:**
 - **Phase 1 (Baseline)**: Fixed tokens, no caching, all models/workloads
-- **Phase 2 (Realistic)**: Variable tokens, no caching, priority models/workloads
-- **Phase 3 (Production)**: Realistic datasets, with caching (⚠️ pending dataset selection)
+- **Phase 2 (Realistic)**: Variable tokens, no caching, priority
+  models/workloads
+- **Phase 3 (Production)**: Realistic datasets, with caching (⚠️ pending
+  dataset selection)
 
-**See [Testing Phases Documentation](../../docs/methodology/testing-phases.md)** for the complete methodology, configuration patterns, and cross-phase analysis.
+**See [Testing Phases Documentation](../../docs/methodology/testing-phases.md)**
+for the complete methodology, configuration patterns, and cross-phase analysis.
 
 ### Phase Configuration Summary
 
