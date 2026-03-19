@@ -1,0 +1,263 @@
+---
+# Debug GuideLLM Container Issue
+# This playbook tests the GuideLLM container start with full error visibility
+#
+# Usage:
+#   ansible-playbook debug-guidellm-container.yml -i <inventory>
+#
+# Or in AWX:
+#   Create a new job template using this playbook
+
+- name: Debug GuideLLM Container Start
+  hosts: loadgen-host
+  gather_facts: true
+  vars:
+    debug_results_path: /tmp/guidellm-debug
+    debug_container_name: guidellm-debug-test
+    debug_cpuset_cpus: "24-47"  # Adjust based on your system
+    debug_cpuset_mems: "0"
+    guidellm_image: ghcr.io/vllm-project/guidellm:v0.5.3
+
+  tasks:
+    - name: Display test configuration
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "GuideLLM Container Debug Test"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Loadgen Host: {{ ansible_host }}"
+          - "DUT Host: {{ hostvars['dut-host']['ansible_host'] }}"
+          - "System: {{ ansible_facts['system'] }}"
+          - "Container: {{ debug_container_name }}"
+          - "Image: {{ guidellm_image }}"
+          - "CPU Set: {{ debug_cpuset_cpus }}"
+          - "Memory Node: {{ debug_cpuset_mems }}"
+          - "Results: {{ debug_results_path }}"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+    - name: Check system information
+      ansible.builtin.command:
+        cmd: "{{ item }}"
+      loop:
+        - nproc --all
+        - podman --version
+      register: system_info
+      changed_when: false
+
+    - name: Display system information
+      ansible.builtin.debug:
+        msg:
+          - "Available CPUs: {{ system_info.results[0].stdout }}"
+          - "Podman Version: {{ system_info.results[1].stdout }}"
+
+    - name: Check NUMA topology
+      ansible.builtin.command:
+        cmd: lscpu
+      register: lscpu_output
+      changed_when: false
+
+    - name: Display NUMA information
+      ansible.builtin.debug:
+        msg: "{{ lscpu_output.stdout_lines | select('search', 'NUMA') | list }}"
+
+    - name: Remove any existing debug container
+      containers.podman.podman_container:
+        name: "{{ debug_container_name }}"
+        state: absent
+      ignore_errors: true
+
+    - name: Create debug results directory
+      ansible.builtin.file:
+        path: "{{ debug_results_path }}"
+        state: directory
+        mode: "0755"
+
+    - name: Test vLLM connectivity
+      ansible.builtin.uri:
+        url: "http://{{ hostvars['dut-host']['ansible_host'] }}:8000/health"
+        method: GET
+        timeout: 10
+      register: vllm_health
+      ignore_errors: true
+
+    - name: Display vLLM connectivity status
+      ansible.builtin.debug:
+        msg:
+          - "vLLM Health Check: {{ 'SUCCESS' if vllm_health.status | default(0) == 200 else 'FAILED' }}"
+          - "Status Code: {{ vllm_health.status | default('N/A') }}"
+          - "Error: {{ vllm_health.msg | default('None') }}"
+
+    - name: CRITICAL - Test 1 - Start container WITHOUT CPU pinning
+      containers.podman.podman_container:
+        name: "{{ debug_container_name }}-nopin"
+        image: "{{ guidellm_image }}"
+        state: started
+        rm: false
+        detach: true
+        network: host
+        volumes:
+          - "{{ debug_results_path }}:/results:z"
+        env:
+          GUIDELLM_TARGET: "http://{{ hostvars['dut-host']['ansible_host'] }}:8000"
+          GUIDELLM_PROFILE: "synchronous"
+          GUIDELLM_MAX_SECONDS: "30"
+          GUIDELLM_MAX_REQUESTS: "5"
+          GUIDELLM_DATA: "prompt_tokens=512,output_tokens=128"
+          GUIDELLM_OUTPUTS: "json"
+      register: container_nopin_result
+      ignore_errors: true
+      no_log: false  # CRITICAL: Shows the actual error
+
+    - name: Display Test 1 result
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Test 1: Container WITHOUT CPU pinning"
+          - "Status: {{ 'SUCCESS' if container_nopin_result is succeeded else 'FAILED' }}"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+    - name: Display Test 1 error details
+      ansible.builtin.debug:
+        var: container_nopin_result
+      when: container_nopin_result is failed
+
+    - name: Check container status (Test 1)
+      ansible.builtin.command:
+        cmd: "podman ps -a --filter name={{ debug_container_name }}-nopin --format 'table {{.Names}}\t{{.Status}}\t{{.State}}'"
+      register: container_nopin_status
+      changed_when: false
+      when: container_nopin_result is succeeded
+
+    - name: Display container status (Test 1)
+      ansible.builtin.debug:
+        var: container_nopin_status.stdout_lines
+      when: container_nopin_result is succeeded
+
+    - name: Get container logs (Test 1)
+      ansible.builtin.command:
+        cmd: "podman logs {{ debug_container_name }}-nopin"
+      register: container_nopin_logs
+      changed_when: false
+      ignore_errors: true
+      when: container_nopin_result is succeeded
+
+    - name: Display container logs (Test 1)
+      ansible.builtin.debug:
+        msg: "{{ container_nopin_logs.stdout_lines | default([]) }}"
+      when:
+        - container_nopin_result is succeeded
+        - container_nopin_logs is defined
+
+    - name: Stop and remove Test 1 container
+      containers.podman.podman_container:
+        name: "{{ debug_container_name }}-nopin"
+        state: absent
+      ignore_errors: true
+      when: container_nopin_result is succeeded
+
+    - name: CRITICAL - Test 2 - Start container WITH CPU pinning
+      containers.podman.podman_container:
+        name: "{{ debug_container_name }}-withpin"
+        image: "{{ guidellm_image }}"
+        state: started
+        rm: false
+        detach: true
+        network: host
+        cpuset_cpus: "{{ debug_cpuset_cpus }}"
+        cpuset_mems: "{{ debug_cpuset_mems }}"
+        volumes:
+          - "{{ debug_results_path }}:/results:z"
+        env:
+          GUIDELLM_TARGET: "http://{{ hostvars['dut-host']['ansible_host'] }}:8000"
+          GUIDELLM_PROFILE: "synchronous"
+          GUIDELLM_MAX_SECONDS: "30"
+          GUIDELLM_MAX_REQUESTS: "5"
+          GUIDELLM_DATA: "prompt_tokens=512,output_tokens=128"
+          GUIDELLM_OUTPUTS: "json"
+      register: container_withpin_result
+      ignore_errors: true
+      no_log: false  # CRITICAL: Shows the actual error
+      when: container_nopin_result is succeeded
+
+    - name: Display Test 2 result
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Test 2: Container WITH CPU pinning ({{ debug_cpuset_cpus }})"
+          - "Status: {{ 'SUCCESS' if container_withpin_result is succeeded else 'FAILED' }}"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      when: container_nopin_result is succeeded
+
+    - name: Display Test 2 error details
+      ansible.builtin.debug:
+        var: container_withpin_result
+      when:
+        - container_nopin_result is succeeded
+        - container_withpin_result is failed
+
+    - name: Check container status (Test 2)
+      ansible.builtin.command:
+        cmd: "podman ps -a --filter name={{ debug_container_name }}-withpin --format 'table {{.Names}}\t{{.Status}}\t{{.State}}'"
+      register: container_withpin_status
+      changed_when: false
+      when:
+        - container_nopin_result is succeeded
+        - container_withpin_result is succeeded
+
+    - name: Display container status (Test 2)
+      ansible.builtin.debug:
+        var: container_withpin_status.stdout_lines
+      when:
+        - container_nopin_result is succeeded
+        - container_withpin_result is succeeded
+
+    - name: Get container logs (Test 2)
+      ansible.builtin.command:
+        cmd: "podman logs {{ debug_container_name }}-withpin"
+      register: container_withpin_logs
+      changed_when: false
+      ignore_errors: true
+      when:
+        - container_nopin_result is succeeded
+        - container_withpin_result is succeeded
+
+    - name: Display container logs (Test 2)
+      ansible.builtin.debug:
+        msg: "{{ container_withpin_logs.stdout_lines | default([]) }}"
+      when:
+        - container_nopin_result is succeeded
+        - container_withpin_result is succeeded
+        - container_withpin_logs is defined
+
+    - name: Stop and remove Test 2 container
+      containers.podman.podman_container:
+        name: "{{ debug_container_name }}-withpin"
+        state: absent
+      ignore_errors: true
+      when:
+        - container_nopin_result is succeeded
+        - container_withpin_result is succeeded
+
+    - name: Cleanup debug directory
+      ansible.builtin.file:
+        path: "{{ debug_results_path }}"
+        state: absent
+
+    - name: Display summary
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Debug Test Summary"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "vLLM Connectivity: {{ 'OK' if vllm_health is succeeded else 'FAILED' }}"
+          - "Container w/o pinning: {{ 'OK' if container_nopin_result is succeeded else 'FAILED' }}"
+          - "Container w/ pinning: {{ 'OK' if container_withpin_result is succeeded else 'FAILED' }}"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - ""
+          - "Next Steps:"
+          - "1. If vLLM connectivity failed - check network/security groups"
+          - "2. If container w/o pinning failed - check image, volumes, or podman"
+          - "3. If container w/ pinning failed - check CPU range and NUMA config"
+          - "4. Review error details above for specific failure reasons"
+          - ""
+          - "See GUIDELLM-DEBUG-GUIDE.md for detailed troubleshooting"

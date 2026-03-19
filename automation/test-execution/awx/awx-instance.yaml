@@ -1,0 +1,24 @@
+---
+apiVersion: awx.ansible.com/v1beta1
+kind: AWX
+metadata:
+  name: awx
+  namespace: awx
+spec:
+  service_type: nodeport
+  nodeport_port: 30080
+  admin_user: admin
+  admin_password_secret: awx-admin-password  # pragma: allowlist secret
+  postgres_configuration_secret: awx-postgres-configuration  # pragma: allowlist secret
+
+  # Use alternative Redis image to avoid Docker Hub rate limits
+  redis_image: quay.io/sclorg/redis-7-c9s
+  redis_image_version: latest
+
+  # Use custom execution environment with pre-installed collections
+  ee_images:
+    - name: vllm-awx-ee
+      image: vllm-awx-ee:latest
+
+  # Set as default EE for all jobs
+  ee_pull_credentials_secret: null
