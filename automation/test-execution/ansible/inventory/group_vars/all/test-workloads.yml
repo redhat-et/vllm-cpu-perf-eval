@@ -33,7 +33,7 @@
 #   - Safety margin for variable workloads
 #
 #   Formula: 2 × num_hidden_layers × tokens × num_key_value_heads × head_size × dtype_bytes
-#   See kv_cache_calculations.md for detailed per-model calculations.
+#   See models/models.md for detailed per-model calculations.
 
 test_configs:
   # ============================================================================

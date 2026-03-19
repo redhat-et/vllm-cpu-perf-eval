@@ -586,7 +586,6 @@ When evaluating whether to add a new model:
 ## Related Documentation
 
 - **[LLM Model Matrix](llm-models/model-matrix.yaml)** - Complete LLM model definitions
-- **[KV Cache Calculations](kv_cache_calculations.md)** - Detailed KV cache sizing calculations
 - **[Embedding Model Matrix](embedding-models/model-matrix.yaml)** - Complete embedding model definitions
 - **[Embedding Models Extended Docs](embedding-models/embedding-models.md)** - Detailed embedding testing documentation
 - **[Test Suites](../tests/)** - How models are tested
