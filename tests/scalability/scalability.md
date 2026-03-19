@@ -256,5 +256,5 @@ analysis procedures.
 - [Manual Sweep Testing](../../docs/methodology/manual-sweep.md) - Detailed
   sweep methodology
 - [Metrics Guide](../../docs/methodology/metrics.md) - Metric definitions
-- [Concurrent Load Test Suite](../concurrent-load/) - Concurrent load testing
-- [Resource Contention Test Suite](../resource-contention/) - Resource contention
+- [Concurrent Load Test Suite](../concurrent-load/concurrent-load.md) - Concurrent load testing
+- [Resource Contention Test Suite](../resource-contention/resource-contention.md) - Resource contention
