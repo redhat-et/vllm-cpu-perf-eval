@@ -52,7 +52,17 @@ results/*
 *.log
 *.json
 *.csv
+
+# Jekyll HTML files (DO NOT IGNORE)
+!_layouts/*.html
+!_includes/*.html
+
+# Test output files
+*.log
+*.json
+*.csv
 *.html
+
 
 # Temporary files
 tmp/
