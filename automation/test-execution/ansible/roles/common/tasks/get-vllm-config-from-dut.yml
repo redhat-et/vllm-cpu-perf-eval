@@ -3,31 +3,57 @@
 # This task is used to retrieve vLLM configuration set during server startup
 # and make it available for test metadata collection
 
+- name: Resolve DUT host
+  ansible.builtin.set_fact:
+    dut_host: "{{ groups['dut'] | first | default('') }}"
+
+- name: Validate DUT host is defined
+  ansible.builtin.assert:
+    that:
+      - dut_host | length > 0
+      - groups['dut'] is defined
+      - groups['dut'] | length > 0
+    fail_msg: |
+      ❌ No DUT host found in inventory!
+
+      The 'dut' group is empty or not defined in your inventory file.
+
+      Please ensure your inventory file defines at least one host in the 'dut' group:
+
+      Example:
+        all:
+          children:
+            dut:
+              hosts:
+                vllm-server:
+                  ansible_host: <your-dut-ip>
+    success_msg: "✓ DUT host resolved: {{ dut_host }}"
+
 - name: Validate DUT vLLM configuration facts are available
   ansible.builtin.assert:
     that:
-      - hostvars[groups['dut'][0]] is defined
-      - hostvars[groups['dut'][0]]['model_kv_cache'] is defined
-      - hostvars[groups['dut'][0]]['model_dtype'] is defined
-      - hostvars[groups['dut'][0]]['vllm_caching_mode'] is defined
-      - hostvars[groups['dut'][0]]['model_max_len'] is defined
+      - hostvars[dut_host] is defined
+      - hostvars[dut_host]['model_kv_cache'] is defined
+      - hostvars[dut_host]['model_dtype'] is defined
+      - hostvars[dut_host]['vllm_caching_mode'] is defined
+      - hostvars[dut_host]['model_max_len'] is defined
     fail_msg: |
-      ❌ Required vLLM configuration facts are missing from DUT host {{ groups['dut'][0] }}
+      ❌ Required vLLM configuration facts are missing from DUT host {{ dut_host }}
 
       Missing facts will result in incomplete test metadata and cannot be traced.
 
       Expected facts from vllm_server role:
-        - model_kv_cache: {{ hostvars[groups['dut'][0]]['model_kv_cache'] | default('MISSING') }}
-        - model_dtype: {{ hostvars[groups['dut'][0]]['model_dtype'] | default('MISSING') }}
-        - vllm_caching_mode: {{ hostvars[groups['dut'][0]]['vllm_caching_mode'] | default('MISSING') }}
-        - model_max_len: {{ hostvars[groups['dut'][0]]['model_max_len'] | default('MISSING') }}
+        - model_kv_cache: {{ hostvars[dut_host]['model_kv_cache'] | default('MISSING') }}
+        - model_dtype: {{ hostvars[dut_host]['model_dtype'] | default('MISSING') }}
+        - vllm_caching_mode: {{ hostvars[dut_host]['vllm_caching_mode'] | default('MISSING') }}
+        - model_max_len: {{ hostvars[dut_host]['model_max_len'] | default('MISSING') }}
 
       Ensure the vllm_server role has run successfully on the DUT before collecting results.
     success_msg: "✓ All vLLM configuration facts available from DUT"
 
 - name: Get vLLM configuration from DUT
   ansible.builtin.set_fact:
-    vllm_kv_cache: "{{ hostvars[groups['dut'][0]]['model_kv_cache'] }}"
-    vllm_dtype: "{{ hostvars[groups['dut'][0]]['model_dtype'] }}"
-    vllm_caching_mode: "{{ hostvars[groups['dut'][0]]['vllm_caching_mode'] }}"
-    vllm_max_model_len: "{{ hostvars[groups['dut'][0]]['model_max_len'] }}"
+    vllm_kv_cache: "{{ hostvars[dut_host]['model_kv_cache'] }}"
+    vllm_dtype: "{{ hostvars[dut_host]['model_dtype'] }}"
+    vllm_caching_mode: "{{ hostvars[dut_host]['vllm_caching_mode'] }}"
+    vllm_max_model_len: "{{ hostvars[dut_host]['model_max_len'] }}"

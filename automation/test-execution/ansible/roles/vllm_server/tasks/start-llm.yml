@@ -234,6 +234,10 @@
   ansible.builtin.set_fact:
     model_max_len: "{{ (vllm_args_merged | select('match', '^--max-model-len=.*') | list | first | default('')).split('=')[1] | default('') }}"
 
+- name: Calculate required sequence length for workload
+  ansible.builtin.set_fact:
+    required_seq_len: "{{ (workload_cfg.isl | int) + (workload_cfg.osl | int) }}"
+
 - name: Validate max-model-len is configured
   ansible.builtin.fail:
     msg: |
@@ -250,6 +254,30 @@
       Add --max-model-len to the workload configuration in:
       automation/test-execution/ansible/inventory/group_vars/all/test-workloads.yml
   when: model_max_len is not defined or model_max_len | length == 0
+
+- name: Validate max-model-len is sufficient for workload
+  ansible.builtin.fail:
+    msg: |
+      ❌ --max-model-len is too small for this workload!
+
+      Workload: {{ workload_type }}
+      Model: {{ test_model }}
+      Configured max-model-len: {{ model_max_len }}
+      Required sequence length: {{ required_seq_len }} (ISL: {{ workload_cfg.isl }} + OSL: {{ workload_cfg.osl }})
+
+      The configured --max-model-len ({{ model_max_len }}) is less than the required sequence
+      length ({{ required_seq_len }}) for this workload. vLLM will fail to process requests
+      that exceed the configured limit.
+
+      Increase --max-model-len in the workload configuration:
+      automation/test-execution/ansible/inventory/group_vars/all/test-workloads.yml
+
+      Recommended: Set --max-model-len to at least {{ required_seq_len }} or higher for headroom.
+      Current vLLM arguments: {{ vllm_args_merged | join(' ') }}
+  when:
+    - model_max_len is defined
+    - model_max_len | length > 0
+    - model_max_len | int < required_seq_len | int
 
 - name: Build vLLM command arguments
   ansible.builtin.set_fact:
