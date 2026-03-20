@@ -36,37 +36,43 @@
   ansible.builtin.set_fact:
     model_config: "{{ model_matrix.matrix.llm_models | selectattr('full_name', 'equalto', test_model) | first | default(none) }}"
 
+- name: Normalize KV cache override value
+  ansible.builtin.set_fact:
+    normalized_kv_override: "{{ kv_cache_override | default('', true) | string | trim }}"
+
 - name: Override KV cache size if explicitly provided
   ansible.builtin.set_fact:
-    model_kv_cache: "{{ kv_cache_override }}"
-  when:
-    - kv_cache_override is defined
-    - kv_cache_override is not none
-    - kv_cache_override | length > 0
+    model_kv_cache: "{{ normalized_kv_override }}"
+    model_kv_cache_source: "override"
+  when: normalized_kv_override != ''
 
 - name: Get model-specific KV cache size for this workload
   ansible.builtin.set_fact:
     model_kv_cache: "{{ model_config.kv_cache_sizes[workload_type] | default(workload_cfg.kv_cache_space) }}"
+    model_kv_cache_source: "model-matrix"
   when:
-    - (kv_cache_override is not defined or kv_cache_override is none or (kv_cache_override | string | length == 0))
+    - normalized_kv_override == ''
     - model_config is not none
     - model_config.kv_cache_sizes is defined
 
 - name: Use fallback KV cache size if model-specific not found
   ansible.builtin.set_fact:
     model_kv_cache: "{{ workload_cfg.kv_cache_space }}"
+    model_kv_cache_source: "workload-default"
   when:
-    - (kv_cache_override is not defined or kv_cache_override is none or (kv_cache_override | string | length == 0))
+    - normalized_kv_override == ''
     - (model_config is none or model_config.kv_cache_sizes is not defined or model_kv_cache is not defined)
 
 - name: Get model-specific dtype
   ansible.builtin.set_fact:
     model_dtype: "{{ model_config.dtype | default('auto') }}"
+    model_dtype_source: "model-matrix"
   when: model_config is not none and model_config.dtype is defined
 
 - name: Use fallback dtype if model-specific not found
   ansible.builtin.set_fact:
     model_dtype: "auto"
+    model_dtype_source: "workload-default"
   when: model_config is none or model_config.dtype is not defined or model_dtype is not defined
 
 # ============================================================================
@@ -236,7 +242,7 @@
 
 - name: Parse max-model-len value
   ansible.builtin.set_fact:
-    model_max_len: "{{ max_model_len_arg | regex_search('^--max-model-len=(.+)$', '\\1') | first | default('') }}"
+    model_max_len: "{{ max_model_len_arg | regex_replace('^--max-model-len=', '') }}"
   when: max_model_len_arg | length > 0 and '=' in max_model_len_arg
 
 - name: Set max-model-len to empty if not found
@@ -323,8 +329,8 @@
       - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       - "vLLM Configuration:"
       - "  Tensor Parallel: {{ core_cfg.tensor_parallel }}"
-      - "  Data Type: {{ model_dtype }} (Model-Specific)"
-      - "  KV Cache: {{ model_kv_cache }} (Model-Specific) (VLLM_CPU_KVCACHE_SPACE={{ model_kv_cache | extract_size_value }})"
+      - "  Data Type: {{ model_dtype }} (source: {{ model_dtype_source }})"
+      - "  KV Cache: {{ model_kv_cache }} (source: {{ model_kv_cache_source }}) (VLLM_CPU_KVCACHE_SPACE={{ model_kv_cache | extract_size_value }})"
       - "  OMP Threads: {{ core_cfg.omp_num_threads | default('auto') }}"
       - "  OMP Bind: {{ core_cfg.omp_threads_bind | default('auto') }}"
       - "  Arguments: {{ vllm_args_merged | join(' ') }}"
