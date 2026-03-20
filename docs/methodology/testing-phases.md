@@ -2,7 +2,9 @@
 
 ## Overview
 
-The vLLM CPU performance evaluation uses a structured 3-phase testing approach to separate baseline performance measurement, realistic variability analysis, and production optimization evaluation. This methodology applies to **all test suites** (concurrent load, scalability, embedding models) and ensures comprehensive performance characterization while maintaining clear comparisons between different testing scenarios.
+> **Current Status:** 3-phase testing is **only implemented for the Concurrent Load Test Suite**. Scalability and embedding model tests currently use baseline testing approaches only.
+
+The vLLM CPU performance evaluation uses a structured 3-phase testing approach to separate baseline performance measurement, realistic variability analysis, and production optimization evaluation. This methodology was designed to be adaptable across test suites but is currently fully implemented only for concurrent load testing.
 
 **Key Benefits:**
 - **Reproducible baselines**: Fixed workloads eliminate variability for apples-to-apples comparisons
@@ -54,7 +56,7 @@ The vLLM CPU performance evaluation uses a structured 3-phase testing approach t
 - Maximum throughput without caching
 - Baseline latency at minimal load
 - Time to First Token (TTFT) baseline
-- Time Per Output Token (TPOT) baseline
+- Inter-Token Latency (ITL) baseline
 - Saturation points for each model/workload
 
 **Analysis:**
@@ -106,7 +108,7 @@ The vLLM CPU performance evaluation uses a structured 3-phase testing approach t
 - P95/P99 latency variance under realistic load
 - Latency distribution spread (compare to Phase 1)
 - Throughput stability with variable requests
-- TTFT/TPOT variance
+- TTFT/ITL (Inter-Token Latency) variance
 - Performance degradation from baseline
 
 **Analysis:**
@@ -266,7 +268,7 @@ Total Impact:
 ```
 1. Phase 1: Baseline Tests (Fixed, No Caching)
    ├── Run all models on all workload types
-   ├── Document: P95/P99 latency, throughput, TTFT, TPOT
+   ├── Document: P95/P99 latency, throughput, TTFT, ITL (Inter-Token Latency)
    └── Establish performance baselines
 
 2. Phase 2: Realistic Tests (Variable, No Caching)
@@ -289,29 +291,32 @@ Total Impact:
 
 ---
 
-## Test Suite Adaptations
+## Test Suite Implementation Status
 
-This 3-phase methodology applies to all test suites, but implementation details vary:
+The 3-phase methodology was designed to be adaptable across test suites, but implementation varies:
 
-### Concurrent Load Tests
+### Concurrent Load Tests ✅ **FULLY IMPLEMENTED**
 
 - **Load Pattern**: Fixed concurrency levels (e.g., {1, 2, 4, 8, 16, 32})
 - **Primary Metric**: P95 latency scaling with concurrency
-- **Phase Focus**: Identify optimal concurrency for different workloads
+- **Phase Implementation**: All 3 phases (baseline, realistic, production*)
+- **Status**: Phases 1 & 2 fully operational; Phase 3 pending realistic datasets
 - **See**: [tests/concurrent-load/concurrent-load.md](../../tests/concurrent-load/concurrent-load.md)
 
-### Scalability Tests (Sweep)
+### Scalability Tests ⚠️ **BASELINE ONLY**
 
 - **Load Pattern**: Range of request rates (synchronous → throughput)
 - **Primary Metric**: Load-latency curves, maximum throughput
-- **Phase Focus**: Find saturation points and optimal operating ranges
+- **Phase Implementation**: Baseline tests only (fixed tokens, no caching)
+- **Status**: 3-phase approach not yet implemented
 - **See**: [tests/scalability/scalability.md](../../tests/scalability/scalability.md)
 
-### Embedding Model Tests
+### Embedding Model Tests ⚠️ **BASELINE ONLY**
 
 - **Load Pattern**: High concurrency levels optimized for embedding workloads
 - **Primary Metric**: Embedding-specific latency and throughput
-- **Phase Focus**: Embedding model performance characteristics
+- **Phase Implementation**: Baseline tests only
+- **Status**: 3-phase approach not yet implemented
 - **See**: [tests/embedding-models/embedding-models.md](../../tests/embedding-models/embedding-models.md)
 
 ---

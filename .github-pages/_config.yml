@@ -1,0 +1,75 @@
+# Jekyll configuration for GitHub Pages
+# Use remote_theme for GitHub Pages compatibility
+remote_theme: pages-themes/cayman@v0.2.0
+title: vLLM CPU Performance Evaluation
+description: Comprehensive performance evaluation framework for vLLM on CPU platforms
+repository: redhat-et/vllm-cpu-perf-eval
+baseurl: ""
+url: ""
+
+# Build settings - serve from project root
+source: ..
+destination: ../_site
+
+# Navigation
+nav_links:
+  - title: vLLM CPU Performance Evaluation
+    url: /
+  - title: Getting Started
+    url: /docs/getting-started
+  - title: Methodology
+    url: /docs/methodology/overview
+  - title: Test Suites
+    url: /tests/tests
+  - title: Models
+    url: /models/models
+
+# Markdown settings
+markdown: kramdown
+kramdown:
+  input: GFM
+  syntax_highlighter: rouge
+
+# Plugins
+plugins:
+  - jekyll-remote-theme
+  - jekyll-relative-links
+  - jekyll-optional-front-matter
+  - jekyll-readme-index
+  - jekyll-titles-from-headings
+  - jekyll-seo-tag
+
+# Relative links configuration
+relative_links:
+  enabled: true
+  collections: false
+
+# Titles from headings
+titles_from_headings:
+  enabled: true
+  strip_title: false
+  collections: false
+
+# File inclusions/exclusions
+# IMPORTANT: Exclude Ansible YAML files to prevent Jekyll from parsing Jinja2 templates
+include:
+  - README.md
+
+exclude:
+  - .gitignore
+  - .pre-commit-config.yaml
+  - .yamllint.yaml
+  - .markdownlint-cli2.yaml
+  - .github-pages
+  - Gemfile
+  - Gemfile.lock
+  - vendor
+  - automation  # Exclude entire automation directory (contains Jinja2 templates)
+  - results
+  - utils
+  - hack
+  - PR_SUMMARY.md
+  - .bundle
+  - .sass-cache
+  - .jekyll-cache
+  - .jekyll-metadata

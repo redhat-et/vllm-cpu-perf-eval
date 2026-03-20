@@ -1,5 +1,9 @@
 # Test Suite: Concurrent Load
 
+> **✅ Status: Validated**
+>
+> This test suite has been fully validated and tested. Safe for production use.
+
 Tests model performance under various concurrent request loads.
 
 > **📚 Testing Methodology**
@@ -162,26 +166,24 @@ This test suite focuses exclusively on **generative LLM models**.
 
 ## Testing Strategy: 3-Phase Approach
 
-This test suite implements a phased testing methodology to separate baseline
-performance, realistic variability, and production optimization analysis.
+This test suite implements the
+[3-Phase Testing Methodology](../../docs/methodology/testing-phases.md) to
+separate baseline performance, realistic variability, and production
+optimization analysis.
 
-See the [Test Cases](#test-cases) section above for the complete breakdown
-of which tests run in each phase.
+**Quick Reference:**
+- **Phase 1 (Baseline)**: Fixed tokens, no caching, all models/workloads
+- **Phase 2 (Realistic)**: Variable tokens, no caching, priority
+  models/workloads
+- **Phase 3 (Production)**: Realistic datasets, with caching (⚠️ pending
+  dataset selection)
 
-### Phase 1 Configuration: Baseline Tests
+**See [Testing Phases Documentation](../../docs/methodology/testing-phases.md)**
+for the complete methodology, configuration patterns, and cross-phase analysis.
 
-**Objective:** Establish pure baseline performance without caching
-optimizations
+### Phase Configuration Summary
 
-**Configuration:**
-- vLLM: `--no-enable-prefix-caching`
-- Token counts: Fixed (no variability)
-- Concurrency: `{1, 2, 4, 8, 16, 32}`
-- Data: Synthetic prompts with fixed token counts
-
-**Tests:** All models × All 4 workload types (Chat, RAG, CodeGen, Summarization)
-
-**Example:**
+**Phase 1: Baseline Tests**
 ```bash
 cd ../../automation/test-execution/ansible
 ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
@@ -194,21 +196,7 @@ ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
   -e "guidellm_max_seconds=600"
 ```
 
-### Phase 2 Configuration: Realistic Tests
-
-**Objective:** Understand performance under realistic traffic variability
-
-**Configuration:**
-- vLLM: `--no-enable-prefix-caching`
-- Token counts: Variable (with stdev)
-- Concurrency: `{1, 2, 4, 8, 16, 32}`
-- Data: Synthetic prompts with statistical variability
-
-**Tests:** Priority models × Chat and CodeGen workloads (with variability)
-- Focus on most common production use cases (Chat) and highest variability
-  workloads (CodeGen)
-
-**Example:**
+**Phase 2: Realistic Tests**
 ```bash
 cd ../../automation/test-execution/ansible
 ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
@@ -221,40 +209,7 @@ ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
   -e "guidellm_max_seconds=600"
 ```
 
-### Phase 3 Configuration: Production Tests
-
-> **⚠️ NOT YET IMPLEMENTED - PENDING REALISTIC DATASET SELECTION**
->
-> **Current Status:** Phase 3 testing infrastructure is ready, but we need
-> to select and integrate realistic prompt datasets that properly simulate
-> production traffic.
->
-> **What's Needed:**
-> - **Chat workload**: Real conversation histories or customer support transcripts
-> - **CodeGen workload**: Real code repositories or GitHub issue descriptions
-> - **RAG workload**: Real document collections and queries
->
-> **Difference from Phase 2:** Phase 2 uses synthetic prompts with statistical
-> variability (random token counts). Phase 3 will use actual realistic prompts
-> that represent true production traffic patterns, enabling accurate prefix
-> caching evaluation.
->
-> **Timeline:** Blocked pending dataset selection and integration
-
-**Objective:** Simulate true production conditions with realistic datasets and
-optimizations enabled
-
-**Configuration (when implemented):**
-- vLLM: `--enable-prefix-caching` (or omit)
-- Token counts: Natural distribution from realistic prompts
-- Concurrency: `{1, 2, 4, 8, 16, 32}`
-- Data: **Realistic prompt datasets** (not synthetic)
-
-**Tests (Select models):**
-- High-priority models (e.g., Llama-3.2-1B, granite-3.2-2b, gpt-oss-20b)
-- Workloads that benefit most from caching (Chat, CodeGen)
-
-**Example:**
+**Phase 3: Production Tests** (⚠️ pending realistic dataset selection)
 ```bash
 cd ../../automation/test-execution/ansible
 ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
@@ -590,4 +545,4 @@ guidellm report generate \
 - [Testing Methodology](../../docs/methodology/overview.md)
 - [Metrics Guide](../../docs/methodology/metrics.md)
 - [Manual Testing](../../docs/methodology/manual-sweep.md)
-- [Scalability Test Suite](../scalability/)
+- [Scalability Test Suite](../scalability/scalability.md)

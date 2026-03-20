@@ -54,7 +54,14 @@ results/*
 *.csv
 *.html
 
+# Jekyll HTML files (DO NOT IGNORE)
+!_layouts/*.html
+!_includes/*.html
+
+
 # Temporary files
 tmp/
 temp/
 *.tmp
+_site/
+vendor/

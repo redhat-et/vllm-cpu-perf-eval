@@ -7,24 +7,14 @@ This directory contains all test suites organized by test type.
 ```text
 tests/
 ├── concurrent-load/           # Concurrent load testing
-│   ├── compose.yaml           # Docker/Podman compose file
-│   ├── model-matrix.yaml      # Which models run which scenarios
-│   └── test-scenarios/        # Test scenario definitions
-│       ├── concurrent-8.yaml
-│       ├── concurrent-16.yaml
-│       └── ...
+│   └── concurrent-load.md     # Test documentation
 ├── scalability/               # Sweep and throughput tests
-│   ├── compose.yaml
-│   ├── model-matrix.yaml
-│   └── test-scenarios/
-│       ├── sweep.yaml
-│       ├── synchronous.yaml
-│       └── ...
-├── resource-contention/       # Resource sharing tests
+│   └── scalability.md         # Test documentation
+├── resource-contention/       # Resource sharing tests (planned)
 └── embedding-models/          # Embedding model performance tests
-    ├── README.md              # Detailed embedding test documentation
-    ├── scenarios/             # Baseline and latency test scenarios
-    └── scripts/               # Bash scripts for test execution
+    ├── embedding-models.md    # Detailed embedding test documentation
+    ├── baseline-sweep.yaml    # Baseline sweep test scenario
+    └── latency-concurrent.yaml # Latency concurrent test scenario
 ```
 
 ## Test ID Naming Convention
@@ -85,7 +75,7 @@ Performance evaluation for embedding models on CPU.
 - **Goal**: Establish baseline performance and optimal concurrency levels
 - **Architecture**: Two-node (DUT + Load Generator)
 
-See [embedding-models/embedding-models.md](embedding-models/embedding-models.md) for detailed documentation.
+See [Embedding Models Test Suite](embedding-models/embedding-models.md) for detailed documentation.
 
 ## Running Tests
 

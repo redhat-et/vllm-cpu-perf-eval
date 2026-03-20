@@ -1,12 +1,6 @@
 # vLLM Performance Evaluation Guide - CPU Inferencing
 
-<!-- markdownlint-disable MD033 -->
-<span style="color: red">Current status: Draft</span>
-<!-- markdownlint-enable MD033 -->
-
-## Contributors
-
-<!-- markdownlint-disable MD060 -->
+<!-- ## Contributors
 
 | Name |
 | --- |
@@ -18,7 +12,7 @@
 | Luigi Mario Zuccarelli |
 | Paul Power |
 
-<!-- markdownlint-enable MD060 -->
+-->
 
 ## Introduction
 
@@ -69,9 +63,10 @@ workload necessary to test the system under realistic or stress conditions.
 
 | Test Type | Guidellm CLI Parameter Example | Guidellm Podman Parameter Example |
 | --- | --- | --- |
-| **concurrent** | `guidellm benchmark --target "http://localhost:8000" --profile concurrent --warmup 30 --rate 8,16,32,64 --max-requests 280 --data "prompt_tokens=256,output_tokens=128"` | `sudo podman run --rm -it --network=host --cpuset-cpus=17-31 -v "/tmp/results:/results:z" -e GUIDELLM_TARGET=http://localhost:8000 -e GUIDELLM_PROFILE=concurrent -e GUIDELLM_RATE=8,16,32,64 -e GUIDELLM_MAX_REQUESTS=280 -e GUIDELLM_WARMUP=30 -e GUIDELLM_DATA="prompt_tokens=256,output_tokens=128" -e HF_TOKEN=$HF_TOKEN ghcr.io/vllm-project/guidellm:latest` |
-| **sweep** | `guidellm benchmark --target "http://localhost:8000" --profile sweep --warmup 30 --rampup 15.0 --max-requests 130 --data "prompt_tokens=256,output_tokens=128"` | `sudo podman run --rm -it --network=host --cpuset-cpus=17-31 -v "/tmp/results:/results:z" -e GUIDELLM_TARGET=http://localhost:8000 -e GUIDELLM_PROFILE=sweep -e GUIDELLM_RAMPUP=15.0 -e GUIDELLM_WARMUP=30 -e GUIDELLM_MAX_REQUESTS=130 -e GUIDELLM_DATA="prompt_tokens=256,output_tokens=128" -e HF_TOKEN=$HF_TOKEN ghcr.io/vllm-project/guidellm:latest` |
-| **poisson** | `guidellm benchmark --target "http://localhost:8000" --profile poisson --warmup 30 --rate 32 --max-requests 280 --data "prompt_tokens=256,output_tokens=128"` | `sudo podman run --rm -it --network=host --cpuset-cpus=17-31 -v "/tmp/results:/results:z" -e GUIDELLM_TARGET=http://localhost:8000 -e GUIDELLM_PROFILE=poisson -e GUIDELLM_RATE=32 -e GUIDELLM_MAX_REQUESTS=280 -e GUIDELLM_WARMUP=30 -e GUIDELLM_DATA="prompt_tokens=256,output_tokens=128" -e HF_TOKEN=$HF_TOKEN ghcr.io/vllm-project/guidellm:latest` |
+| **concurrent** | `guidellm benchmark --target "http://localhost:8000" --profile concurrent --warmup 0.1 --rate 1,2,4,8,16,32 --max-seconds 600 --request-timeout 600 --data "prompt_tokens=512,output_tokens=256"` | `sudo podman run --rm -it --network=host --cpuset-cpus=17-31 -v "/tmp/results:/results:z" -e GUIDELLM_TARGET=http://localhost:8000 -e GUIDELLM_PROFILE=concurrent -e GUIDELLM_RATE=1,2,4,8,16,32 -e GUIDELLM_MAX_SECONDS=600 -e GUIDELLM_REQUEST_TIMEOUT=600 -e GUIDELLM_WARMUP=0.1 -e GUIDELLM_DATA="prompt_tokens=512,output_tokens=256" -e HF_TOKEN=$HF_TOKEN ghcr.io/vllm-project/guidellm:v0.5.0` |
+| **sweep** | `guidellm benchmark --target "http://localhost:8000" --profile sweep --warmup 30 --rampup 15.0 --max-requests 130 --data "prompt_tokens=512,output_tokens=256"` | `sudo podman run --rm -it --network=host --cpuset-cpus=17-31 -v "/tmp/results:/results:z" -e GUIDELLM_TARGET=http://localhost:8000 -e GUIDELLM_PROFILE=sweep -e GUIDELLM_RAMPUP=15.0 -e GUIDELLM_WARMUP=30 -e GUIDELLM_MAX_REQUESTS=130 -e GUIDELLM_DATA="prompt_tokens=512,output_tokens=256" -e HF_TOKEN=$HF_TOKEN ghcr.io/vllm-project/guidellm:v0.5.0` |
+| **synchronous** | `guidellm benchmark --target "http://localhost:8000" --profile synchronous --warmup 30 --max-requests 100 --data "prompt_tokens=512,output_tokens=256"` | `sudo podman run --rm -it --network=host --cpuset-cpus=17-31 -v "/tmp/results:/results:z" -e GUIDELLM_TARGET=http://localhost:8000 -e GUIDELLM_PROFILE=synchronous -e GUIDELLM_WARMUP=30 -e GUIDELLM_MAX_REQUESTS=100 -e GUIDELLM_DATA="prompt_tokens=512,output_tokens=256" -e HF_TOKEN=$HF_TOKEN ghcr.io/vllm-project/guidellm:v0.5.0` |
+| **poisson** | `guidellm benchmark --target "http://localhost:8000" --profile poisson --warmup 30 --rate 32 --max-requests 280 --data "prompt_tokens=512,output_tokens=256"` | `sudo podman run --rm -it --network=host --cpuset-cpus=17-31 -v "/tmp/results:/results:z" -e GUIDELLM_TARGET=http://localhost:8000 -e GUIDELLM_PROFILE=poisson -e GUIDELLM_RATE=32 -e GUIDELLM_MAX_REQUESTS=280 -e GUIDELLM_WARMUP=30 -e GUIDELLM_DATA="prompt_tokens=512,output_tokens=256" -e HF_TOKEN=$HF_TOKEN ghcr.io/vllm-project/guidellm:v0.5.0` |
 
 <!-- markdownlint-enable MD013 -->
 
@@ -141,7 +136,11 @@ suite directory.
 
 ### 3-Phase Testing Methodology
 
-**Currently implemented test suites follow** a structured 3-phase testing approach:
+> **Note:** 3-phase testing is currently **only implemented for concurrent
+> load tests**. Other test suites (scalability, embedding models) use baseline
+> testing approaches.
+
+The **Concurrent Load Test Suite** implements a structured 3-phase testing approach:
 
 1. **Phase 1: Baseline Tests** - Fixed tokens, no caching
    - Establishes reproducible performance baselines
@@ -158,9 +157,8 @@ suite directory.
    - Measures performance with optimizations enabled
    - Validates production configurations
 
-Each test suite adapts this methodology to its specific testing patterns
-(concurrent load, sweep, etc.). For detailed 3-phase methodology, see
-[Testing Phases](testing-phases.md).
+For detailed 3-phase methodology and how it applies to concurrent load
+testing, see [Testing Phases](testing-phases.md).
 
 ---
 
@@ -173,7 +171,7 @@ Each test suite adapts this methodology to its specific testing patterns
 - Concurrency levels: {4, 8, 16, 32, 64} for embeddings
 - Workloads: Chat, RAG, CodeGen, Summarization, Embedding
 
-**📚 See [Concurrent Load Test Suite](../../tests/concurrent-load/) for
+**📚 See [Concurrent Load Test Suite](../../tests/concurrent-load/concurrent-load.md) for
 complete test specifications**
 
 ### Test Suite 2: Scalability
@@ -185,7 +183,7 @@ complete test specifications**
 - Poisson tests for bursty traffic
 - Focus on max throughput (OTPS/TTPS), TTFT scaling, and KV cache efficiency
 
-**📚 See [Scalability Test Suite](../../tests/scalability/) for
+**📚 See [Scalability Test Suite](../../tests/scalability/scalability.md) for
 complete test specifications**
 
 ### Test Suite 3: Resource Contention (Planned)
@@ -197,7 +195,7 @@ complete test specifications**
 - Co-located workloads
 - Multi-tenant scenarios
 
-**📚 See [Resource Contention Test Suite](../../tests/resource-contention/)
+**📚 See [Resource Contention Test Suite](../../tests/resource-contention/resource-contention.md)
 for status and planned tests**
 
 ### Test Suite 4: Configuration Tuning (Future)
@@ -217,9 +215,9 @@ for status and planned tests**
 - **[Test Reporting](reporting.md)** - Test report structure and formats
 - **[Manual Sweep Testing](manual-sweep.md)** - Detailed manual testing
   procedures
-- **[Platform Setup](../platform-setup/)** - System configuration for
-  deterministic testing
-- **[Test Execution](../../tests/)** - Actual test implementations and
+- **[Platform Setup](../platform-setup/x86/intel/deterministic-benchmarking.md)**
+  \- System configuration for deterministic testing
+- **[Test Execution](../../tests/tests.md)** - Actual test implementations and
   scenarios
 - **[Model Selection](../../models/models.md)** - Centralized model
   definitions and rationale

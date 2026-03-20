@@ -70,14 +70,14 @@ test_configs:
   # RAG workload (very long input, medium output)
   rag:
     workload_type: "rag"
-    isl: 8192                           # Very long input: retrieved context (ISL-heavy is fine)
+    isl: 7680                           # Very long input: retrieved context (7680+512=8192 to fit 8K context models)
     osl: 512                            # Medium output: answer with citations (keep OSL short)
     variability: false
     backend: "openai-completions"
     vllm_args:
       - "--dtype=auto"                  # Fallback dtype - overridden by model-specific dtype
       - "--no-enable-prefix-caching"    # Baseline mode: no prefix caching
-      - "--max-model-len=16384"         # Limit model context to workload needs (8704 tokens)
+      - "--max-model-len=16384"         # Limit model context to workload needs (8192 tokens)
     kv_cache_space: "40GiB"             # Fallback value - should be overridden by model-specific kv_cache_sizes
 
   # Code generation workload (medium input, practical CPU ceiling output)

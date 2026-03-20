@@ -1,5 +1,9 @@
 # Test Suite: Resource Contention
 
+> **📋 Status: Planned**
+>
+> This test suite is not yet implemented. Design and implementation are planned for future releases.
+
 Tests platform stability under real-world server deployment scenarios.
 
 ## Overview
@@ -8,10 +12,6 @@ This test suite focuses on resource contention scenarios including fractional co
 allocation, NUMA node isolation, and "noisy neighbor" effects. This suite
 evaluates how vLLM CPU inference performs when sharing resources with other
 workloads.
-
-## Status
-
-**Planned** - Not yet implemented
 
 ## Goals (Planned)
 
@@ -69,9 +69,9 @@ If you'd like to help design or implement Resource Contention tests, please:
 
 ## Related Documentation
 
-- [Concurrent Load Test Suite](../concurrent-load/) - Concurrent load testing
-- [Scalability Test Suite](../scalability/) - Scalability testing
-- [Platform Setup](../../docs/platform-setup/) - CPU isolation and NUMA
+- [Concurrent Load Test Suite](../concurrent-load/concurrent-load.md) - Concurrent load testing
+- [Scalability Test Suite](../scalability/scalability.md) - Scalability testing
+- [Platform Setup](../../docs/platform-setup/x86/intel/deterministic-benchmarking.md) - CPU isolation and NUMA
   configuration
 - [Testing Methodology](../../docs/methodology/overview.md) - Overall test
   strategy
