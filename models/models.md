@@ -399,8 +399,14 @@ KV Cache Size (GB) = Total Bytes ÷ (1024³)
 
 ### KV Cache Sizes by Model and Workload
 
-Calculated with concurrency targets and 25% safety margin (1.25x):
-- **All workloads**: 32 concurrent requests (max concurrency level in concurrent load tests)
+Calculated with **32 concurrent requests** (MAX concurrency across all workloads) and 25% safety margin (1.25x):
+
+**Note**: All KV cache sizes are calculated for 32 concurrent requests to provide maximum headroom:
+- **chat**: 32 concurrent (MAX)
+- **rag**: 32 concurrent (MAX)
+- **code**: 32 concurrent (MAX)
+- **summarization**: 32 concurrent (MAX)
+- **reasoning**: 32 concurrent (MAX)
 
 #### Chat Workload (512:512, 1024 tokens)
 
