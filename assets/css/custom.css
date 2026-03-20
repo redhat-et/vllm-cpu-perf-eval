@@ -33,9 +33,9 @@
   letter-spacing: 0.1em !important;
   margin-top: 1.5rem !important;
   margin-bottom: 0.75rem !important;
-  opacity: 0.8 !important;
   font-weight: 600 !important;
-  color: #606c71 !important;
+  color: #159957 !important;
+  opacity: 0.9 !important;
 }
 
 .sidebar-nav h3:first-child {
