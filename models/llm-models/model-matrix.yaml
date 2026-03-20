@@ -29,7 +29,7 @@ matrix:
         balance: "prefill-heavy"
       kv_cache_sizes:
         chat: "2GiB"          # 1024 tokens, 32 concurrent
-        rag: "11GiB"          # 8704 tokens, 32 concurrent (NOTE: context_length 8192 < 8704 required)
+        rag: "11GiB"          # 8192 tokens (7680+512), 32 concurrent
         code: "3GiB"          # 2048 tokens, 32 concurrent
         summarization: "3GiB" # 2304 tokens, 32 concurrent
         reasoning: "3GiB"     # 2304 tokens, 32 concurrent
@@ -60,7 +60,7 @@ matrix:
         balance: "prefill-heavy"
       kv_cache_sizes:
         chat: "5GiB"          # 1024 tokens, 32 concurrent
-        rag: "38GiB"          # 8704 tokens, 32 concurrent (NOTE: context_length 8192 < 8704 required)
+        rag: "36GiB"          # 8192 tokens (7680+512), 32 concurrent
         code: "9GiB"          # 2048 tokens, 32 concurrent
         summarization: "9GiB" # 2304 tokens, 32 concurrent
         reasoning: "10GiB"    # 2304 tokens, 32 concurrent
@@ -92,7 +92,7 @@ matrix:
         balance: "balanced"
       kv_cache_sizes:
         chat: "1GiB"          # 1024 tokens, 32 concurrent
-        rag: "8GiB"           # 8704 tokens, 32 concurrent
+        # rag workload removed: context_length 2048 < 8704 required
         code: "2GiB"          # 2048 tokens, 32 concurrent
         summarization: "2GiB" # 2304 tokens, 32 concurrent
         reasoning: "2GiB"     # 2304 tokens, 32 concurrent
@@ -124,7 +124,7 @@ matrix:
         balance: "decode-heavy"
       kv_cache_sizes:
         chat: "1GiB"          # 1024 tokens, 32 concurrent
-        rag: "8GiB"           # 8704 tokens, 32 concurrent
+        # rag workload removed: context_length 2048 < 8704 required
         code: "2GiB"          # 2048 tokens, 32 concurrent
         summarization: "2GiB" # 2304 tokens, 32 concurrent
         reasoning: "3GiB"     # 2304 tokens, 32 concurrent
@@ -156,7 +156,7 @@ matrix:
         balance: "decode-heavy"
       kv_cache_sizes:
         chat: "2GiB"          # 1024 tokens, 32 concurrent
-        rag: "17GiB"          # 8704 tokens, 32 concurrent
+        # rag workload removed: context_length 2048 < 8704 required
         code: "4GiB"          # 2048 tokens, 32 concurrent
         summarization: "4GiB" # 2304 tokens, 32 concurrent
         reasoning: "5GiB"     # 2304 tokens, 32 concurrent
@@ -188,7 +188,7 @@ matrix:
         balance: "balanced"
       kv_cache_sizes:
         chat: "3GiB"          # 1024 tokens, 32 concurrent
-        rag: "18GiB"          # 8704 tokens, 32 concurrent (NOTE: context_length 4096 < 8704 required)
+        # rag workload skipped: context_length 4096 < 8192 required
         code: "5GiB"          # 2048 tokens, 32 concurrent
         summarization: "4GiB" # 2304 tokens, 32 concurrent
         reasoning: "5GiB"     # 2304 tokens, 32 concurrent
@@ -220,7 +220,7 @@ matrix:
         balance: "balanced"
       kv_cache_sizes:
         chat: "2GiB"          # 1024 tokens, 32 concurrent
-        rag: "13GiB"          # 8704 tokens, 32 concurrent
+        rag: "12GiB"          # 8192 tokens (7680+512), 32 concurrent
         code: "3GiB"          # 2048 tokens, 32 concurrent
         summarization: "3GiB" # 2304 tokens, 32 concurrent
         reasoning: "4GiB"     # 2304 tokens, 32 concurrent
@@ -252,7 +252,7 @@ matrix:
         balance: "balanced"
       kv_cache_sizes:
         chat: "1GiB"          # 1024 tokens, 32 concurrent
-        rag: "7GiB"           # 8704 tokens, 32 concurrent
+        rag: "7GiB"           # 8192 tokens (7680+512), 32 concurrent
         code: "2GiB"          # 2048 tokens, 32 concurrent
         summarization: "2GiB" # 2304 tokens, 32 concurrent
         reasoning: "2GiB"     # 2304 tokens, 32 concurrent
@@ -296,7 +296,7 @@ matrix:
       memory_footprint: "~16GB (MXFP4 quantization)"
       kv_cache_sizes:
         chat: "2GiB"          # 1024 tokens, 32 concurrent
-        rag: "15GiB"          # 8704 tokens, 32 concurrent
+        rag: "14GiB"          # 8192 tokens (7680+512), 32 concurrent
         code: "4GiB"          # 2048 tokens, 32 concurrent
         summarization: "3GiB" # 2304 tokens, 32 concurrent
         reasoning: "4GiB"     # 2304 tokens, 32 concurrent
@@ -331,10 +331,10 @@ matrix:
 
     rag:
       name: "RAG (Retrieval-Augmented Generation)"
-      input_tokens: 8192
+      input_tokens: 7680
       output_tokens: 512
       max_model_len: 16384
-      description: "ISL-heavy is fine, keep OSL short"
+      description: "ISL-heavy is fine, keep OSL short (7680+512=8192 total to fit 8K context models)"
       use_case: "Document Q&A, knowledge retrieval"
 
     code:

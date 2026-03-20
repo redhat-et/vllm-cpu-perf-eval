@@ -3,6 +3,7 @@
 remote_theme: pages-themes/cayman@v0.2.0
 title: vLLM CPU Performance Evaluation
 description: Comprehensive performance evaluation framework for vLLM on CPU platforms
+repository: redhat-et/vllm-cpu-perf-eval
 baseurl: ""
 url: ""
 
