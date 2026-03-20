@@ -48,7 +48,7 @@
   ansible.builtin.set_fact:
     model_kv_cache: "{{ model_config.kv_cache_sizes[workload_type] | default(workload_cfg.kv_cache_space) }}"
   when:
-    - kv_cache_override is not defined or kv_cache_override is none or (kv_cache_override | string | length == 0)
+    - (kv_cache_override is not defined or kv_cache_override is none or (kv_cache_override | string | length == 0))
     - model_config is not none
     - model_config.kv_cache_sizes is defined
 
@@ -56,7 +56,7 @@
   ansible.builtin.set_fact:
     model_kv_cache: "{{ workload_cfg.kv_cache_space }}"
   when:
-    - kv_cache_override is not defined or kv_cache_override is none or (kv_cache_override | string | length == 0)
+    - (kv_cache_override is not defined or kv_cache_override is none or (kv_cache_override | string | length == 0))
     - (model_config is none or model_config.kv_cache_sizes is not defined or model_kv_cache is not defined)
 
 - name: Get model-specific dtype

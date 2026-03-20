@@ -89,11 +89,9 @@
 
   tasks:
     - name: Get vLLM configuration from DUT
-      ansible.builtin.set_fact:
-        vllm_kv_cache: "{{ hostvars[groups['dut'][0]]['model_kv_cache'] | default('unknown') }}"
-        vllm_dtype: "{{ hostvars[groups['dut'][0]]['model_dtype'] | default('unknown') }}"
-        vllm_caching_mode: "{{ hostvars[groups['dut'][0]]['vllm_caching_mode'] | default('unknown') }}"
-        vllm_max_model_len: "{{ hostvars[groups['dut'][0]]['model_max_len'] | default('unknown') }}"
+      ansible.builtin.include_role:
+        name: common
+        tasks_from: get-vllm-config-from-dut
 
     - name: Tag results with metadata
       ansible.builtin.copy:

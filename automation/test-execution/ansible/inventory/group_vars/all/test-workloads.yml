@@ -64,7 +64,7 @@ test_configs:
     vllm_args:
       - "--dtype=auto"                  # Fallback dtype - overridden by model-specific dtype
       - "--no-enable-prefix-caching"    # Baseline mode: no prefix caching
-      - "--max-model-len=2048"          # Limit model context to workload needs (1024 tokens)
+      - "--max-model-len=2048"          # Limit model context to workload needs (2x total tokens for headroom)
     kv_cache_space: "40GiB"             # Fallback value - should be overridden by model-specific kv_cache_sizes
 
   # RAG workload (very long input, medium output)
