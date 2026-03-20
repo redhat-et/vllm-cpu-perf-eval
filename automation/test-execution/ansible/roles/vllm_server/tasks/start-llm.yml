@@ -232,7 +232,24 @@
 
 - name: Extract max-model-len from vLLM arguments
   ansible.builtin.set_fact:
-    model_max_len: "{{ (vllm_args_merged | select('match', '^--max-model-len=.*') | list | first | default('--max-model-len=unknown')).split('=')[1] }}"
+    model_max_len: "{{ (vllm_args_merged | select('match', '^--max-model-len=.*') | list | first | default('')).split('=')[1] | default('') }}"
+
+- name: Validate max-model-len is configured
+  ansible.builtin.fail:
+    msg: |
+      ❌ --max-model-len is required but not found in vLLM arguments!
+
+      Workload: {{ workload_type }}
+      Model: {{ test_model }}
+      vLLM arguments: {{ vllm_args_merged | join(' ') }}
+
+      --max-model-len must be specified in workload configuration to prevent vLLM
+      from allocating KV cache for the model's full context window, which can cause
+      startup failures when KV cache size is insufficient.
+
+      Add --max-model-len to the workload configuration in:
+      automation/test-execution/ansible/inventory/group_vars/all/test-workloads.yml
+  when: model_max_len is not defined or model_max_len | length == 0
 
 - name: Build vLLM command arguments
   ansible.builtin.set_fact:
