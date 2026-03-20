@@ -232,7 +232,17 @@
 
 - name: Extract max-model-len from vLLM arguments
   ansible.builtin.set_fact:
-    model_max_len: "{{ (vllm_args_merged | select('match', '^--max-model-len=.*') | list | first | default('')).split('=')[1] | default('') }}"
+    max_model_len_arg: "{{ vllm_args_merged | select('match', '^--max-model-len=.*') | list | first | default('') }}"
+
+- name: Parse max-model-len value
+  ansible.builtin.set_fact:
+    model_max_len: "{{ max_model_len_arg | regex_search('^--max-model-len=(.+)$', '\\1') | first | default('') }}"
+  when: max_model_len_arg | length > 0 and '=' in max_model_len_arg
+
+- name: Set max-model-len to empty if not found
+  ansible.builtin.set_fact:
+    model_max_len: ""
+  when: max_model_len_arg | length == 0 or '=' not in max_model_len_arg
 
 - name: Calculate required sequence length for workload
   ansible.builtin.set_fact:
