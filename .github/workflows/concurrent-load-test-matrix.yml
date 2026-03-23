@@ -1,0 +1,192 @@
+---
+name: Concurrent Load Test - Parameter Matrix
+
+"on":
+  pull_request:
+    paths:
+      - "automation/test-execution/ansible/llm-benchmark-concurrent-load.yml"
+      - "automation/test-execution/ansible/llm-core-sweep-auto.yml"
+      - "automation/test-execution/ansible/llm-benchmark-auto.yml"
+      - ".github/workflows/concurrent-load-test-matrix.yml"
+  workflow_dispatch:
+
+jobs:
+  test-parameter-combinations:
+    name: Test ${{ matrix.test_name }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Single core configurations
+          - test_name: "Single Core - Chat - All Phases"
+            extra_vars: |
+              test_model=test/model
+              base_workload=chat
+              requested_cores=16
+
+          - test_name: "Single Core - Chat - Phase 1 Only"
+            extra_vars: |
+              test_model=test/model
+              base_workload=chat
+              requested_cores=16
+              skip_phase_2=true
+              skip_phase_3=true
+
+          - test_name: "Single Core - Code - All Phases"
+            extra_vars: |
+              test_model=test/model
+              base_workload=code
+              requested_cores=32
+
+          - test_name: "Single Core - RAG"
+            extra_vars: |
+              test_model=test/model
+              base_workload=rag
+              requested_cores=16
+
+          # Core sweep configurations
+          - test_name: "Core Sweep - Chat - All Phases"
+            extra_vars: |
+              test_model=test/model
+              base_workload=chat
+              core_sweep_counts=[16,32,64]
+
+          - test_name: "Core Sweep - Chat - Phase 1 Only"
+            extra_vars: |
+              test_model=test/model
+              base_workload=chat
+              core_sweep_counts=[16,32]
+              skip_phase_2=true
+              skip_phase_3=true
+
+          - test_name: "Core Sweep - Code - Phase 1+2"
+            extra_vars: |
+              test_model=test/model
+              base_workload=code
+              core_sweep_counts=[16,32,64]
+              skip_phase_3=true
+
+          # With custom rate configurations
+          - test_name: "Single Core - Custom Rates"
+            extra_vars: |
+              test_model=test/model
+              base_workload=chat
+              requested_cores=16
+              guidellm_rate=[1,2,4,8]
+              skip_phase_2=true
+              skip_phase_3=true
+
+          - test_name: "Core Sweep - Custom Duration"
+            extra_vars: |
+              test_model=test/model
+              base_workload=chat
+              core_sweep_counts=[16,32]
+              guidellm_max_seconds=300
+              skip_phase_2=true
+              skip_phase_3=true
+
+          # Variable workloads (chat_var, code_var)
+          - test_name: "Single Core - All Phases with Variable Workload"
+            extra_vars: |
+              test_model=test/model
+              base_workload=chat
+              requested_cores=16
+              skip_phase_1=true
+
+          - test_name: "Core Sweep - Production Only (Phase 3)"
+            extra_vars: |
+              test_model=test/model
+              base_workload=code
+              core_sweep_counts=[32,64]
+              skip_phase_1=true
+              skip_phase_2=true
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Ansible
+        run: |
+          python -m pip install --upgrade pip
+          pip install ansible-core==2.17.7
+
+      - name: Install required Ansible collections
+        working-directory: automation/test-execution/ansible
+        run: |
+          if [ -f requirements.yml ]; then
+            ansible-galaxy collection install -r requirements.yml
+          fi
+
+      - name: Create dummy inventory
+        run: |
+          mkdir -p /tmp/test-inventory
+          cat > /tmp/test-inventory/hosts.yml <<EOF
+          all:
+            children:
+              dut:
+                hosts:
+                  test-dut:
+                    ansible_host: 192.168.1.100
+                    ansible_user: test
+                    ansible_ssh_private_key_file: /dev/null
+              load_generator:
+                hosts:
+                  test-loadgen:
+                    ansible_host: 192.168.1.101
+                    ansible_user: test
+                    ansible_ssh_private_key_file: /dev/null
+          EOF
+
+      - name: Syntax check with test parameters
+        working-directory: automation/test-execution/ansible
+        run: |
+          # Convert multi-line extra_vars to single line with -e flags
+          EXTRA_VARS=""
+          while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            EXTRA_VARS="$EXTRA_VARS -e \"$line\""
+          done <<< "${{ matrix.extra_vars }}"
+
+          echo "Testing configuration: ${{ matrix.test_name }}"
+          echo "Parameters: $EXTRA_VARS"
+
+          eval ansible-playbook llm-benchmark-concurrent-load.yml \
+            -i /tmp/test-inventory/hosts.yml \
+            $EXTRA_VARS \
+            --syntax-check
+
+      - name: List tasks that would run
+        working-directory: automation/test-execution/ansible
+        run: |
+          # Convert multi-line extra_vars to single line with -e flags
+          EXTRA_VARS=""
+          while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            EXTRA_VARS="$EXTRA_VARS -e \"$line\""
+          done <<< "${{ matrix.extra_vars }}"
+
+          echo "Tasks for: ${{ matrix.test_name }}"
+
+          eval ansible-playbook llm-benchmark-concurrent-load.yml \
+            -i /tmp/test-inventory/hosts.yml \
+            $EXTRA_VARS \
+            --list-tasks | head -100
+
+  summary:
+    name: Parameter Test Summary
+    runs-on: ubuntu-latest
+    needs: test-parameter-combinations
+    if: always()
+
+    steps:
+      - name: Check test results
+        run: |
+          echo "✅ All parameter combination tests completed"
+          echo "Review individual job results above for details"
