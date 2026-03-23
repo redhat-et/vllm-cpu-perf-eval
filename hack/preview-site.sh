@@ -127,13 +127,36 @@ echo ""
 echo "Press Ctrl+C to stop the server"
 echo ""
 
+# Clean up _site directory for podman (use container to handle root-owned files)
+if [ "$DOCKER_CMD" = "podman" ] && [ -d "$PROJECT_ROOT/_site" ]; then
+  echo "🧹 Cleaning up _site directory for podman..."
+  $DOCKER_CMD run --rm \
+    -v "$PROJECT_ROOT:/srv/jekyll" \
+    --security-opt label=disable \
+    alpine sh -c 'rm -rf /srv/jekyll/_site'
+fi
+
 # Run Jekyll in container with GitHub Pages support
 # Mount project root and use config from .github-pages/
+
+# Podman-specific flags for rootless mode
+VOLUME_FLAGS="-v $PROJECT_ROOT:/srv/jekyll:Z"
+SECURITY_FLAGS=""
+USER_MAPPING=""
+if [ "$DOCKER_CMD" = "podman" ]; then
+  # For podman rootless, map host user to root inside container for full permissions
+  VOLUME_FLAGS="-v $PROJECT_ROOT:/srv/jekyll"
+  SECURITY_FLAGS="--security-opt label=disable"
+  USER_MAPPING="--userns=keep-id:uid=0,gid=0"
+fi
+
 if [ -t 0 ]; then
   # Interactive mode
   $DOCKER_CMD run --rm -it \
     --name jekyll-preview \
-    -v "$PROJECT_ROOT:/srv/jekyll:Z" \
+    $USER_MAPPING \
+    $SECURITY_FLAGS \
+    $VOLUME_FLAGS \
     -p "${PORT}:4000" \
     -e JEKYLL_ENV=development \
     -w /srv/jekyll/.github-pages \
@@ -143,7 +166,9 @@ else
   # Non-interactive mode (background)
   $DOCKER_CMD run --rm \
     --name jekyll-preview \
-    -v "$PROJECT_ROOT:/srv/jekyll:Z" \
+    $USER_MAPPING \
+    $SECURITY_FLAGS \
+    $VOLUME_FLAGS \
     -p "${PORT}:4000" \
     -e JEKYLL_ENV=development \
     -w /srv/jekyll/.github-pages \
