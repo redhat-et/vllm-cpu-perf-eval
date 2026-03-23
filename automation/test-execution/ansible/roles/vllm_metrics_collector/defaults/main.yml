@@ -1,0 +1,17 @@
+---
+# vLLM Metrics Collector - Default Variables
+
+# Enable/disable metrics collection
+enable_vllm_metrics_collection: true
+
+# Collection interval (seconds)
+metrics_collection_interval: 5
+
+# Collection duration (seconds) - defaults to benchmark duration
+metrics_collection_duration: "{{ benchmark_duration | default(300) }}"
+
+# vLLM server URL
+vllm_url: "http://{{ vllm_host | default('localhost') }}:{{ vllm_port | default(8000) }}"
+
+# Results path (where to save metrics JSON)
+results_path: "/tmp"

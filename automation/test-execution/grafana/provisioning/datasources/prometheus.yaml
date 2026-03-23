@@ -1,0 +1,18 @@
+# Grafana Datasource Configuration - Prometheus
+# Auto-provisions Prometheus datasource for vLLM live metrics
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus-vLLM
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: false
+    uid: prometheus-vllm
+    editable: true
+    jsonData:
+      httpMethod: POST
+      timeInterval: 15s
+      queryTimeout: 60s
+    version: 1

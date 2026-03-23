@@ -130,6 +130,34 @@
             name: common
             tasks_from: detect-numa-topology
 
+        - name: Get CPU model name for platform identification
+          ansible.builtin.shell: |
+            lscpu | grep -i '^Model name' | sed 's/^[Mm]odel name:[[:space:]]*//' | head -1
+          register: cpu_model_raw
+          changed_when: false
+
+        - name: Set platform name from CPU model (sanitized)
+          ansible.builtin.set_fact:
+            dut_platform_name: "{{ cpu_model_raw.stdout | trim | regex_replace('[^a-zA-Z0-9]', '_') | regex_replace('_+', '_') | regex_replace('^_|_$', '') }}"
+
+        - name: Save raw platform name to localhost
+          ansible.builtin.set_fact:
+            dut_platform_raw: "{{ cpu_model_raw.stdout | trim }}"
+          delegate_to: localhost
+          delegate_facts: true
+
+        - name: Save sanitized platform name to localhost for later use
+          ansible.builtin.set_fact:
+            dut_platform_name: "{{ dut_platform_name }}"
+          delegate_to: localhost
+          delegate_facts: true
+
+        - name: Display detected platform
+          ansible.builtin.debug:
+            msg:
+              - "Platform detected: {{ cpu_model_raw.stdout | trim }}"
+              - "Sanitized: {{ dut_platform_name }}"
+
       when: hostvars['localhost']['vllm_mode'] == 'managed'
 # ==============================================================================
 # STEP 2: Allocate Cores from Detected Topology (Managed Mode Only)
@@ -249,10 +277,35 @@
     test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
     core_configuration: "{{ hostvars['localhost']['core_configuration'] }}"
 
+  pre_tasks:
+    - name: Record benchmark start time
+      ansible.builtin.set_fact:
+        benchmark_start_time: "{{ lookup('pipe', 'date +%s') }}"
+      delegate_to: localhost
+      delegate_facts: true
+
   roles:
     - role: hf_token
       tasks_from: setup-optional
     - role: benchmark_guidellm
+
+  post_tasks:
+    - name: Export vLLM metrics from Prometheus
+      block:
+        - name: Export metrics to JSON
+          ansible.builtin.include_role:
+            name: prometheus_exporter
+          vars:
+            prometheus_url: "http://localhost:9090"
+            test_start_timestamp: "{{ hostvars['localhost']['benchmark_start_time'] }}"
+            test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
+            results_path: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ hostvars['localhost']['test_run_id'] }}/{{ core_configuration.name }}"
+            export_interval_seconds: 10
+      delegate_to: localhost
+      become: false
+      when:
+        - not (skip_prometheus_export | default(false) | bool)
+        - hostvars['localhost']['vllm_mode'] == 'managed'
 
 # ==============================================================================
 # STEP 6: Collect Results
@@ -281,6 +334,13 @@
             "omp_threads_bind": {{ core_configuration.omp_threads_bind | default('null') }},
             "model": "{{ test_model }}",
             "workload": "{{ workload_type }}",
+            "platform": "{{ hostvars['localhost']['dut_platform_name'] | default('unknown') }}",
+            "backend": "{{ hostvars['localhost']['vllm_backend'] | default('upstream') }}",
+            "vllm_version": "{{ hostvars['localhost']['vllm_version'] | default('unknown') }}",
+            "vllm_dtype": "{{ vllm_dtype | default('auto') }}",
+            "vllm_kv_cache_size": "{{ vllm_kv_cache | default('auto') }}",
+            "vllm_max_model_len": "{{ vllm_max_model_len | default('auto') }}",
+            "vllm_caching_mode": "{{ vllm_caching_mode | default('baseline') }}",
             "timestamp": "{{ lookup('pipe', 'date -Iseconds') }}",
             "test_duration": "{{ test_duration_string | default('unknown') }}",
             "test_duration_seconds": {{ test_duration_seconds | default('null') }}
@@ -379,7 +439,73 @@
         log_filename_prefix: "vllm-server"
         journald_time_range: "1 hour ago"
 # ==============================================================================
-# STEP 8: Optional Cleanup (Managed Mode Only)
+# STEP 8: Publish Results to Prometheus Pushgateway (Optional)
+# ==============================================================================
+
+- name: "Publish Results to Prometheus Pushgateway"
+  hosts: localhost
+  gather_facts: true
+  vars:
+    test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
+    core_configuration: "{{ hostvars['localhost']['core_configuration'] }}"
+    results_path: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}"
+
+  tasks:
+    - name: Check if Prometheus publishing is enabled
+      ansible.builtin.debug:
+        msg: "Prometheus publishing: {{ 'enabled' if (publish_to_prometheus | default(false) | bool) else 'disabled' }}"
+
+    - name: Set publishing metadata
+      ansible.builtin.set_fact:
+        _publish_platform: "{{ hostvars['localhost']['dut_platform_name'] | default('Unknown') }}"
+        _publish_backend: "{{ hostvars['localhost']['vllm_backend'] | default('upstream') }}"
+        _publish_version: "{{ hostvars['localhost']['vllm_version'] | default('unknown') }}"
+
+    - name: Publish benchmark results to Prometheus
+      ansible.builtin.include_role:
+        name: metrics_publisher
+      vars:
+        platform_name: "{{ _publish_platform }}"
+        backend_type: "{{ _publish_backend }}"
+        vllm_version: "{{ _publish_version }}"
+      when: publish_to_prometheus | default(false) | bool
+
+  tags:
+    - publish
+    - prometheus
+
+# ==============================================================================
+# STEP 9: Cleanup SSH Tunnel (Optional)
+# ==============================================================================
+
+- name: "Auto-Configured LLM Test - Cleanup SSH Tunnel"
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - block:
+        - name: Get tunnel PID
+          ansible.builtin.shell: |
+            lsof -ti :8000 -sTCP:LISTEN | head -1
+          register: tunnel_pid_check
+          failed_when: false
+          changed_when: false
+
+        - name: Kill SSH tunnel
+          ansible.builtin.command: "kill {{ tunnel_pid_check.stdout }}"
+          when: tunnel_pid_check.stdout | length > 0
+          changed_when: true
+
+        - name: Display tunnel cleanup status
+          ansible.builtin.debug:
+            msg: "{{ '✓ SSH tunnel cleaned up (PID: ' + tunnel_pid_check.stdout + ')' if tunnel_pid_check.stdout else '✓ No SSH tunnel to clean up' }}"
+
+      when:
+        - cleanup_tunnel_after_test | default(false) | bool
+        - vllm_mode == 'managed'
+
+# ==============================================================================
+# STEP 10: Optional vLLM Container Cleanup (Managed Mode Only)
 # ==============================================================================
 
 - name: "Auto-Configured LLM Test - Optional Cleanup"
