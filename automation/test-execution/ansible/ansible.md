@@ -33,6 +33,7 @@ Ensure the following before running playbooks:
 - **User privileges**: User should have sudo access (or use root directly)
 - **Python**: Python 3.8+ installed (usually pre-installed)
 - **Network**: Hosts can reach each other (DUT port 8000 accessible from Load Generator)
+- **Container Runtime**: Podman 4.0+ or Docker 24.0+ (see installation below)
 
 ```bash
 # Verify SSH access from control machine
@@ -43,8 +44,34 @@ ssh -i ~/.ssh/your-key.pem ec2-user@your-loadgen-hostname
 ssh ec2-user@your-dut-hostname 'sudo whoami'  # Should return 'root'
 ```
 
-The playbooks automatically install required software (Podman/Docker, vLLM images, GuideLLM).
-No manual installation needed on remote hosts.
+**Installing Required Packages on DUT and Load Generator:**
+
+Option 1: Manual installation (minimal quick testing):
+```bash
+# On both DUT and Load Generator hosts
+# RHEL/Fedora:
+sudo dnf install -y podman python3
+
+# Ubuntu/Debian:
+sudo apt update && sudo apt install -y podman python3
+
+# Verify installation
+podman --version
+python3 --version
+```
+
+Option 2: Automated via platform setup (recommended for production):
+```bash
+# Installs all dependencies + performance optimizations
+# Includes: podman, tuned, kernel-tools, numactl, CPU isolation, etc.
+ansible-playbook -i inventory/hosts.yml setup-platform.yml
+
+# Reboot required for kernel parameters to take effect
+ansible -i inventory/hosts.yml all -b -m reboot
+```
+
+The playbooks automatically install vLLM container images and GuideLLM at runtime.
+You only need to pre-install: **Podman/Docker** and **Python 3**.
 
 ### 2. Configure Inventory
 
@@ -98,23 +125,26 @@ ansible -i inventory/hosts.yml all -m ping
 
 ### 4. Run Your First Test
 
-> **Note:** For production benchmarking or accurate performance measurements, run
-> [Platform Setup](#run-platform-setup-one-time) first (requires reboot). This is
-> optional for quick testing or development but **highly recommended** for reliable results.
+> **Prerequisites:** Ensure you've completed step 1 to install Podman/Python on remote hosts.
+>
+> **Note:** For production benchmarking, run `setup-platform.yml` (from step 1, Option 2)
+> to configure performance optimizations. This is optional for quick testing.
 
 ```bash
-# Set HuggingFace token (if using gated models)
+cd automation/test-execution/ansible
+
+# Set HuggingFace token (if using gated models like Llama)
 export HF_TOKEN=hf_xxxxx
 
-# Run LLM benchmark with auto-configured cores
+# Run a simple LLM benchmark
 ansible-playbook -i inventory/hosts.yml \
   llm-benchmark-auto.yml \
-  -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
+  -e "test_model=TinyLlama/TinyLlama-1.1B-Chat-v1.0" \
   -e "workload_type=chat" \
   -e "requested_cores=16"
 
 # Results are saved locally at:
-# results/llm/meta-llama__Llama-3.2-1B-Instruct/chat-*/benchmarks.html
+# results/llm/TinyLlama__TinyLlama-1.1B-Chat-v1.0/chat-*/benchmarks.json
 ```
 
 Done! See sections below for advanced usage and additional playbooks.

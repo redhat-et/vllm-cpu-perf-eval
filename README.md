@@ -11,11 +11,13 @@ systems.
 See the [Ansible Quick Start Guide](automation/test-execution/ansible/ansible.md#quick-start)
 for step-by-step instructions to:
 
-1. Configure your test inventory (DUT and load generator hosts)
-2. Run your first LLM benchmark
-3. View and analyze results
+1. Install Ansible and container runtime (Podman/Docker)
+2. Configure your test inventory (DUT and load generator hosts)
+3. Run your first LLM benchmark
+4. View and analyze results
 
 The guide includes complete examples for:
+- **Prerequisites and installation** (Ansible, Podman/Docker)
 - **Manual test execution** with Ansible playbooks
 - **Platform setup** for optimal performance
 - **Custom configurations** and advanced usage
