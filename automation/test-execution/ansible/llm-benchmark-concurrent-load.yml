@@ -44,14 +44,20 @@
   gather_facts: false
 
   vars:
-    # Validate required parameters
-    test_model: "{{ test_model | mandatory }}"
-    base_workload: "{{ base_workload | mandatory }}"
-
     # Determine variable workload suffix
     variable_workload: "{{ base_workload }}_var"
 
   tasks:
+    - name: Validate required parameters are provided
+      ansible.builtin.assert:
+        that:
+          - test_model is defined
+          - base_workload is defined
+        fail_msg: |
+          Missing required parameters. Please provide:
+          -e "test_model=<model>"
+          -e "base_workload=<chat|rag|code|summarization|short_codegen>"
+
     - name: Validate base_workload parameter
       ansible.builtin.assert:
         that:

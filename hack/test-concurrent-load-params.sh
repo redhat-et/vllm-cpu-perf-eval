@@ -6,7 +6,8 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+ANSIBLE_DIR="$SCRIPT_DIR/../automation/test-execution/ansible"
+cd "$ANSIBLE_DIR"
 
 # Colors
 GREEN='\033[0;32m'
