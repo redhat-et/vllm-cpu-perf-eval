@@ -1,0 +1,62 @@
+---
+# Publish Existing GuideLLM Results to Prometheus
+# Use this to republish results that already exist on disk
+
+- name: "Publish Existing Results to Prometheus"
+  hosts: localhost
+  gather_facts: true
+
+  tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - test_model is defined
+          - workload_type is defined
+          - test_run_id is defined
+          - requested_cores is defined
+        fail_msg: "Missing required variables. Provide: test_model, workload_type, test_run_id, requested_cores"
+
+    - name: Set core configuration if not provided
+      ansible.builtin.set_fact:
+        core_configuration:
+          cores: "{{ requested_cores }}"
+          tensor_parallel: 1
+          numa_node: 0
+      when: core_configuration is not defined
+
+    - name: Build results path
+      ansible.builtin.set_fact:
+        results_path: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ requested_cores }}cores-numa{{ core_configuration.numa_node | default(0) }}-tp{{ core_configuration.tensor_parallel | default(1) }}"
+
+    - name: Display publishing configuration
+      ansible.builtin.debug:
+        msg:
+          - "Publishing results from: {{ results_path }}"
+          - "Model: {{ test_model }}"
+          - "Workload: {{ workload_type }}"
+          - "Test Run ID: {{ test_run_id }}"
+
+    - name: Load test metadata if exists
+      ansible.builtin.stat:
+        path: "{{ results_path }}/test-metadata.json"
+      register: metadata_file
+
+    - name: Read metadata for platform info
+      ansible.builtin.set_fact:
+        test_metadata: "{{ lookup('file', results_path + '/test-metadata.json') | from_json }}"
+      when: metadata_file.stat.exists
+
+    - name: Set publishing defaults
+      ansible.builtin.set_fact:
+        _platform_name: "{{ platform_name | default(test_metadata.platform | default('unknown')) }}"
+        _backend_type: "{{ backend_type | default(test_metadata.backend | default('upstream')) }}"
+        _vllm_version: "{{ vllm_version | default(test_metadata.vllm_version | default('unknown')) }}"
+
+    - name: Publish results to Prometheus
+      ansible.builtin.include_role:
+        name: metrics_publisher
+      vars:
+        enable_prometheus_publish: true
+        platform_name: "{{ _platform_name }}"
+        backend_type: "{{ _backend_type }}"
+        vllm_version: "{{ _vllm_version }}"

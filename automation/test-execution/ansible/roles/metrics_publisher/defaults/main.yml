@@ -1,0 +1,29 @@
+---
+# Metrics Publisher Role - Default Variables
+# Common role for publishing GuideLLM results to monitoring systems
+# Default backend: Prometheus Pushgateway
+
+# Pushgateway connection
+pushgateway_host: localhost  # When using reverse SSH tunnel
+pushgateway_port: 9091
+pushgateway_protocol: http
+
+# Alternative: Direct connection if using ngrok or port forwarding
+# pushgateway_host: "YOUR_PUBLIC_IP or ngrok-url.ngrok.io"
+# pushgateway_protocol: https  # if using ngrok
+
+# Job name for metrics
+prometheus_job_name: guidellm_benchmark
+
+# Metric labels (auto-populated from playbook vars)
+# platform_name: "Intel_Xeon_6975P"
+# test_model: "meta-llama/Llama-3.2-1B-Instruct"
+# workload_type: "chat"
+# backend_type: "upstream"
+
+# Enable/disable publishing
+enable_prometheus_publish: true
+
+# Retry configuration for network issues
+push_retry_count: 3
+push_retry_delay: 5

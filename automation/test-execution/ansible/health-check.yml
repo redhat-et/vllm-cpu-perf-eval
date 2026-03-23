@@ -41,3 +41,53 @@
     - name: Display available models
       ansible.builtin.debug:
         msg: "Available models: {{ models_check.json.data | map(attribute='id') | list }}"
+
+    - name: Query vLLM version endpoint
+      ansible.builtin.uri:
+        url: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/version"
+        method: GET
+        status_code: 200
+      register: vllm_version_response
+      failed_when: false
+
+    - name: Extract vLLM version from response
+      ansible.builtin.set_fact:
+        detected_vllm_version: "{{ vllm_version_response.json.version | default('unknown') }}"
+      when: vllm_version_response.status == 200
+
+    - name: Set unknown version if endpoint failed
+      ansible.builtin.set_fact:
+        detected_vllm_version: "unknown"
+      when: vllm_version_response.status != 200
+
+    - name: Save vLLM version to localhost for metadata
+      ansible.builtin.set_fact:
+        vllm_version: "{{ detected_vllm_version }}"
+      delegate_to: localhost
+      delegate_facts: true
+
+    - name: Detect backend from container image or variable
+      ansible.builtin.set_fact:
+        detected_backend: >-
+          {%- if vllm_backend is defined -%}
+            {{ vllm_backend }}
+          {%- elif container_runtime.image is defined and 'release' in container_runtime.image -%}
+            release
+          {%- elif container_runtime.image is defined and 'upstream' in container_runtime.image -%}
+            upstream
+          {%- else -%}
+            upstream
+          {%- endif -%}
+
+    - name: Save backend type to localhost for metadata
+      ansible.builtin.set_fact:
+        vllm_backend: "{{ detected_backend }}"
+      delegate_to: localhost
+      delegate_facts: true
+
+    - name: Display captured metadata
+      ansible.builtin.debug:
+        msg:
+          - "✓ Metadata captured for test results:"
+          - "  vLLM Version: {{ detected_vllm_version }}"
+          - "  Backend: {{ detected_backend }}"
