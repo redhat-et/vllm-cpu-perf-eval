@@ -21,8 +21,11 @@ The preview script (`hack/preview-site.sh`) provides an easy way to test the Git
 ### Quick Start
 
 ```bash
-# Start the preview server
+# Start the preview server (auto-detects Docker/Podman)
 ./hack/preview-site.sh --port 4001
+
+# Force a specific container runtime
+CONTAINER_RUNTIME=podman ./hack/preview-site.sh --port 4001
 
 # Stop the preview server
 ./hack/preview-site.sh --stop
@@ -32,11 +35,27 @@ Then open **<http://localhost:4001>** in your browser.
 
 ### Preview Script Features
 
-- **Auto-detects** Docker or Podman
+- **Auto-detects** Docker or Podman (or force via `CONTAINER_RUNTIME` environment variable)
 - **Installs** GitHub Pages gems automatically (first run takes 2-3 minutes)
 - **Live reload** - Changes to markdown/CSS reload automatically
 - **Custom port** - Use `--port` to avoid conflicts (default: 4000)
 - **Easy stop** - Use `--stop` to cleanly shut down the server
+
+### Container Runtime Selection
+
+By default, the script auto-detects Docker or Podman. To force a specific runtime:
+
+```bash
+# Use Podman
+export CONTAINER_RUNTIME=podman
+./hack/preview-site.sh --port 4001
+
+# Or inline
+CONTAINER_RUNTIME=podman ./hack/preview-site.sh --port 4001
+
+# Use Docker explicitly
+CONTAINER_RUNTIME=docker ./hack/preview-site.sh --port 4001
+```
 
 ### First Run
 

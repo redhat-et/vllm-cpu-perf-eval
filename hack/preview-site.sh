@@ -1,7 +1,11 @@
 #!/bin/bash
-# Preview GitHub Pages site locally using Docker
+# Preview GitHub Pages site locally using Docker or Podman
 #
 # Usage: ./preview-site.sh [OPTIONS]
+#
+# Environment Variables:
+#   CONTAINER_RUNTIME    Force specific runtime: 'docker' or 'podman'
+#                        If not set, auto-detects available runtime
 #
 # Options:
 #   --port PORT    Specify port (default: 4000)
@@ -36,9 +40,13 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --help)
-            echo "Preview GitHub Pages site locally using Docker"
+            echo "Preview GitHub Pages site locally using Docker or Podman"
             echo ""
             echo "Usage: $0 [OPTIONS]"
+            echo ""
+            echo "Environment Variables:"
+            echo "  CONTAINER_RUNTIME    Force specific runtime: 'docker' or 'podman'"
+            echo "                       If not set, auto-detects available runtime"
             echo ""
             echo "Options:"
             echo "  --port PORT    Specify port (default: 4000)"
@@ -46,9 +54,11 @@ while [[ $# -gt 0 ]]; do
             echo "  --help         Show this help message"
             echo ""
             echo "Examples:"
-            echo "  $0                  # Start preview on port 4000"
-            echo "  $0 --port 8080      # Start preview on port 8080"
-            echo "  $0 --stop           # Stop the preview server"
+            echo "  $0                              # Auto-detect and start on port 4000"
+            echo "  $0 --port 8080                  # Auto-detect and start on port 8080"
+            echo "  CONTAINER_RUNTIME=podman $0     # Force Podman on port 4000"
+            echo "  CONTAINER_RUNTIME=docker $0     # Force Docker on port 4000"
+            echo "  $0 --stop                       # Stop the preview server"
             exit 0
             ;;
         *)
@@ -63,15 +73,35 @@ done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-# Check for Docker or Podman
-if command -v docker &> /dev/null; then
-    DOCKER_CMD="docker"
-elif command -v podman &> /dev/null; then
-    DOCKER_CMD="podman"
+# Determine container runtime
+if [ -n "$CONTAINER_RUNTIME" ]; then
+    # User explicitly set CONTAINER_RUNTIME
+    CONTAINER_RUNTIME=$(echo "$CONTAINER_RUNTIME" | tr '[:upper:]' '[:lower:]')
+    if [[ "$CONTAINER_RUNTIME" != "docker" && "$CONTAINER_RUNTIME" != "podman" ]]; then
+        echo "❌ Error: Invalid CONTAINER_RUNTIME='$CONTAINER_RUNTIME'"
+        echo "Must be 'docker' or 'podman'"
+        exit 1
+    fi
+    if ! command -v "$CONTAINER_RUNTIME" &> /dev/null; then
+        echo "❌ Error: $CONTAINER_RUNTIME not found"
+        echo "Please install $CONTAINER_RUNTIME or unset CONTAINER_RUNTIME to auto-detect"
+        exit 1
+    fi
+    DOCKER_CMD="$CONTAINER_RUNTIME"
+    echo "✓ Using $CONTAINER_RUNTIME (forced via CONTAINER_RUNTIME)"
 else
-    echo "❌ Error: Neither Docker nor Podman found"
-    echo "Please install Docker or Podman to preview the site"
-    exit 1
+    # Auto-detect
+    if command -v docker &> /dev/null; then
+        DOCKER_CMD="docker"
+        echo "✓ Using Docker (auto-detected)"
+    elif command -v podman &> /dev/null; then
+        DOCKER_CMD="podman"
+        echo "✓ Using Podman (auto-detected)"
+    else
+        echo "❌ Error: Neither Docker nor Podman found"
+        echo "Please install Docker or Podman to preview the site"
+        exit 1
+    fi
 fi
 
 # Handle stop command
@@ -85,8 +115,6 @@ if [ "$STOP_SERVER" = true ]; then
     fi
     exit 0
 fi
-
-echo "✓ Using $([ "$DOCKER_CMD" = "docker" ] && echo "Docker" || echo "Podman")"
 
 echo "📦 Starting Jekyll server in container..."
 echo "📍 Project: $PROJECT_ROOT"
