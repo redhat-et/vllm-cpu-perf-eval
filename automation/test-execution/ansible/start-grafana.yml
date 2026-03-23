@@ -1,0 +1,382 @@
+---
+# Start Grafana Monitoring Stack
+# Starts Prometheus, Pushgateway, and Grafana containers for benchmark visualization
+#
+# Usage:
+#   ansible-playbook start-grafana.yml
+#
+# Requirements:
+#   - docker-compose or podman-compose installed
+#   - Port 3000 (Grafana), 9090 (Prometheus), 9091 (Pushgateway) available
+
+- name: "Start Grafana Monitoring Stack"
+  hosts: localhost
+  gather_facts: true
+
+  vars:
+    grafana_dir: "{{ playbook_dir }}/../grafana"
+    compose_project_name: vllm-monitoring
+    grafana_port: 3000
+    prometheus_port: 9090
+    pushgateway_port: 9091
+    health_check_timeout: 60
+    health_check_interval: 5
+
+  tasks:
+    # ========================================================================
+    # STEP 1: Detect Container Runtime and Compose Tool
+    # ========================================================================
+
+    - name: Detect available compose tool
+      block:
+        - name: Check for docker-compose
+          ansible.builtin.command: docker-compose --version
+          register: docker_compose_check
+          failed_when: false
+          changed_when: false
+
+        - name: Check for podman-compose
+          ansible.builtin.command: podman-compose --version
+          register: podman_compose_check
+          failed_when: false
+          changed_when: false
+
+        - name: Set compose command (docker-compose)
+          ansible.builtin.set_fact:
+            compose_cmd: docker-compose
+            runtime_name: Docker
+          when: docker_compose_check.rc == 0
+
+        - name: Set compose command (podman-compose)
+          ansible.builtin.set_fact:
+            compose_cmd: podman-compose
+            runtime_name: Podman
+          when:
+            - docker_compose_check.rc != 0
+            - podman_compose_check.rc == 0
+
+        - name: Fail if no compose tool found
+          ansible.builtin.fail:
+            msg: |
+              Neither docker-compose nor podman-compose found!
+
+              Install one of the following:
+              - Docker Desktop (includes docker-compose)
+              - podman-compose: pip3 install podman-compose
+          when:
+            - docker_compose_check.rc != 0
+            - podman_compose_check.rc != 0
+
+    - name: Display detected configuration
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Grafana Monitoring Stack - Configuration"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Container Runtime: {{ runtime_name }}"
+          - "Compose Tool: {{ compose_cmd }}"
+          - "Grafana Directory: {{ grafana_dir }}"
+          - "Grafana URL: http://localhost:{{ grafana_port }}"
+          - "Prometheus URL: http://localhost:{{ prometheus_port }}"
+          - "Pushgateway URL: http://localhost:{{ pushgateway_port }}"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+    # ========================================================================
+    # STEP 2: Pre-flight Checks
+    # ========================================================================
+
+    - name: Check if Grafana directory exists
+      ansible.builtin.stat:
+        path: "{{ grafana_dir }}"
+      register: grafana_dir_stat
+
+    - name: Fail if Grafana directory not found
+      ansible.builtin.fail:
+        msg: "Grafana directory not found: {{ grafana_dir }}"
+      when: not grafana_dir_stat.stat.exists
+
+    - name: Check if docker-compose.yml exists
+      ansible.builtin.stat:
+        path: "{{ grafana_dir }}/docker-compose.yml"
+      register: compose_file_stat
+
+    - name: Fail if docker-compose.yml not found
+      ansible.builtin.fail:
+        msg: "docker-compose.yml not found in {{ grafana_dir }}"
+      when: not compose_file_stat.stat.exists
+
+    - name: Check if ports are available
+      ansible.builtin.wait_for:
+        port: "{{ item }}"
+        state: stopped
+        timeout: 1
+      register: port_check
+      failed_when: false
+      loop:
+        - "{{ grafana_port }}"
+        - "{{ prometheus_port }}"
+        - "{{ pushgateway_port }}"
+
+    - name: Warn if ports are in use
+      ansible.builtin.debug:
+        msg:
+          - "⚠️  WARNING: Port {{ item.item }} is already in use"
+          - "This may indicate Grafana stack is already running"
+          - "Run 'cd {{ grafana_dir }} && {{ compose_cmd }} ps' to check"
+      when: item.failed
+      loop: "{{ port_check.results }}"
+
+    # ========================================================================
+    # STEP 3: Start Grafana Stack
+    # ========================================================================
+
+    - name: Start Prometheus, Pushgateway, and Grafana containers
+      ansible.builtin.command:
+        cmd: "{{ compose_cmd }} up -d"
+        chdir: "{{ grafana_dir }}"
+      register: compose_up
+      changed_when: "'Started' in compose_up.stdout or 'Creating' in compose_up.stdout"
+
+    - name: Display compose output
+      ansible.builtin.debug:
+        msg: "{{ compose_up.stdout_lines }}"
+      when: compose_up.stdout_lines | length > 0
+
+    # ========================================================================
+    # STEP 4: Wait for Services to be Healthy
+    # ========================================================================
+
+    - name: Wait for Prometheus to be healthy
+      ansible.builtin.uri:
+        url: "http://localhost:{{ prometheus_port }}/-/healthy"
+        method: GET
+        status_code: 200
+      register: prometheus_health
+      retries: "{{ health_check_timeout // health_check_interval }}"
+      delay: "{{ health_check_interval }}"
+      until: prometheus_health.status == 200
+      failed_when: false
+
+    - name: Display Prometheus status
+      ansible.builtin.debug:
+        msg: "{{ '✓ Prometheus is READY!' if prometheus_health.status == 200 else '✗ Prometheus health check FAILED' }}"
+      when: prometheus_health.status is defined
+
+    - name: Wait for Pushgateway to be healthy
+      ansible.builtin.uri:
+        url: "http://localhost:{{ pushgateway_port }}/-/healthy"
+        method: GET
+        status_code: 200
+      register: pushgateway_health
+      retries: "{{ health_check_timeout // health_check_interval }}"
+      delay: "{{ health_check_interval }}"
+      until: pushgateway_health.status == 200
+      failed_when: false
+
+    - name: Display Pushgateway status
+      ansible.builtin.debug:
+        msg: "{{ '✓ Pushgateway is READY!' if pushgateway_health.status == 200 else '✗ Pushgateway health check FAILED' }}"
+      when: pushgateway_health.status is defined
+
+    - name: Wait for Grafana to be healthy
+      ansible.builtin.uri:
+        url: "http://localhost:{{ grafana_port }}/api/health"
+        method: GET
+        status_code: 200
+      register: grafana_health
+      retries: "{{ health_check_timeout // health_check_interval }}"
+      delay: "{{ health_check_interval }}"
+      until: grafana_health.status == 200
+      failed_when: false
+
+    - name: Display Grafana status
+      ansible.builtin.debug:
+        msg:
+          - "{{ '✓ Grafana is READY!' if grafana_health.status == 200 else '✗ Grafana health check FAILED' }}"
+          - "Database: {{ grafana_health.json.database | default('unknown') }}"
+          - "Version: {{ grafana_health.json.version | default('unknown') }}"
+      when: grafana_health.status is defined
+
+    # ========================================================================
+    # STEP 5: Display Container Status
+    # ========================================================================
+
+    - name: Get container status
+      ansible.builtin.command:
+        cmd: "{{ compose_cmd }} ps"
+        chdir: "{{ grafana_dir }}"
+      register: compose_ps
+      changed_when: false
+
+    - name: Display container status
+      ansible.builtin.debug:
+        msg: "{{ compose_ps.stdout_lines }}"
+
+    # ========================================================================
+    # STEP 6: Setup SSH Tunnel for Live vLLM Metrics (Optional)
+    # ========================================================================
+
+    - name: Check if DUT_HOSTNAME is set
+      ansible.builtin.set_fact:
+        dut_hostname: "{{ lookup('env', 'DUT_HOSTNAME') }}"
+        ansible_ssh_key: "{{ lookup('env', 'ANSIBLE_SSH_KEY') }}"
+
+    - name: Setup SSH tunnel for live vLLM metrics
+      block:
+        - name: Check if tunnel already exists
+          ansible.builtin.shell: |
+            ps aux | grep "ssh.*8000:localhost:8000" | grep -v grep || true
+          register: existing_tunnel
+          changed_when: false
+
+        - name: Create SSH tunnel to vLLM server
+          ansible.builtin.shell: |
+            ssh -L 8000:localhost:8000 ec2-user@{{ dut_hostname }} -N -f -i {{ ansible_ssh_key }} \
+              -o ServerAliveInterval=60 \
+              -o ServerAliveCountMax=3 \
+              -o ExitOnForwardFailure=yes \
+              -o StrictHostKeyChecking=no
+          when: existing_tunnel.stdout == ""
+          register: tunnel_created
+
+        - name: Wait for tunnel to be established
+          ansible.builtin.pause:
+            seconds: 3
+          when: tunnel_created.changed
+
+        - name: Verify tunnel is active
+          ansible.builtin.shell: |
+            ps aux | grep "ssh.*8000:localhost:8000" | grep -v grep
+          register: tunnel_status
+          changed_when: false
+          failed_when: false
+
+        - name: Test vLLM metrics endpoint
+          ansible.builtin.uri:
+            url: "http://localhost:8000/metrics"
+            method: GET
+            status_code: 200
+          register: vllm_metrics_test
+          failed_when: false
+
+        - name: Display SSH tunnel status
+          ansible.builtin.debug:
+            msg:
+              - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              - "{{ '✓ SSH Tunnel for Live vLLM Metrics: ACTIVE' if tunnel_status.rc == 0 else '✗ SSH Tunnel: FAILED' }}"
+              - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              - "Target: {{ dut_hostname }}"
+              - "Local Port: 8000 → Remote Port: 8000"
+              - "{{ '✓ vLLM /metrics endpoint: ACCESSIBLE' if vllm_metrics_test.status == 200 else '⚠ vLLM /metrics endpoint: NOT ACCESSIBLE (is vLLM running?)' }}"
+              - ""
+              - "Prometheus will scrape: http://localhost:8000/metrics"
+              - "Check targets: http://localhost:{{ prometheus_port }}/targets"
+              - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+      when:
+        - dut_hostname != ""
+        - ansible_ssh_key != ""
+      rescue:
+        - name: Display tunnel setup failure
+          ansible.builtin.debug:
+            msg:
+              - "⚠️  Warning: Failed to setup SSH tunnel for live vLLM metrics"
+              - "This is optional - Grafana will still work for batch metrics"
+              - ""
+              - "To setup manually:"
+              - "  ssh -L 8000:localhost:8000 ec2-user@$DUT_HOSTNAME -N -f -i $ANSIBLE_SSH_KEY"
+              - ""
+              - "See: automation/test-execution/grafana/GRAFANA_LIVE_METRICS.md"
+
+    - name: Display SSH tunnel skip message
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "⚠️  SSH Tunnel for Live vLLM Metrics: SKIPPED"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Environment variables not set:"
+          - "  DUT_HOSTNAME: {{ dut_hostname | default('NOT SET') }}"
+          - "  ANSIBLE_SSH_KEY: {{ ansible_ssh_key | default('NOT SET') }}"
+          - ""
+          - "Live vLLM metrics will NOT be available in Grafana."
+          - "Batch metrics (post-test) will still work via Pushgateway."
+          - ""
+          - "To enable live metrics:"
+          - "  1. Set environment variables:"
+          - "     export DUT_HOSTNAME=your-vllm-server-hostname"
+          - "     export ANSIBLE_SSH_KEY=/path/to/your/ssh/key.pem"
+          - ""
+          - "  2. Re-run this playbook OR setup manually:"
+          - "     ssh -L 8000:localhost:8000 ec2-user@$DUT_HOSTNAME -N -f -i $ANSIBLE_SSH_KEY"
+          - ""
+          - "See: automation/test-execution/grafana/GRAFANA_LIVE_METRICS.md"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      when:
+        - dut_hostname == "" or ansible_ssh_key == ""
+
+    # ========================================================================
+    # STEP 7: Display Access Information
+    # ========================================================================
+
+    - name: Display success message and access information
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "✓ Grafana Monitoring Stack Started Successfully!"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - ""
+          - "Grafana Dashboard:"
+          - "  URL: http://localhost:{{ grafana_port }}"
+          - "  Username: admin"
+          - "  Password: admin (you'll be prompted to change on first login)"
+          - ""
+          - "Prometheus:"
+          - "  URL: http://localhost:{{ prometheus_port }}"
+          - "  Targets: http://localhost:{{ prometheus_port }}/targets"
+          - "  Query: http://localhost:{{ prometheus_port }}/graph"
+          - ""
+          - "Pushgateway:"
+          - "  URL: http://localhost:{{ pushgateway_port }}"
+          - "  Metrics: http://localhost:{{ pushgateway_port }}/metrics"
+          - ""
+          - "Next Steps:"
+          - "  1. Open Grafana: http://localhost:{{ grafana_port }}"
+          - "  2. Navigate to: Dashboards → vLLM CPU Performance"
+          - "  3. Run a benchmark with: -e 'publish_to_prometheus=true'"
+          - ""
+          - "Useful Commands:"
+          - "  View logs:    cd {{ grafana_dir }} && {{ compose_cmd }} logs -f"
+          - "  Stop stack:   cd {{ grafana_dir }} && {{ compose_cmd }} down"
+          - "  Restart:      cd {{ grafana_dir }} && {{ compose_cmd }} restart"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      when:
+        - prometheus_health.status == 200
+        - pushgateway_health.status == 200
+        - grafana_health.status == 200
+
+    - name: Display troubleshooting information
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "⚠️  Warning: One or more services failed health checks"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - ""
+          - "Troubleshooting:"
+          - "  1. Check logs: cd {{ grafana_dir }} && {{ compose_cmd }} logs"
+          - "  2. Check status: cd {{ grafana_dir }} && {{ compose_cmd }} ps"
+          - "  3. Restart services: cd {{ grafana_dir }} && {{ compose_cmd }} restart"
+          - "  4. Full reset: cd {{ grafana_dir }} && {{ compose_cmd }} down -v && {{ compose_cmd }} up -d"
+          - ""
+          - "Common Issues:"
+          - "  - Ports in use: Stop other services using ports {{ grafana_port }}, {{ prometheus_port }}, or {{ pushgateway_port }}"
+          - "  - Permission errors: Ensure {{ runtime_name }} has permissions"
+          - "  - Container failed to start: Check {{ compose_cmd }} logs <service>"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      when:
+        - prometheus_health.status != 200 or pushgateway_health.status != 200 or grafana_health.status != 200
+
+    - name: Fail if services are not healthy
+      ansible.builtin.fail:
+        msg: "Grafana monitoring stack did not start successfully. See troubleshooting information above."
+      when:
+        - prometheus_health.status != 200 or pushgateway_health.status != 200 or grafana_health.status != 200

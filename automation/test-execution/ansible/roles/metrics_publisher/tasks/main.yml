@@ -1,0 +1,99 @@
+---
+# Metrics Publisher Role - Main Tasks
+# Common role for publishing GuideLLM benchmark results
+# Parses JSON results and pushes to Prometheus Pushgateway
+
+- name: Check if Prometheus publishing is enabled
+  ansible.builtin.debug:
+    msg: "Prometheus publishing is {{ 'enabled' if enable_prometheus_publish else 'disabled' }}"
+
+- name: Find GuideLLM JSON results
+  ansible.builtin.find:
+    paths: "{{ results_path }}"
+    patterns:
+      - "benchmarks.json"
+      - "*benchmark.json"
+      - "benchmark_results*.json"
+      - "*_results.json"
+    recurse: true
+  register: json_results_files
+  when: enable_prometheus_publish | bool
+
+- name: Fail if no results found
+  ansible.builtin.fail:
+    msg: "No GuideLLM JSON results found in {{ results_path }}"
+  when:
+    - enable_prometheus_publish | bool
+    - json_results_files.matched == 0
+
+- name: Parse GuideLLM results and push to Prometheus
+  when:
+    - enable_prometheus_publish | bool
+    - json_results_files.matched > 0
+  block:
+    - name: Load GuideLLM benchmark results
+      ansible.builtin.set_fact:
+        benchmark_data: "{{ lookup('file', json_results_files.files[0].path) | from_json }}"
+
+    - name: Extract metrics from GuideLLM results
+      ansible.builtin.set_fact:
+        guidellm_metrics: "{{ benchmark_data }}"
+
+    - name: Generate Prometheus metric labels
+      ansible.builtin.set_fact:
+        metric_labels:
+          platform: "{{ platform_name | default('unknown') | regex_replace('[^a-zA-Z0-9_]', '_') }}"
+          model: "{{ test_model | regex_replace('/', '__') }}"
+          workload: "{{ workload_type }}"
+          cores: "{{ core_configuration.cores | string }}"
+          tensor_parallel: "{{ core_configuration.tensor_parallel | default(1) | string }}"
+          numa_node: "{{ core_configuration.numa_node | default(0) | string }}"
+          backend: "{{ backend_type | default('upstream') }}"
+          test_run_id: "{{ test_run_id }}"
+          vllm_version: "{{ vllm_version | default('unknown') }}"
+
+    - name: Build Prometheus metrics payload
+      ansible.builtin.template:
+        src: prometheus_metrics.j2
+        dest: "{{ results_path }}/prometheus_metrics.txt"
+      register: metrics_file
+
+    - name: Display metrics file location
+      ansible.builtin.debug:
+        msg: "Metrics file created at: {{ metrics_file.dest }}"
+
+    - name: Push metrics to Prometheus Pushgateway
+      ansible.builtin.shell: |
+        curl -X POST \
+          "{{ pushgateway_protocol }}://{{ pushgateway_host }}:{{ pushgateway_port }}/metrics/job/{{ prometheus_job_name }}/instance/{{ ansible_hostname }}" \
+          -H "Content-Type: text/plain" \
+          --data-binary @"{{ metrics_file.dest }}" \
+          -w "\n%{http_code}" \
+          -o /dev/null \
+          -s
+      register: push_result
+      retries: "{{ push_retry_count }}"
+      delay: "{{ push_retry_delay }}"
+      until: push_result.stdout | trim in ['200', '202']
+      changed_when: push_result.stdout | trim in ['200', '202']
+      failed_when: push_result.stdout | trim not in ['200', '202']
+      delegate_to: localhost
+      become: false
+
+    - name: Confirm metrics published
+      ansible.builtin.debug:
+        msg: "Successfully published {{ guidellm_metrics.benchmarks | length if guidellm_metrics.benchmarks is defined else 'N/A' }} benchmark metrics to Pushgateway"
+
+  rescue:
+    - name: Handle publishing failure
+      ansible.builtin.debug:
+        msg: "Failed to publish to Prometheus Pushgateway: {{ ansible_failed_result.msg | default('Unknown error') }}"
+
+    - name: Show troubleshooting tips
+      ansible.builtin.debug:
+        msg: |
+          Troubleshooting:
+          1. Check Pushgateway is running: curl {{ pushgateway_protocol }}://{{ pushgateway_host }}:{{ pushgateway_port }}/-/healthy
+          2. Verify reverse SSH tunnel is active (if using localhost)
+          3. Check network connectivity from LOADGEN to Ansible controller
+          4. Review metrics file: cat {{ results_path }}/prometheus_metrics.txt

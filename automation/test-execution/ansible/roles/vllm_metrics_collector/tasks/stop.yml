@@ -1,0 +1,39 @@
+---
+# Stop vLLM Metrics Collector
+
+- name: Wait for metrics collection to complete
+  ansible.builtin.wait_for:
+    path: "{{ results_path }}/vllm-metrics.json"
+    timeout: 30
+  delegate_to: localhost
+  become: false
+  ignore_errors: true
+  when: enable_vllm_metrics_collection | default(true)
+
+- name: Check if collector is still running
+  ansible.builtin.shell: |
+    ps -p {{ vllm_metrics_collector_pid }} > /dev/null 2>&1 && echo "running" || echo "stopped"
+  register: collector_status
+  delegate_to: localhost
+  become: false
+  failed_when: false
+  when:
+    - enable_vllm_metrics_collection | default(true)
+    - vllm_metrics_collector_pid is defined
+
+- name: Stop metrics collector if still running
+  ansible.builtin.shell: |
+    kill {{ vllm_metrics_collector_pid }} 2>/dev/null || true
+  delegate_to: localhost
+  become: false
+  when:
+    - enable_vllm_metrics_collection | default(true)
+    - vllm_metrics_collector_pid is defined
+    - collector_status.stdout | default('stopped') == 'running'
+
+- name: Display metrics collection results
+  ansible.builtin.debug:
+    msg:
+      - "✓ vLLM metrics collection completed"
+      - "  Metrics file: {{ results_path }}/vllm-metrics.json"
+  when: enable_vllm_metrics_collection | default(true)

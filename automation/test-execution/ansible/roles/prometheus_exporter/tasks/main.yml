@@ -1,0 +1,281 @@
+---
+# Prometheus Exporter - Export vLLM metrics from Prometheus to JSON
+# Queries Prometheus API and converts to format compatible with Streamlit dashboard
+
+- name: Check if Prometheus is accessible
+  ansible.builtin.uri:
+    url: "{{ prometheus_url }}/-/healthy"
+    method: GET
+    status_code: 200
+  register: prometheus_health
+  failed_when: false
+
+- name: Display Prometheus status
+  ansible.builtin.debug:
+    msg:
+      - "{{ '✓ Prometheus is accessible' if prometheus_health.status == 200 else '✗ Prometheus is not accessible' }}"
+      - "  URL: {{ prometheus_url }}"
+
+- name: Fail if Prometheus is not accessible
+  ansible.builtin.fail:
+    msg: |
+      Prometheus is not accessible at {{ prometheus_url }}
+
+      vLLM server metrics export requires Prometheus to be running.
+
+      To enable:
+        1. Start Grafana stack: ansible-playbook start-grafana.yml
+        2. SSH tunnel will be created automatically by the playbook
+        3. Verify Prometheus targets: http://localhost:9090/targets
+
+      Note: The playbook automatically creates an SSH tunnel (localhost:8000 → DUT:8000)
+      for Prometheus to scrape vLLM metrics. The tunnel persists after the test completes.
+
+      To auto-cleanup the tunnel after test: -e "cleanup_tunnel_after_test=true"
+      To skip Prometheus export entirely: -e "skip_prometheus_export=true"
+  when:
+    - prometheus_health.status != 200
+    - not (skip_prometheus_export | default(false) | bool)
+
+- name: Get test start and end times
+  ansible.builtin.set_fact:
+    test_start_timestamp: "{{ test_start_timestamp | default(lookup('pipe', 'date +%s') | int - 600) }}"
+    test_end_timestamp: "{{ lookup('pipe', 'date +%s') | int }}"
+
+- name: Calculate test duration
+  ansible.builtin.set_fact:
+    test_duration: "{{ test_end_timestamp | int - test_start_timestamp | int }}"
+
+- name: Display export parameters
+  ansible.builtin.debug:
+    msg:
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "Exporting vLLM Metrics from Prometheus"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "Time Range:"
+      - "  Start: {{ test_start_timestamp }} ({{ '%Y-%m-%d %H:%M:%S' | strftime(test_start_timestamp | int) }})"
+      - "  End: {{ test_end_timestamp }} ({{ '%Y-%m-%d %H:%M:%S' | strftime(test_end_timestamp | int) }})"
+      - "  Duration: {{ test_duration }}s"
+      - ""
+      - "Output: {{ results_path }}/vllm-metrics.json"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+- name: Ensure results directory exists
+  ansible.builtin.file:
+    path: "{{ results_path }}"
+    state: directory
+    mode: "0755"
+
+- name: Create export script
+  ansible.builtin.copy:
+    dest: "{{ results_path }}/export_prometheus_metrics.py"
+    mode: "0755"
+    content: |
+      #!/usr/bin/env python3
+      """Export vLLM metrics from Prometheus to JSON format for Streamlit"""
+      import json
+      import sys
+      try:
+          from urllib.request import urlopen, Request
+          from urllib.error import URLError
+      except ImportError:
+          from urllib2 import urlopen, Request, URLError
+      from datetime import datetime
+
+      PROMETHEUS_URL = sys.argv[1] if len(sys.argv) > 1 else "http://localhost:9090"
+      START_TIME = int(sys.argv[2]) if len(sys.argv) > 2 else 0
+      END_TIME = int(sys.argv[3]) if len(sys.argv) > 3 else 0
+      STEP = sys.argv[4] if len(sys.argv) > 4 else "10"
+      OUTPUT_FILE = sys.argv[5] if len(sys.argv) > 5 else "vllm-metrics.json"
+      TEST_RUN_ID = sys.argv[6] if len(sys.argv) > 6 else "unknown"
+
+      print("Prometheus Metrics Exporter")
+      print(f"  Prometheus: {PROMETHEUS_URL}")
+      print(f"  Time range: {START_TIME} to {END_TIME}")
+      print(f"  Step: {STEP}s")
+      print(f"  Output: {OUTPUT_FILE}")
+      print(f"  Test Run ID: {TEST_RUN_ID}")
+      print()
+
+      # vLLM metrics to export (using actual Prometheus metric names)
+      metrics_to_export = [
+          # Queue and scheduler state
+          "vllm:num_requests_running",
+          "vllm:num_requests_waiting",
+
+          # Cache utilization (KV cache usage percentage)
+          "vllm:kv_cache_usage_perc",
+
+          # Token throughput
+          "vllm:prompt_tokens_total",
+          "vllm:generation_tokens_total",
+
+          # Request counters (with finish reason labels)
+          "vllm:request_success_total",
+          "vllm:num_preemptions_total",
+
+          # Latency histogram metrics (sum, count, and buckets for percentiles)
+          # Time to First Token (TTFT)
+          "vllm:time_to_first_token_seconds_sum",
+          "vllm:time_to_first_token_seconds_count",
+          "vllm:time_to_first_token_seconds_bucket",
+
+          # Inter-Token Latency (ITL)
+          "vllm:request_time_per_output_token_seconds_sum",
+          "vllm:request_time_per_output_token_seconds_count",
+          "vllm:request_time_per_output_token_seconds_bucket",
+
+          # End-to-End Request Latency (E2E)
+          "vllm:e2e_request_latency_seconds_sum",
+          "vllm:e2e_request_latency_seconds_count",
+          "vllm:e2e_request_latency_seconds_bucket",
+
+          # Request characteristics (sum, count, and buckets)
+          "vllm:request_prompt_tokens_sum",
+          "vllm:request_prompt_tokens_count",
+          "vllm:request_prompt_tokens_bucket",
+          "vllm:request_generation_tokens_sum",
+          "vllm:request_generation_tokens_count",
+          "vllm:request_generation_tokens_bucket",
+
+          # Processing time breakdown (Prefill, Decode, Queue)
+          "vllm:request_prefill_time_seconds_sum",
+          "vllm:request_prefill_time_seconds_count",
+          "vllm:request_prefill_time_seconds_bucket",
+          "vllm:request_decode_time_seconds_sum",
+          "vllm:request_decode_time_seconds_count",
+          "vllm:request_decode_time_seconds_bucket",
+          "vllm:request_queue_time_seconds_sum",
+          "vllm:request_queue_time_seconds_count",
+          "vllm:request_queue_time_seconds_bucket",
+
+          # Additional histogram metrics
+          "vllm:inter_token_latency_seconds_sum",
+          "vllm:inter_token_latency_seconds_count",
+          "vllm:inter_token_latency_seconds_bucket",
+      ]
+
+      def query_prometheus_range(metric_name, start, end, step):
+          """Query Prometheus range API"""
+          query_url = (
+              f"{PROMETHEUS_URL}/api/v1/query_range?"
+              f"query={metric_name}&start={start}&end={end}&step={step}"
+          )
+
+          try:
+              request = Request(query_url)
+              response = urlopen(request, timeout=30)
+              data = json.loads(response.read().decode('utf-8'))
+
+              if data['status'] == 'success':
+                  return data['data']['result']
+              else:
+                  print(f"  Warning: Query failed for {metric_name}")
+                  return []
+          except Exception as e:
+              print(f"  Error querying {metric_name}: {e}")
+              return []
+
+      # Initialize output structure
+      metrics_data = {
+          "collection_info": {
+              "source": "prometheus",
+              "prometheus_url": PROMETHEUS_URL,
+              "interval_seconds": int(STEP),
+              "start_time": datetime.fromtimestamp(START_TIME).isoformat(),
+              "end_time": datetime.fromtimestamp(END_TIME).isoformat(),
+              "test_run_id": TEST_RUN_ID
+          },
+          "samples": []
+      }
+
+      # Build time-indexed samples
+      samples_by_time = {}
+
+      print("Querying Prometheus for vLLM metrics...")
+      for metric_name in metrics_to_export:
+          print(f"  Fetching: {metric_name}")
+          results = query_prometheus_range(metric_name, START_TIME, END_TIME, STEP)
+
+          for result in results:
+              metric_labels = result.get('metric', {})
+              values = result.get('values', [])
+
+              for timestamp, value in values:
+                  timestamp_int = int(timestamp)
+
+                  # Initialize sample for this timestamp if needed
+                  if timestamp_int not in samples_by_time:
+                      elapsed = timestamp_int - START_TIME
+                      samples_by_time[timestamp_int] = {
+                          "timestamp": datetime.fromtimestamp(timestamp_int).isoformat(),
+                          "elapsed_seconds": float(elapsed),
+                          "metrics": {}
+                      }
+
+                  # Add metric to sample
+                  if metric_name not in samples_by_time[timestamp_int]["metrics"]:
+                      samples_by_time[timestamp_int]["metrics"][metric_name] = []
+
+                  samples_by_time[timestamp_int]["metrics"][metric_name].append({
+                      "labels": metric_labels,
+                      "value": float(value)
+                  })
+
+      # Convert to sorted list
+      metrics_data["samples"] = [
+          samples_by_time[ts] for ts in sorted(samples_by_time.keys())
+      ]
+
+      metrics_data["collection_info"]["total_samples"] = len(metrics_data["samples"])
+      metrics_data["collection_info"]["duration_seconds"] = END_TIME - START_TIME
+
+      # Save to file
+      with open(OUTPUT_FILE, 'w') as f:
+          json.dump(metrics_data, f, indent=2)
+
+      print(f"\n✓ Exported {len(metrics_data['samples'])} samples to {OUTPUT_FILE}")
+      print(f"  Metrics: {len(metrics_to_export)}")
+      print(f"  Time range: {metrics_data['collection_info']['start_time']} to {metrics_data['collection_info']['end_time']}")
+
+- name: Run Prometheus export
+  ansible.builtin.command:
+    cmd: >
+      python3 {{ results_path }}/export_prometheus_metrics.py
+      {{ prometheus_url }}
+      {{ test_start_timestamp }}
+      {{ test_end_timestamp }}
+      {{ export_interval_seconds }}
+      {{ results_path }}/vllm-metrics.json
+      {{ test_run_id | default('unknown') }}
+  register: export_result
+  changed_when: true
+
+- name: Display export output
+  ansible.builtin.debug:
+    msg: "{{ export_result.stdout_lines }}"
+
+- name: Verify export succeeded
+  ansible.builtin.stat:
+    path: "{{ results_path }}/vllm-metrics.json"
+  register: exported_file
+
+- name: Display export success
+  ansible.builtin.debug:
+    msg:
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "✓ vLLM Metrics Export Complete"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "Output file: {{ results_path }}/vllm-metrics.json"
+      - "File size: {{ (exported_file.stat.size / 1024) | round(2) }} KB"
+      - ""
+      - "This data can now be analyzed with:"
+      - "  cd automation/test-execution/dashboard-examples"
+      - "  streamlit run streamlit_vllm_server_metrics.py --server.port 8502"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  when: exported_file.stat.exists
+
+- name: Clean up export script
+  ansible.builtin.file:
+    path: "{{ results_path }}/export_prometheus_metrics.py"
+    state: absent
