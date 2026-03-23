@@ -29,6 +29,10 @@
           -e "workload_type=<summarization|chat|code|rag>"
           -e "requested_cores_list=[8,16,32,64]"
 
+    - name: Convert requested_cores_list to list if string
+      ansible.builtin.set_fact:
+        requested_cores_list: "{{ requested_cores_list | from_yaml if requested_cores_list is string else requested_cores_list }}"
+
     - name: Store test run ID in hostvars
       ansible.builtin.set_fact:
         test_run_id: "{{ test_run_id }}"
