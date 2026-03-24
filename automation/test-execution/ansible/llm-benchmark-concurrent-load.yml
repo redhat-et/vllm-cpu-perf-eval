@@ -44,14 +44,20 @@
   gather_facts: false
 
   vars:
-    # Validate required parameters
-    test_model: "{{ test_model | mandatory }}"
-    base_workload: "{{ base_workload | mandatory }}"
-
     # Determine variable workload suffix
     variable_workload: "{{ base_workload }}_var"
 
   tasks:
+    - name: Validate required parameters are provided
+      ansible.builtin.assert:
+        that:
+          - test_model is defined
+          - base_workload is defined
+        fail_msg: |
+          Missing required parameters. Please provide:
+          -e "test_model=<model>"
+          -e "base_workload=<chat|rag|code|summarization|short_codegen>"
+
     - name: Validate base_workload parameter
       ansible.builtin.assert:
         that:
@@ -79,14 +85,25 @@
 # ==========================================================================
 # Phase 1: Baseline (Fixed Tokens, No Caching)
 # ==========================================================================
-- name: "Phase 1: Baseline Testing (Fixed Tokens, No Caching)"
+- name: "Phase 1: Baseline Testing (Fixed Tokens, No Caching) - Core Sweep"
+  ansible.builtin.import_playbook: llm-core-sweep-auto.yml
+  vars:
+    workload_type: "{{ base_workload }}"
+    vllm_caching_mode: "baseline"
+    requested_cores_list: "{{ core_sweep_counts }}"
+  when:
+    - not (skip_phase_1 | default(false) | bool)
+    - core_sweep_counts is defined
+
+- name: "Phase 1: Baseline Testing (Fixed Tokens, No Caching) - Single Core"
   ansible.builtin.import_playbook: llm-benchmark-auto.yml
   vars:
     workload_type: "{{ base_workload }}"
     vllm_caching_mode: "baseline"
-    core_sweep_counts: "{{ core_sweep_counts if (core_sweep_counts is defined) else omit }}"
-    requested_cores: "{{ requested_cores if (requested_cores is defined) else omit }}"
-  when: not (skip_phase_1 | default(false) | bool)
+  when:
+    - not (skip_phase_1 | default(false) | bool)
+    - requested_cores is defined
+    - core_sweep_counts is not defined
 
 - name: Phase 1 Complete
   hosts: localhost
@@ -103,16 +120,27 @@
 # ==========================================================================
 # Phase 2: Realistic (Variable Tokens, No Caching)
 # ==========================================================================
-- name: "Phase 2: Realistic Testing (Variable Tokens, No Caching)"
+- name: "Phase 2: Realistic Testing (Variable Tokens, No Caching) - Core Sweep"
+  ansible.builtin.import_playbook: llm-core-sweep-auto.yml
+  vars:
+    workload_type: "{{ base_workload }}_var"
+    vllm_caching_mode: "baseline"
+    requested_cores_list: "{{ core_sweep_counts }}"
+  when:
+    - not (skip_phase_2 | default(false) | bool)
+    - (base_workload + '_var') in ['chat_var', 'code_var']
+    - core_sweep_counts is defined
+
+- name: "Phase 2: Realistic Testing (Variable Tokens, No Caching) - Single Core"
   ansible.builtin.import_playbook: llm-benchmark-auto.yml
   vars:
     workload_type: "{{ base_workload }}_var"
     vllm_caching_mode: "baseline"
-    core_sweep_counts: "{{ core_sweep_counts if (core_sweep_counts is defined) else omit }}"
-    requested_cores: "{{ requested_cores if (requested_cores is defined) else omit }}"
   when:
     - not (skip_phase_2 | default(false) | bool)
     - (base_workload + '_var') in ['chat_var', 'code_var']
+    - requested_cores is defined
+    - core_sweep_counts is not defined
 
 - name: Phase 2 Complete
   hosts: localhost
@@ -142,16 +170,27 @@
 # ==========================================================================
 # Phase 3: Production (Variable Tokens, With Caching)
 # ==========================================================================
-- name: "Phase 3: Production Testing (Variable Tokens, With Caching)"
+- name: "Phase 3: Production Testing (Variable Tokens, With Caching) - Core Sweep"
+  ansible.builtin.import_playbook: llm-core-sweep-auto.yml
+  vars:
+    workload_type: "{{ base_workload }}_var"
+    vllm_caching_mode: "production"
+    requested_cores_list: "{{ core_sweep_counts }}"
+  when:
+    - not (skip_phase_3 | default(false) | bool)
+    - (base_workload + '_var') in ['chat_var', 'code_var']
+    - core_sweep_counts is defined
+
+- name: "Phase 3: Production Testing (Variable Tokens, With Caching) - Single Core"
   ansible.builtin.import_playbook: llm-benchmark-auto.yml
   vars:
     workload_type: "{{ base_workload }}_var"
     vllm_caching_mode: "production"
-    core_sweep_counts: "{{ core_sweep_counts if (core_sweep_counts is defined) else omit }}"
-    requested_cores: "{{ requested_cores if (requested_cores is defined) else omit }}"
   when:
     - not (skip_phase_3 | default(false) | bool)
     - (base_workload + '_var') in ['chat_var', 'code_var']
+    - requested_cores is defined
+    - core_sweep_counts is not defined
 
 - name: Phase 3 Complete
   hosts: localhost

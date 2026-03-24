@@ -29,6 +29,10 @@
           -e "workload_type=<summarization|chat|code|rag>"
           -e "requested_cores_list=[8,16,32,64]"
 
+    - name: Convert requested_cores_list to list if string
+      ansible.builtin.set_fact:
+        requested_cores_list: "{{ requested_cores_list | from_yaml if requested_cores_list is string else requested_cores_list }}"
+
     - name: Store test run ID in hostvars
       ansible.builtin.set_fact:
         test_run_id: "{{ test_run_id }}"
@@ -152,59 +156,87 @@
 # ==============================================================================
 # MAIN LOOP: Iterate over core counts
 # ==============================================================================
+# Ansible doesn't support looping over playbook imports, so we delegate to the
+# existing run-core-sweep.sh script which calls llm-benchmark-auto.yml multiple times
 
-- name: "Auto Core Sweep - Run Tests for Each Core Count"
+- name: "Auto Core Sweep - Run Benchmarks for Each Core Count"
   hosts: localhost
   gather_facts: false
 
   tasks:
     - block:
-        - name: Run test sequence for each core count
-          ansible.builtin.include_tasks:
-            file: tasks/core-sweep-auto-iteration.yml
-          loop: "{{ requested_cores_list }}"
-          loop_control:
-            loop_var: current_cores
-            label: "{{ current_cores }} cores"
+        - name: Convert core count list to comma-separated string
+          ansible.builtin.set_fact:
+            cores_csv: "{{ requested_cores_list | join(',') }}"
+
+        - name: Build extra vars for core sweep script
+          ansible.builtin.set_fact:
+            sweep_extra_vars: ""
+
+        - name: Add vllm_caching_mode to extra vars
+          ansible.builtin.set_fact:
+            sweep_extra_vars: "{{ sweep_extra_vars }} --extra-vars \"-e vllm_caching_mode={{ vllm_caching_mode | default('baseline') }}\""
+
+        - name: Add guidellm_profile if defined
+          ansible.builtin.set_fact:
+            sweep_extra_vars: "{{ sweep_extra_vars }} --extra-vars \"-e guidellm_profile={{ guidellm_profile }}\""
+          when: guidellm_profile is defined
+
+        - name: Add guidellm_max_seconds if defined
+          ansible.builtin.set_fact:
+            sweep_extra_vars: "{{ sweep_extra_vars }} --extra-vars \"-e guidellm_max_seconds={{ guidellm_max_seconds }}\""
+          when: guidellm_max_seconds is defined
+
+        - name: Add guidellm_max_requests if defined
+          ansible.builtin.set_fact:
+            sweep_extra_vars: "{{ sweep_extra_vars }} --extra-vars \"-e guidellm_max_requests={{ guidellm_max_requests }}\""
+          when: guidellm_max_requests is defined
+
+        - name: Add guidellm_rate if defined
+          ansible.builtin.set_fact:
+            sweep_extra_vars: "{{ sweep_extra_vars }} --extra-vars \"-e guidellm_rate={{ guidellm_rate }}\""
+          when: guidellm_rate is defined
+
+        - name: Display core sweep configuration
+          ansible.builtin.debug:
+            msg:
+              - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              - "Executing Core Sweep via run-core-sweep.sh"
+              - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              - "Model: {{ test_model }}"
+              - "Workload: {{ workload_type }}"
+              - "Cores: {{ cores_csv }}"
+              - "Extra vars: {{ sweep_extra_vars if sweep_extra_vars | length > 0 else 'none' }}"
+              - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+        - name: Execute core sweep via run-core-sweep.sh
+          ansible.builtin.shell:
+            cmd: >-
+              ./scripts/run-core-sweep.sh
+              --model '{{ test_model }}'
+              --workload '{{ workload_type }}'
+              --cores '{{ cores_csv }}'
+              {{ sweep_extra_vars }}
+            chdir: "{{ playbook_dir }}"
+          environment:
+            ANSIBLE_INVENTORY: "{{ inventory_file }}"
+          register: sweep_result
+          changed_when: false
+
+        - name: Display sweep execution summary
+          ansible.builtin.debug:
+            msg:
+              - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              - "Core Sweep Execution Complete"
+              - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              - "{{ sweep_result.stdout_lines[-5:] | default(['No output']) }}"
 
       when: hostvars['localhost']['vllm_mode'] | default('managed') == 'managed'
 # ==============================================================================
 # FINAL: Collect All Results
 # ==============================================================================
-
-- name: "Auto Core Sweep - Collect and Summarize Results"
-  hosts: load_generator
-  gather_facts: false
-  vars:
-    test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
-
-  tasks:
-    - block:
-        - name: Ensure local results directory exists
-          ansible.builtin.file:
-            path: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}"
-            state: directory
-            mode: "0755"
-          delegate_to: localhost
-
-        - name: Fetch all core sweep results
-          ansible.posix.synchronize:
-            src: "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}/"
-            dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/"
-            mode: pull
-            recursive: true
-
-        - name: Display results location
-          ansible.builtin.debug:
-            msg:
-              - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-              - "✓ Auto-configured core sweep completed!"
-              - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-              - "Results: results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/"
-              - "Analyze results to find optimal core configuration"
-              - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-      when: hostvars['localhost']['vllm_mode'] | default('managed') == 'managed'
+# Note: run-core-sweep.sh already calls collect-sweep-results.yml, so results
+# are already collected by the time we get here. This section is skipped.
 
 # ==============================================================================
 # SUMMARY
@@ -215,11 +247,14 @@
   gather_facts: false
 
   tasks:
-    - name: Display test summary
+    - name: Display playbook completion
       ansible.builtin.debug:
         msg:
-          - "Auto-Configured Core Sweep Summary:"
-          - "  Model: {{ test_model }}"
-          - "  Workload: {{ workload_type }}"
-          - "  Core counts tested: {{ requested_cores_list }}"
-          - "  Total tests: {{ requested_cores_list | length }}"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "llm-core-sweep-auto.yml playbook completed"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Model: {{ test_model }}"
+          - "Workload: {{ workload_type }}"
+          - "Core counts: {{ requested_cores_list | join(', ') }}"
+          - "Results collected by run-core-sweep.sh"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
