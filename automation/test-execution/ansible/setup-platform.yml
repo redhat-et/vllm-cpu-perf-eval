@@ -179,7 +179,6 @@
 - name: "Platform Setup - Optional NUMA Balancing"
   hosts: dut,load_generator
   become: true
-  when: platform_setup.numa_balancing_off | default(false)
 
   tasks:
     - name: Disable NUMA balancing (persistent)
@@ -188,6 +187,7 @@
           kernel.numa_balancing=0
         dest: /etc/sysctl.d/99-numa-benchmark.conf
         mode: "0644"
+      when: platform_setup.numa_balancing_off | default(false)
 
     - name: Apply NUMA balancing setting (runtime)
       ansible.posix.sysctl:
@@ -196,11 +196,11 @@
         state: present
         sysctl_file: /etc/sysctl.d/99-numa-benchmark.conf
         reload: true
+      when: platform_setup.numa_balancing_off | default(false)
 
 - name: "Platform Setup - Optional THP Defrag"
   hosts: dut,load_generator
   become: true
-  when: platform_setup.thp_defrag_never | default(false)
 
   tasks:
     - name: Set THP defrag to never (runtime)
@@ -209,6 +209,7 @@
       args:
         executable: /bin/bash
       changed_when: false
+      when: platform_setup.thp_defrag_never | default(false)
 
     - name: Create THP defrag systemd service
       ansible.builtin.copy:
@@ -226,12 +227,14 @@
           WantedBy=multi-user.target
         dest: /etc/systemd/system/thp-defrag-never.service
         mode: "0644"
+      when: platform_setup.thp_defrag_never | default(false)
 
     - name: Enable THP defrag service
       ansible.builtin.systemd:
         name: thp-defrag-never
         enabled: true
         daemon_reload: true
+      when: platform_setup.thp_defrag_never | default(false)
 
 - name: "Platform Setup - Set CPU Frequency Governor"
   hosts: dut,load_generator
