@@ -1,3 +1,8 @@
+---
+layout: default
+title: Embedding Models
+---
+
 # Embedding Models Performance Testing
 
 > **🚧 Status: Work in Progress**

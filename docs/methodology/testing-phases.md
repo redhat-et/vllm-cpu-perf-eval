@@ -1,3 +1,8 @@
+---
+layout: default
+title: Testing Phases
+---
+
 # 3-Phase Testing Methodology
 
 ## Overview

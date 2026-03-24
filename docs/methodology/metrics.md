@@ -1,3 +1,8 @@
+---
+layout: default
+title: Metrics
+---
+
 # Collected Metrics
 
 ## Guidellm Metrics

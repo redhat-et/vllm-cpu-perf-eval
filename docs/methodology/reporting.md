@@ -1,3 +1,8 @@
+---
+layout: default
+title: Reporting
+---
+
 # Test Report
 
 Test results should be recorded and shared with Red Hat in the form of a test
