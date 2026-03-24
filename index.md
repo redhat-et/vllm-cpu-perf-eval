@@ -33,6 +33,12 @@ This site provides complete testing methodology, automation tools, and platform 
     <p>View supported models and selection rationale</p>
     <a href="models/models">Model Catalog →</a>
   </div>
+
+  <div class="link-card">
+    <h3>📊 Visualization</h3>
+    <p>Monitor tests live with Grafana or analyze results with Streamlit</p>
+    <a href="automation/test-execution/grafana/README">Grafana & Streamlit →</a>
+  </div>
 </div>
 
 ## Key Features
@@ -82,6 +88,10 @@ This site provides complete testing methodology, automation tools, and platform 
 - **[Getting Started](docs/getting-started)** - Quick start guide with Ansible
 - **[Platform Setup](docs/platform-setup/x86/intel/deterministic-benchmarking)** - Intel platform configuration
 - **[Models](models/models)** - Model definitions and selection
+
+### Visualization & Monitoring
+- **[Grafana Monitoring](automation/test-execution/grafana/README)** - Real-time metrics with Prometheus and Grafana
+- **[Streamlit Dashboard](automation/test-execution/dashboard-examples/README)** - Post-test analysis and comparison
 
 ## Model Coverage
 
