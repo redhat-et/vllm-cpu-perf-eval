@@ -3,7 +3,7 @@ layout: default
 title: Tests
 ---
 
-# Tests Directory
+## Tests Directory
 
 This directory contains all test suites organized by test type.
 
