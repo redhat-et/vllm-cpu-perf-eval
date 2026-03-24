@@ -169,7 +169,37 @@ vllm-server | SUCCESS => {"ping": "pong"}
 guidellm-client | SUCCESS => {"ping": "pong"}
 ```
 
-### 4. Run Your First Test
+### 4. Platform Setup (Optional but Recommended)
+
+Configure your **DUT and Load Generator** hosts with performance optimizations for deterministic benchmarking:
+
+```bash
+# Configure both DUT and Load Generator
+ansible-playbook -i inventory/hosts.yml setup-platform.yml
+
+# Or configure only specific hosts
+ansible-playbook -i inventory/hosts.yml setup-platform.yml --limit dut
+ansible-playbook -i inventory/hosts.yml setup-platform.yml --limit load_generator
+
+# Reboot hosts for kernel parameters to take effect
+ansible -i inventory/hosts.yml all -b -m reboot
+```
+
+**What this configures (on DUT and Load Generator only):**
+- ✅ **Installs**: Podman, tuned, kernel-tools, numactl
+- ✅ **CPU Isolation**: Sets isolcpus, nohz_full, rcu_nocbs
+- ✅ **Performance Governor**: Locks CPU frequency
+- ✅ **NUMA Topology**: Detects and optimizes for NUMA layout
+- ✅ **IRQ Balancing**: Disables irqbalance
+- ✅ **Systemd Pinning**: Pins system processes to housekeeping CPUs
+
+**What it does NOT configure:**
+- ❌ Your control machine (Ansible host) - no changes needed there
+- ❌ vLLM or GuideLLM - those are installed during test execution
+
+> **Note:** You can skip this step if you're just trying out the framework. It's mainly for production-grade deterministic benchmarking. See [Platform Setup Guide](platform-setup/x86/intel/deterministic-benchmarking) for details.
+
+### 5. Run Your First Test
 
 **Simple LLM test:**
 
@@ -188,7 +218,7 @@ ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
 
 **Test takes:** ~15-20 minutes (includes vLLM startup and 10-minute test)
 
-### 5. View Results
+### 6. View Results
 
 Results are automatically collected to your local machine:
 
@@ -251,34 +281,6 @@ ansible-playbook -i inventory/hosts.yml embedding-benchmark.yml \
 | `reasoning` | 256:2048 | Long reasoning | Complex analysis |
 
 See [Model Catalog](../models/models) for all supported models.
-
-## Platform Setup (Optional but Recommended)
-
-For deterministic benchmarking, configure your **DUT and Load Generator** hosts with performance optimizations:
-
-```bash
-ansible-playbook -i inventory/hosts.yml setup-platform.yml
-
-# Reboot hosts for kernel parameters to take effect
-ansible -i inventory/hosts.yml all -b -m reboot
-```
-
-**What this configures (on DUT and Load Generator only):**
-- ✅ **Installs**: Podman, tuned, kernel-tools, numactl
-- ✅ **CPU Isolation**: Sets isolcpus, nohz_full, rcu_nocbs
-- ✅ **Performance Governor**: Locks CPU frequency
-- ✅ **NUMA Topology**: Detects and optimizes for NUMA layout
-- ✅ **IRQ Balancing**: Disables irqbalance
-- ✅ **Systemd Pinning**: Pins system processes to housekeeping CPUs
-
-**What it does NOT configure:**
-- ❌ Your control machine (Ansible host) - no changes needed there
-- ❌ vLLM or GuideLLM - those are installed during test execution
-
-> **Note:** Skip this if you're just trying out the framework. It's mainly for production-grade deterministic benchmarking.
-- Other performance-critical settings
-
-See [Platform Setup Guide](platform-setup/x86/intel/deterministic-benchmarking) for details.
 
 ## Key Parameters
 
