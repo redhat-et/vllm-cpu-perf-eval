@@ -3,7 +3,7 @@ layout: default
 title: Models
 ---
 
-# Models Directory
+## Models Directory
 
 This directory contains centralized model definitions and selection documentation used across all test suites.
 
