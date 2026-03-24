@@ -4,8 +4,8 @@ remote_theme: pages-themes/cayman@v0.2.0
 title: vLLM CPU Performance Evaluation
 description: Comprehensive performance evaluation framework for vLLM on CPU platforms
 repository: redhat-et/vllm-cpu-perf-eval
-baseurl: ""
-url: ""
+baseurl: "/vllm-cpu-perf-eval"
+url: "https://redhat-et.github.io"
 
 # Build settings
 destination: ./_site
@@ -60,8 +60,6 @@ exclude:
   - .yamllint.yaml
   - .markdownlint-cli2.yaml
   - .github-pages
-  - Gemfile
-  - Gemfile.lock
   - vendor
   - automation  # Exclude entire automation directory (contains Jinja2 templates)
   - results
