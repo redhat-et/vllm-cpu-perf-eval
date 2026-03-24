@@ -6,7 +6,7 @@ Developer utilities and helper scripts.
 
 ### preview-site.sh
 
-Preview the GitHub Pages site locally using Docker.
+Preview the GitHub Pages site locally using Docker or Podman.
 
 **Quick Start:**
 ```bash

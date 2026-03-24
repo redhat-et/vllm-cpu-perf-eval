@@ -8,19 +8,7 @@ systems.
 
 ## Quick Start
 
-See the [Ansible Quick Start Guide](automation/test-execution/ansible/ansible.md#quick-start)
-for step-by-step instructions to:
-
-1. Install Ansible and container runtime (Podman/Docker)
-2. Configure your test inventory (DUT and load generator hosts)
-3. Run your first LLM benchmark
-4. View and analyze results
-
-The guide includes complete examples for:
-- **Prerequisites and installation** (Ansible, Podman/Docker)
-- **Manual test execution** with Ansible playbooks
-- **Platform setup** for optimal performance
-- **Custom configurations** and advanced usage
+See the [Quick Start Guide](docs/getting-started.md)
 
 ## Repository Structure
 
@@ -142,68 +130,6 @@ See individual directory markdown files for detailed information.
 - 🚀 **Large model support** - Added gpt-oss-20b (21B MoE) for scalability testing
 
 See [3-Phase Testing Strategy](docs/methodology/testing-phases.md) for details.
-
-## Testing Workflow
-
-### 1. Platform Setup
-
-Configure your system for deterministic performance testing:
-
-```bash
-# With Ansible (recommended)
-cd automation/test-execution/ansible
-ansible-playbook setup-platform.yml
-
-# With bash script
-cd automation/platform-setup/bash/intel
-sudo ./setup-guidellm-platform.sh --apply
-```
-
-See [Intel Platform Setup Guide](docs/platform-setup/x86/intel/deterministic-benchmarking.md)
-for detailed platform configuration.
-
-### 2. Run Tests
-
-Execute performance tests using Ansible playbooks:
-
-```bash
-cd automation/test-execution/ansible
-
-# Run single LLM benchmark
-ansible-playbook llm-benchmark-auto.yml \
-  -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
-  -e "workload_type=chat" \
-  -e "requested_cores=16"
-
-# Run embedding benchmark
-ansible-playbook embedding-benchmark.yml \
-  -e "test_model=ibm-granite/granite-embedding-278m-multilingual" \
-  -e "scenario=baseline"
-```
-
-See [Ansible Documentation](automation/test-execution/ansible/ansible.md) for complete
-usage instructions and advanced options.
-
-### 3. View Results
-
-Results are collected locally:
-
-```bash
-# View JSON results
-cat results/llm/meta-llama__Llama-3.2-1B-Instruct/chat-*/benchmarks.json
-
-# View CSV results (for spreadsheets)
-cat results/llm/meta-llama__Llama-3.2-1B-Instruct/chat-*/benchmarks.csv
-
-# Results structure documented in
-cat results/results.md
-```
-
-> **Note:** HTML reports are not currently generated. See
-> [GuideLLM #627](https://github.com/vllm-project/guidellm/issues/627).
-
-See [Methodology Documentation](docs/methodology/overview.md) for understanding
-metrics and performance analysis.
 
 ## Documentation
 

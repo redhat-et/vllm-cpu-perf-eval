@@ -62,16 +62,28 @@ python3 --version
 
 Option 2: Automated via platform setup (recommended for production):
 ```bash
-# Installs all dependencies + performance optimizations
-# Includes: podman, tuned, kernel-tools, numactl, CPU isolation, etc.
+# Configure BOTH DUT and Load Generator
 ansible-playbook -i inventory/hosts.yml setup-platform.yml
+
+# Configure ONLY DUT
+ansible-playbook -i inventory/hosts.yml setup-platform.yml --limit dut
+
+# Configure ONLY Load Generator
+ansible-playbook -i inventory/hosts.yml setup-platform.yml --limit load_generator
 
 # Reboot required for kernel parameters to take effect
 ansible -i inventory/hosts.yml all -b -m reboot
 ```
 
-The playbooks automatically install vLLM container images and GuideLLM at runtime.
-You only need to pre-install: **Podman/Docker** and **Python 3**.
+**What this configures:**
+- Installs: podman, tuned, kernel-tools, numactl
+- Performance optimizations: CPU isolation, NUMA topology, IRQ balancing
+- **Targets**: DUT and Load Generator hosts only (NOT your Ansible control machine)
+
+**Important Notes:**
+- **Option 2 (setup-platform.yml)**: Automatically installs Podman, Python 3, and all performance tools on **DUT and Load Generator hosts**. Your Ansible control machine only needs Ansible itself.
+- **Option 1 (Manual)**: If you prefer minimal setup, manually install Podman/Docker and Python 3 on **DUT and Load Generator hosts** before running test playbooks.
+- **vLLM and GuideLLM**: Installed automatically during test execution (not part of platform setup).
 
 ### 2. Configure Inventory
 

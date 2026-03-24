@@ -16,8 +16,10 @@ The vLLM CPU Performance Evaluation framework uses **Ansible** to automate:
 
 ### Control Machine (Where You Run Ansible)
 
+The control machine is your local laptop/workstation where you run Ansible commands.
+
+**Install Ansible:**
 ```bash
-# Install Ansible (if not already installed)
 # On macOS
 brew install ansible
 
@@ -29,28 +31,84 @@ sudo dnf install -y ansible
 
 # Verify installation
 ansible --version  # Should be 2.14+
+
+# Navigate to the ansible directory
+cd automation/test-execution/ansible
+
+# Install required Ansible collections
+ansible-galaxy collection install -r requirements.yml
+
+# Or install individually
+ansible-galaxy collection install containers.podman ansible.posix
 ```
 
 ### Test Hosts (DUT and Load Generator)
 
 **Requirements:**
 - **OS**: Ubuntu 22.04+, RHEL 9+, or Fedora 38+
-- **SSH Access**: Password-less SSH from control machine
+- **SSH Access**: Password-less SSH from control machine (see setup below)
 - **Sudo privileges**: Required for installation and setup
 - **Python**: 3.8+ (usually pre-installed)
 - **Network**: DUT port 8000 accessible from Load Generator
 
-**Verify access:**
-```bash
-# Test SSH connectivity
-ssh -i ~/.ssh/your-key.pem user@dut-hostname
-ssh -i ~/.ssh/your-key.pem user@loadgen-hostname
+> **Note:** Playbooks automatically install required software (Podman, tuned, numactl, vLLM, GuideLLM) on remote hosts. No manual installation needed.
 
-# Test sudo access
-ssh user@dut-hostname 'sudo whoami'  # Should return 'root'
+### SSH Setup
+
+**Set up password-less SSH access from your control machine to both DUT and Load Generator:**
+
+```bash
+# Generate SSH key (if you don't have one)
+ssh-keygen -t ed25519 -C "your-email@example.com"
+
+# Copy SSH key to DUT
+ssh-copy-id -i ~/.ssh/id_ed25519.pub ec2-user@your-dut-hostname
+
+# Copy SSH key to Load Generator
+ssh-copy-id -i ~/.ssh/id_ed25519.pub ec2-user@your-loadgen-hostname
+
+# Test connectivity (should not prompt for password)
+ssh -i ~/.ssh/id_ed25519 ec2-user@your-dut-hostname 'echo "DUT: Connected"'
+ssh -i ~/.ssh/id_ed25519 ec2-user@your-loadgen-hostname 'echo "LoadGen: Connected"'
+
+# Test sudo access (required for playbooks)
+ssh ec2-user@your-dut-hostname 'sudo whoami'  # Should return 'root'
+ssh ec2-user@your-loadgen-hostname 'sudo whoami'  # Should return 'root'
 ```
 
-> **Note:** Playbooks automatically install required software (Podman/Docker, vLLM, GuideLLM). No manual installation needed on remote hosts.
+**For AWS EC2:**
+```bash
+# Use your downloaded .pem key
+chmod 400 ~/your-key.pem  # Set correct permissions
+ssh -i ~/your-key.pem ec2-user@your-dut-hostname
+
+# Or convert to standard SSH key format
+ssh-keygen -p -m PEM -f ~/your-key.pem
+```
+
+### HuggingFace Token (For Gated Models)
+
+Some models like Llama require a HuggingFace token and license acceptance.
+
+**Create a HuggingFace token:**
+
+1. **Sign up/Login**: Visit [huggingface.co](https://huggingface.co)
+2. **Create token**: Go to Settings → Access Tokens → New Token
+3. **Set permissions**: Select "Read" access
+4. **Copy token**: Save it as `hf_xxxxxxxxxxxxx`
+5. **Accept model licenses**: Visit model page (e.g., [meta-llama/Llama-3.2-1B-Instruct](https://huggingface.co/meta-llama/Llama-3.2-1B-Instruct)) and accept license
+
+**Save token locally:**
+```bash
+# Save to file
+echo "hf_xxxxxxxxxxxxx" > ~/hf-token
+
+# Or export directly
+export HF_TOKEN=hf_xxxxxxxxxxxxx
+
+# Or load from file
+export HF_TOKEN=$(cat ~/hf-token)
+```
 
 ## Quick Start
 
@@ -66,16 +124,26 @@ cd vllm-cpu-perf-eval/automation/test-execution/ansible
 **Option A: Environment Variables (Recommended)**
 
 ```bash
-export DUT_HOSTNAME=your-dut-hostname.example.com
-export LOADGEN_HOSTNAME=your-loadgen-hostname.example.com
+# Set hostnames (AWS example)
+export DUT_HOSTNAME=ec2-18-117-90-80.us-east-2.compute.amazonaws.com
+export LOADGEN_HOSTNAME=ec2-52-15-123-132.us-east-2.compute.amazonaws.com
+
+# SSH credentials
 export ANSIBLE_SSH_USER=ec2-user
-export ANSIBLE_SSH_KEY=~/.ssh/your-key.pem
-export HF_TOKEN=hf_xxxxx  # Optional: for gated models like Llama
+export ANSIBLE_PRIVATE_KEY_FILE=~/your-key.pem  # Or ~/.ssh/id_ed25519
+
+# Ensure SSH key has correct permissions
+chmod 600 ~/your-key.pem
+
+# HuggingFace token (for gated models like Llama)
+export HF_TOKEN=$(cat ~/hf-token)
 ```
+
+The inventory file automatically uses these environment variables with sensible defaults.
 
 **Option B: Edit Inventory File**
 
-Edit `inventory/hosts.yml` and update the hostname values (lines 63 and 73):
+Alternatively, edit `inventory/hosts.yml` directly and update the hostname values (lines 63 and 73):
 
 ```yaml
 dut:
@@ -184,19 +252,30 @@ ansible-playbook -i inventory/hosts.yml embedding-benchmark.yml \
 
 See [Model Catalog](../models/models) for all supported models.
 
-## Platform Setup
+## Platform Setup (Optional but Recommended)
 
-For deterministic benchmarking, configure your system:
+For deterministic benchmarking, configure your **DUT and Load Generator** hosts with performance optimizations:
 
 ```bash
 ansible-playbook -i inventory/hosts.yml setup-platform.yml
+
+# Reboot hosts for kernel parameters to take effect
+ansible -i inventory/hosts.yml all -b -m reboot
 ```
 
-This configures:
-- CPU frequency governor
-- Turbo boost settings
-- NUMA balancing
-- Hugepages
+**What this configures (on DUT and Load Generator only):**
+- ✅ **Installs**: Podman, tuned, kernel-tools, numactl
+- ✅ **CPU Isolation**: Sets isolcpus, nohz_full, rcu_nocbs
+- ✅ **Performance Governor**: Locks CPU frequency
+- ✅ **NUMA Topology**: Detects and optimizes for NUMA layout
+- ✅ **IRQ Balancing**: Disables irqbalance
+- ✅ **Systemd Pinning**: Pins system processes to housekeeping CPUs
+
+**What it does NOT configure:**
+- ❌ Your control machine (Ansible host) - no changes needed there
+- ❌ vLLM or GuideLLM - those are installed during test execution
+
+> **Note:** Skip this if you're just trying out the framework. It's mainly for production-grade deterministic benchmarking.
 - Other performance-critical settings
 
 See [Platform Setup Guide](platform-setup/x86/intel/deterministic-benchmarking) for details.

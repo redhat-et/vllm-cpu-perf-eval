@@ -27,11 +27,11 @@ ansible-galaxy collection install containers.podman ansible.posix
 - **Ansible 2.14.x**: Uses `requirements.yml` with pinned versions (containers.podman 1.9.x, ansible.posix 1.4.x-1.5.x)
 - **Ansible 2.15+**: Recommended for latest features and security updates
 
-To upgrade Ansible:
+To install Ansible:
 
 ```bash
 # Via DNF (RHEL/CentOS)
-sudo dnf upgrade ansible-core
+sudo dnf install ansible-core
 
 # Via pip
 pip3 install --upgrade ansible-core

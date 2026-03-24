@@ -52,9 +52,10 @@ results/*
 *.log
 *.json
 *.csv
-*.html
 
-# Jekyll HTML files (DO NOT IGNORE)
+# Jekyll HTML files
+# Note: Ignore all HTML first, then negate specific directories
+*.html
 !_layouts/*.html
 !_includes/*.html
 

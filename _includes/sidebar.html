@@ -36,15 +36,28 @@
 <script>
 // Highlight active navigation item
 document.addEventListener('DOMContentLoaded', function() {
-  const currentPath = window.location.pathname;
+  // Normalize path: remove trailing slashes and query/hash fragments
+  const normalizePath = (path) => {
+    const cleanPath = (path || '/').split(/[?#]/)[0].replace(/\/+$/, '');
+    return cleanPath || '/';
+  };
+
+  const currentPath = normalizePath(window.location.pathname);
   const navLinks = document.querySelectorAll('.sidebar-nav a');
 
   navLinks.forEach(link => {
-    const linkPath = link.getAttribute('href');
-    if (currentPath.includes(linkPath) && linkPath !== '/') {
-      link.classList.add('active');
-    } else if (currentPath === '/' && linkPath === '/') {
-      link.classList.add('active');
+    const linkPath = normalizePath(link.getAttribute('href'));
+
+    // For home link, only match exact path
+    if (linkPath === '/') {
+      if (currentPath === '/') {
+        link.classList.add('active');
+      }
+    } else {
+      // For other links, match exact path or true parent routes
+      if (currentPath === linkPath || currentPath.startsWith(linkPath + '/')) {
+        link.classList.add('active');
+      }
     }
   });
 });
