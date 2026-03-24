@@ -3,7 +3,7 @@ layout: default
 title: Metrics
 ---
 
-# Collected Metrics
+## Collected Metrics
 
 ## Guidellm Metrics
 
