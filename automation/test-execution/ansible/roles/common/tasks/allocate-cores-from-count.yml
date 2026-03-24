@@ -26,26 +26,13 @@
     - requested_tensor_parallel != None
     - requested_tensor_parallel != ""
 
-- name: Set tensor parallel value for filter (when provided)
+- name: Set tensor_parallel value for allocation
   ansible.builtin.set_fact:
-    _tp_value: "{{ requested_tensor_parallel }}"
-  when:
-    - requested_tensor_parallel is defined
-    - requested_tensor_parallel != omit
-    - requested_tensor_parallel != None
-    - requested_tensor_parallel != ""
+    _tensor_parallel_value: "{{ requested_tensor_parallel if (requested_tensor_parallel is defined and requested_tensor_parallel != omit and requested_tensor_parallel != None and requested_tensor_parallel != '') else None }}"
 
-- name: Allocate cores using multi-NUMA algorithm (with TP)
+- name: Allocate cores using multi-NUMA algorithm
   ansible.builtin.set_fact:
-    core_allocation_result: "{{ numa_topology | allocate_cores_multi_numa(requested_cores | int, _tp_value) }}"
-  when:
-    - _tp_value is defined
-
-- name: Allocate cores using multi-NUMA algorithm (auto TP)
-  ansible.builtin.set_fact:
-    core_allocation_result: "{{ numa_topology | allocate_cores_multi_numa(requested_cores | int, None) }}"
-  when:
-    - _tp_value is not defined
+    core_allocation_result: "{{ numa_topology | allocate_cores_multi_numa(requested_cores | int, _tensor_parallel_value) }}"
 
 - name: Build auto-allocated core configuration
   ansible.builtin.set_fact:

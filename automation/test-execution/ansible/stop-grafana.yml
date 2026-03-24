@@ -1,0 +1,198 @@
+---
+# Stop Grafana Monitoring Stack
+# Stops Prometheus, Pushgateway, and Grafana containers
+# Also cleans up SSH tunnels for live vLLM metrics
+#
+# Usage:
+#   ansible-playbook stop-grafana.yml
+#
+# Options:
+#   -e "remove_volumes=true"  - Remove all data volumes (WARNING: deletes all metrics!)
+
+- name: "Stop Grafana Monitoring Stack"
+  hosts: localhost
+  gather_facts: true
+
+  vars:
+    grafana_dir: "{{ playbook_dir }}/../grafana"
+    compose_project_name: vllm-monitoring
+    remove_volumes: "{{ remove_volumes | default(false) | bool }}"
+
+  tasks:
+    # ========================================================================
+    # STEP 1: Detect Container Runtime
+    # ========================================================================
+
+    - name: Detect available compose tool
+      block:
+        - name: Check for docker-compose
+          ansible.builtin.command: docker-compose --version
+          register: docker_compose_check
+          failed_when: false
+          changed_when: false
+
+        - name: Check for podman-compose
+          ansible.builtin.command: podman-compose --version
+          register: podman_compose_check
+          failed_when: false
+          changed_when: false
+
+        - name: Set compose command (docker-compose)
+          ansible.builtin.set_fact:
+            compose_cmd: docker-compose
+            runtime_name: Docker
+          when: docker_compose_check.rc == 0
+
+        - name: Set compose command (podman-compose)
+          ansible.builtin.set_fact:
+            compose_cmd: podman-compose
+            runtime_name: Podman
+          when:
+            - docker_compose_check.rc != 0
+            - podman_compose_check.rc == 0
+
+        - name: Fail if no compose tool found
+          ansible.builtin.fail:
+            msg: "Neither docker-compose nor podman-compose found!"
+          when:
+            - docker_compose_check.rc != 0
+            - podman_compose_check.rc != 0
+
+    - name: Display detected configuration
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Stopping Grafana Monitoring Stack"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Container Runtime: {{ runtime_name }}"
+          - "Compose Tool: {{ compose_cmd }}"
+          - "Remove Volumes: {{ 'YES - ALL METRICS WILL BE DELETED' if remove_volumes else 'NO - Metrics preserved' }}"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+    # ========================================================================
+    # STEP 2: Stop SSH Tunnels
+    # ========================================================================
+
+    - name: Check for active SSH tunnels
+      ansible.builtin.shell: |
+        ps aux | grep -E "ssh.*(8000|9091)" | grep -v grep || true
+      register: active_tunnels
+      changed_when: false
+
+    - name: Display active tunnels
+      ansible.builtin.debug:
+        msg:
+          - "Found active SSH tunnels:"
+          - "{{ active_tunnels.stdout_lines }}"
+      when: active_tunnels.stdout != ""
+
+    - name: Stop vLLM metrics SSH tunnel
+      block:
+        - name: Kill vLLM metrics tunnel (port 8000)
+          ansible.builtin.shell: |
+            pkill -f "ssh.*8000:localhost:8000" || true
+          register: kill_vllm_tunnel
+
+        - name: Verify vLLM tunnel stopped
+          ansible.builtin.shell: |
+            ps aux | grep "ssh.*8000:localhost:8000" | grep -v grep || true
+          register: vllm_tunnel_check
+          changed_when: false
+
+        - name: Display vLLM tunnel status
+          ansible.builtin.debug:
+            msg: "{{ '✓ vLLM metrics tunnel stopped' if vllm_tunnel_check.stdout == '' else '⚠ vLLM tunnel may still be running' }}"
+
+    - name: Stop Pushgateway reverse tunnel
+      block:
+        - name: Check if DUT_HOSTNAME is set
+          ansible.builtin.set_fact:
+            loadgen_hostname: "{{ lookup('env', 'LOADGEN_HOSTNAME') }}"
+
+        - name: Kill Pushgateway reverse tunnel (port 9091)
+          ansible.builtin.shell: |
+            pkill -f "ssh.*9091:localhost:9091" || true
+          register: kill_pushgateway_tunnel
+          when: loadgen_hostname != ""
+
+        - name: Verify Pushgateway tunnel stopped
+          ansible.builtin.shell: |
+            ps aux | grep "ssh.*9091:localhost:9091" | grep -v grep || true
+          register: pushgateway_tunnel_check
+          changed_when: false
+
+        - name: Display Pushgateway tunnel status
+          ansible.builtin.debug:
+            msg: "{{ '✓ Pushgateway tunnel stopped' if pushgateway_tunnel_check.stdout == '' else '⚠ Pushgateway tunnel may still be running' }}"
+
+    # ========================================================================
+    # STEP 3: Stop Grafana Stack
+    # ========================================================================
+
+    - name: Check if Grafana directory exists
+      ansible.builtin.stat:
+        path: "{{ grafana_dir }}"
+      register: grafana_dir_stat
+
+    - name: Stop containers
+      block:
+        - name: Stop Grafana stack (preserving volumes)
+          ansible.builtin.command:
+            cmd: "{{ compose_cmd }} down"
+            chdir: "{{ grafana_dir }}"
+          register: compose_down
+          when: not remove_volumes
+
+        - name: Stop Grafana stack (removing volumes)
+          ansible.builtin.command:
+            cmd: "{{ compose_cmd }} down -v"
+            chdir: "{{ grafana_dir }}"
+          register: compose_down_volumes
+          when: remove_volumes
+
+        - name: Display compose output
+          ansible.builtin.debug:
+            msg: "{{ compose_down.stdout_lines if not remove_volumes else compose_down_volumes.stdout_lines }}"
+
+      when: grafana_dir_stat.stat.exists
+
+    - name: Verify containers stopped
+      ansible.builtin.command:
+        cmd: "{{ compose_cmd }} ps"
+        chdir: "{{ grafana_dir }}"
+      register: compose_ps_final
+      changed_when: false
+      failed_when: false
+      when: grafana_dir_stat.stat.exists
+
+    - name: Display final status
+      ansible.builtin.debug:
+        msg: "{{ compose_ps_final.stdout_lines }}"
+      when:
+        - grafana_dir_stat.stat.exists
+        - compose_ps_final is defined
+
+    # ========================================================================
+    # STEP 4: Display Summary
+    # ========================================================================
+
+    - name: Display success message
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "✓ Grafana Monitoring Stack Stopped Successfully"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - ""
+          - "Stopped Services:"
+          - "  ✓ Grafana dashboard"
+          - "  ✓ Prometheus"
+          - "  ✓ Pushgateway"
+          - "  ✓ SSH tunnels (vLLM metrics, Pushgateway)"
+          - ""
+          - "{{ 'Data Volumes: DELETED (all metrics removed)' if remove_volumes else 'Data Volumes: PRESERVED (metrics retained)' }}"
+          - ""
+          - "To restart:"
+          - "  ansible-playbook start-grafana.yml"
+          - ""
+          - "{{ 'To stop and preserve data next time, omit -e remove_volumes=true' if remove_volumes else 'To stop and delete all data, use: -e remove_volumes=true' }}"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

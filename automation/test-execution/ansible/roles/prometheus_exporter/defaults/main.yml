@@ -1,0 +1,23 @@
+---
+# Prometheus Exporter - Default Variables
+
+# Prometheus connection
+prometheus_url: "http://localhost:9090"
+
+# vLLM metrics to export (regex patterns)
+vllm_metrics_patterns:
+  - "vllm:num_requests_running"
+  - "vllm:num_requests_waiting"
+  - "vllm:cpu_cache_usage_perc"
+  - "vllm:gpu_cache_usage_perc"
+  - "vllm:prompt_tokens_total"
+  - "vllm:generation_tokens_total"
+  - "vllm:time_to_first_token_seconds.*"
+  - "vllm:time_per_output_token_seconds.*"
+  - "vllm:e2e_request_latency_seconds.*"
+  - "vllm:request_success_total"
+  - "vllm:num_preemptions_total"
+
+# Export settings
+export_interval_seconds: 10  # Sample interval for export
+results_path: "/tmp"

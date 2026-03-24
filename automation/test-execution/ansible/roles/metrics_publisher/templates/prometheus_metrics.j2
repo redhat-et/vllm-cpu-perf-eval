@@ -1,0 +1,52 @@
+# Prometheus metrics generated from GuideLLM benchmark results
+# Pushed to Pushgateway for historical analysis
+# Generated: {{ ansible_date_time.iso8601 }}
+
+{% set base_labels = 'platform="' + metric_labels.platform + '",model="' + metric_labels.model + '",workload="' + metric_labels.workload + '",cores="' + metric_labels.cores + '",tensor_parallel="' + metric_labels.tensor_parallel + '",numa_node="' + metric_labels.numa_node + '",backend="' + metric_labels.backend + '",test_run_id="' + metric_labels.test_run_id + '",vllm_version="' + metric_labels.vllm_version + '"' %}
+
+{% if guidellm_metrics.benchmarks is defined %}
+{% for benchmark in guidellm_metrics.benchmarks %}
+{% set request_rate = benchmark.metrics.requests_per_second.successful.mean | default(0) %}
+{% set concurrency = benchmark.config.strategy.max_concurrency | default(1) %}
+{% set request_rate_tag = (request_rate * 100) | int %}
+{% set labels = base_labels + ',request_rate_tag="' + request_rate_tag|string + '",request_rate="' + request_rate|string + '",concurrency="' + concurrency|string + '"' %}
+
+# Throughput Metrics (tokens/sec)
+guidellm_throughput_tokens_per_sec_mean{ {{ labels }} } {{ benchmark.metrics.tokens_per_second.successful.mean | default(0) }}
+guidellm_throughput_tokens_per_sec_p50{ {{ labels }} } {{ benchmark.metrics.tokens_per_second.successful.percentiles.p50 | default(0) }}
+guidellm_throughput_tokens_per_sec_p95{ {{ labels }} } {{ benchmark.metrics.tokens_per_second.successful.percentiles.p95 | default(0) }}
+guidellm_throughput_tokens_per_sec_p99{ {{ labels }} } {{ benchmark.metrics.tokens_per_second.successful.percentiles.p99 | default(0) }}
+guidellm_throughput_tokens_per_sec_max{ {{ labels }} } {{ benchmark.metrics.tokens_per_second.successful.max | default(0) }}
+
+# Time to First Token (TTFT) in milliseconds (already in ms)
+guidellm_ttft_ms_mean{ {{ labels }} } {{ benchmark.metrics.time_to_first_token_ms.successful.mean | default(0) }}
+guidellm_ttft_ms_p50{ {{ labels }} } {{ benchmark.metrics.time_to_first_token_ms.successful.percentiles.p50 | default(0) }}
+guidellm_ttft_ms_p95{ {{ labels }} } {{ benchmark.metrics.time_to_first_token_ms.successful.percentiles.p95 | default(0) }}
+guidellm_ttft_ms_p99{ {{ labels }} } {{ benchmark.metrics.time_to_first_token_ms.successful.percentiles.p99 | default(0) }}
+
+# Inter-Token Latency (ITL) in milliseconds (already in ms)
+guidellm_itl_ms_mean{ {{ labels }} } {{ benchmark.metrics.inter_token_latency_ms.successful.mean | default(0) }}
+guidellm_itl_ms_p50{ {{ labels }} } {{ benchmark.metrics.inter_token_latency_ms.successful.percentiles.p50 | default(0) }}
+guidellm_itl_ms_p95{ {{ labels }} } {{ benchmark.metrics.inter_token_latency_ms.successful.percentiles.p95 | default(0) }}
+guidellm_itl_ms_p99{ {{ labels }} } {{ benchmark.metrics.inter_token_latency_ms.successful.percentiles.p99 | default(0) }}
+
+# End-to-End Request Latency in milliseconds (convert from seconds)
+guidellm_e2e_latency_ms_mean{ {{ labels }} } {{ (benchmark.metrics.request_latency.successful.mean * 1000) | default(0) }}
+guidellm_e2e_latency_ms_p50{ {{ labels }} } {{ (benchmark.metrics.request_latency.successful.percentiles.p50 * 1000) | default(0) }}
+guidellm_e2e_latency_ms_p95{ {{ labels }} } {{ (benchmark.metrics.request_latency.successful.percentiles.p95 * 1000) | default(0) }}
+guidellm_e2e_latency_ms_p99{ {{ labels }} } {{ (benchmark.metrics.request_latency.successful.percentiles.p99 * 1000) | default(0) }}
+
+# Request Statistics
+guidellm_total_requests{ {{ labels }} } {{ benchmark.metrics.request_totals.total | default(0) }}
+guidellm_successful_requests{ {{ labels }} } {{ benchmark.metrics.request_totals.successful | default(0) }}
+guidellm_failed_requests{ {{ labels }} } {{ benchmark.metrics.request_totals.errored | default(0) }}
+guidellm_success_rate_percent{ {{ labels }} } {{ ((benchmark.metrics.request_totals.successful / benchmark.metrics.request_totals.total * 100) if benchmark.metrics.request_totals.total > 0 else 0) | round(2) }}
+
+{% endfor %}
+{% else %}
+# No benchmark data found in results
+{% endif %}
+
+# Metadata
+guidellm_benchmark_timestamp{ {{ base_labels }} } {{ ansible_date_time.epoch }}
+guidellm_benchmark_info{ {{ base_labels }} } 1
