@@ -318,8 +318,7 @@ ansible-playbook llm-benchmark-auto.yml \
 
 ## See Also
 
-- [QUICKSTART.md](../../../grafana/QUICKSTART.md) - Full setup guide
-- [METRICS_COMPARISON.md](../../../grafana/METRICS_COMPARISON.md) - vLLM vs GuideLLM metrics
+- [Grafana Monitoring README](../../../grafana/README.md) - Full Grafana/Prometheus setup guide
 - [Prometheus Pushgateway Docs](https://github.com/prometheus/pushgateway)
 
 ## License

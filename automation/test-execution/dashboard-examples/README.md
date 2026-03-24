@@ -1,8 +1,8 @@
 # vLLM CPU Performance Dashboard
 
-Interactive Streamlit multipage dashboard for analyzing vLLM CPU benchmark results.
+Interactive Streamlit multipage dashboard for analyzing vLLM CPU benchmark results with client and server-side metrics.
 
-## 🎯 Quick Start
+## Quick Start
 
 ```bash
 # Setup (one-time)
@@ -18,27 +18,42 @@ cd vllm_dashboard
 ./stop-dashboard.sh
 ```
 
-## 📊 Dashboard Overview
+## Overview
 
-**One URL, Multiple Views**: All analysis tools accessible from `http://localhost:8501`
+This Streamlit dashboard provides comprehensive analysis of vLLM benchmark results, combining:
 
-Navigate between views using the **sidebar**:
+**Client-Side Metrics (GuideLLM)**
+- End-user experience metrics
+- Latencies, throughput, success rates
+- Source: `benchmarks.json`
 
-- 🏠 **Home** - Overview, quick start, system status
-- 📊 **Client Metrics** - GuideLLM performance analysis
-- 🖥️ **Server Metrics** - vLLM server-side metrics
-- 🔄 **Unified View** - Combined client + server correlation
+**Server-Side Metrics (vLLM)**
+- Internal server state
+- Queue depth, cache usage, token generation rates
+- Source: `vllm-metrics.json` (collected via Prometheus)
 
-## ✨ Features
+**Architecture:**
+```
+Benchmark Run
+     ↓
+GuideLLM → benchmarks.json (client metrics)
+     ↓
+vLLM Server → Prometheus → vllm-metrics.json (server metrics)
+     ↓
+Streamlit Dashboard → Analysis + Visualization
+```
 
-### All Views Include
-- 🔍 Platform filtering
-- 📦 Model filtering
-- 📋 Workload filtering
-- ⚙️ Core count filtering
-- 🏷️ vLLM version filtering
+## Dashboard Views
+
+**One URL, Multiple Views:** All analysis accessible from `http://localhost:8501`
+
+Navigate between views using the sidebar:
+
+### 🏠 Home
+Overview, quick start, system status
 
 ### 📊 Client Metrics (GuideLLM)
+
 **Data Source:** `benchmarks.json`
 
 **Metrics:**
@@ -58,9 +73,8 @@ Navigate between views using the **sidebar**:
 - Platform/version comparison
 - Identifying optimal load points
 
----
-
 ### 🖥️ Server Metrics (vLLM)
+
 **Data Source:** `vllm-metrics.json`
 
 **Metrics:**
@@ -80,11 +94,8 @@ Navigate between views using the **sidebar**:
 - Identifying bottlenecks (queue buildup, cache thrashing)
 - Debugging performance issues
 
-**Note:** Requires Prometheus metrics collection during tests. See [VLLM_METRICS_INTEGRATION.md](VLLM_METRICS_INTEGRATION.md)
-
----
-
 ### 🔄 Unified View
+
 **Data Source:** Combined GuideLLM + vLLM metrics
 
 **Analysis:**
@@ -98,9 +109,7 @@ Navigate between views using the **sidebar**:
 - Performance validation
 - Understanding end-to-end behavior
 
----
-
-## 🚀 Usage
+## Usage
 
 ### 1. Run Benchmarks
 
@@ -146,7 +155,103 @@ Dashboard opens at: `http://localhost:8501`
 pkill -f "streamlit.*8501"
 ```
 
-## 📂 Data Structure
+## Server-Side Metrics Collection
+
+Server-side vLLM metrics are automatically collected during benchmarks via Prometheus export. This provides comprehensive performance analysis combining client experience with server internals.
+
+**What you get:**
+- Client-side (GuideLLM): Latencies, throughput, success rates
+- Server-side (vLLM): Queue depth, cache hits, generation rate
+
+**Benefits:**
+- ✅ No separate collector script
+- ✅ No additional Python dependencies
+- ✅ Uses same data Grafana displays live
+- ✅ Can export historical data anytime
+- ✅ Automatic with benchmark playbook
+
+### Prerequisites
+
+To collect server-side metrics, you MUST:
+
+**1. Start Grafana stack** (includes Prometheus):
+```bash
+ansible-playbook start-grafana.yml
+```
+
+**2. Create SSH tunnel to vLLM server**:
+```bash
+export DUT_HOSTNAME=your-vllm-server.compute.amazonaws.com
+export ANSIBLE_SSH_KEY=/path/to/your/key.pem
+ssh -L 8000:localhost:8000 ec2-user@$DUT_HOSTNAME -N -f -i $ANSIBLE_SSH_KEY
+```
+
+Or use automated tunnel setup:
+```bash
+# SSH tunnel is created automatically by start-grafana.yml if env vars are set
+```
+
+**3. Verify Prometheus is scraping**:
+```bash
+# Check targets page
+open http://localhost:9090/targets
+# vllm-live should show as UP
+```
+
+### How It Works
+
+The benchmark playbook automatically exports vLLM metrics from Prometheus after each test:
+
+1. Prometheus scrapes vLLM `/metrics` endpoint every 10s during test
+2. After test completes, metrics are queried from Prometheus API
+3. Data is exported to `vllm-metrics.json` alongside GuideLLM results
+4. Streamlit dashboard loads both files for analysis
+
+**No configuration needed** - it's already integrated into `llm-benchmark-auto.yml`.
+
+### Output Files
+
+```
+results/llm/model-name/test-date/config/
+├── benchmarks.json           # GuideLLM results (client-side)
+├── test-metadata.json        # Test configuration
+├── vllm-metrics.json         # vLLM server metrics (from Prometheus)
+└── vllm-server.log           # Server logs
+```
+
+### vLLM Metrics Captured
+
+The exported `vllm-metrics.json` contains time-series data:
+
+```json
+{
+  "collection_info": {
+    "vllm_url": "http://localhost:8000",
+    "interval_seconds": 10,
+    "start_time": "2026-03-22T10:00:00",
+    "end_time": "2026-03-22T10:05:00",
+    "total_samples": 60
+  },
+  "samples": [
+    {
+      "timestamp": "2026-03-22T10:00:10",
+      "elapsed_seconds": 10.0,
+      "metrics": {
+        "vllm:num_requests_running": [...],
+        "vllm:num_requests_waiting": [...],
+        "vllm:cpu_cache_usage_perc": [...],
+        "vllm:prompt_tokens_total": [...],
+        "vllm:generation_tokens_total": [...],
+        "vllm:time_to_first_token_seconds": [...],
+        "vllm:time_per_output_token_seconds": [...],
+        ...
+      }
+    }
+  ]
+}
+```
+
+## Data Structure
 
 ```
 results/llm/
@@ -163,7 +268,7 @@ results/llm/
 
 Configurable in sidebar of each view.
 
-## 🔧 Setup
+## Setup
 
 ### Quick Setup (Recommended)
 
@@ -191,47 +296,21 @@ pip install -r requirements.txt
 
 See [requirements.txt](requirements.txt) for full list.
 
-## 🔗 Related Tools
+## Features
 
-### Grafana (Live Monitoring)
-**Location:** `../grafana/`
-**URL:** <http://localhost:3000>
-**Type:** Real-time monitoring DURING tests
-**Docs:** [../grafana/GRAFANA_LIVE_METRICS.md](../grafana/GRAFANA_LIVE_METRICS.md)
+### All Views Include
+- 🔍 Platform filtering
+- 📦 Model filtering
+- 📋 Workload filtering
+- ⚙️ Core count filtering
+- 🏷️ vLLM version filtering
 
-### When to Use What
-
-| Tool | When | Data Source | Use Case |
-|------|------|-------------|----------|
-| **Grafana** | DURING test | Live /metrics endpoint | Monitor test progress in real-time |
-| **Streamlit Dashboard** | AFTER test | benchmarks.json + vllm-metrics.json | Analyze results, compare configs |
-
-## 💡 Tips
-
-### Enabling Server Metrics Collection
-
-Server-side metrics are automatically collected if:
-1. Grafana/Prometheus is running (`ansible-playbook start-grafana.yml`)
-2. SSH tunnel to vLLM server is active
-3. Prometheus can scrape vLLM `/metrics` endpoint
-
-**Verify:**
-```bash
-# Check for vllm-metrics.json in results
-ls results/llm/*/*/*/vllm-metrics.json
-
-# Check Prometheus is scraping
-open http://localhost:9090/targets
-```
-
-See [VLLM_METRICS_INTEGRATION.md](VLLM_METRICS_INTEGRATION.md) for details.
-
-### Navigating the Dashboard
+### Navigation Tips
 
 - **Sidebar navigation** - Always visible, click any view to switch
 - **Home button** - Click "Home" in sidebar to return to landing page
-- **Filters persist** - Filter settings are maintained when switching views (within same session)
-- **Refresh data** - Reload the page to pick up new test results
+- **Filters persist** - Filter settings maintained when switching views
+- **Refresh data** - Reload page to pick up new test results
 
 ### Comparing Multiple Tests
 
@@ -240,7 +319,23 @@ See [VLLM_METRICS_INTEGRATION.md](VLLM_METRICS_INTEGRATION.md) for details.
 3. Use filters to select specific tests
 4. Switch to comparison mode (available in Client and Server views)
 
-## 🐛 Troubleshooting
+## Related Tools
+
+### Grafana (Live Monitoring)
+
+**Location:** `../grafana/`
+**URL:** <http://localhost:3000>
+**Type:** Real-time monitoring DURING tests
+**Docs:** [../grafana/README.md](../grafana/README.md)
+
+### When to Use What
+
+| Tool | When | Data Source | Use Case |
+|------|------|-------------|----------|
+| **Grafana** | DURING test | Live /metrics endpoint | Monitor test progress in real-time |
+| **Streamlit Dashboard** | AFTER test | benchmarks.json + vllm-metrics.json | Analyze results, compare configs |
+
+## Troubleshooting
 
 ### Dashboard won't start
 
@@ -266,7 +361,6 @@ ls -la ../../../results/llm/
 
 # Check path in dashboard sidebar
 # Default: ../../../../../results/llm (relative to pages/)
-# Adjust if results are elsewhere
 
 # Look for benchmarks.json files
 find ../../../results/llm -name "benchmarks.json"
@@ -287,9 +381,18 @@ ps aux | grep "ssh.*8000:localhost:8000"
 
 # 3. Did Prometheus scrape vLLM?
 open http://localhost:9090/targets
+# vllm-live should show as UP during test
 ```
 
-See [VLLM_METRICS_INTEGRATION.md](VLLM_METRICS_INTEGRATION.md) for setup.
+**To fix for next test:**
+1. Start Grafana before test: `ansible-playbook start-grafana.yml`
+2. Ensure SSH tunnel is created (automatic if env vars set)
+3. Verify Prometheus can scrape: <http://localhost:9090/targets>
+
+**To skip Prometheus export intentionally:**
+```bash
+ansible-playbook llm-benchmark-auto.yml -e "skip_prometheus_export=true"
+```
 
 ### Navigation not working
 
@@ -311,23 +414,21 @@ cd vllm_dashboard
 pkill -f "streamlit.*8501"
 ```
 
-## 📚 Documentation
+## Example Analysis Insights
 
-- **Dashboard Guide:** [vllm_dashboard/README.md](vllm_dashboard/README.md)
-- **Server Metrics Integration:** [VLLM_METRICS_INTEGRATION.md](VLLM_METRICS_INTEGRATION.md)
-- **Grafana Live Metrics:** [../grafana/GRAFANA_LIVE_METRICS.md](../grafana/GRAFANA_LIVE_METRICS.md)
+**1. High P99 latency + Server queue waiting**
+→ Insufficient capacity, add more cores
 
-## 🔄 Updates
+**2. Stable throughput + Cache hit rate dropping**
+→ Working set too large for cache
 
-**Latest Changes:**
-- ✅ Created multipage Streamlit app (single URL, sidebar navigation)
-- ✅ Added vLLM version filter to all dashboards
-- ✅ Automatic metadata capture (platform, backend, vLLM version)
-- ✅ Prometheus-based server metrics export (replaces separate collector)
-- ✅ Unified dashboard combining client + server metrics
-- ✅ Removed old separate dashboard scripts
+**3. Client timeout errors + Server queue empty**
+→ Network/routing issue, not server bottleneck
 
-## 📞 Architecture
+**4. ITL variance + Preemption spikes**
+→ Memory pressure, reduce batch size
+
+## Architecture
 
 ### Multipage App Structure
 
@@ -340,21 +441,15 @@ vllm_dashboard/
 │   └── 3_🔄_Unified_View.py        # Combined view
 ├── launch-dashboard.sh              # Start script
 ├── stop-dashboard.sh                # Stop script
-└── README.md                        # Dashboard-specific docs
+└── README.md                        # This file
 ```
 
-### Data Flow
+## Documentation
 
-```
-Benchmark Run
-     ↓
-GuideLLM → benchmarks.json (client metrics)
-     ↓
-vLLM Server → Prometheus → vllm-metrics.json (server metrics)
-     ↓
-Streamlit Dashboard → Analysis + Visualization
-```
+- **Dashboard Guide:** [vllm_dashboard/README.md](vllm_dashboard/README.md)
+- **Grafana Live Metrics:** [../grafana/README.md](../grafana/README.md)
+- **Prometheus Exporter Role:** [../ansible/roles/prometheus_exporter/](../ansible/roles/prometheus_exporter/)
 
-## 📄 License
+## License
 
 See main project LICENSE file.

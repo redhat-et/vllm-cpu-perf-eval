@@ -286,7 +286,7 @@
               - "To setup manually:"
               - "  ssh -L 8000:localhost:8000 ec2-user@$DUT_HOSTNAME -N -f -i $ANSIBLE_SSH_KEY"
               - ""
-              - "See: automation/test-execution/grafana/GRAFANA_LIVE_METRICS.md"
+              - "See: automation/test-execution/grafana/README.md"
 
     - name: Display SSH tunnel skip message
       ansible.builtin.debug:
