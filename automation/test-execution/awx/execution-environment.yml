@@ -1,0 +1,12 @@
+---
+version: 3
+
+images:
+  base_image:
+    name: "quay.io/ansible/awx-ee:24.6.1"
+
+dependencies:
+  galaxy: requirements.yml
+
+build_arg_defaults:
+  ANSIBLE_GALAXY_CLI_COLLECTION_OPTS: "-v"

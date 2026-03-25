@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 # Add filter_plugins to path so we can import cpu_utils
-sys.path.insert(0, str(Path(__file__).parent.parent / 'filter_plugins'))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'filter_plugins'))
 
 try:
     import pytest
@@ -42,12 +42,13 @@ from cpu_utils import (  # noqa: E402
     VALID_TP_VALUES,
 )
 
+# Import AnsibleFilterError from cpu_utils to ensure we use the same class
 try:
     from ansible.errors import AnsibleFilterError  # noqa: E402
 except ImportError:
-    # Fallback if ansible not installed
-    class AnsibleFilterError(Exception):
-        pass
+    # Use the same fallback class from cpu_utils
+    import cpu_utils
+    AnsibleFilterError = cpu_utils.AnsibleFilterError
 
 
 # ============================================================================
@@ -67,7 +68,9 @@ def create_numa_topology(num_nodes, cores_per_node=32):
     nodes = []
     for i in range(num_nodes):
         base_cpu = i * cores_per_node
-        physical_cpus_list = ','.join(str(base_cpu + j) for j in range(cores_per_node))
+        physical_cpus_list = ','.join(
+            str(base_cpu + j) for j in range(cores_per_node)
+        )
         nodes.append({
             'id': i,
             'physical_cores': cores_per_node,
@@ -83,7 +86,10 @@ def create_numa_topology(num_nodes, cores_per_node=32):
         'nodes': nodes,
         'allocation_policy': {
             'housekeeping': {
-                'strategy': 'reserve_node' if num_nodes >= 3 else 'minimal_reservation',
+                'strategy': (
+                    'reserve_node' if num_nodes >= 3
+                    else 'minimal_reservation'
+                ),
                 'reserved_node': 0
             },
             'workload': {
@@ -408,13 +414,15 @@ class TestMultiNumaAllocation:
         topology = create_numa_topology(num_nodes=3, cores_per_node=32)
 
         with pytest.raises(AnsibleFilterError) as exc_info:
-            allocate_cores_multi_numa(topology, requested_cores=64, requested_tp=3)
+            allocate_cores_multi_numa(
+                topology, requested_cores=64, requested_tp=3
+            )
 
         assert "Invalid tensor_parallel: 3" in str(exc_info.value)
         assert "Valid values: [1, 2, 4, 8]" in str(exc_info.value)
 
     def test_non_divisible_cores(self):
-        """33 cores should fail with helpful error (not divisible by valid TP)."""
+        """33 cores fail with helpful error (not divisible by valid TP)."""
         topology = create_numa_topology(num_nodes=3, cores_per_node=32)
 
         with pytest.raises(AnsibleFilterError) as exc_info:
@@ -447,7 +455,9 @@ class TestMultiNumaAllocation:
     def test_user_tp_override_valid(self):
         """User TP override should be respected if valid."""
         topology = create_numa_topology(num_nodes=6, cores_per_node=32)
-        result = allocate_cores_multi_numa(topology, requested_cores=64, requested_tp=4)
+        result = allocate_cores_multi_numa(
+            topology, requested_cores=64, requested_tp=4
+        )
 
         assert result['tensor_parallel'] == 4
         assert result['allocated_nodes'] == [1, 2, 3, 4]
@@ -459,7 +469,9 @@ class TestMultiNumaAllocation:
 
         with pytest.raises(AnsibleFilterError) as exc_info:
             # 51 cores doesn't divide by TP=2
-            allocate_cores_multi_numa(topology, requested_cores=51, requested_tp=2)
+            allocate_cores_multi_numa(
+                topology, requested_cores=51, requested_tp=2
+            )
 
         assert "not evenly divisible" in str(exc_info.value)
 
@@ -469,7 +481,9 @@ class TestMultiNumaAllocation:
 
         with pytest.raises(AnsibleFilterError) as exc_info:
             # TP=8 but only 2 nodes available (node 0 reserved)
-            allocate_cores_multi_numa(topology, requested_cores=64, requested_tp=8)
+            allocate_cores_multi_numa(
+                topology, requested_cores=64, requested_tp=8
+            )
 
         assert "only 2 available NUMA nodes" in str(exc_info.value)
 
@@ -497,7 +511,6 @@ class TestMultiNumaAllocation:
 
 class TestOmpBinding:
     """Test OMP binding string generation."""
-
 
     def test_single_numa_no_binding(self):
         """TP=1 should return None for omp_threads_bind."""
@@ -530,7 +543,9 @@ class TestOmpBinding:
 
         assert result['tensor_parallel'] == 8
         # Each TP gets 24 cores
-        expected_binding = "32-55|64-87|96-119|128-151|160-183|192-215|224-247|256-279"
+        expected_binding = (
+            "32-55|64-87|96-119|128-151|160-183|192-215|224-247|256-279"
+        )
         assert result['omp_threads_bind'] == expected_binding
 
 
@@ -540,6 +555,7 @@ class TestValidTpValues:
     def test_valid_tp_values_constant(self):
         """Verify VALID_TP_VALUES is correct."""
         assert VALID_TP_VALUES == [1, 2, 4, 8]
+
 
 if __name__ == "__main__":
     # Run tests if pytest not available
