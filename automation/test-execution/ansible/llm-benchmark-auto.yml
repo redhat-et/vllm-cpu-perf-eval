@@ -428,6 +428,7 @@
             "omp_num_threads": {{ core_configuration.omp_num_threads | default('null') }},
             "omp_threads_bind": {{ core_configuration.omp_threads_bind | default('null') }},
             "model": "{{ test_model }}",
+            "model_source": "{{ 'auto-detected' if hostvars['localhost']['vllm_mode'] == 'external' else 'specified' }}",
             "workload": "{{ workload_type }}",
             "platform": "{{ hostvars['localhost']['dut_platform_name'] | default('unknown') }}",
             "backend": "{{ hostvars['localhost']['vllm_backend'] | default('upstream') }}",
@@ -436,6 +437,8 @@
             "vllm_kv_cache_size": "{{ vllm_kv_cache | default('auto') }}",
             "vllm_max_model_len": "{{ vllm_max_model_len | default('auto') }}",
             "vllm_caching_mode": "{{ vllm_caching_mode | default('baseline') }}",
+            "vllm_mode": "{{ hostvars['localhost']['vllm_mode'] }}",
+            "vllm_endpoint_url": "{{ vllm_endpoint.external.url if hostvars['localhost']['vllm_mode'] == 'external' else 'n/a' }}",
             "timestamp": "{{ lookup('pipe', 'date -Iseconds') }}",
             "test_duration": "{{ test_duration_string | default('unknown') }}",
             "test_duration_seconds": {{ test_duration_seconds | default('null') }}
