@@ -119,6 +119,7 @@
         - name: Use endpoint model if test_model not provided or set to auto-detect
           ansible.builtin.set_fact:
             test_model: "{{ endpoint_model }}"
+            cacheable: true
           when: test_model is not defined or test_model == '__AUTO_DETECT__'
 
         - name: Validate test_model matches endpoint if provided
@@ -520,14 +521,15 @@
 - name: "Auto-Configured LLM Test - Collect Logs"
   hosts: dut
   become: true
+  gather_facts: false
   vars:
     test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
     core_configuration: "{{ hostvars['localhost']['core_configuration'] }}"
 
   pre_tasks:
-    - name: Skip if external mode
-      ansible.builtin.meta: end_host
-      when: hostvars['localhost']['vllm_mode'] | default('managed') != 'managed'
+    - name: End play if in external mode
+      ansible.builtin.meta: end_play
+      when: hostvars['localhost']['vllm_mode'] | default('managed') == 'external'
 
   roles:
     - role: results_collector
@@ -609,18 +611,21 @@
 - name: "Auto-Configured LLM Test - Optional Cleanup"
   hosts: dut
   become: true
+  gather_facts: false
+
+  pre_tasks:
+    - name: End play if in external mode or cleanup disabled
+      ansible.builtin.meta: end_play
+      when: >-
+        hostvars['localhost']['vllm_mode'] | default('managed') == 'external' or
+        not (cleanup_after_test | default(false) | bool)
 
   tasks:
-    - block:
-        - name: Stop and remove vLLM container
-          containers.podman.podman_container:
-            name: "{{ vllm_container_name }}"
-            state: absent
+    - name: Stop and remove vLLM container
+      containers.podman.podman_container:
+        name: "{{ vllm_container_name }}"
+        state: absent
 
-        - name: Display cleanup status
-          ansible.builtin.debug:
-            msg: "✓ vLLM container stopped and removed"
-
-      when:
-        - hostvars['localhost']['vllm_mode'] | default('managed') == 'managed'
-        - cleanup_after_test | default(false) | bool
+    - name: Display cleanup status
+      ansible.builtin.debug:
+        msg: "✓ vLLM container stopped and removed"
