@@ -51,6 +51,8 @@ results/*
 # Test output files
 *.log
 *.json
+# Exception: Allow Grafana dashboard JSON files
+!automation/test-execution/grafana/dashboards/*.json
 *.csv
 
 # Jekyll HTML files

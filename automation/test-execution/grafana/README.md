@@ -15,7 +15,7 @@ This monitoring stack runs on your **local machine** (Ansible controller) to vis
 **Stack Components:**
 - **Prometheus** - Time-series database for metrics scraping
 - **Grafana** - Real-time visualization dashboards
-- **vLLM Monitoring Dashboard** - Pre-built comprehensive dashboard
+- **vLLM Official Dashboards** - Performance Statistics & Query Statistics dashboards from vLLM project
 
 **For Post-Test Analysis:**
 - Client-side benchmark results (GuideLLM) are analyzed via **Streamlit Dashboard**

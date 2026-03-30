@@ -1,9 +1,9 @@
 apiVersion: 1
 
 providers:
-  - name: "vLLM Performance Dashboards"
+  - name: "vLLM Dashboards"
     orgId: 1
-    folder: "vLLM CPU Performance"
+    folder: "vLLM"
     type: file
     disableDeletion: false
     updateIntervalSeconds: 10

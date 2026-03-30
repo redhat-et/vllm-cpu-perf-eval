@@ -59,7 +59,7 @@ services:
       - GF_LOG_LEVEL=info
 
       # Dashboards
-      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/etc/grafana/dashboards/vllm-monitoring-v2.json
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/etc/grafana/dashboards/vllm_comprehensive.json
     volumes:
       - grafana-data:/var/lib/grafana
       - ./provisioning:/etc/grafana/provisioning:ro
