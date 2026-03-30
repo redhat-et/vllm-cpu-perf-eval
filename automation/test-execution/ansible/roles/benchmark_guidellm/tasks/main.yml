@@ -63,9 +63,13 @@
   ansible.builtin.set_fact:
     use_guidellm_container: "{{ guidellm_cfg.use_container | default(true) | bool }}"
 
+- name: Set model name for results path (prefer actual_model if available)
+  ansible.builtin.set_fact:
+    resolved_model: "{{ actual_model | default(test_model) }}"
+
 - name: Set results path
   ansible.builtin.set_fact:
-    results_path: "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_cfg.name }}"
+    results_path: "{{ bench_config.results_dir }}/{{ resolved_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_cfg.name }}"
 
 - name: Create results directory for this test
   ansible.builtin.file:
