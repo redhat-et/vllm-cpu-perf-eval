@@ -337,7 +337,7 @@
           - "Configuration: {{ core_configuration.name }}"
           - "  CPUs: {{ core_configuration.cpuset_cpus }}"
           - "  NUMA: {{ core_configuration.cpuset_mems }}"
-          - "Results: {{ '~/benchmark-results' if hostvars['localhost']['is_awx_job'] else 'results/llm' }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/"
+          - "Results: {{ hostvars['localhost']['local_results_base'] }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/"
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       when: is_core_sweep is not defined or not is_core_sweep
 

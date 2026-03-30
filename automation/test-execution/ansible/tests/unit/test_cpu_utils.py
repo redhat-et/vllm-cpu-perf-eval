@@ -513,6 +513,28 @@ class TestMultiNumaAllocation:
         assert result['allocated_nodes'] == [0, 1]
         assert result['cores_per_node'] == [32, 32]
 
+    def test_serialized_tp_empty_string(self):
+        """Empty string requested_tp should behave like auto-TP."""
+        topology = create_numa_topology(num_nodes=6, cores_per_node=32)
+        result = allocate_cores_multi_numa(
+            topology, requested_cores=64, requested_tp=''
+        )
+
+        # Should auto-select TP=2
+        assert result['tensor_parallel'] == 2
+        assert result['cores_per_node'] == [32, 32]
+
+    def test_serialized_tp_string_none(self):
+        """String 'None' requested_tp should behave like auto-TP."""
+        topology = create_numa_topology(num_nodes=6, cores_per_node=32)
+        result = allocate_cores_multi_numa(
+            topology, requested_cores=64, requested_tp='None'
+        )
+
+        # Should auto-select TP=2
+        assert result['tensor_parallel'] == 2
+        assert result['cores_per_node'] == [32, 32]
+
 
 class TestOmpBinding:
     """Test OMP binding string generation."""
