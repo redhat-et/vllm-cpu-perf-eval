@@ -104,6 +104,20 @@
     - name: Handle external endpoint model detection/validation
       when: vllm_mode == 'external'
       block:
+        - name: Validate external endpoint URL is configured
+          ansible.builtin.assert:
+            that:
+              - vllm_endpoint.external.url is defined
+              - vllm_endpoint.external.url is not none
+              - vllm_endpoint.external.url | length > 0
+            fail_msg: |
+              External endpoint URL is required when mode=external.
+              Please set VLLM_ENDPOINT_URL environment variable or configure
+              vllm_endpoint.external.url in inventory/group_vars/all/endpoints.yml
+
+              Example:
+                export VLLM_ENDPOINT_URL=http://your-vllm-host:8000
+
         - name: Get model from external endpoint
           ansible.builtin.uri:
             url: "{{ vllm_endpoint.external.url }}/v1/models"
@@ -151,10 +165,6 @@
           - "DUT: {{ groups['dut'][0] }} ({{ hostvars[groups['dut'][0]]['ansible_host'] }})"
           - "Load Generator: {{ groups['load_generator'][0] }} ({{ hostvars[groups['load_generator'][0]]['ansible_host'] }})"
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-    - name: Set vLLM mode
-      ansible.builtin.set_fact:
-        vllm_mode: "{{ vllm_endpoint.mode | default('managed') }}"
 
     - name: Set fallback core configuration for external mode
       ansible.builtin.set_fact:
@@ -342,6 +352,7 @@
   become: true
   vars:
     test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
+    test_model: "{{ hostvars['localhost']['test_model'] }}"
     core_configuration: "{{ hostvars['localhost']['core_configuration'] }}"
 
   pre_tasks:
@@ -412,6 +423,7 @@
   gather_facts: false
   vars:
     test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
+    test_model: "{{ hostvars['localhost']['test_model'] }}"
     core_configuration: "{{ hostvars['localhost']['core_configuration'] }}"
 
   tasks:
