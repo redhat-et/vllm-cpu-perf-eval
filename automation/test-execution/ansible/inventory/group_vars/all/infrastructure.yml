@@ -33,3 +33,6 @@ container_runtime:
 health_check:
   timeout: 300                  # Total timeout in seconds
   interval: 5                   # Check interval in seconds
+
+# Test execution options
+skip_phase_3: true              # Phase 3 not implemented yet
