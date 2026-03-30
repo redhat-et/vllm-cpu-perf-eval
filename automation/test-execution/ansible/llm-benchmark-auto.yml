@@ -178,6 +178,12 @@
 - name: "Auto-Configured LLM Test - Detect NUMA Topology"
   hosts: dut
   become: true
+  gather_facts: false
+
+  pre_tasks:
+    - name: End play if in external mode
+      ansible.builtin.meta: end_play
+      when: hostvars['localhost']['vllm_mode'] == 'external'
 
   tasks:
     - block:
@@ -222,26 +228,29 @@
 - name: "Auto-Configured LLM Test - Allocate Cores"
   hosts: dut
   become: true
+  gather_facts: false
   vars:
     requested_cores: "{{ hostvars['localhost']['requested_cores'] }}"
     requested_tensor_parallel: "{{ hostvars['localhost']['requested_tensor_parallel'] | default(None) }}"
     requested_omp_threads: "{{ hostvars['localhost']['requested_omp_threads'] | default(None) }}"
     requested_omp_bind: "{{ hostvars['localhost']['requested_omp_bind'] | default(None) }}"
 
+  pre_tasks:
+    - name: End play if in external mode
+      ansible.builtin.meta: end_play
+      when: hostvars['localhost']['vllm_mode'] == 'external'
+
   tasks:
-    - block:
-        - name: Allocate cores from NUMA topology
-          ansible.builtin.include_role:
-            name: common
-            tasks_from: allocate-cores-from-count
+    - name: Allocate cores from NUMA topology
+      ansible.builtin.include_role:
+        name: common
+        tasks_from: allocate-cores-from-count
 
-        - name: Save auto-allocated config to localhost
-          ansible.builtin.set_fact:
-            core_configuration: "{{ auto_core_config }}"
-          delegate_to: localhost
-          delegate_facts: true
-
-      when: hostvars['localhost']['vllm_mode'] == 'managed'
+    - name: Save auto-allocated config to localhost
+      ansible.builtin.set_fact:
+        core_configuration: "{{ auto_core_config }}"
+      delegate_to: localhost
+      delegate_facts: true
 # ==============================================================================
 # STEP 3: Start vLLM with Auto-Allocated Configuration (Managed Mode Only)
 # ==============================================================================
@@ -250,13 +259,14 @@
 - name: "Auto-Configured LLM Test - Start vLLM"
   hosts: dut
   become: true
+  gather_facts: false
   vars:
     core_configuration: "{{ hostvars['localhost']['core_configuration'] }}"
 
   pre_tasks:
-    - name: Skip if external mode
-      ansible.builtin.meta: end_host
-      when: hostvars['localhost']['vllm_mode'] != 'managed'
+    - name: End play if in external mode
+      ansible.builtin.meta: end_play
+      when: hostvars['localhost']['vllm_mode'] == 'external'
 
   roles:
     - role: vllm_server
