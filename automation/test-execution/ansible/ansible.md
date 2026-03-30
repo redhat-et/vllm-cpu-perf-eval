@@ -33,7 +33,6 @@ Ensure the following before running playbooks:
 - **User privileges**: User should have sudo access (or use root directly)
 - **Python**: Python 3.8+ installed (usually pre-installed)
 - **Network**: Hosts can reach each other (DUT port 8000 accessible from Load Generator)
-- **Container Runtime**: Podman 4.0+ or Docker 24.0+ (see installation below)
 
 ```bash
 # Verify SSH access from control machine
@@ -44,46 +43,8 @@ ssh -i ~/.ssh/your-key.pem ec2-user@your-loadgen-hostname
 ssh ec2-user@your-dut-hostname 'sudo whoami'  # Should return 'root'
 ```
 
-**Installing Required Packages on DUT and Load Generator:**
-
-Option 1: Manual installation (minimal quick testing):
-```bash
-# On both DUT and Load Generator hosts
-# RHEL/Fedora:
-sudo dnf install -y podman python3
-
-# Ubuntu/Debian:
-sudo apt update && sudo apt install -y podman python3
-
-# Verify installation
-podman --version
-python3 --version
-```
-
-Option 2: Automated via platform setup (recommended for production):
-```bash
-# Configure BOTH DUT and Load Generator
-ansible-playbook -i inventory/hosts.yml setup-platform.yml
-
-# Configure ONLY DUT
-ansible-playbook -i inventory/hosts.yml setup-platform.yml --limit dut
-
-# Configure ONLY Load Generator
-ansible-playbook -i inventory/hosts.yml setup-platform.yml --limit load_generator
-
-# Reboot required for kernel parameters to take effect
-ansible -i inventory/hosts.yml all -b -m reboot
-```
-
-**What this configures:**
-- Installs: podman, tuned, kernel-tools, numactl
-- Performance optimizations: CPU isolation, NUMA topology, IRQ balancing
-- **Targets**: DUT and Load Generator hosts only (NOT your Ansible control machine)
-
-**Important Notes:**
-- **Option 2 (setup-platform.yml)**: Automatically installs Podman, Python 3, and all performance tools on **DUT and Load Generator hosts**. Your Ansible control machine only needs Ansible itself.
-- **Option 1 (Manual)**: If you prefer minimal setup, manually install Podman/Docker and Python 3 on **DUT and Load Generator hosts** before running test playbooks.
-- **vLLM and GuideLLM**: Installed automatically during test execution (not part of platform setup).
+The playbooks automatically install required software (Podman/Docker, vLLM images, GuideLLM).
+No manual installation needed on remote hosts.
 
 ### 2. Configure Inventory
 
@@ -137,26 +98,23 @@ ansible -i inventory/hosts.yml all -m ping
 
 ### 4. Run Your First Test
 
-> **Prerequisites:** Ensure you've completed step 1 to install Podman/Python on remote hosts.
->
-> **Note:** For production benchmarking, run `setup-platform.yml` (from step 1, Option 2)
-> to configure performance optimizations. This is optional for quick testing.
+> **Note:** For production benchmarking or accurate performance measurements, run
+> [Platform Setup](#run-platform-setup-one-time) first (requires reboot). This is
+> optional for quick testing or development but **highly recommended** for reliable results.
 
 ```bash
-cd automation/test-execution/ansible
-
-# Set HuggingFace token (if using gated models like Llama)
+# Set HuggingFace token (if using gated models)
 export HF_TOKEN=hf_xxxxx
 
-# Run a simple LLM benchmark
+# Run LLM benchmark with auto-configured cores
 ansible-playbook -i inventory/hosts.yml \
   llm-benchmark-auto.yml \
-  -e "test_model=TinyLlama/TinyLlama-1.1B-Chat-v1.0" \
+  -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
   -e "workload_type=chat" \
   -e "requested_cores=16"
 
 # Results are saved locally at:
-# results/llm/TinyLlama__TinyLlama-1.1B-Chat-v1.0/chat-*/benchmarks.json
+# results/llm/meta-llama__Llama-3.2-1B-Instruct/chat-*/benchmarks.html
 ```
 
 Done! See sections below for advanced usage and additional playbooks.
