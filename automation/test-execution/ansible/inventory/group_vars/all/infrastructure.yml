@@ -21,7 +21,7 @@ container_runtime:
   engine: "podman"
   # ⚠️ CHANGE: Update to official vLLM image or your preferred version
   # This image includes CPU optimizations for performance testing
-  image: "vllm/vllm-openai-cpu:v0.18.0"
+  image: "docker.io/vllm/vllm-openai-cpu:v0.18.0"
   security_opts:
     - "seccomp=unconfined"
   capabilities:
