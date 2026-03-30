@@ -114,7 +114,7 @@ ansible-playbook -i inventory/hosts.yml \
   -e "requested_cores=16"
 
 # Results are saved locally at:
-# results/llm/meta-llama__Llama-3.2-1B-Instruct/chat-*/benchmarks.html
+# results/llm/meta-llama__Llama-3.2-1B-Instruct/chat-*/benchmarks.json
 ```
 
 Done! See sections below for advanced usage and additional playbooks.

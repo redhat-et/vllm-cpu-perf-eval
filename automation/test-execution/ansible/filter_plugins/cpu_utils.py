@@ -499,8 +499,10 @@ def allocate_with_auto_tp(available_nodes, requested_cores):
     if not available_nodes:
         raise AnsibleFilterError("No available NUMA nodes")
 
-    max_cores_per_node = int(max(n['physical_cores'] for n in available_nodes))
-    num_available_nodes = len(available_nodes)
+    # Sort nodes by capacity (descending) to prioritize high-capacity nodes
+    sorted_nodes = sorted(available_nodes, key=lambda n: n['physical_cores'], reverse=True)
+    max_cores_per_node = int(sorted_nodes[0]['physical_cores'])
+    num_available_nodes = len(sorted_nodes)
 
     # Try each TP value in ascending order
     for tp in VALID_TP_VALUES:
@@ -514,11 +516,12 @@ def allocate_with_auto_tp(available_nodes, requested_cores):
 
         cores_per_node = requested_cores // tp
 
-        # Check if each node can provide this many cores
+        # Check if each selected node can provide this many cores
         if cores_per_node <= max_cores_per_node:
-            # Valid configuration found
-            selected_nodes = available_nodes[:tp]
-            return build_allocation(selected_nodes, cores_per_node, tp)
+            selected_nodes = sorted_nodes[:tp]
+            # Verify each selected node has sufficient capacity
+            if all(n['physical_cores'] >= cores_per_node for n in selected_nodes):
+                return build_allocation(selected_nodes, cores_per_node, tp)
 
     # No valid allocation found - generate helpful error
     valid_allocations = calculate_valid_allocations(available_nodes)

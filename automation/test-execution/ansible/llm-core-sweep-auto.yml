@@ -19,8 +19,12 @@
   tasks:
     - name: Detect if running from AWX
       ansible.builtin.set_fact:
-        is_awx_job: "{{ lookup('env', 'AWX_JOB_ID') | length > 0 }}"
-        local_results_base: "{{ lookup('env', 'HOME') ~ '/benchmark-results' if (lookup('env', 'AWX_JOB_ID') | length > 0) else playbook_dir ~ '/../../../results/llm' }}"
+        awx_job_id: "{{ lookup('env', 'AWX_JOB_ID') }}"
+
+    - name: Set AWX-aware paths
+      ansible.builtin.set_fact:
+        is_awx_job: "{{ awx_job_id | length > 0 }}"
+        local_results_base: "{{ lookup('env', 'HOME') ~ '/benchmark-results' if (awx_job_id | length > 0) else playbook_dir ~ '/../../../results/llm' }}"
 
     - name: Validate required variables
       ansible.builtin.assert:

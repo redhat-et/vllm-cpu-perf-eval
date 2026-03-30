@@ -1,6 +1,12 @@
 ---
-# Ansible Galaxy Collections Requirements
+# Ansible Galaxy Collections Requirements - CLI/Development
+#
+# This file is for LOCAL CLI usage and development environments.
 # Install with: ansible-galaxy collection install -r requirements.yml
+#
+# Uses version ranges for flexibility in development environments.
+# For AWX/production deployments with exact pins, see:
+#   collections/requirements.yml (canonical for AWX)
 
 collections:
   - name: containers.podman

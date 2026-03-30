@@ -375,7 +375,7 @@
   roles:
     - role: results_collector
       vars:
-        log_collection_dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/"
+        log_collection_dest: "{{ hostvars['localhost']['local_results_base'] }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/"
         journald_identifier: "vllm-{{ workload_type }}-{{ core_configuration.cores }}c-tp{{ core_configuration.tensor_parallel }}"
         log_filename_prefix: "vllm-server"
         journald_time_range: "1 hour ago"

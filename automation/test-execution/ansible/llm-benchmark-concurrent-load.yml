@@ -60,7 +60,7 @@
       ansible.builtin.assert:
         that:
           - >-
-            (requested_cores is defined and requested_cores is not none and requested_cores | int > 0) or
+            (requested_cores | default(0) | int > 0) or
             (core_sweep_counts is defined and core_sweep_counts is not none and core_sweep_counts | length > 0)
         fail_msg: |
           Missing required parameter: requested_cores or core_sweep_counts

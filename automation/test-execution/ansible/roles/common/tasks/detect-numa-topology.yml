@@ -51,7 +51,7 @@
     physical_cpus_list: "{{ lscpu_data | extract_primary_cpus(item) }}"
     all_cpus_list: "{{ lscpu_data | extract_all_cpus(item) }}"
     node_info:
-      id: "{{ item }}"
+      id: "{{ item | int }}"
       physical_cores: "{{ (physical_cpus_list.split(',') | length) | int if physical_cpus_list else 0 }}"
       physical_cpus: "{{ physical_cpus_list | cpu_list_to_range }}"
       physical_cpus_list: "{{ physical_cpus_list }}"
