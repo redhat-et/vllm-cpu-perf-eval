@@ -27,54 +27,6 @@
     core_cfg: "{{ core_configuration }}"
     container_cfg: "{{ container_runtime }}"
 
-- name: Load model matrix configuration
-  ansible.builtin.include_vars:
-    file: "{{ playbook_dir }}/../../../models/llm-models/model-matrix.yaml"
-    name: model_matrix
-
-- name: Find model configuration in matrix
-  ansible.builtin.set_fact:
-    model_config: "{{ model_matrix.matrix.llm_models | selectattr('full_name', 'equalto', test_model) | first | default(none) }}"
-
-- name: Normalize KV cache override value
-  ansible.builtin.set_fact:
-    normalized_kv_override: "{{ kv_cache_override | default('', true) | string | trim }}"
-
-- name: Override KV cache size if explicitly provided
-  ansible.builtin.set_fact:
-    model_kv_cache: "{{ normalized_kv_override }}"
-    model_kv_cache_source: "override"
-  when: normalized_kv_override != ''
-
-- name: Get model-specific KV cache size for this workload
-  ansible.builtin.set_fact:
-    model_kv_cache: "{{ model_config.kv_cache_sizes[workload_type] | default(workload_cfg.kv_cache_space) }}"
-    model_kv_cache_source: "model-matrix"
-  when:
-    - normalized_kv_override == ''
-    - model_config is not none
-    - model_config.kv_cache_sizes is defined
-
-- name: Use fallback KV cache size if model-specific not found
-  ansible.builtin.set_fact:
-    model_kv_cache: "{{ workload_cfg.kv_cache_space }}"
-    model_kv_cache_source: "workload-default"
-  when:
-    - normalized_kv_override == ''
-    - (model_config is none or model_config.kv_cache_sizes is not defined or model_kv_cache is not defined)
-
-- name: Get model-specific dtype
-  ansible.builtin.set_fact:
-    model_dtype: "{{ model_config.dtype | default('auto') }}"
-    model_dtype_source: "model-matrix"
-  when: model_config is not none and model_config.dtype is defined
-
-- name: Use fallback dtype if model-specific not found
-  ansible.builtin.set_fact:
-    model_dtype: "auto"
-    model_dtype_source: "workload-default"
-  when: model_config is none or model_config.dtype is not defined or model_dtype is not defined
-
 # ============================================================================
 # Caching Mode Configuration
 # ============================================================================
@@ -103,8 +55,8 @@
 - name: Validate workload type
   ansible.builtin.assert:
     that:
-      - workload_type in ['chat', 'rag', 'code', 'summarization', 'reasoning', 'chat_var', 'code_var']
-    fail_msg: "Invalid workload_type: {{ workload_type }}. Must be one of: chat, rag, code, summarization, reasoning, chat_var, code_var"
+      - workload_type in ['summarization', 'chat', 'code', 'rag', 'short_codegen', 'chat_var', 'code_var']
+    fail_msg: "Invalid workload_type: {{ workload_type }}. Must be one of: summarization, chat, code, rag, short_codegen, chat_var, code_var"
 
 # ============================================================================
 # CPU Configuration Validation
@@ -198,8 +150,9 @@
 - name: Prepare base environment variables
   ansible.builtin.set_fact:
     vllm_env_vars:
-      VLLM_CPU_KVCACHE_SPACE: "{{ model_kv_cache | extract_size_value }}"
+      VLLM_CPU_KVCACHE_SPACE: "{{ workload_cfg.kv_cache_space | extract_size_value }}"
       HF_TOKEN: "{{ hf_token }}"
+  no_log: true  # Prevent HF_TOKEN from appearing in logs
 
 - name: Add OMP_NUM_THREADS if specified (ONLY for TP > 1)
   ansible.builtin.set_fact:
@@ -209,6 +162,7 @@
     - core_cfg.omp_num_threads is defined
     - core_cfg.omp_num_threads is not none
     - core_cfg.omp_num_threads | int > 0
+  no_log: true  # Prevent HF_TOKEN from appearing in logs
 
 - name: Add VLLM_CPU_OMP_THREADS_BIND if specified (ONLY for TP > 1)
   ansible.builtin.set_fact:
@@ -217,10 +171,11 @@
     - (core_cfg.tensor_parallel | default(1) | int) > 1
     - core_cfg.omp_threads_bind is defined
     - core_cfg.omp_threads_bind is not none
+  no_log: true  # Prevent HF_TOKEN from appearing in logs
 
-- name: Build base vLLM arguments from workload (without dtype)
+- name: Build base vLLM arguments from workload
   ansible.builtin.set_fact:
-    vllm_base_args: "{{ workload_cfg.vllm_args | default([]) | reject('match', '^--dtype=.*') | list }}"
+    vllm_base_args: "{{ workload_cfg.vllm_args | default([]) }}"
 
 - name: Merge caching mode arguments with workload args
   ansible.builtin.set_fact:
@@ -231,69 +186,6 @@
   ansible.builtin.set_fact:
     vllm_args_merged: "{{ vllm_base_args }}"
   when: vllm_caching_mode is not defined or caching_cfg is not defined
-
-- name: Add model-specific dtype to vLLM arguments
-  ansible.builtin.set_fact:
-    vllm_args_merged: "{{ vllm_args_merged + ['--dtype=' + model_dtype] }}"
-
-- name: Extract max-model-len from vLLM arguments
-  ansible.builtin.set_fact:
-    max_model_len_arg: "{{ vllm_args_merged | select('match', '^--max-model-len=.*') | list | first | default('') }}"
-
-- name: Parse max-model-len value
-  ansible.builtin.set_fact:
-    model_max_len: "{{ max_model_len_arg | regex_replace('^--max-model-len=', '') }}"
-  when: max_model_len_arg | length > 0 and '=' in max_model_len_arg
-
-- name: Set max-model-len to empty if not found
-  ansible.builtin.set_fact:
-    model_max_len: ""
-  when: max_model_len_arg | length == 0 or '=' not in max_model_len_arg
-
-- name: Calculate required sequence length for workload
-  ansible.builtin.set_fact:
-    required_seq_len: "{{ (workload_cfg.isl | int) + (workload_cfg.osl | int) }}"
-
-- name: Validate max-model-len is configured
-  ansible.builtin.fail:
-    msg: |
-      ❌ --max-model-len is required but not found in vLLM arguments!
-
-      Workload: {{ workload_type }}
-      Model: {{ test_model }}
-      vLLM arguments: {{ vllm_args_merged | join(' ') }}
-
-      --max-model-len must be specified in workload configuration to prevent vLLM
-      from allocating KV cache for the model's full context window, which can cause
-      startup failures when KV cache size is insufficient.
-
-      Add --max-model-len to the workload configuration in:
-      automation/test-execution/ansible/inventory/group_vars/all/test-workloads.yml
-  when: model_max_len is not defined or model_max_len | length == 0
-
-- name: Validate max-model-len is sufficient for workload
-  ansible.builtin.fail:
-    msg: |
-      ❌ --max-model-len is too small for this workload!
-
-      Workload: {{ workload_type }}
-      Model: {{ test_model }}
-      Configured max-model-len: {{ model_max_len }}
-      Required sequence length: {{ required_seq_len }} (ISL: {{ workload_cfg.isl }} + OSL: {{ workload_cfg.osl }})
-
-      The configured --max-model-len ({{ model_max_len }}) is less than the required sequence
-      length ({{ required_seq_len }}) for this workload. vLLM will fail to process requests
-      that exceed the configured limit.
-
-      Increase --max-model-len in the workload configuration:
-      automation/test-execution/ansible/inventory/group_vars/all/test-workloads.yml
-
-      Recommended: Set --max-model-len to at least {{ required_seq_len }} or higher for headroom.
-      Current vLLM arguments: {{ vllm_args_merged | join(' ') }}
-  when:
-    - model_max_len is defined
-    - model_max_len | length > 0
-    - model_max_len | int < required_seq_len | int
 
 - name: Build vLLM command arguments
   ansible.builtin.set_fact:
@@ -329,8 +221,7 @@
       - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       - "vLLM Configuration:"
       - "  Tensor Parallel: {{ core_cfg.tensor_parallel }}"
-      - "  Data Type: {{ model_dtype }} (source: {{ model_dtype_source }})"
-      - "  KV Cache: {{ model_kv_cache }} (source: {{ model_kv_cache_source }}) (VLLM_CPU_KVCACHE_SPACE={{ model_kv_cache | extract_size_value }})"
+      - "  KV Cache: {{ workload_cfg.kv_cache_space }} (VLLM_CPU_KVCACHE_SPACE={{ workload_cfg.kv_cache_space | extract_size_value }})"
       - "  OMP Threads: {{ core_cfg.omp_num_threads | default('auto') }}"
       - "  OMP Bind: {{ core_cfg.omp_threads_bind | default('auto') }}"
       - "  Arguments: {{ vllm_args_merged | join(' ') }}"
@@ -358,6 +249,7 @@
       tag: "vllm-{{ workload_type }}-{{ core_cfg.cores }}c-tp{{ core_cfg.tensor_parallel }}"
   when: container_cfg.engine == 'podman'
   register: vllm_container
+  no_log: true  # Prevent HF_TOKEN from appearing in logs
 
 - name: Display vLLM container info
   ansible.builtin.debug:

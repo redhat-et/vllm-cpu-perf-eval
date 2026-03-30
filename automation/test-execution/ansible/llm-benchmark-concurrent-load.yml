@@ -52,6 +52,25 @@
     variable_workload: "{{ base_workload }}_var"
 
   tasks:
+    - name: Detect if running from AWX
+      ansible.builtin.set_fact:
+        is_awx_job: "{{ lookup('env', 'AWX_JOB_ID') | length > 0 }}"
+
+    - name: Validate required parameters
+      ansible.builtin.assert:
+        that:
+          - >-
+            (requested_cores is defined and requested_cores is not none and requested_cores | int > 0) or
+            (core_sweep_counts is defined and core_sweep_counts is not none and core_sweep_counts | length > 0)
+        fail_msg: |
+          Missing required parameter: requested_cores or core_sweep_counts
+          Please provide either:
+            - Single core count: -e "requested_cores=<8|16|32|64|...>"
+            - Core sweep: -e "core_sweep_counts=[16,32,64]"
+
+          The concurrent load test requires at least one core configuration to test.
+          This playbook will run 3 phases with the specified core configuration(s).
+
     - name: Validate base_workload parameter
       ansible.builtin.assert:
         that:
@@ -84,8 +103,6 @@
   vars:
     workload_type: "{{ base_workload }}"
     vllm_caching_mode: "baseline"
-    core_sweep_counts: "{{ core_sweep_counts if (core_sweep_counts is defined) else omit }}"
-    requested_cores: "{{ requested_cores if (requested_cores is defined) else omit }}"
   when: not (skip_phase_1 | default(false) | bool)
 
 - name: Phase 1 Complete
@@ -108,8 +125,6 @@
   vars:
     workload_type: "{{ base_workload }}_var"
     vllm_caching_mode: "baseline"
-    core_sweep_counts: "{{ core_sweep_counts if (core_sweep_counts is defined) else omit }}"
-    requested_cores: "{{ requested_cores if (requested_cores is defined) else omit }}"
   when:
     - not (skip_phase_2 | default(false) | bool)
     - (base_workload + '_var') in ['chat_var', 'code_var']
@@ -147,8 +162,6 @@
   vars:
     workload_type: "{{ base_workload }}_var"
     vllm_caching_mode: "production"
-    core_sweep_counts: "{{ core_sweep_counts if (core_sweep_counts is defined) else omit }}"
-    requested_cores: "{{ requested_cores if (requested_cores is defined) else omit }}"
   when:
     - not (skip_phase_3 | default(false) | bool)
     - (base_workload + '_var') in ['chat_var', 'code_var']
@@ -203,5 +216,5 @@
           - "  Phase 3 (Production - Variable, With Cache): {{ 'SKIPPED' if (skip_phase_3 | default(false) | bool) else ('COMPLETE' if has_variable_workload else 'N/A') }}"
           - ""
           - "Results Location:"
-          - "  results/llm/{{ test_model | replace('/', '__') }}/"
+          - "  {{ '~/benchmark-results' if is_awx_job else 'results/llm' }}/{{ test_model | replace('/', '__') }}/"
           - "============================================================"
