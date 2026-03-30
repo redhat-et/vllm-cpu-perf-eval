@@ -1345,16 +1345,10 @@
         "label": "datasource",
         "query": "prometheus",
         "refresh": 1,
-        "current": {
-          "text": "Prometheus",
-          "value": "prometheus"
-        }
+        "current": {}
       },
       {
-        "current": {
-          "text": "avg : Average\n0.50 : P50\n0.90 : P90\n0.99 : P99\n0.999 : Max (Approx)",
-          "value": "avg : Average\n0.50 : P50\n0.90 : P90\n0.99 : P99\n0.999 : Max (Approx)"
-        },
+        "current": {},
         "label": "Aggregation",
         "name": "agg_method",
         "options": [
@@ -1368,14 +1362,7 @@
         "type": "custom"
       },
       {
-        "current": {
-          "text": [
-            "granite-33-2b-instruct"
-          ],
-          "value": [
-            "granite-33-2b-instruct"
-          ]
-        },
+        "current": {},
         "definition": "label_values(vllm:generation_tokens_total,model_name)",
         "includeAll": true,
         "label": "Deployment_ID",

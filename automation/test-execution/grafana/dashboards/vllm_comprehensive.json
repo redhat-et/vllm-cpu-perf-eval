@@ -1497,11 +1497,7 @@
   "templating": {
     "list": [
       {
-        "current": {
-          "selected": false,
-          "text": "prometheus",
-          "value": "edx8memhpd9tsa"
-        },
+        "current": {},
         "hide": 0,
         "includeAll": false,
         "label": "datasource",
@@ -1516,14 +1512,10 @@
         "type": "datasource"
       },
       {
-        "current": {
-          "selected": false,
-          "text": "/share/datasets/public_models/Meta-Llama-3-8B-Instruct",
-          "value": "/share/datasets/public_models/Meta-Llama-3-8B-Instruct"
-        },
+        "current": {},
         "datasource": {
           "type": "prometheus",
-          "uid": "edx8memhpd9tsa"
+          "uid": "${DS_PROMETHEUS}"
         },
         "definition": "label_values(model_name)",
         "hide": 0,
