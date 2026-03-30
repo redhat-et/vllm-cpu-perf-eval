@@ -198,15 +198,23 @@ st.sidebar.header("Configuration")
 config = DashboardConfig()
 default_results_dir = config.get_results_directory()
 
+# Results directory input
 results_dir_input = st.sidebar.text_input(
     "Results Directory",
     value=default_results_dir,
-    help="Path to results directory (saved across sessions)"
+    help="Path to results directory",
+    key="results_dir_home"
 )
 
-# Save if changed
-if results_dir_input != default_results_dir:
-    config.set_results_directory(results_dir_input)
+# Save button
+col1, col2 = st.sidebar.columns([3, 1])
+with col2:
+    if st.button("💾", help="Save configuration", key="save_btn_home"):
+        if results_dir_input != default_results_dir:
+            config.set_results_directory(results_dir_input)
+            st.sidebar.success("✓ Saved!")
+        else:
+            st.sidebar.info("No changes")
 
 # Check for results
 results_base = Path(results_dir_input)

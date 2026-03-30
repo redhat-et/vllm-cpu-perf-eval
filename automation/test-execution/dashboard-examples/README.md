@@ -277,7 +277,8 @@ The dashboard allows you to configure a custom results directory path that **per
 1. **Via Sidebar** (recommended):
    - Open any dashboard page
    - Enter your results directory path in the sidebar "Results Directory" field
-   - Path is automatically saved to `.dashboard_config.ini`
+   - Click the **💾** (save) button next to the input field
+   - Path is saved to `.dashboard_config.ini`
    - Survives dashboard stop/restart cycles
 
 2. **Via Environment Variable**:

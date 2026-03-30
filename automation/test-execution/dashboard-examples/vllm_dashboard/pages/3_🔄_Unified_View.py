@@ -177,15 +177,28 @@ st.sidebar.header("Configuration")
 config = DashboardConfig()
 default_results_dir = config.get_results_directory()
 
+# Results directory input
 results_dir = st.sidebar.text_input(
     "Results Directory",
     value=default_results_dir,
-    help="Path to results directory (saved across sessions)"
+    help="Path to results directory",
+    key="results_dir_unified"
 )
 
-# Save if changed
-if results_dir != default_results_dir:
-    config.set_results_directory(results_dir)
+# Save button
+col1, col2 = st.sidebar.columns([3, 1])
+with col2:
+    save_btn = st.button(
+        "💾",
+        help="Save configuration",
+        key="save_btn_unified"
+    )
+    if save_btn:
+        if results_dir != default_results_dir:
+            config.set_results_directory(results_dir)
+            st.sidebar.success("✓ Saved!")
+        else:
+            st.sidebar.info("No changes")
 
 # Load both datasets
 with st.spinner("Loading benchmark data..."):
