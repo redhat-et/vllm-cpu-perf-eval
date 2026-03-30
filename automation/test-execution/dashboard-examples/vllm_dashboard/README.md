@@ -175,19 +175,3 @@ vllm_dashboard/
 ├── stop-dashboard.sh                 # Stop script
 └── README.md                         # This file
 ```
-
-## Migration from Old Dashboards
-
-**Old**: Three separate dashboards on different ports
-- Client: `http://localhost:8501`
-- Server: `http://localhost:8502`
-- Unified: `http://localhost:8503`
-
-**New**: One dashboard with navigation
-- All views: `http://localhost:8501`
-
-**Benefits**:
-- ✅ Single URL to bookmark
-- ✅ Sidebar navigation
-- ✅ Simpler deployment (one process)
-- ✅ Shared state and filters (if needed)
