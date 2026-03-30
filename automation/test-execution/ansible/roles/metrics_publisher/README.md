@@ -1,14 +1,20 @@
 # Metrics Publisher Role
 
-**Common role for publishing GuideLLM benchmark results to monitoring systems.**
+**Role for publishing GuideLLM benchmark results to Prometheus for historical tracking.**
 
 ## Overview
 
-This is the **standard role** for publishing benchmark results. It parses GuideLLM JSON output and publishes metrics to Prometheus Pushgateway for visualization in Grafana.
+This role parses GuideLLM JSON output and publishes metrics to Prometheus Pushgateway.
+
+**Note:** For visualization and analysis:
+- **Real-time monitoring** during tests: Use Grafana to view live vLLM server metrics
+- **Post-test analysis**: Use Streamlit Dashboard to analyze GuideLLM benchmark results
+
+See [dashboard-examples](../../../dashboard-examples/README.md) for the Streamlit Dashboard.
 
 ## Supported Backends
 
-- ✅ **Prometheus Pushgateway** (default)
+- ✅ **Prometheus Pushgateway** (optional, for historical tracking)
 
 ## Requirements
 
@@ -155,38 +161,27 @@ All metrics include these labels for filtering:
 └────────────┬───────────────────────────┘
              │
              ▼
-┌────────────────────────────────────────┐
-│ Ansible Controller (localhost)         │
-│  ┌──────────────────────────────────┐  │
-│  │ metrics_publisher role           │  │
-│  │  1. Parse GuideLLM JSON          │  │
-│  │  2. Extract metrics              │  │
-│  │  3. Format as Prometheus metrics │  │
-│  │  4. HTTP POST to Pushgateway     │  │
-│  └──────────────┬───────────────────┘  │
-│                 │                       │
-│  ┌──────────────▼───────────────────┐  │
-│  │ Prometheus Pushgateway :9091     │  │
-│  │  - Receives metrics              │  │
-│  │  - Stores until Prometheus       │  │
-│  │    scrapes them                  │  │
-│  └──────────────┬───────────────────┘  │
-└─────────────────┼───────────────────────┘
-                  │
-                  ▼
-┌─────────────────────────────────────────┐
-│ Prometheus                              │
-│  - Scrapes Pushgateway every 15s        │
-│  - Stores all historical metrics        │
-└──────────────┬──────────────────────────┘
-               │
-               ▼
-┌─────────────────────────────────────────┐
-│ Grafana                                 │
-│  - Query and visualize metrics          │
-│  - Compare platforms                    │
-│  - Track trends over time               │
-└─────────────────────────────────────────┘
+┌────────────────────────────────────────────────┐
+│ Benchmark Results (JSON files)                 │
+│  - benchmarks.json                             │
+│  - test-metadata.json                          │
+└─────────────┬──────────────────────────────────┘
+              │
+              ├──► Streamlit Dashboard (Post-Test Analysis)
+              │    - Load and visualize GuideLLM results
+              │    - Platform comparisons
+              │    - Performance analysis
+              │
+              └──► (Optional) metrics_publisher role
+                   │
+                   ▼
+              ┌────────────────────────────┐
+              │ Prometheus Pushgateway     │
+              │ - Historical tracking only │
+              └────────────────────────────┘
+
+Note: Real-time monitoring during tests uses Grafana with live
+      vLLM server metrics (not GuideLLM results)
 ```
 
 ## Deployment Models
@@ -318,8 +313,9 @@ ansible-playbook llm-benchmark-auto.yml \
 
 ## See Also
 
-- [Grafana Monitoring README](../../../grafana/README.md) - Full Grafana/Prometheus setup guide
-- [Prometheus Pushgateway Docs](https://github.com/prometheus/pushgateway)
+- [Streamlit Dashboard](../../../dashboard-examples/README.md) - Primary tool for analyzing GuideLLM benchmark results
+- [Grafana Monitoring](../../../grafana/README.md) - Real-time vLLM server metrics during tests
+- [Prometheus Pushgateway Docs](https://github.com/prometheus/pushgateway) - Optional historical tracking
 
 ## License
 

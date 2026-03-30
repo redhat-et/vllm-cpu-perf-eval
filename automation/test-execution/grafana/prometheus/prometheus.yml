@@ -1,10 +1,12 @@
 # Prometheus Configuration - Ansible Controller Deployment
-# Runs on your local machine/laptop, receives metrics from cloud infrastructure
+# Runs on your local machine/laptop, scrapes vLLM server metrics via SSH tunnel
 #
 # Architecture:
-#   1. Pushgateway - Receives GuideLLM results pushed by Ansible (always accessible)
-#   2. vLLM Live Metrics - Optional, via SSH tunnel during active tests
-#   3. Prometheus - Scrapes both sources and stores all historical data locally
+#   1. SSH Tunnel - Forwards vLLM server :8000 to localhost:8000
+#   2. Prometheus - Scrapes vLLM /metrics endpoint and stores data locally
+#   3. Grafana - Visualizes real-time metrics in dashboards
+#
+# Note: GuideLLM benchmark results are analyzed post-test via Streamlit Dashboard
 
 global:
   scrape_interval: 15s      # How often to scrape targets
@@ -17,16 +19,7 @@ global:
 
 # Scrape configurations
 scrape_configs:
-  # Pushgateway - Receives batch GuideLLM benchmark results from Ansible
-  - job_name: "pushgateway"
-    honor_labels: true  # Preserve labels from pushed metrics
-    scrape_interval: 15s
-    static_configs:
-      - targets: ["pushgateway:9091"]
-        labels:
-          source: "guidellm-batch"
-
-  # vLLM Server Live Metrics (Optional - during active tests only)
+  # vLLM Server Live Metrics
   # Requires SSH tunnel: ssh -L 8000:localhost:8000 ec2-user@$DUT_HOSTNAME
   - job_name: "vllm-live"
     scrape_interval: 10s
