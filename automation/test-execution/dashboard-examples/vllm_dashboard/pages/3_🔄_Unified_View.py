@@ -166,8 +166,13 @@ def load_vllm_metrics(results_dir: str) -> pd.DataFrame:
 st.title("🚀 vLLM CPU Performance Dashboard")
 st.markdown("**Unified Client-Side & Server-Side Metrics Analysis**")
 
-# Load data (hardcoded path, no UI input)
-results_dir = "../../../../results/llm"
+# Sidebar configuration
+st.sidebar.header("Configuration")
+results_dir = st.sidebar.text_input(
+    "Results Directory",
+    value="../../../../results/llm",
+    help="Path to directory containing benchmark results (benchmarks.json and vllm-metrics.json files)"
+)
 
 # Load both datasets
 with st.spinner("Loading benchmark data..."):
