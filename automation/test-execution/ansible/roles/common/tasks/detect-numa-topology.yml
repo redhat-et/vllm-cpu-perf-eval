@@ -96,9 +96,9 @@
 
 - name: Find nodes by ID for backward compatibility
   ansible.builtin.set_fact:
-    housekeeping_node_info: "{{ numa_nodes_inventory | selectattr('id', 'equalto', housekeeping_node_id | string) | first }}"
-    guidellm_node_info: "{{ numa_nodes_inventory | selectattr('id', 'equalto', guidellm_node_id | string) | first }}"
-    vllm_node_info: "{{ numa_nodes_inventory | selectattr('id', 'equalto', vllm_node_id | string) | first }}"
+    housekeeping_node_info: "{{ numa_nodes_inventory | selectattr('id', 'equalto', housekeeping_node_id) | first }}"
+    guidellm_node_info: "{{ numa_nodes_inventory | selectattr('id', 'equalto', guidellm_node_id) | first }}"
+    vllm_node_info: "{{ numa_nodes_inventory | selectattr('id', 'equalto', vllm_node_id) | first }}"
 
 - name: Add backward compatibility fields
   ansible.builtin.set_fact:
