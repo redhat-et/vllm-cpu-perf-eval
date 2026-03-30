@@ -19,6 +19,10 @@ import plotly.io as pio
 import streamlit as st
 from plotly.subplots import make_subplots
 
+# Add parent directory to path for config_manager import
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from config_manager import DashboardConfig
+
 # Set global Plotly template
 if "plotly_white_light" not in pio.templates:
     _light_hover = go.layout.Template(
@@ -569,11 +573,20 @@ def render_dashboard():
 
     # Sidebar configuration
     st.sidebar.header("Configuration")
+
+    # Initialize config manager
+    config = DashboardConfig()
+    default_results_dir = config.get_results_directory()
+
     results_dir = st.sidebar.text_input(
         "Results Directory",
-        value="../../../../results/llm",
-        help="Path to directory containing benchmark results (benchmarks.json files)"
+        value=default_results_dir,
+        help="Path to results directory (saved across sessions)"
     )
+
+    # Save if changed
+    if results_dir != default_results_dir:
+        config.set_results_directory(results_dir)
 
     with st.spinner("Loading benchmark data..."):
         df = load_guidellm_data(results_dir)

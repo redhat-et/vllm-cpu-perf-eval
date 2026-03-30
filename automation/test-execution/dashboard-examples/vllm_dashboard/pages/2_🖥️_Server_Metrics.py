@@ -18,9 +18,14 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import json
+import sys
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List
+
+# Add parent directory to path for config_manager import
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from config_manager import DashboardConfig
 
 # Page config is set in Home.py for multipage apps
 
@@ -39,12 +44,20 @@ st.title("🖥️ vLLM Server-Side Metrics Analysis")
 # Sidebar configuration
 st.sidebar.header("Configuration")
 
+# Initialize config manager
+config = DashboardConfig()
+default_results_dir = config.get_results_directory()
+
 # Results directory
 results_dir = st.sidebar.text_input(
     "Results Directory",
-    value="../../../../results/llm",
-    help="Path to directory containing benchmark results"
+    value=default_results_dir,
+    help="Path to results directory (saved across sessions)"
 )
+
+# Save if changed
+if results_dir != default_results_dir:
+    config.set_results_directory(results_dir)
 
 # Load vLLM metrics
 @st.cache_data

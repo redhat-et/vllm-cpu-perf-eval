@@ -66,3 +66,6 @@ temp/
 *.tmp
 _site/
 vendor/
+
+# Streamlit dashboard config
+automation/test-execution/dashboard-examples/vllm_dashboard/.dashboard_config.ini

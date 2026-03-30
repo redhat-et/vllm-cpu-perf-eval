@@ -6,6 +6,7 @@ Navigate to different views using the sidebar.
 
 import streamlit as st
 from pathlib import Path
+from config_manager import DashboardConfig
 
 # Page config
 st.set_page_config(
@@ -192,21 +193,23 @@ st.markdown("### 📊 System Status")
 # Sidebar configuration
 st.sidebar.markdown("---")
 st.sidebar.header("Configuration")
+
+# Initialize config manager
+config = DashboardConfig()
+default_results_dir = config.get_results_directory()
+
 results_dir_input = st.sidebar.text_input(
     "Results Directory",
-    value="../../../../results/llm",
-    help="Path to directory containing benchmark results"
+    value=default_results_dir,
+    help="Path to results directory (saved across sessions)"
 )
 
+# Save if changed
+if results_dir_input != default_results_dir:
+    config.set_results_directory(results_dir_input)
+
 # Check for results
-if results_dir_input:
-    results_base = Path(results_dir_input)
-else:
-    default_path = (
-        Path(__file__).parent.parent.parent.parent.parent
-        / "results" / "llm"
-    )
-    results_base = default_path
+results_base = Path(results_dir_input)
 if results_base.exists():
     # Count test runs (filter out hidden files like .DS_Store)
     model_dirs = [m for m in results_base.glob("*") if m.is_dir() and not m.name.startswith('.')]

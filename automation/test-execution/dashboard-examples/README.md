@@ -266,7 +266,41 @@ results/llm/
 
 **Default path:** `../../../../../results/llm` (relative to dashboard pages)
 
-Configurable in sidebar of each view.
+## Configuration
+
+### Results Directory
+
+The dashboard allows you to configure a custom results directory path that **persists across sessions**.
+
+#### How to Configure
+
+1. **Via Sidebar** (recommended):
+   - Open any dashboard page
+   - Enter your results directory path in the sidebar "Results Directory" field
+   - Path is automatically saved to `.dashboard_config.ini`
+   - Survives dashboard stop/restart cycles
+
+2. **Via Environment Variable**:
+   ```bash
+   export VLLM_DASHBOARD_RESULTS_DIR="/path/to/your/results/llm"
+   ./launch-dashboard.sh
+   ```
+   Environment variable takes priority over saved config.
+
+3. **Via Config File** (advanced):
+   Edit `vllm_dashboard/.dashboard_config.ini`:
+   ```ini
+   [Paths]
+   results_directory = /absolute/path/to/results/llm
+   ```
+
+#### Path Types Supported
+
+- **Relative paths**: `../../../../results/llm` (default)
+- **Absolute paths**: `/Users/username/benchmarks/results/llm`
+- **Home directory**: `~/benchmarks/results/llm` (expands to full path)
+
+**Note:** Configuration is stored in `vllm_dashboard/.dashboard_config.ini` and is **not** committed to git.
 
 ## Setup
 
@@ -355,15 +389,36 @@ cd ..
 
 ### No data appears
 
-```bash
-# Verify results directory exists
-ls -la ../../../results/llm/
+**Solution 1: Check/Update Results Directory**
 
-# Check path in dashboard sidebar
-# Default: ../../../../../results/llm (relative to pages/)
+1. Open dashboard sidebar
+2. Verify "Results Directory" path is correct
+3. Update path if needed - it will persist across sessions
+4. Refresh the page
+
+**Solution 2: Use Absolute Path**
+
+If relative paths aren't working, use an absolute path:
+```bash
+# In dashboard sidebar, enter:
+/Users/your-username/path/to/vllm-cpu-perf-eval/results/llm
+```
+
+**Solution 3: Reset Configuration**
+
+```bash
+# Remove saved config and restart
+rm vllm_dashboard/.dashboard_config.ini
+./launch-dashboard.sh
+```
+
+**Verify Data Exists:**
+```bash
+# Check if results directory exists
+ls -la results/llm/
 
 # Look for benchmarks.json files
-find ../../../results/llm -name "benchmarks.json"
+find results/llm -name "benchmarks.json"
 ```
 
 ### Server metrics not found

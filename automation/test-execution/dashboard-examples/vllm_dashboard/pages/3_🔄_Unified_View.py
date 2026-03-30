@@ -18,6 +18,10 @@ import plotly.graph_objects as go
 import streamlit as st
 from plotly.subplots import make_subplots
 
+# Add parent directory to path for config_manager import
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from config_manager import DashboardConfig
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -168,11 +172,20 @@ st.markdown("**Unified Client-Side & Server-Side Metrics Analysis**")
 
 # Sidebar configuration
 st.sidebar.header("Configuration")
+
+# Initialize config manager
+config = DashboardConfig()
+default_results_dir = config.get_results_directory()
+
 results_dir = st.sidebar.text_input(
     "Results Directory",
-    value="../../../../results/llm",
-    help="Path to directory containing benchmark results (benchmarks.json and vllm-metrics.json files)"
+    value=default_results_dir,
+    help="Path to results directory (saved across sessions)"
 )
+
+# Save if changed
+if results_dir != default_results_dir:
+    config.set_results_directory(results_dir)
 
 # Load both datasets
 with st.spinner("Loading benchmark data..."):
