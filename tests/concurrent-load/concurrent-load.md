@@ -229,6 +229,38 @@ ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
 
 ## Running Tests
 
+### Deployment Modes
+
+Concurrent load tests support two vLLM deployment modes:
+
+**Managed Mode (Default):**
+- Ansible starts/stops vLLM container on DUT automatically
+- Handles NUMA topology detection and CPU pinning
+- Fully automated but adds container startup time to each test
+
+**External Mode:**
+- Connect to existing vLLM instance (cloud, K8s, bare metal)
+- No container management - faster test execution
+- Better reflects production deployment patterns
+- Requires manual vLLM setup before running tests
+- Model name auto-detected from endpoint (no need to specify `test_model`)
+
+**To use external mode:**
+
+```bash
+export VLLM_ENDPOINT_MODE=external
+export VLLM_ENDPOINT_URL=http://your-vllm-instance:8000
+```
+
+Or edit `inventory/group_vars/all/endpoints.yml`:
+
+```yaml
+vllm_endpoint:
+  mode: "external"
+  external:
+    url: "http://your-vllm-instance:8000"
+```
+
 ### Quick Start
 
 **Two playbooks for concurrent load testing:**
@@ -352,6 +384,65 @@ ansible-playbook -i inventory/hosts.yml \
   -e "skip_phase_1=true" \
   -e "skip_phase_2=true"
 ```
+
+#### Using External vLLM Endpoint
+
+To test against an existing vLLM instance:
+
+**1. Start your vLLM instance:**
+
+```bash
+# For Phases 1 & 2 (baseline/realistic - no caching)
+vllm serve meta-llama/Llama-3.2-1B-Instruct \
+  --host 0.0.0.0 \
+  --port 8000 \
+  --dtype bfloat16 \
+  --max-model-len 8192 \
+  --no-enable-prefix-caching
+
+# For Phase 3 (production - with caching)
+vllm serve meta-llama/Llama-3.2-1B-Instruct \
+  --host 0.0.0.0 \
+  --port 8000 \
+  --dtype bfloat16 \
+  --max-model-len 8192 \
+  --enable-prefix-caching
+```
+
+**2. Configure external mode:**
+
+```bash
+export VLLM_ENDPOINT_MODE=external
+export VLLM_ENDPOINT_URL=http://your-vllm-host:8000
+```
+
+**3. Run tests (model name auto-detected from endpoint):**
+
+```bash
+cd ../../automation/test-execution/ansible
+
+# Run Phases 1 & 2 (against baseline vLLM instance)
+# Note: test_model is optional - will be queried from endpoint
+ansible-playbook -i inventory/hosts.yml \
+  llm-benchmark-concurrent-load.yml \
+  -e "base_workload=chat" \
+  -e "requested_cores=16" \
+  -e "skip_phase_3=true"
+
+# Restart vLLM with caching enabled, then run Phase 3
+ansible-playbook -i inventory/hosts.yml \
+  llm-benchmark-concurrent-load.yml \
+  -e "base_workload=chat" \
+  -e "requested_cores=16" \
+  -e "skip_phase_1=true" \
+  -e "skip_phase_2=true"
+```
+
+**Benefits:**
+- No container startup time between tests
+- Single model load for all test variations
+- Supports cloud/K8s deployments
+- Simpler test orchestration
 
 ### Option 2: Run Test Suite (Selected Model × Workload Combinations)
 
