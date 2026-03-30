@@ -21,6 +21,51 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
+# Early bypass for --help (before blocking guard)
+for arg in "$@"; do
+    if [[ "$arg" == "-h" || "$arg" == "--help" ]]; then
+        # Jump to usage function definition below
+        usage() {
+            cat <<EOF
+Usage: $0 [OPTIONS]
+
+Run complete embedding model performance test suite.
+
+Options:
+    --vllm-host HOST       vLLM server host (default: localhost)
+    --vllm-port PORT       vLLM server port (default: 8000)
+    --models "MODEL..."    Space-separated list of models to test
+    --baseline-only        Run only baseline tests
+    --latency-only         Run only latency tests
+    -h, --help             Show this help message
+
+Environment Variables:
+    VLLM_HOST              Override vLLM host
+    VLLM_PORT              Override vLLM port
+    MODELS                 Override models to test
+    RUN_BASELINE           Set to false to skip baseline tests
+    RUN_LATENCY            Set to false to skip latency tests
+
+Examples:
+    # Run all tests with local vLLM
+    $0
+
+    # Run all tests with remote vLLM
+    $0 --vllm-host 192.168.1.10
+
+    # Test specific models
+    $0 --models "ibm-granite/granite-embedding-english-r2 ibm-granite/granite-embedding-278m-multilingual"
+
+    # Run only baseline tests
+    $0 --baseline-only
+
+EOF
+        }
+        usage
+        exit 0
+    fi
+done
+
 # ════════════════════════════════════════════════════════════════════════════════
 # ❌ BLOCK UNSUPPORTED TEST SUITE
 # ════════════════════════════════════════════════════════════════════════════════
@@ -39,7 +84,8 @@ if [[ "${ALLOW_UNSUPPORTED_TESTS:-false}" != "true" ]]; then
     echo -e "  ansible-playbook -i inventory/hosts.yml llm-benchmark-concurrent-load.yml \\" >&2
     echo -e "    -e \"test_model=TinyLlama/TinyLlama-1.1B-Chat-v1.0\" \\" >&2
     echo -e "    -e \"base_workload=chat\" \\" >&2
-    echo -e "    -e \"core_sweep_counts=[16,32,64]\"" >&2
+    echo -e "    -e \"core_sweep_counts=[16,32,64]\" \\" >&2
+    echo -e "    -e \"skip_phase_3=true\"" >&2
     echo -e "" >&2
     echo -e "${BLUE}📚 See: tests/concurrent-load/concurrent-load.md | README.md${NC}" >&2
     echo -e "" >&2

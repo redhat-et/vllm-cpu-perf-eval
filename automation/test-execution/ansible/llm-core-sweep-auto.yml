@@ -13,6 +13,7 @@
 - name: "Auto Core Sweep - Setup"
   hosts: localhost
   gather_facts: false
+  any_errors_fatal: true
   vars:
     test_run_id: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
 
@@ -41,11 +42,12 @@
           - ""
           - "Concurrent Load Testing (Phase 1 & Phase 2) is fully validated."
           - ""
-          - "Run 2-phase test (Phase 3 skipped by default):"
+          - "Run 2-phase test (skip Phase 3):"
           - "  ansible-playbook -i inventory/hosts.yml llm-benchmark-concurrent-load.yml \\"
           - "    -e \"test_model=TinyLlama/TinyLlama-1.1B-Chat-v1.0\" \\"
           - "    -e \"base_workload=chat\" \\"
-          - "    -e \"core_sweep_counts=[16,32,64]\""
+          - "    -e \"core_sweep_counts=[16,32,64]\" \\"
+          - "    -e \"skip_phase_3=true\""
           - ""
           - "Run single phase (Phase 1 baseline):"
           - "  ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \\"
