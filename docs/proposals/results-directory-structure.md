@@ -108,35 +108,37 @@ results/
 ### Path Examples
 
 #### LLM Examples
-```
-# Concurrent load test with auto-generated timestamp
+
+```text
+Concurrent load test with auto-generated timestamp:
 results/llm/concurrent-load/TinyLlama__TinyLlama-1.1B-Chat-v1.0/chat/20240315-143022/4c-tp1/
 
-# Concurrent load test with custom run name
+Concurrent load test with custom run name:
 results/llm/concurrent-load/TinyLlama__TinyLlama-1.1B-Chat-v1.0/chat/baseline-comparison/4c-tp1/
 
-# Scalability core sweep with auto-generated timestamp
+Scalability core sweep with auto-generated timestamp:
 results/llm/scalability/TinyLlama__TinyLlama-1.1B-Chat-v1.0/chat/20240315-143022/cores_8/
 results/llm/scalability/TinyLlama__TinyLlama-1.1B-Chat-v1.0/chat/20240315-143022/cores_16/
 
-# Scalability core sweep with custom run name
+Scalability core sweep with custom run name:
 results/llm/scalability/meta-llama__Llama-3.2-3B-Instruct/summarization/prod-validation-v2/cores_8/
 results/llm/scalability/meta-llama__Llama-3.2-3B-Instruct/summarization/prod-validation-v2/cores_16/
 
-# Resource contention test
+Resource contention test:
 results/llm/resource-contention/Qwen__Qwen2.5-3B-Instruct/code/multi-tenant-test/shared-cores/
 ```
 
 #### Embedding Examples
-```
-# Baseline test with auto-generated timestamp
+
+```text
+Baseline test with auto-generated timestamp:
 results/embedding/baseline/ibm-granite__granite-embedding-278m-multilingual/20240315-143022/sweep-inf.json
 results/embedding/baseline/ibm-granite__granite-embedding-278m-multilingual/20240315-143022/sweep-25pct.json
 
-# Baseline test with custom run name
+Baseline test with custom run name:
 results/embedding/baseline/ibm-granite__granite-embedding-278m-multilingual/prod-release-candidate/sweep-inf.json
 
-# Latency test with different concurrency levels
+Latency test with different concurrency levels:
 results/embedding/latency/ibm-granite__granite-embedding-english-r2/20240315-154530/concurrent-16.json
 results/embedding/latency/ibm-granite__granite-embedding-english-r2/20240315-154530/concurrent-32.json
 results/embedding/latency/ibm-granite__granite-embedding-english-r2/20240315-154530/concurrent-64.json
@@ -501,20 +503,23 @@ results/llm/{model}/{workload}-baseline-20240315-143022/
 3. Should embedding tests have a config level like LLM tests? (probably not needed currently)
 
 ### Custom Run Names (Issue #73)
-4. Should custom names be validated (reject invalid) or sanitized (auto-fix)?
+
+1. Should custom names be validated (reject invalid) or sanitized (auto-fix)?
    - **Current proposal:** Sanitize (more user-friendly)
-5. Should we enforce a maximum length for run names? (e.g., 100 characters)
-6. Should we support environment variable `TEST_RUN_NAME` in addition to command-line args?
+2. Should we enforce a maximum length for run names? (e.g., 100 characters)
+3. Should we support environment variable `TEST_RUN_NAME` in addition to command-line args?
    - **Current proposal:** Yes
 
 ### Metadata and Indexing
-7. Should we add a `results.json` index file at the workload/scenario level for faster discovery?
-8. Should test-metadata.json include the full path structure for easier parsing?
+
+1. Should we add a `results.json` index file at the workload/scenario level for faster discovery?
+2. Should test-metadata.json include the full path structure for easier parsing?
 
 ### Streamlit Integration
-9. Should Streamlit changes be part of this PR or a separate follow-up issue?
+
+1. Should Streamlit changes be part of this PR or a separate follow-up issue?
    - **Recommendation:** Separate issue once directory structure is finalized
-10. Should we add a `--list-runs` flag to CLI tools to show available test run names?
+2. Should we add a `--list-runs` flag to CLI tools to show available test run names?
 
 ## Recommendations
 
