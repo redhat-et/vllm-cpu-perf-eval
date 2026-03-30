@@ -421,11 +421,16 @@ export ANSIBLE_SSH_KEY=~/.ssh/my-key.pem
 export VLLM_ENDPOINT_MODE=external
 export VLLM_ENDPOINT_URL=http://your-vllm-host:8000
 
+# Optional: API key for secured vLLM endpoints
+export VLLM_API_KEY_ENABLED=true
+export VLLM_API_KEY=your-api-key
+
 # Optional: HuggingFace token (if needed by GuideLLM)
 export HF_TOKEN=hf_xxxxx
 ```
 
-**Note:** In external mode, you only need to configure the load generator. DUT connection is not required since vLLM is already running externally.
+**Note:** In external mode, you only need to configure the load generator.
+DUT connection is not required since vLLM is already running externally.
 
 **3. Run tests (model name auto-detected from endpoint):**
 

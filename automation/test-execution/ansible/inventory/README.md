@@ -38,6 +38,8 @@ export HF_TOKEN=hf_xxxxx  # If using gated models
 # Optional: Use external vLLM endpoint instead of managed container
 export VLLM_ENDPOINT_MODE=external
 export VLLM_ENDPOINT_URL=http://my-vllm-instance.example.com:8000
+export VLLM_API_KEY_ENABLED=true  # If endpoint requires authentication
+export VLLM_API_KEY=your-api-key
 ```
 
 The inventory file automatically uses these environment variables with sensible defaults if not set.
@@ -214,8 +216,11 @@ export ANSIBLE_SSH_KEY=~/.ssh/my-key.pem
 export VLLM_ENDPOINT_MODE=external
 export VLLM_ENDPOINT_URL=http://my-vllm-lb.example.com:8000
 
-# Optional: If endpoint requires API key or HF token needed
+# Optional: If endpoint requires API key authentication
+export VLLM_API_KEY_ENABLED=true
 export VLLM_API_KEY=your-api-key
+
+# Optional: HuggingFace token (if needed)
 export HF_TOKEN=hf_xxxxx
 ```
 

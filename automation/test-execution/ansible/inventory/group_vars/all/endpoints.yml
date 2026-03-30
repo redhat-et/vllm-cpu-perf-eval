@@ -33,7 +33,8 @@ vllm_endpoint:
 
     # Optional API key authentication for secured endpoints
     api_key:
-      enabled: false
+      # Can be enabled via environment variable: export VLLM_API_KEY_ENABLED=true
+      enabled: "{{ lookup('env', 'VLLM_API_KEY_ENABLED') | default('false', true) | bool }}"
       source: "env"              # Options: env, file, vault, prompt
       env_var: "VLLM_API_KEY"    # Used when source=env
       file_path: null            # Used when source=file (e.g., /etc/secrets/vllm-key)
