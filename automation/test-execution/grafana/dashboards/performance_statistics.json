@@ -1360,23 +1360,6 @@
         ],
         "query": "avg : Average\n0.50 : P50\n0.90 : P90\n0.99 : P99\n0.999 : Max (Approx)",
         "type": "custom"
-      },
-      {
-        "current": {},
-        "definition": "label_values(vllm:generation_tokens_total,model_name)",
-        "includeAll": true,
-        "label": "Deployment_ID",
-        "multi": true,
-        "name": "Deployment_id",
-        "options": [],
-        "query": {
-          "qryType": 1,
-          "query": "label_values(vllm:generation_tokens_total,model_name)",
-          "refId": "PrometheusVariableQueryEditor-VariableQuery"
-        },
-        "refresh": 1,
-        "regex": "",
-        "type": "query"
       }
     ]
   },
