@@ -1,40 +1,11 @@
 version: "3.8"
 
 # vLLM CPU Performance Evaluation - Monitoring Stack (Runs on Ansible Controller)
-# Prometheus-based monitoring for both live vLLM metrics and batch GuideLLM results
-# Deploy on your local machine/laptop for persistent monitoring
+# Real-time monitoring of vLLM server metrics during benchmark execution
+# Deploy on your local machine/laptop for live performance visualization
 
 services:
-  # Prometheus Pushgateway - Receives batch GuideLLM results from Ansible
-  pushgateway:
-    image: prom/pushgateway:v1.7.0
-    container_name: vllm-pushgateway
-    restart: unless-stopped
-    ports:
-      - "9091:9091"
-    command:
-      - "--persistence.file=/data/pushgateway.data"
-      - "--persistence.interval=5m"
-    volumes:
-      - pushgateway-data:/data
-    networks:
-      - vllm-monitoring
-    healthcheck:
-      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9091/-/healthy"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    deploy:
-      resources:
-        limits:
-          cpus: "0.5"
-          memory: 512M
-        reservations:
-          cpus: "0.25"
-          memory: 256M
-
-  # Prometheus - Metrics collection for vLLM server
+  # Prometheus - Metrics scraping for vLLM server
   prometheus:
     image: prom/prometheus:v2.51.0
     container_name: vllm-prometheus
@@ -88,15 +59,13 @@ services:
       - GF_LOG_LEVEL=info
 
       # Dashboards
-      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/etc/grafana/dashboards/vllm-live-metrics.json
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/etc/grafana/dashboards/vllm-monitoring-v2.json
     volumes:
       - grafana-data:/var/lib/grafana
       - ./provisioning:/etc/grafana/provisioning:ro
       - ./dashboards:/etc/grafana/dashboards:ro
     depends_on:
       prometheus:
-        condition: service_healthy
-      pushgateway:
         condition: service_healthy
     networks:
       - vllm-monitoring
@@ -119,8 +88,6 @@ volumes:
   grafana-data:
     driver: local
   prometheus-data:
-    driver: local
-  pushgateway-data:
     driver: local
 
 networks:

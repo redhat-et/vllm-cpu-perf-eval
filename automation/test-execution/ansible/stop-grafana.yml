@@ -1,13 +1,13 @@
 ---
 # Stop Grafana Monitoring Stack
-# Stops Prometheus, Pushgateway, and Grafana containers
+# Stops Prometheus and Grafana containers
 # Also cleans up SSH tunnels for live vLLM metrics
 #
 # Usage:
 #   ansible-playbook stop-grafana.yml
 #
 # Options:
-#   -e "remove_volumes=true"  - Remove all data volumes (WARNING: deletes all metrics!)
+#   -e "remove_volumes=true"  - Remove all data volumes (WARNING: deletes all historical data!)
 
 - name: "Stop Grafana Monitoring Stack"
   hosts: localhost
@@ -75,7 +75,7 @@
 
     - name: Check for active SSH tunnels
       ansible.builtin.shell: |
-        ps aux | grep -E "ssh.*(8000|9091)" | grep -v grep || true
+        ps aux | grep "ssh.*8000:localhost:8000" | grep -v grep || true
       register: active_tunnels
       changed_when: false
 
@@ -102,28 +102,6 @@
         - name: Display vLLM tunnel status
           ansible.builtin.debug:
             msg: "{{ '✓ vLLM metrics tunnel stopped' if vllm_tunnel_check.stdout == '' else '⚠ vLLM tunnel may still be running' }}"
-
-    - name: Stop Pushgateway reverse tunnel
-      block:
-        - name: Check if DUT_HOSTNAME is set
-          ansible.builtin.set_fact:
-            loadgen_hostname: "{{ lookup('env', 'LOADGEN_HOSTNAME') }}"
-
-        - name: Kill Pushgateway reverse tunnel (port 9091)
-          ansible.builtin.shell: |
-            pkill -f "ssh.*9091:localhost:9091" || true
-          register: kill_pushgateway_tunnel
-          when: loadgen_hostname != ""
-
-        - name: Verify Pushgateway tunnel stopped
-          ansible.builtin.shell: |
-            ps aux | grep "ssh.*9091:localhost:9091" | grep -v grep || true
-          register: pushgateway_tunnel_check
-          changed_when: false
-
-        - name: Display Pushgateway tunnel status
-          ansible.builtin.debug:
-            msg: "{{ '✓ Pushgateway tunnel stopped' if pushgateway_tunnel_check.stdout == '' else '⚠ Pushgateway tunnel may still be running' }}"
 
     # ========================================================================
     # STEP 3: Stop Grafana Stack
@@ -186,10 +164,9 @@
           - "Stopped Services:"
           - "  ✓ Grafana dashboard"
           - "  ✓ Prometheus"
-          - "  ✓ Pushgateway"
-          - "  ✓ SSH tunnels (vLLM metrics, Pushgateway)"
+          - "  ✓ SSH tunnel (vLLM metrics)"
           - ""
-          - "{{ 'Data Volumes: DELETED (all metrics removed)' if remove_volumes else 'Data Volumes: PRESERVED (metrics retained)' }}"
+          - "{{ 'Data Volumes: DELETED (all historical data removed)' if remove_volumes else 'Data Volumes: PRESERVED (historical data retained)' }}"
           - ""
           - "To restart:"
           - "  ansible-playbook start-grafana.yml"

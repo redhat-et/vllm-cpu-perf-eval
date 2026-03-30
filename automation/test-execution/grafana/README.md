@@ -1,26 +1,25 @@
 # Grafana Monitoring for vLLM CPU Performance Testing
 
-Real-time and historical analysis of vLLM benchmark results using Grafana and Prometheus.
+Real-time monitoring of vLLM server metrics during benchmark execution using Grafana and Prometheus.
 
 ## Overview
 
-This monitoring stack runs on your **local machine** (Ansible controller) to visualize vLLM performance tests running on remote servers. It provides two types of metrics:
+This monitoring stack runs on your **local machine** (Ansible controller) to visualize **live vLLM server metrics** during performance tests on remote servers.
 
-**📊 Metrics (Post-Test)** - GuideLLM results published after benchmark completes
-- ✅ Always available via Pushgateway
-- ✅ No additional setup required
-- 📈 Shows aggregate performance from completed test runs
-
-**🔴 Live Metrics (During Test)** - Real-time vLLM server metrics
+**🔴 Live Server Metrics (During Test)**
+- 📡 Real-time queue depth, cache usage, token generation rates
+- 📊 Request latencies (TTFT, ITL, E2E) with percentile breakdowns
+- 🎯 Request processing patterns and scheduler state
 - ⚠️ Requires SSH tunnel to remote vLLM server
-- 📡 Shows queue depth, cache usage, token rates in real-time
-- 📖 Setup instructions below
 
 **Stack Components:**
-- **Prometheus** - Time-series database for all metrics
-- **Prometheus Pushgateway** - Receives GuideLLM results from Ansible
-- **Grafana** - Visualization dashboards
-- **Pre-built Dashboards** - Ready-to-use visualizations
+- **Prometheus** - Time-series database for metrics scraping
+- **Grafana** - Real-time visualization dashboards
+- **vLLM Monitoring Dashboard** - Pre-built comprehensive dashboard
+
+**For Post-Test Analysis:**
+- Client-side benchmark results (GuideLLM) are analyzed via **Streamlit Dashboard**
+- See [dashboard-examples](../dashboard-examples/README.md) for post-test metrics visualization
 
 ## Architecture
 
@@ -30,41 +29,33 @@ This monitoring stack runs on your **local machine** (Ansible controller) to vis
 │  - vLLM server :8000         │
 │  - Exposes /metrics          │
 └────────────┬─────────────────┘
-             │ SSH tunnel (optional, for live metrics)
+             │ SSH tunnel (forwards :8000 → localhost:8000)
              │
-┌────────────▼─────────────────┐
-│ LOADGEN (Remote Server)      │
-│  - Runs GuideLLM benchmarks  │
-│  - Pushes results            │
-└────────────┬─────────────────┘
-             │ HTTP push
-             │
-┌────────────▼───────────────────────────────────┐
-│         (Ansible Controller)                   │
-│  ┌──────────────────────────────────────────┐  │
-│  │ Prometheus Pushgateway :9091             │  │
-│  │  ← Receives GuideLLM results             │  │
-│  └──────────────────────────────────────────┘  │
-│  ┌──────────────────────────────────────────┐  │
-│  │ Prometheus :9090                         │  │
-│  │  - Scrapes Pushgateway (batch metrics)   │  │
-│  │  - Scrapes vLLM live (via tunnel)        │  │
-│  │  - Stores all data locally               │  │
-│  └──────────────────────────────────────────┘  │
-│  ┌──────────────────────────────────────────┐  │
-│  │ Grafana :3000                            │  │
-│  │  - Dashboards for analysis               │  │
-│  │  - Always accessible                     │  │
-│  └──────────────────────────────────────────┘  │
-└────────────────────────────────────────────────┘
+┌────────────▼────────────────────────────────────┐
+│         Ansible Controller (Local Machine)      │
+│  ┌──────────────────────────────────────────┐   │
+│  │ Prometheus :9090                         │   │
+│  │  - Scrapes localhost:8000 via tunnel     │   │
+│  │  - Stores vLLM metrics locally           │   │
+│  └──────────────┬───────────────────────────┘   │
+│                 │                                │
+│  ┌──────────────▼───────────────────────────┐   │
+│  │ Grafana :3000                            │   │
+│  │  - Real-time vLLM metrics dashboards     │   │
+│  │  - Monitor tests as they run             │   │
+│  └──────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────┘
+
+Note: Post-test benchmark analysis (GuideLLM results) is handled by
+      Streamlit Dashboard - see ../dashboard-examples/README.md
 ```
 
 **Benefits:**
+- ✅ Real-time monitoring during test execution
 - ✅ No cloud costs for monitoring infrastructure
-- ✅ Shut down expensive EC2 instances immediately after tests
-- ✅ Keep all historical data on the Ansible Controller
-- ✅ Access Grafana anytime at <http://localhost:3000>
 - ✅ No exposed ports or router configuration (uses SSH tunnels)
+- ✅ Access Grafana anytime at <http://localhost:3000>
+- ✅ Separate tools for live monitoring (Grafana) vs post-test analysis (Streamlit)
 
 ## Quick Start
 
@@ -87,7 +78,6 @@ docker-compose ps
 ```
 NAME           STATUS    PORTS
 prometheus     running   0.0.0.0:9090->9090/tcp
-pushgateway    running   0.0.0.0:9091->9091/tcp
 grafana        running   0.0.0.0:3000->3000/tcp
 ```
 
@@ -100,6 +90,8 @@ Open browser to: **<http://localhost:3000>**
 
 ### 3. Run Benchmarks
 
+With Grafana running and SSH tunnel active, run your benchmarks:
+
 ```bash
 cd ../ansible
 
@@ -107,11 +99,10 @@ ansible-playbook llm-benchmark-auto.yml \
   -i inventory/hosts.yml \
   -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
   -e "workload_type=chat" \
-  -e "requested_cores=16" \
-  -e "publish_to_prometheus=true"
+  -e "requested_cores=16"
 ```
 
-Results will appear in Grafana dashboards automatically.
+vLLM server metrics will appear in Grafana dashboards in real-time.
 
 ### 4. Stop Monitoring Stack
 
@@ -123,9 +114,9 @@ docker-compose down
 docker-compose down -v
 ```
 
-## SSH Tunnel for Live Metrics (Optional)
+## SSH Tunnel Setup (Required)
 
-To see **real-time vLLM metrics** during benchmarks, create an SSH tunnel from your local machine to the vLLM server.
+To monitor **real-time vLLM metrics** during benchmarks, you must create an SSH tunnel from your local machine to the remote vLLM server. This forwards the vLLM metrics endpoint (port 8000) to localhost.
 
 ### Manual Tunnel Setup
 
@@ -184,13 +175,7 @@ global:
     environment: 'local-dev'
 
 scrape_configs:
-  # GuideLLM batch results
-  - job_name: 'pushgateway'
-    honor_labels: true
-    static_configs:
-      - targets: ['pushgateway:9091']
-
-  # vLLM live metrics (via SSH tunnel)
+  # vLLM server metrics (via SSH tunnel)
   - job_name: 'vllm-live'
     scrape_interval: 10s
     static_configs:
@@ -203,7 +188,7 @@ scrape_configs:
 
 ### Key Settings
 
-- **Scrape interval:** 10s for live metrics, 15s for batch
+- **Scrape interval:** 10s for real-time monitoring
 - **Retention:** 30 days by default
 - **Storage:** Local volume (persists between restarts)
 
@@ -215,44 +200,46 @@ To change Prometheus settings, edit `prometheus/prometheus.yml` and restart:
 docker-compose restart prometheus
 ```
 
-## Available Dashboards
+## Available Dashboard
 
-### 1. vLLM Live Metrics
+### vLLM Monitoring Dashboard
 
-**File:** `dashboards/vllm-live-metrics.json`
+**File:** `dashboards/vllm-monitoring-v2.json`
 
-Real-time monitoring during benchmark execution:
-- Request latencies (TTFT, ITL, E2E) - P50/P90/P95/P99
+Comprehensive real-time monitoring with 24 panels organized into sections:
+
+**Executive Summary**
+- Top-line summary with key metrics at a glance
+- Success rate and system efficiency
+- TTFT P99 and preemption rate tracking
+
+**Latency & User Experience**
+- E2E request latency with percentile breakdowns
+- Inference stage breakdown (TTFT vs TPOT)
+- Request queue time analysis
+
+**Token Throughput & Workload**
 - Token throughput (prompt & generation)
-- Queue metrics (running/waiting requests)
-- CPU KV cache usage
-- Request length distributions
+- Token I/O ratio tracking
+- Prefix cache savings visualization
+- Request length heatmaps
 
-**Use during:** Active benchmarks to monitor server health
+**Engine Internal & Cache**
+- KV cache usage monitoring
+- Prefix cache hit rate
+- Scheduler state (running/waiting requests)
 
-### 2. vLLM vs GuideLLM Comparison
+**System Health & Reliability**
+- Python GC and memory tracking
+- Finish reason distribution
+- Throughput vs success correlation
 
-**File:** `dashboards/vllm-guidellm-comparison.json`
+**Use during:** Active benchmarks to monitor server health, identify bottlenecks, and validate performance in real-time
 
-Combined analysis:
-- **Live metrics** (top) - Real-time vLLM performance
-- **Batch results** (middle) - GuideLLM load curves
-- **Comparison** (bottom) - Live vs batch overlay
-- **Summary stats** - Max throughput, best latency, success rate
+### For Post-Test Analysis
 
-**Use for:** Validating results, comparing live vs batch data
-
-### 3. vLLM Load Sweep Analysis
-
-**File:** `dashboards/vllm-load-sweep-analysis.json`
-
-GuideLLM benchmark analysis:
-- Throughput vs load curves
-- Latency vs load curves (TTFT, ITL, E2E)
-- Platform comparisons (AMD vs Intel)
-- Performance summary tables
-
-**Use for:** Platform comparisons, performance analysis
+Client-side benchmark results (GuideLLM) are analyzed using the **Streamlit Dashboard**.
+See [dashboard-examples](../dashboard-examples/README.md) for post-test metrics visualization.
 
 ## Metrics Reference
 
@@ -284,101 +271,58 @@ vllm_request_running
 vllm:kv_cache_usage_perc
 ```
 
-### GuideLLM Batch Metrics
+### Common Metric Labels
 
-Published after benchmark completion:
-
-```promql
-# Throughput (tokens/sec)
-guidellm_throughput_tokens_per_sec_mean{platform,model,workload,cores}
-
-# Latencies (milliseconds, P50/P95/P99)
-guidellm_ttft_ms_p50{...}
-guidellm_ttft_ms_p95{...}
-guidellm_ttft_ms_p99{...}
-guidellm_itl_ms_p50{...}
-guidellm_itl_ms_p95{...}
-guidellm_itl_ms_p99{...}
-guidellm_e2e_latency_ms_p50{...}
-guidellm_e2e_latency_ms_p95{...}
-guidellm_e2e_latency_ms_p99{...}
-
-# Success rate (%)
-guidellm_success_rate_percent{...}
-```
-
-### Metric Labels
-
-All GuideLLM metrics include:
-- `platform` - CPU/platform identifier
-- `model` - Model name
-- `workload` - Workload type
-- `cores` - Number of cores
-- `tensor_parallel` - TP degree
-- `numa_node` - NUMA node
-- `backend` - Backend type (upstream/intel-optimized)
-- `test_run_id` - Unique test ID
-- `vllm_version` - vLLM version
-- `request_rate` - Request rate (req/s)
+vLLM metrics typically include labels like:
+- `model_name` - Model being served
+- `finished_reason` - Request completion reason
+- Various quantile labels for histogram metrics
 
 ## Troubleshooting
 
 ### Grafana shows "No data"
 
-1. **Check time range** - Top-right picker, try "Last 30 days"
+1. **Check time range** - Top-right picker, try "Last 5 minutes" or "Last 15 minutes"
 2. **Check datasource** - Settings → Data Sources → Prometheus → Test
 3. **Verify Prometheus** - Open <http://localhost:9090/graph>
-4. **Check metrics exist:**
+4. **Verify SSH tunnel is active:**
    ```bash
-   curl 'http://localhost:9090/api/v1/query?query=guidellm_benchmark_info'
+   ps aux | grep "ssh.*8000:localhost:8000" | grep -v grep
    ```
+5. **Check vLLM server is running** on the remote DUT
 
 ### No live vLLM metrics
 
-1. **Verify SSH tunnel:**
+1. **Verify SSH tunnel is active:**
    ```bash
    ps aux | grep "ssh.*8000:localhost:8000" | grep -v grep
    ```
 
-2. **Test vLLM endpoint:**
+2. **Test vLLM endpoint through tunnel:**
    ```bash
    curl http://localhost:8000/metrics | grep vllm
    ```
 
-3. **Check Prometheus targets:**
+3. **Check Prometheus is scraping:**
    ```bash
    open http://localhost:9090/targets
    # vllm-live should show as UP
    ```
 
-### No batch/GuideLLM results
-
-1. **Verify Pushgateway received data:**
-   ```bash
-   curl http://localhost:9091/metrics | grep guidellm
-   ```
-
-2. **Check Prometheus scraped it:**
-   ```bash
-   curl 'http://localhost:9090/api/v1/query?query=guidellm_benchmark_info'
-   ```
-
-3. **Verify publishing was enabled:**
-   - Check playbook was run with `-e "publish_to_prometheus=true"`
-   - Review playbook output for "Successfully published X metrics"
+4. **Verify vLLM server is running:**
+   - SSH to DUT and check vLLM process
+   - Ensure vLLM was started with metrics enabled (default)
 
 ### Containers won't start
 
 ```bash
 # Check logs
 docker-compose logs prometheus
-docker-compose logs pushgateway
 docker-compose logs grafana
 
 # Check port conflicts
 lsof -i :3000  # Grafana
 lsof -i :9090  # Prometheus
-lsof -i :9091  # Pushgateway
 
 # Full reset
 docker-compose down -v
@@ -389,9 +333,8 @@ docker-compose up -d
 
 | Service | Port | Purpose |
 |---------|------|---------|
-| vLLM | 8000 | API + Metrics |
+| vLLM (remote) | 8000 | API + Metrics endpoint (accessed via SSH tunnel) |
 | Prometheus | 9090 | Web UI + API |
-| Pushgateway | 9091 | Metrics receiver |
 | Grafana | 3000 | Dashboards |
 
 ## Directory Structure
@@ -410,10 +353,8 @@ grafana/
 │   └── dashboards/
 │       └── vllm-dashboards.yaml        # Dashboard provider
 │
-├── dashboards/                         # Pre-built dashboards
-│   ├── vllm-live-metrics.json
-│   ├── vllm-guidellm-comparison.json
-│   └── vllm-load-sweep-analysis.json
+├── dashboards/
+│   └── vllm-monitoring-v2.json         # vLLM live metrics dashboard
 │
 └── scripts/
     └── setup-tunnels.sh                # SSH tunnel automation
@@ -435,20 +376,20 @@ This playbook:
 - Waits for health checks
 - Optionally creates SSH tunnel if `DUT_HOSTNAME` is set
 
-### Run Benchmark with Publishing
+### Run Benchmarks
 
 ```bash
 ansible-playbook llm-benchmark-auto.yml \
   -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
   -e "workload_type=chat" \
-  -e "requested_cores=16" \
-  -e "publish_to_prometheus=true"
+  -e "requested_cores=16"
 ```
 
-Results are automatically:
-- Published to Pushgateway (batch metrics)
-- Exported from Prometheus (live metrics, if SSH tunnel active)
-- Saved to results directory as JSON
+With Grafana running and SSH tunnel active:
+- vLLM server metrics are scraped in real-time by Prometheus
+- View live metrics in Grafana at <http://localhost:3000>
+- Benchmark results (client-side) are saved to results directory as JSON
+- Post-test analysis via Streamlit Dashboard
 
 ### Stop Grafana After Tests
 
@@ -465,4 +406,4 @@ ansible-playbook stop-grafana.yml -e "remove_volumes=true"
 - [Prometheus Documentation](https://prometheus.io/docs/)
 - [Grafana Documentation](https://grafana.com/docs/)
 - [vLLM Metrics Documentation](https://docs.vllm.ai/en/latest/serving/metrics.html)
-- [metrics_publisher role](../ansible/roles/metrics_publisher/README.md) - Publishing details
+- [Streamlit Dashboard](../dashboard-examples/README.md) - Post-test benchmark analysis
