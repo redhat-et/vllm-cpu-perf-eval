@@ -189,8 +189,24 @@ st.markdown("---")
 # System status
 st.markdown("### 📊 System Status")
 
+# Sidebar configuration
+st.sidebar.markdown("---")
+st.sidebar.header("Configuration")
+results_dir_input = st.sidebar.text_input(
+    "Results Directory",
+    value="../../../../results/llm",
+    help="Path to directory containing benchmark results"
+)
+
 # Check for results
-results_base = Path(__file__).parent.parent.parent.parent.parent / "results" / "llm"
+if results_dir_input:
+    results_base = Path(results_dir_input)
+else:
+    default_path = (
+        Path(__file__).parent.parent.parent.parent.parent
+        / "results" / "llm"
+    )
+    results_base = default_path
 if results_base.exists():
     # Count test runs (filter out hidden files like .DS_Store)
     model_dirs = [m for m in results_base.glob("*") if m.is_dir() and not m.name.startswith('.')]

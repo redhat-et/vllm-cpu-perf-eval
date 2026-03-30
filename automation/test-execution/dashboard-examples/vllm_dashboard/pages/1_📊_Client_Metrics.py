@@ -567,8 +567,13 @@ def render_dashboard():
     st.title("🚀 vLLM CPU Performance Dashboard")
     st.markdown("Comprehensive analysis of vLLM CPU inference performance")
 
-    # Load data (hardcoded path, no UI input)
-    results_dir = "../../../../results/llm"
+    # Sidebar configuration
+    st.sidebar.header("Configuration")
+    results_dir = st.sidebar.text_input(
+        "Results Directory",
+        value="../../../../results/llm",
+        help="Path to directory containing benchmark results (benchmarks.json files)"
+    )
 
     with st.spinner("Loading benchmark data..."):
         df = load_guidellm_data(results_dir)
