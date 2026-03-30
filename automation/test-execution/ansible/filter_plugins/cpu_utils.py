@@ -549,8 +549,10 @@ def allocate_with_fixed_tp(available_nodes, requested_cores, tp):
     Raises:
         AnsibleFilterError: If allocation not possible with specified TP
     """
-    max_cores_per_node = int(max(n['physical_cores'] for n in available_nodes))
-    num_available_nodes = len(available_nodes)
+    # Sort nodes by capacity (descending) to prioritize high-capacity nodes
+    sorted_nodes = sorted(available_nodes, key=lambda n: n['physical_cores'], reverse=True)
+    max_cores_per_node = int(sorted_nodes[0]['physical_cores'])
+    num_available_nodes = len(sorted_nodes)
 
     # Validate enough nodes
     if tp > num_available_nodes:
@@ -572,8 +574,17 @@ def allocate_with_fixed_tp(available_nodes, requested_cores, tp):
             f"Cannot allocate {cores_per_node} cores per node (max {max_cores_per_node} per node)"
         )
 
-    # Build allocation
-    selected_nodes = available_nodes[:tp]
+    # Filter nodes with sufficient capacity
+    eligible_nodes = [n for n in sorted_nodes if n['physical_cores'] >= cores_per_node]
+
+    # Validate we have enough eligible nodes
+    if len(eligible_nodes) < tp:
+        raise AnsibleFilterError(
+            f"Only {len(eligible_nodes)} NUMA nodes have sufficient capacity ({cores_per_node} cores), need {tp}"
+        )
+
+    # Build allocation from eligible nodes
+    selected_nodes = eligible_nodes[:tp]
     return build_allocation(selected_nodes, cores_per_node, tp)
 
 

@@ -71,6 +71,24 @@
           The concurrent load test requires at least one core configuration to test.
           This playbook will run 3 phases with the specified core configuration(s).
 
+    - name: Normalize core configuration input
+      ansible.builtin.set_fact:
+        effective_requested_cores: "{{ requested_cores if (requested_cores is defined and requested_cores | int > 0) else (core_sweep_counts | first if (core_sweep_counts is defined and core_sweep_counts | length > 0) else 0) }}"
+
+    - name: Validate single core configuration for concurrent load testing
+      ansible.builtin.assert:
+        that:
+          - not (core_sweep_counts is defined and core_sweep_counts | length > 1)
+        fail_msg: |
+          Multiple core counts not supported in concurrent load testing.
+          For testing multiple core configurations, use llm-core-sweep-auto.yml with concurrent load parameters.
+
+          Example:
+            ansible-playbook llm-core-sweep-auto.yml \
+              -e "requested_cores_list=[16,32,64]" \
+              -e "test_model={{ test_model }}" \
+              -e "workload_type={{ base_workload }}"
+
     - name: Validate base_workload parameter
       ansible.builtin.assert:
         that:
@@ -92,7 +110,7 @@
           - "Phase 1 (Baseline - Fixed, No Cache): {{ 'SKIP' if (skip_phase_1 | default(false) | bool) else 'RUN' }}"
           - "Phase 2 (Realistic - Variable, No Cache): {{ 'SKIP' if (skip_phase_2 | default(false) | bool) else ('RUN' if has_variable_workload else 'N/A') }}"
           - "Phase 3 (Production - Variable, With Cache): {{ 'SKIP' if (skip_phase_3 | default(false) | bool) else ('RUN' if has_variable_workload else 'N/A') }}"
-          - "Core Configuration: {{ core_sweep_counts | default(requested_cores | default('Not specified')) }}"
+          - "Core Configuration: {{ effective_requested_cores }} cores"
           - "============================================================"
 
 # ==========================================================================
@@ -103,6 +121,7 @@
   vars:
     workload_type: "{{ base_workload }}"
     vllm_caching_mode: "baseline"
+    requested_cores: "{{ effective_requested_cores }}"
   when: not (skip_phase_1 | default(false) | bool)
 
 - name: Phase 1 Complete
@@ -125,6 +144,7 @@
   vars:
     workload_type: "{{ base_workload }}_var"
     vllm_caching_mode: "baseline"
+    requested_cores: "{{ effective_requested_cores }}"
   when:
     - not (skip_phase_2 | default(false) | bool)
     - (base_workload + '_var') in ['chat_var', 'code_var']
@@ -162,6 +182,7 @@
   vars:
     workload_type: "{{ base_workload }}_var"
     vllm_caching_mode: "production"
+    requested_cores: "{{ effective_requested_cores }}"
   when:
     - not (skip_phase_3 | default(false) | bool)
     - (base_workload + '_var') in ['chat_var', 'code_var']

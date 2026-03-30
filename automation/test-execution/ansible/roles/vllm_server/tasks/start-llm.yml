@@ -260,6 +260,13 @@
       - "Logs: journalctl -t vllm-{{ workload_type }}-{{ core_cfg.cores }}c-tp{{ core_cfg.tensor_parallel }} -f"
       - "Stats: podman stats {{ vllm_container_name }}"
 
+- name: Set model configuration facts for metadata collection
+  ansible.builtin.set_fact:
+    model_kv_cache: "{{ workload_cfg.kv_cache_space }}"
+    model_dtype: "{{ (vllm_args_merged | select('match', '^--dtype=.*') | first | default('--dtype=auto')).split('=')[1] }}"
+    model_max_len: "{{ (vllm_args_merged | select('match', '^--max-model-len=.*') | first | default('--max-model-len=auto')).split('=')[1] }}"
+    vllm_caching_mode: "{{ vllm_caching_mode | default('baseline') }}"
+
 - name: Wait for vLLM initialization (longer for LLM models)
   ansible.builtin.pause:
     seconds: 20
