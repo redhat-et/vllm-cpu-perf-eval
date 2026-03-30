@@ -74,8 +74,8 @@
     - name: Validate base_workload parameter
       ansible.builtin.assert:
         that:
-          - base_workload in ['chat', 'rag', 'code', 'summarization', 'short_codegen']
-        fail_msg: "base_workload must be one of: chat, rag, code, summarization, short_codegen"
+          - base_workload in ['chat', 'rag', 'code', 'summarization']
+        fail_msg: "base_workload must be one of: chat, rag, code, summarization"
 
     - name: Check if variable workload exists
       ansible.builtin.set_fact:

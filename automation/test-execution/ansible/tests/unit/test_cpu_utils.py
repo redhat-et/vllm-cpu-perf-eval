@@ -28,7 +28,12 @@ except ImportError:
             def __enter__(self):
                 return self
 
-            def __exit__(self, *args):  # noqa: ARG002
+            def __exit__(self, exc_type, exc_value, traceback):
+                # Check if exception matches expected type
+                if exc_type is not None and issubclass(exc_type, self.exc):
+                    # Suppress the exception by returning True
+                    return True
+                # Let unexpected exceptions propagate
                 return False
 
 

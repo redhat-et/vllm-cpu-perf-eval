@@ -601,6 +601,14 @@ def build_allocation(selected_nodes, cores_per_node, tp):
         # Take first N physical cores
         allocated_cpus = [int(cpu.strip()) for cpu in physical_cpus_list[:cores_per_node]]
 
+        # Validate allocation produced requested number of CPUs
+        if len(allocated_cpus) != cores_per_node:
+            raise AnsibleFilterError(
+                f"CPU allocation failed: requested {cores_per_node} cores from NUMA node {node['id']}, "
+                f"but only {len(allocated_cpus)} CPUs available. "
+                f"Available CPUs: {physical_cpus_str}"
+            )
+
         # Convert to range format
         cpu_range = cpu_list_to_range(allocated_cpus)
 
