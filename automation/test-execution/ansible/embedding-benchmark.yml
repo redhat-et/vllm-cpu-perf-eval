@@ -9,6 +9,45 @@
     test_run_id: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
 
   tasks:
+    - name: Display unsupported test suite message
+      ansible.builtin.debug:
+        msg:
+          - ""
+          - "════════════════════════════════════════════════════════════════════════════════"
+          - "❌ EMBEDDING MODELS TEST SUITE NOT YET SUPPORTED"
+          - "════════════════════════════════════════════════════════════════════════════════"
+          - ""
+          - "This playbook (embedding-benchmark.yml) is blocked because the Embedding"
+          - "Models test suite is still work in progress and not validated for end users."
+          - ""
+          - "✅ USE SUPPORTED TESTS INSTEAD:"
+          - ""
+          - "Concurrent Load Testing (Phase 1 & Phase 2) is fully validated for LLM models."
+          - ""
+          - "Run 3-phase test:"
+          - "  ansible-playbook -i inventory/hosts.yml llm-benchmark-concurrent-load.yml \\"
+          - "    -e \"test_model=TinyLlama/TinyLlama-1.1B-Chat-v1.0\" \\"
+          - "    -e \"base_workload=chat\" \\"
+          - "    -e \"core_sweep_counts=[16,32,64]\""
+          - ""
+          - "Run single phase:"
+          - "  ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \\"
+          - "    -e \"test_model=TinyLlama/TinyLlama-1.1B-Chat-v1.0\" \\"
+          - "    -e \"workload_type=chat\" \\"
+          - "    -e \"requested_cores=16\""
+          - ""
+          - "📚 See: tests/concurrent-load/concurrent-load.md | README.md"
+          - ""
+          - "To bypass (development only): -e \"allow_unsupported_tests=true\""
+          - ""
+          - "════════════════════════════════════════════════════════════════════════════════"
+      when: not (allow_unsupported_tests | default(false) | bool)
+
+    - name: Block unsupported test suite
+      ansible.builtin.fail:
+        msg: "Embedding Models test suite not yet supported. Use llm-benchmark-concurrent-load.yml instead."
+      when: not (allow_unsupported_tests | default(false) | bool)
+
     - name: Display test run information
       ansible.builtin.debug:
         msg:

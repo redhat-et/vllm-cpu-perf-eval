@@ -26,6 +26,45 @@
         is_awx_job: "{{ awx_job_id | length > 0 }}"
         local_results_base: "{{ lookup('env', 'HOME') ~ '/benchmark-results' if (awx_job_id | length > 0) else playbook_dir ~ '/../../../results/llm' }}"
 
+    - name: Display unsupported test suite message
+      ansible.builtin.debug:
+        msg:
+          - ""
+          - "════════════════════════════════════════════════════════════════════════════════"
+          - "❌ SCALABILITY TEST SUITE NOT YET SUPPORTED"
+          - "════════════════════════════════════════════════════════════════════════════════"
+          - ""
+          - "This playbook (llm-core-sweep-auto.yml) is blocked because the Scalability"
+          - "test suite is still work in progress and not validated for end users."
+          - ""
+          - "✅ USE SUPPORTED TESTS INSTEAD:"
+          - ""
+          - "Concurrent Load Testing (Phase 1 & Phase 2) is fully validated."
+          - ""
+          - "Run 3-phase test:"
+          - "  ansible-playbook -i inventory/hosts.yml llm-benchmark-concurrent-load.yml \\"
+          - "    -e \"test_model=TinyLlama/TinyLlama-1.1B-Chat-v1.0\" \\"
+          - "    -e \"base_workload=chat\" \\"
+          - "    -e \"core_sweep_counts=[16,32,64]\""
+          - ""
+          - "Run single phase:"
+          - "  ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \\"
+          - "    -e \"test_model=TinyLlama/TinyLlama-1.1B-Chat-v1.0\" \\"
+          - "    -e \"workload_type=chat\" \\"
+          - "    -e \"requested_cores=16\""
+          - ""
+          - "📚 See: tests/concurrent-load/concurrent-load.md | README.md"
+          - ""
+          - "To bypass (development only): -e \"allow_unsupported_tests=true\""
+          - ""
+          - "════════════════════════════════════════════════════════════════════════════════"
+      when: not (allow_unsupported_tests | default(false) | bool)
+
+    - name: Block unsupported test suite
+      ansible.builtin.fail:
+        msg: "Scalability test suite not yet supported. Use llm-benchmark-concurrent-load.yml instead."
+      when: not (allow_unsupported_tests | default(false) | bool)
+
     - name: Validate required variables
       ansible.builtin.assert:
         that:

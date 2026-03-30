@@ -17,9 +17,38 @@ NUM_PROMPTS="${NUM_PROMPTS:-1000}"
 INPUT_LEN="${INPUT_LEN:-512}"
 
 # Colors for output
+RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
+
+# ════════════════════════════════════════════════════════════════════════════════
+# ❌ BLOCK UNSUPPORTED TEST SUITE
+# ════════════════════════════════════════════════════════════════════════════════
+if [[ "${ALLOW_UNSUPPORTED_TESTS:-false}" != "true" ]]; then
+    echo -e "" >&2
+    echo -e "${RED}❌ EMBEDDING MODELS TEST SUITE NOT YET SUPPORTED${NC}" >&2
+    echo -e "" >&2
+    echo -e "This script (run-baseline.sh) is blocked because the Embedding Models test" >&2
+    echo -e "suite is still work in progress and not validated for end users." >&2
+    echo -e "" >&2
+    echo -e "${GREEN}✅ USE SUPPORTED TESTS INSTEAD:${NC}" >&2
+    echo -e "" >&2
+    echo -e "Concurrent Load Testing (Phase 1 & Phase 2) is fully validated for LLM models." >&2
+    echo -e "" >&2
+    echo -e "  cd ${PROJECT_ROOT}/automation/test-execution/ansible" >&2
+    echo -e "  ansible-playbook -i inventory/hosts.yml llm-benchmark-concurrent-load.yml \\" >&2
+    echo -e "    -e \"test_model=TinyLlama/TinyLlama-1.1B-Chat-v1.0\" \\" >&2
+    echo -e "    -e \"base_workload=chat\" \\" >&2
+    echo -e "    -e \"core_sweep_counts=[16,32,64]\"" >&2
+    echo -e "" >&2
+    echo -e "${BLUE}📚 See: tests/concurrent-load/concurrent-load.md | README.md${NC}" >&2
+    echo -e "" >&2
+    echo -e "${YELLOW}To bypass (development only): export ALLOW_UNSUPPORTED_TESTS=true${NC}" >&2
+    echo -e "" >&2
+    exit 1
+fi
 
 # Functions
 log_info() {

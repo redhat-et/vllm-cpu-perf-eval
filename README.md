@@ -143,25 +143,51 @@ Full documentation index: [docs/docs.md](docs/docs.md)
 
 ## Test Suites
 
-> **⚠️ Validation Status:**
-> - ✅ **Concurrent Load** - Fully validated and tested
-> - 🚧 **Scalability** - Work in progress; no guarantees
-> - 🚧 **Resource Contention** - Work in progress; no guarantees
-> - 🚧 **Embedding Models** - Work in progress; no guarantees
+> **⚠️ IMPORTANT: Validation Status and Availability**
 >
-> Only the concurrent load test suite has been fully validated and tested.
-> Other test suites are work in progress and provided as-is with no guarantees
-> they will work without modification.
+> **✅ SUPPORTED (Fully Validated):**
+> - **Concurrent Load Testing (Phase 1 & Phase 2)** - Ready for use
+>   - Playbooks: `llm-benchmark-concurrent-load.yml`, `llm-benchmark-auto.yml`
+>   - Documentation: [tests/concurrent-load/concurrent-load.md](tests/concurrent-load/concurrent-load.md)
+>
+> **🚧 NOT YET SUPPORTED (Blocked from End User Execution):**
+>
+> The following test suites are work in progress and are **automatically blocked**
+> to prevent end users from running them until they are fully validated:
+>
+> - **Scalability** - Work in progress; blocked by default
+>   - Playbook: `llm-core-sweep-auto.yml` (will fail with error message)
+>   - Contains: sweep, synchronous, poisson tests
+>
+> - **Embedding Models** - Work in progress; blocked by default
+>   - Playbook: `embedding-benchmark.yml` (will fail with error message)
+>   - Scripts: `run-baseline.sh`, `run-latency.sh`, `run-all.sh` (will exit with error)
+>
+> - **Resource Contention** - Planned; not yet implemented
+>   - No test files exist yet
+>
+> **Bypass for Development/Testing Only:**
+>
+> If you need to run unsupported tests for development or testing purposes:
+> - Ansible: Add `-e "allow_unsupported_tests=true"` to your playbook command
+> - Bash: Export `ALLOW_UNSUPPORTED_TESTS=true` before running scripts
+>
+> **Note:** Unsupported tests are provided as-is with no guarantees they will
+> work without modification. Only use them if you understand the risks and are
+> willing to troubleshoot issues independently.
 
 ### Test Suite: Concurrent Load
 
 Tests model performance under various concurrent request loads.
 
 - Concurrency levels: 1, 2, 4, 8, 16, 32
-- 8 LLM models + 2 embedding models
+- 8 LLM generative models (embedding models not yet supported)
 - Focus: P95 latency, TTFT, throughput scaling
 
 ### Test Suite: Scalability
+
+> **🚧 NOT YET SUPPORTED** - This test suite is blocked by default.
+> See validation status above for details.
 
 Characterizes maximum throughput and performance curves.
 
@@ -170,7 +196,9 @@ Characterizes maximum throughput and performance curves.
 - Poisson distribution tests
 - Focus: Maximum capacity, saturation points
 
-### Test Suite: Resource Contention (Planned)
+### Test Suite: Resource Contention
+
+> **📋 PLANNED** - Not yet implemented.
 
 Multi-tenant and resource sharing scenarios.
 
@@ -187,6 +215,9 @@ Current model coverage:
 - Qwen3-0.6B, Qwen2.5-3B - High-efficiency balanced
 
 **Embedding Models:**
+
+> **🚧 NOT YET SUPPORTED** - Embedding model tests are blocked by default.
+> These models are defined but testing is not yet validated.
 
 - granite-embedding-english-r2
 - granite-embedding-278m-multilingual
