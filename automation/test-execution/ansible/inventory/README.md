@@ -34,6 +34,10 @@ export LOADGEN_HOSTNAME=192.168.1.200
 export ANSIBLE_SSH_USER=ec2-user
 export ANSIBLE_SSH_KEY=~/.ssh/my-key.pem
 export HF_TOKEN=hf_xxxxx  # If using gated models
+
+# Optional: Use external vLLM endpoint instead of managed container
+export VLLM_ENDPOINT_MODE=external
+export VLLM_ENDPOINT_URL=http://my-vllm-instance.example.com:8000
 ```
 
 The inventory file automatically uses these environment variables with sensible defaults if not set.
@@ -198,6 +202,26 @@ The framework will automatically skip token setup for these models.
 
 ### Scenario 3: External vLLM Endpoint (AWS/K8s)
 
+**Option A: Environment Variables (Recommended)**
+
+```bash
+export VLLM_ENDPOINT_MODE=external
+export VLLM_ENDPOINT_URL=http://my-vllm-lb.example.com:8000
+
+# Optional: If endpoint requires API key
+export VLLM_API_KEY=your-api-key
+```
+
+Then run tests **without specifying `test_model`** - it will be auto-detected from the endpoint:
+
+```bash
+ansible-playbook -i inventory/hosts.yml llm-benchmark-concurrent-load.yml \
+  -e "base_workload=chat" \
+  -e "requested_cores=16"
+```
+
+**Option B: Edit Configuration File**
+
 ```yaml
 # group_vars/all/endpoints.yml
 vllm_endpoint:
@@ -210,7 +234,7 @@ vllm_endpoint:
       env_var: "VLLM_API_KEY"
 ```
 
-Then run tests normally - playbooks will skip vLLM container management.
+Then run tests normally - playbooks will skip vLLM container management and connect to your external endpoint.
 
 ### Scenario 4: Host-Based Execution (No Containers)
 

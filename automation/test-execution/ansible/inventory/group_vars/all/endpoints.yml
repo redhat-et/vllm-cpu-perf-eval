@@ -16,17 +16,20 @@ vllm_endpoint:
   # Mode: "managed" (default) or "external"
   # - managed: Ansible starts/stops vLLM container on DUT (traditional behavior)
   # - external: Use existing vLLM endpoint (skip container management)
-  mode: "managed"
+  # Can be set via environment variable: export VLLM_ENDPOINT_MODE=external
+  mode: "{{ lookup('env', 'VLLM_ENDPOINT_MODE') | default('managed', true) }}"
 
   # External endpoint configuration (only used when mode=external)
   external:
     # Full URL to vLLM endpoint (required when mode=external)
+    # Can be set via environment variable:
+    #   export VLLM_ENDPOINT_URL=http://my-vllm-instance.example.com:8000
     # Examples:
     #   - http://my-vllm-instance.example.com:8000
     #   - https://vllm-prod.company.com
     #   - http://10.0.1.50:8000 (direct IP)
     #   - http://vllm-lb.k8s.local:8000 (Kubernetes LoadBalancer)
-    url: null
+    url: "{{ lookup('env', 'VLLM_ENDPOINT_URL') | default(None, true) }}"
 
     # Optional API key authentication for secured endpoints
     api_key:

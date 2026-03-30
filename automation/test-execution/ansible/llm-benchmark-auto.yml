@@ -21,10 +21,15 @@
         is_awx_job: "{{ lookup('env', 'AWX_JOB_ID') | length > 0 }}"
         local_results_base: "{{ lookup('env', 'HOME') ~ '/benchmark-results' if (lookup('env', 'AWX_JOB_ID') | length > 0) else playbook_dir ~ '/../../../results/llm' }}"
 
-    - name: Validate required variables are defined
+    - name: Set vLLM mode early for validation
+      ansible.builtin.set_fact:
+        vllm_mode: "{{ vllm_endpoint.mode | default('managed') }}"
+
+    - name: Validate required variables are defined (managed mode)
       ansible.builtin.assert:
         that:
           - test_model is defined
+          - test_model != '__AUTO_DETECT__'
           - workload_type is defined
           - requested_cores is defined
           - requested_cores is not none
@@ -36,6 +41,21 @@
 
           Note: For core sweeps, use llm-core-sweep-auto.yml instead with:
           -e "requested_cores_list=[8,16,32,64]"
+
+          Note: Auto-detection only works in external mode
+      when: vllm_mode == 'managed'
+
+    - name: Validate required variables are defined (external mode)
+      ansible.builtin.assert:
+        that:
+          - workload_type is defined
+          - requested_cores is defined
+        fail_msg: |
+          Missing required variables. Please provide:
+          -e "workload_type=<summarization|chat|code|rag>"
+          -e "requested_cores=<8|16|32|64|...>"
+          Note: test_model is optional in external mode (will be queried from endpoint)
+      when: vllm_mode == 'external'
 
     - name: Validate requested_cores is a positive integer
       ansible.builtin.assert:
@@ -81,6 +101,42 @@
         test_run_id: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
       when: test_run_id is not defined
 
+    - name: Handle external endpoint model detection/validation
+      when: vllm_mode == 'external'
+      block:
+        - name: Get model from external endpoint
+          ansible.builtin.uri:
+            url: "{{ vllm_endpoint.external.url }}/v1/models"
+            method: GET
+            status_code: 200
+          register: external_models_response
+          delegate_to: localhost
+
+        - name: Extract model name from endpoint
+          ansible.builtin.set_fact:
+            endpoint_model: "{{ external_models_response.json.data[0].id }}"
+
+        - name: Use endpoint model if test_model not provided or set to auto-detect
+          ansible.builtin.set_fact:
+            test_model: "{{ endpoint_model }}"
+          when: test_model is not defined or test_model == '__AUTO_DETECT__'
+
+        - name: Validate test_model matches endpoint if provided
+          ansible.builtin.assert:
+            that:
+              - test_model == endpoint_model
+            fail_msg: |
+              Model mismatch detected!
+              Specified: {{ test_model }}
+              Endpoint serving: {{ endpoint_model }}
+
+              Either omit test_model to auto-detect, or ensure it matches the running model.
+          when: test_model is defined and test_model != '__AUTO_DETECT__' and test_model != endpoint_model
+
+        - name: Display model source
+          ansible.builtin.debug:
+            msg: "Detected model from endpoint: {{ test_model }}"
+
     - name: Display auto-config test information
       ansible.builtin.debug:
         msg:
@@ -88,7 +144,7 @@
           - "Auto-Configured LLM Test"
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           - "Test Run ID: {{ test_run_id }}"
-          - "Model: {{ test_model }}"
+          - "Model: {{ test_model }}{{ ' (detected from endpoint)' if (vllm_mode == 'external' and test_model is defined) else '' }}"
           - "Workload: {{ workload_type }}"
           - "Requested Cores: {{ requested_cores }}"
           - "DUT: {{ groups['dut'][0] }} ({{ hostvars[groups['dut'][0]]['ansible_host'] }})"
