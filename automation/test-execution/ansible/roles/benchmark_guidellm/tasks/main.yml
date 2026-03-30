@@ -30,11 +30,19 @@
     - guidellm_rate is defined
     - guidellm_rate is not string
 
+- name: Normalize rate to list
+  ansible.builtin.set_fact:
+    _rate_value: "{{ guidellm_rate_parsed | default(guidellm_rate) | default(guidellm_cfg.rate | default([10])) }}"
+
+- name: Ensure rate is a list
+  ansible.builtin.set_fact:
+    _rate_list: "{{ [_rate_value] if _rate_value is not iterable or _rate_value is string else _rate_value }}"
+
 - name: Ensure guidellm_cfg has all required defaults (with flat variable overrides)
   ansible.builtin.set_fact:
     guidellm_cfg: "{{ guidellm_cfg | combine({
         'profile': guidellm_profile | default(guidellm_cfg.profile | default('sweep')),
-        'rate': guidellm_rate_parsed | default(guidellm_rate) | default(guidellm_cfg.rate | default([10])),
+        'rate': _rate_list,
         'container_image': guidellm_container_image | default(guidellm_cfg.container_image | default('ghcr.io/vllm-project/guidellm:v0.5.3')),
         'use_container': guidellm_use_container | default(guidellm_cfg.use_container | default(true)),
         'cpuset_cpus': guidellm_cpuset_cpus | default(guidellm_cfg.cpuset_cpus | default('16-31')),
@@ -150,7 +158,7 @@
       tag: "guidellm-{{ workload_type }}-{{ core_cfg.name }}"
   register: guidellm_container
   when: use_guidellm_container | bool
-  no_log: true
+  no_log: true  # Prevent HF_TOKEN from appearing in logs
 
 - name: Set monitoring command based on connection type
   ansible.builtin.set_fact:
@@ -164,7 +172,7 @@
     # For other profiles:
     #   Total = max_seconds + buffer
     # Capped at 14400 seconds (4 hours)
-    guidellm_wait_timeout: >-
+    guidellm_wait_timeout_seconds: >-
       {{
         [
           (
@@ -186,7 +194,7 @@
       - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       - "Container: {{ guidellm_container.container.Id[:12] }}"
       - "Max Duration: {{ guidellm_cfg.max_seconds }}s | Max Requests: {{ guidellm_cfg.max_requests }}"
-      - "Safety Timeout: {{ guidellm_wait_timeout }}s ({{ (guidellm_wait_timeout | int / 60) | round(1) }} min)"
+      - "Safety Timeout: {{ guidellm_wait_timeout_seconds }}s ({{ (guidellm_wait_timeout_seconds | int / 60) | round(1) }} min)"
       - "{{ 'Location: localhost' if ansible_connection == 'local' else 'Location: ' + ansible_host }}"
       - ""
       - "⚠️  Ansible will now wait silently for completion"
@@ -199,10 +207,10 @@
 
 - name: Wait for GuideLLM benchmark to complete (containerized)
   ansible.builtin.command:
-    cmd: "timeout {{ guidellm_wait_timeout_seconds | default(guidellm_wait_timeout) }} podman wait guidellm-{{ workload_type }}-{{ core_cfg.name }}"
+    cmd: "timeout {{ guidellm_wait_timeout_seconds }} podman wait guidellm-{{ workload_type }}-{{ core_cfg.name }}"
   register: guidellm_exit_code_container
   changed_when: false
-  failed_when: guidellm_exit_code_container.rc == 124
+  failed_when: guidellm_exit_code_container.rc != 0
   when: use_guidellm_container | bool
 
 - name: Get container exit details
@@ -228,37 +236,24 @@
     - container_exit_code.stdout is defined
     - container_exit_code.stdout != '0'
 
-- name: Capture GuideLLM container logs
+- name: Stream GuideLLM container logs directly to file
   ansible.builtin.shell:
-    cmd: "podman logs {{ ('guidellm-' ~ workload_type ~ '-' ~ core_cfg.name) | quote }} 2>&1"
+    cmd: "podman logs {{ ('guidellm-' ~ workload_type ~ '-' ~ core_cfg.name) | quote }} > /tmp/guidellm-{{ workload_type }}-{{ core_cfg.name }}-{{ test_run_id }}.log 2>&1"
   args:
     executable: /bin/bash
-  register: guidellm_full_logs
   changed_when: false
   failed_when: false
   when:
     - use_guidellm_container | bool
     - container_exit_code.stdout is defined
 
-- name: Save GuideLLM logs to temporary file on remote
-  ansible.builtin.copy:
-    content: "{{ guidellm_full_logs.stdout }}"
-    dest: "/tmp/guidellm-{{ workload_type }}-{{ core_cfg.name }}.log"
-    mode: "0644"
-  when:
-    - use_guidellm_container | bool
-    - guidellm_full_logs is defined
-    - guidellm_full_logs.stdout is defined
-
 - name: Fetch GuideLLM logs to controller
   ansible.builtin.fetch:
-    src: "/tmp/guidellm-{{ workload_type }}-{{ core_cfg.name }}.log"
+    src: "/tmp/guidellm-{{ workload_type }}-{{ core_cfg.name }}-{{ test_run_id }}.log"
     dest: "{{ results_path }}/guidellm.log"
     flat: true
   when:
     - use_guidellm_container | bool
-    - guidellm_full_logs is defined
-    - guidellm_full_logs.stdout is defined
 
 
 - name: Remove completed container
