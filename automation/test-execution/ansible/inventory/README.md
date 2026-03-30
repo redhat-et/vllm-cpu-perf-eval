@@ -205,12 +205,21 @@ The framework will automatically skip token setup for these models.
 **Option A: Environment Variables (Recommended)**
 
 ```bash
+# Load generator connection (required - GuideLLM runs here)
+export LOADGEN_HOSTNAME=192.168.1.200  # or your load generator hostname/IP
+export ANSIBLE_SSH_USER=ec2-user
+export ANSIBLE_SSH_KEY=~/.ssh/my-key.pem
+
+# External vLLM endpoint (replaces DUT configuration)
 export VLLM_ENDPOINT_MODE=external
 export VLLM_ENDPOINT_URL=http://my-vllm-lb.example.com:8000
 
-# Optional: If endpoint requires API key
+# Optional: If endpoint requires API key or HF token needed
 export VLLM_API_KEY=your-api-key
+export HF_TOKEN=hf_xxxxx
 ```
+
+**Note:** In external mode, you only need load generator access. DUT connection is not required since vLLM is already running externally.
 
 Then run tests **without specifying `test_model`** - it will be auto-detected from the endpoint:
 

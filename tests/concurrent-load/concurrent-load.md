@@ -409,12 +409,23 @@ vllm serve meta-llama/Llama-3.2-1B-Instruct \
   --enable-prefix-caching
 ```
 
-**2. Configure external mode:**
+**2. Configure load generator and external endpoint:**
 
 ```bash
+# Load generator connection (required - GuideLLM runs here)
+export LOADGEN_HOSTNAME=192.168.1.200  # or your load generator hostname/IP
+export ANSIBLE_SSH_USER=ec2-user
+export ANSIBLE_SSH_KEY=~/.ssh/my-key.pem
+
+# External vLLM endpoint (replaces DUT configuration)
 export VLLM_ENDPOINT_MODE=external
 export VLLM_ENDPOINT_URL=http://your-vllm-host:8000
+
+# Optional: HuggingFace token (if needed by GuideLLM)
+export HF_TOKEN=hf_xxxxx
 ```
+
+**Note:** In external mode, you only need to configure the load generator. DUT connection is not required since vLLM is already running externally.
 
 **3. Run tests (model name auto-detected from endpoint):**
 
