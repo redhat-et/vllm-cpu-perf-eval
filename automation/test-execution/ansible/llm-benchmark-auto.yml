@@ -284,27 +284,56 @@
       delegate_to: localhost
       delegate_facts: true
 
+    - name: Save vLLM endpoint URL for metrics collection
+      ansible.builtin.set_fact:
+        vllm_metrics_url: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}"
+      delegate_to: localhost
+      delegate_facts: true
+      when:
+        - not (skip_metrics_collection | default(false) | bool)
+        - hostvars['localhost']['vllm_mode'] == 'managed'
+
+    - name: Start vLLM metrics collection
+      block:
+        - name: Calculate expected test duration
+          ansible.builtin.set_fact:
+            estimated_test_duration: "{{ (guidellm_max_seconds | default(600) | int) + 120 }}"  # Add 2min buffer
+
+        - name: Start metrics collector in background
+          ansible.builtin.include_role:
+            name: vllm_metrics_collector
+          vars:
+            vllm_url: "{{ hostvars['localhost']['vllm_metrics_url'] }}"
+            results_path: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ hostvars['localhost']['test_run_id'] }}/{{ core_configuration.name }}"
+            metrics_collection_interval: 10
+            metrics_collection_duration: "{{ estimated_test_duration }}"
+            test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
+            enable_vllm_metrics_collection: true
+      delegate_to: localhost
+      become: false
+      when:
+        - not (skip_metrics_collection | default(false) | bool)
+        - hostvars['localhost']['vllm_mode'] == 'managed'
+
   roles:
     - role: hf_token
       tasks_from: setup-optional
     - role: benchmark_guidellm
 
   post_tasks:
-    - name: Export vLLM metrics from Prometheus
+    - name: Stop vLLM metrics collection
       block:
-        - name: Export metrics to JSON
+        - name: Stop metrics collector
           ansible.builtin.include_role:
-            name: prometheus_exporter
+            name: vllm_metrics_collector
+            tasks_from: stop
           vars:
-            prometheus_url: "http://localhost:9090"
-            test_start_timestamp: "{{ hostvars['localhost']['benchmark_start_time'] }}"
-            test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
             results_path: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ hostvars['localhost']['test_run_id'] }}/{{ core_configuration.name }}"
-            export_interval_seconds: 10
+            enable_vllm_metrics_collection: true
       delegate_to: localhost
       become: false
       when:
-        - not (skip_prometheus_export | default(false) | bool)
+        - not (skip_metrics_collection | default(false) | bool)
         - hostvars['localhost']['vllm_mode'] == 'managed'
 
 # ==============================================================================

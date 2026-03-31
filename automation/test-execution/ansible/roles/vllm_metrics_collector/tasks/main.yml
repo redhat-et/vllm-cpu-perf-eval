@@ -14,9 +14,14 @@
     mode: "0755"
   when: enable_vllm_metrics_collection | default(true)
 
-- name: Create metrics collection script
+- name: Set script location in temp directory
+  ansible.builtin.set_fact:
+    metrics_script_path: "/tmp/collect_vllm_metrics_{{ test_run_id | default('unknown') }}.py"
+  when: enable_vllm_metrics_collection | default(true)
+
+- name: Create metrics collection script in temp directory
   ansible.builtin.copy:
-    dest: "{{ results_path }}/collect_vllm_metrics.py"
+    dest: "{{ metrics_script_path }}"
     mode: "0755"
     content: |
       #!/usr/bin/env python3
@@ -163,7 +168,7 @@
 
 - name: Start metrics collection in background
   ansible.builtin.shell: |
-    nohup python3 {{ results_path }}/collect_vllm_metrics.py \
+    nohup python3 {{ metrics_script_path }} \
       "{{ vllm_url }}" \
       "{{ results_path }}/vllm-metrics.json" \
       "{{ metrics_collection_interval | default(5) }}" \

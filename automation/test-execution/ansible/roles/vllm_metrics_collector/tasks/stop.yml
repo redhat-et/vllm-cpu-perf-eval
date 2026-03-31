@@ -37,3 +37,11 @@
       - "✓ vLLM metrics collection completed"
       - "  Metrics file: {{ results_path }}/vllm-metrics.json"
   when: enable_vllm_metrics_collection | default(true)
+
+- name: Clean up temporary metrics collection script
+  ansible.builtin.file:
+    path: "/tmp/collect_vllm_metrics_{{ test_run_id | default('unknown') }}.py"
+    state: absent
+  delegate_to: localhost
+  become: false
+  when: enable_vllm_metrics_collection | default(true)

@@ -157,57 +157,39 @@ pkill -f "streamlit.*8501"
 
 ## Server-Side Metrics Collection
 
-Server-side vLLM metrics are automatically collected during benchmarks via Prometheus export. This provides comprehensive performance analysis combining client experience with server internals.
+Server-side vLLM metrics are **automatically collected** during benchmarks by directly scraping the vLLM `/metrics` endpoint. This provides comprehensive performance analysis combining client experience with server internals.
 
 **What you get:**
 - Client-side (GuideLLM): Latencies, throughput, success rates
-- Server-side (vLLM): Queue depth, cache hits, generation rate
+- Server-side (vLLM): Queue depth, cache usage, token generation rates
 
 **Benefits:**
-- ✅ No separate collector script
-- ✅ No additional Python dependencies
-- ✅ Uses same data Grafana displays live
-- ✅ Can export historical data anytime
-- ✅ Automatic with benchmark playbook
-
-### Prerequisites
-
-To collect server-side metrics, you MUST:
-
-**1. Start Grafana stack** (includes Prometheus):
-```bash
-ansible-playbook start-grafana.yml
-```
-
-**2. Create SSH tunnel to vLLM server**:
-```bash
-export DUT_HOSTNAME=your-vllm-server.compute.amazonaws.com
-export ANSIBLE_SSH_KEY=/path/to/your/key.pem
-ssh -L 8000:localhost:8000 ec2-user@$DUT_HOSTNAME -N -f -i $ANSIBLE_SSH_KEY
-```
-
-Or use automated tunnel setup:
-```bash
-# SSH tunnel is created automatically by start-grafana.yml if env vars are set
-```
-
-**3. Verify Prometheus is scraping**:
-```bash
-# Check targets page
-open http://localhost:9090/targets
-# vllm-live should show as UP
-```
+- ✅ **No Grafana/Prometheus required** - metrics collected independently
+- ✅ Automatic collection during benchmark execution
+- ✅ No additional configuration needed
+- ✅ Works out-of-the-box with all benchmark playbooks
 
 ### How It Works
 
-The benchmark playbook automatically exports vLLM metrics from Prometheus after each test:
+The benchmark playbook automatically collects vLLM metrics during each test:
 
-1. Prometheus scrapes vLLM `/metrics` endpoint every 10s during test
-2. After test completes, metrics are queried from Prometheus API
-3. Data is exported to `vllm-metrics.json` alongside GuideLLM results
-4. Streamlit dashboard loads both files for analysis
+1. **Before benchmark starts**: Metrics collector launches in background
+2. **During benchmark**: Collector scrapes vLLM `/metrics` endpoint every 10s
+3. **After benchmark completes**: Collector stops and saves data
+4. **Result**: `vllm-metrics.json` saved alongside GuideLLM results
 
 **No configuration needed** - it's already integrated into `llm-benchmark-auto.yml`.
+
+### Grafana Integration (Optional)
+
+While metrics are collected independently, you can **optionally** run Grafana for real-time visualization during tests:
+
+```bash
+# Optional: Start Grafana for live monitoring
+ansible-playbook start-grafana.yml
+```
+
+**Key point:** Grafana is only for real-time dashboards during test execution. Metrics collection works with or without it.
 
 ### Output Files
 
@@ -429,25 +411,21 @@ find results/llm -name "benchmarks.json"
 find ../../../results/llm -name "vllm-metrics.json"
 
 # If missing, check:
-# 1. Was Grafana running during test?
-curl http://localhost:9090/-/healthy
+# 1. Did the metrics collector run?
+tail -f results/llm/*/metrics-collector.log
 
-# 2. Was SSH tunnel active?
-ps aux | grep "ssh.*8000:localhost:8000"
-
-# 3. Did Prometheus scrape vLLM?
-open http://localhost:9090/targets
-# vllm-live should show as UP during test
+# 2. Can vLLM /metrics endpoint be reached?
+curl http://$DUT_HOSTNAME:8000/metrics
 ```
 
 **To fix for next test:**
-1. Start Grafana before test: `ansible-playbook start-grafana.yml`
-2. Ensure SSH tunnel is created (automatic if env vars set)
-3. Verify Prometheus can scrape: <http://localhost:9090/targets>
+1. Ensure vLLM server is accessible from your local machine
+2. Check firewall/security group allows port 8000
+3. Metrics collection is automatic - no setup needed!
 
-**To skip Prometheus export intentionally:**
+**To skip metrics collection intentionally:**
 ```bash
-ansible-playbook llm-benchmark-auto.yml -e "skip_prometheus_export=true"
+ansible-playbook llm-benchmark-auto.yml -e "skip_metrics_collection=true"
 ```
 
 ### Navigation not working

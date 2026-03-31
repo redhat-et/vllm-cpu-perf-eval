@@ -1,8 +1,10 @@
 # Grafana Monitoring for vLLM CPU Performance Testing
 
-Real-time monitoring of vLLM server metrics during benchmark execution using Grafana and Prometheus.
+**Optional** real-time monitoring of vLLM server metrics during benchmark execution using Grafana and Prometheus.
 
 ## Overview
+
+> **Note:** Grafana is **optional** for metrics collection. vLLM server metrics are automatically collected during benchmarks without requiring Grafana. This stack is only for **real-time visualization** during test execution.
 
 This monitoring stack runs on your **local machine** (Ansible controller) to visualize **live vLLM server metrics** during performance tests on remote servers.
 
@@ -17,9 +19,10 @@ This monitoring stack runs on your **local machine** (Ansible controller) to vis
 - **Grafana** - Real-time visualization dashboards
 - **vLLM Official Dashboards** - Performance Statistics & Query Statistics dashboards from vLLM project
 
-**For Post-Test Analysis:**
-- Client-side benchmark results (GuideLLM) are analyzed via **Streamlit Dashboard**
-- See [dashboard-examples](../dashboard-examples/README.md) for post-test metrics visualization
+**For Metrics Collection & Analysis:**
+- ✅ **vLLM server metrics** are automatically collected during all benchmarks (no Grafana needed)
+- ✅ **Post-test analysis** via Streamlit Dashboard
+- See [dashboard-examples](../dashboard-examples/README.md) for metrics visualization
 
 ## Architecture
 
