@@ -147,10 +147,14 @@
 # End CPU Configuration Validation
 # ============================================================================
 
+- name: Determine effective KV cache space (per-model override or workload fallback)
+  ansible.builtin.set_fact:
+    effective_kv_cache_space: "{{ model_kv_cache_space | default(workload_cfg.kv_cache_space) }}"
+
 - name: Prepare base environment variables
   ansible.builtin.set_fact:
     vllm_env_vars:
-      VLLM_CPU_KVCACHE_SPACE: "{{ workload_cfg.kv_cache_space | extract_size_value }}"
+      VLLM_CPU_KVCACHE_SPACE: "{{ effective_kv_cache_space | extract_size_value }}"
       HF_TOKEN: "{{ hf_token }}"
   no_log: true  # Prevent HF_TOKEN from appearing in logs
 
@@ -177,6 +181,14 @@
   ansible.builtin.set_fact:
     vllm_base_args: "{{ workload_cfg.vllm_args | default([]) }}"
 
+- name: Apply per-model dtype override if provided
+  ansible.builtin.set_fact:
+    vllm_base_args: "{{ vllm_base_args | difference(vllm_base_args | select('match', '^--dtype=.*') | list) + ['--dtype=' + model_dtype] }}"
+  when:
+    - model_dtype is defined
+    - model_dtype is not none
+    - model_dtype | length > 0
+
 - name: Merge caching mode arguments with workload args
   ansible.builtin.set_fact:
     vllm_args_merged: "{{ vllm_base_args | difference(['--no-enable-prefix-caching', '--enable-prefix-caching']) + caching_cfg.vllm_args }}"
@@ -195,6 +207,32 @@
       --port {{ vllm_server.port }}
       {{ vllm_args_merged | join(' ') }}
       {% if core_cfg.tensor_parallel | int > 1 %}-tp {{ core_cfg.tensor_parallel }}{% endif %}
+
+- name: Extract effective max-model-len for validation
+  ansible.builtin.set_fact:
+    effective_max_model_len: "{{ (vllm_args_merged | select('match', '^--max-model-len=.*') | first | default('--max-model-len=' + (workload_cfg.model_max_len | default('auto') | string))).split('=')[1] }}"
+
+- name: Calculate required minimum context length
+  ansible.builtin.set_fact:
+    required_min_len: "{{ (workload_cfg.isl | int) + (workload_cfg.osl | int) }}"
+
+- name: Validate max-model-len against workload requirements
+  ansible.builtin.assert:
+    that:
+      - effective_max_model_len == 'auto' or (effective_max_model_len | int >= required_min_len | int)
+    fail_msg: |
+      ❌ --max-model-len validation failed!
+
+      Workload {{ workload_type }} requires at least {{ required_min_len }} tokens
+      (ISL {{ workload_cfg.isl }} + OSL {{ workload_cfg.osl }})
+
+      Current --max-model-len: {{ effective_max_model_len }}
+
+      Either:
+        1. Set --max-model-len to at least {{ required_min_len }}
+        2. Use --max-model-len=auto to let vLLM determine the value
+        3. Reduce ISL or OSL for this workload
+    success_msg: "✓ max-model-len validated: {{ effective_max_model_len }} (required minimum: {{ required_min_len }})"
 
 - name: Pull vLLM container image
   containers.podman.podman_container:
@@ -221,10 +259,11 @@
       - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       - "vLLM Configuration:"
       - "  Tensor Parallel: {{ core_cfg.tensor_parallel }}"
-      - "  KV Cache: {{ workload_cfg.kv_cache_space }} (VLLM_CPU_KVCACHE_SPACE={{ workload_cfg.kv_cache_space | extract_size_value }})"
+      - "  KV Cache: {{ effective_kv_cache_space }} (VLLM_CPU_KVCACHE_SPACE={{ effective_kv_cache_space | extract_size_value }})"
       - "  OMP Threads: {{ core_cfg.omp_num_threads | default('auto') }}"
       - "  OMP Bind: {{ core_cfg.omp_threads_bind | default('auto') }}"
       - "  Arguments: {{ vllm_args_merged | join(' ') }}"
+      - "  Max Model Len: {{ effective_max_model_len }} (required min: {{ required_min_len }})"
       - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 - name: Start vLLM LLM server
@@ -260,11 +299,11 @@
       - "Logs: journalctl -t vllm-{{ workload_type }}-{{ core_cfg.cores }}c-tp{{ core_cfg.tensor_parallel }} -f"
       - "Stats: podman stats {{ vllm_container_name }}"
 
-- name: Set model configuration facts for metadata collection
+- name: Set model configuration facts for metadata collection (using effective values)
   ansible.builtin.set_fact:
-    model_kv_cache: "{{ workload_cfg.kv_cache_space }}"
+    model_kv_cache: "{{ effective_kv_cache_space }}"
     model_dtype: "{{ (vllm_args_merged | select('match', '^--dtype=.*') | first | default('--dtype=auto')).split('=')[1] }}"
-    model_max_len: "{{ (vllm_args_merged | select('match', '^--max-model-len=.*') | first | default('--max-model-len=auto')).split('=')[1] }}"
+    model_max_len: "{{ effective_max_model_len }}"
     vllm_caching_mode: "{{ vllm_caching_mode | default('baseline') }}"
 
 - name: Wait for vLLM initialization (longer for LLM models)
