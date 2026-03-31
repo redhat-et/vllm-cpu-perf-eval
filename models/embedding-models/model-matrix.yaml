@@ -55,6 +55,8 @@ matrix:
       application_focus: "Encoder-Only (English Dense)"
       language: "English"
       parameters: "~110M"
+      dimensions: 384
+      max_sequence_length: 512
       default_scenarios:
         - baseline-sweep
 
@@ -66,6 +68,8 @@ matrix:
       application_focus: "Encoder-Only (Multilingual)"
       language: "Multilingual"
       parameters: "278M"
+      dimensions: 768
+      max_sequence_length: 512
       alternate_models:
         - "granite-embedding-107m-multilingual"
         - "Multilingual-e5-large"

@@ -55,7 +55,6 @@ The following models provide baseline coverage across key architecture families:
 |---------------------|---------------------|----------------------|------------|-----------|
 | Llama 3 Decoder | Llama-3.2-1B-Instruct | Prefill-Heavy (Baseline) | 1.2B | Latest Llama architecture, strong prefill performance |
 | Llama 2 Decoder | TinyLlama-1.1B-Chat-v1.0 | Prefill/Decode (Small-Scale) | 1.1B | Compact Llama 2 variant, resource-efficient |
-| Traditional OPT Decoder | facebook/opt-125m | Decode-Heavy (Legacy Baseline) | 125M | Fast decode, minimal prefill, legacy baseline |
 | IBM Granite Decoder | granite-3.2-2b-instruct | Balanced (Enterprise Baseline) | 2B | Enterprise-grade, balanced prefill/decode |
 | Qwen 3 Decoder | Qwen/Qwen3-0.6B | Balanced (High-Efficiency) | 0.6B | Efficient architecture, strong performance/size ratio |
 | Transformer MoE | openai/gpt-oss-20b | Scalability Testing (Large-Scale) | 21B (3.6B active) | MoE architecture, 128k context, CPU scalability testing |
@@ -133,8 +132,6 @@ This section covers Large Language Model (LLM) selection and testing across all 
 | Llama 3 | Llama-3.2-1B-Instruct | 1.2B | Prefill-Heavy | 8192 |
 | Llama 3 | Llama-3.2-3B-Instruct | 3.2B | Prefill-Heavy | 8192 |
 | Llama 2 | TinyLlama-1.1B-Chat | 1.1B | Balanced (Small-Scale) | 2048 |
-| OPT | facebook/opt-125m | 125M | Decode-Heavy | 2048 |
-| OPT | facebook/opt-1.3b | 1.3B | Decode-Heavy | 2048 |
 | Granite | granite-3.2-2b-instruct | 2B | Balanced (Enterprise) | 4096 |
 | Qwen 3 | Qwen/Qwen3-0.6B | 0.6B | Balanced (Efficient) | 8192 |
 | Qwen 2.5 | Qwen/Qwen2.5-3B-Instruct | 3B | Balanced (Efficient) | 8192 |
@@ -153,12 +150,6 @@ This section covers Large Language Model (LLM) selection and testing across all 
 - **Resource-efficient** - tests lower-end CPU scenarios
 - **Balanced prefill/decode** performance
 - **Baseline for small-scale deployments**
-
-### OPT Family
-- **Legacy baseline** for comparison with modern architectures
-- **Fast decode, minimal prefill** - stresses decode phase
-- **Two sizes** (125M, 1.3B) for range testing
-- **Well-documented** performance characteristics
 
 ### IBM Granite
 - **Enterprise-grade** model optimized for business use cases
@@ -234,13 +225,6 @@ Models that excel at processing long input contexts:
 
 **Best for**: RAG, long context Q&A
 
-### Decode-Heavy Models
-Models optimized for fast token generation:
-- facebook/opt-125m
-- facebook/opt-1.3b
-
-**Best for**: Chat, real-time responses
-
 ### Balanced Models
 Models with good prefill and decode performance:
 - granite-3.2-2b-instruct
@@ -270,7 +254,6 @@ Tests all models at concurrency levels: **{1, 2, 4, 8, 16, 32}**
 **Participating Models:**
 - Llama-3.2-1B-Instruct (Chat, RAG, Code, Summarization, Reasoning)
 - TinyLlama-1.1B-Chat (Chat)
-- facebook/opt-125m (Chat, Summarization)
 - granite-3.2-2b-instruct (Chat, RAG, Code, Summarization, Reasoning)
 - Qwen/Qwen3-0.6B (Chat, Code)
 - openai/gpt-oss-20b (Chat, RAG, Code)
@@ -280,7 +263,7 @@ Uses sweep, synchronous, and Poisson profiles
 
 **Participating Models:**
 - All models from Concurrent Load suite
-- Plus: Llama-3.2-3B-Instruct, opt-1.3b, Qwen2.5-3B-Instruct
+- Plus: Llama-3.2-3B-Instruct, Qwen2.5-3B-Instruct
 
 ### Test Suite 3: Resource Contention (Planned)
 Tests fractional core allocation, NUMA isolation, noisy neighbors
@@ -393,8 +376,6 @@ KV Cache Size (GB) = Total Bytes ÷ (1024³)
 | llama-3.2-1b-instruct | 2048 | 32 | 16 | 8 | 64 | bfloat16 |
 | llama-3.2-3b-instruct | 3072 | 24 | 28 | 8 | 128 | bfloat16 |
 | tinyllama-1.1b-chat | 2048 | 32 | 22 | 4 | 64 | bfloat16 |
-| opt-125m | 768 | 12 | 12 | 12 | 64 | bfloat16 |
-| opt-1.3b | 2048 | 32 | 24 | 32 | 64 | bfloat16 |
 | granite-3.2-2b-instruct | 2048 | 32 | 40 | 8 | 64 | bfloat16 |
 | qwen3-0.6b | 1024 | 16 | 28 | 8 | 64 | bfloat16 |
 | qwen2.5-3b-instruct | 2048 | 16 | 36 | 2 | 128 | bfloat16 |
@@ -426,8 +407,6 @@ Calculated with **32 concurrent requests** (MAX concurrency across all workloads
 | llama-3.2-1b-instruct | 0.0312 GB | 1.25 GB | 2 GiB |
 | llama-3.2-3b-instruct | 0.1094 GB | 4.38 GB | 5 GiB |
 | tinyllama-1.1b-chat | 0.0215 GB | 0.86 GB | 1 GiB |
-| opt-125m | 0.0226 GB | 0.90 GB | 1 GiB |
-| opt-1.3b | 0.0477 GB | 1.91 GB | 2 GiB |
 | granite-3.2-2b-instruct | 0.0521 GB | 2.08 GB | 3 GiB |
 | qwen3-0.6b | 0.0365 GB | 1.46 GB | 2 GiB |
 | qwen2.5-3b-instruct | 0.0179 GB | 0.72 GB | 1 GiB |
@@ -440,8 +419,6 @@ Calculated with **32 concurrent requests** (MAX concurrency across all workloads
 | llama-3.2-1b-instruct | 0.2656 GB | 10.6 GB | 11 GiB |
 | llama-3.2-3b-instruct | 0.9297 GB | 37.2 GB | 38 GiB |
 | tinyllama-1.1b-chat | 0.1828 GB | 7.31 GB | 8 GiB |
-| opt-125m | 0.1920 GB | 7.68 GB | 8 GiB |
-| opt-1.3b | 0.4053 GB | 16.2 GB | 17 GiB |
 | granite-3.2-2b-instruct | 0.4427 GB | 17.7 GB | 18 GiB |
 | qwen3-0.6b | 0.3102 GB | 12.4 GB | 13 GiB |
 | qwen2.5-3b-instruct | 0.1520 GB | 6.08 GB | 7 GiB |
@@ -454,8 +431,6 @@ Calculated with **32 concurrent requests** (MAX concurrency across all workloads
 | llama-3.2-1b-instruct | 0.0625 GB | 2.50 GB | 3 GiB |
 | llama-3.2-3b-instruct | 0.2188 GB | 8.75 GB | 9 GiB |
 | tinyllama-1.1b-chat | 0.0430 GB | 1.72 GB | 2 GiB |
-| opt-125m | 0.0452 GB | 1.81 GB | 2 GiB |
-| opt-1.3b | 0.0954 GB | 3.82 GB | 4 GiB |
 | granite-3.2-2b-instruct | 0.1042 GB | 4.17 GB | 5 GiB |
 | qwen3-0.6b | 0.0730 GB | 2.92 GB | 3 GiB |
 | qwen2.5-3b-instruct | 0.0358 GB | 1.43 GB | 2 GiB |
@@ -468,8 +443,6 @@ Calculated with **32 concurrent requests** (MAX concurrency across all workloads
 | llama-3.2-1b-instruct | 0.0703 GB | 2.81 GB | 3 GiB |
 | llama-3.2-3b-instruct | 0.2461 GB | 9.84 GB | 9 GiB |
 | tinyllama-1.1b-chat | 0.0483 GB | 1.93 GB | 2 GiB |
-| opt-125m | 0.0509 GB | 2.04 GB | 2 GiB |
-| opt-1.3b | 0.1074 GB | 4.30 GB | 4 GiB |
 | granite-3.2-2b-instruct | 0.1172 GB | 4.69 GB | 4 GiB |
 | qwen3-0.6b | 0.0821 GB | 3.28 GB | 3 GiB |
 | qwen2.5-3b-instruct | 0.0403 GB | 1.61 GB | 2 GiB |
@@ -482,8 +455,6 @@ Calculated with **32 concurrent requests** (MAX concurrency across all workloads
 | llama-3.2-1b-instruct | 0.0703 GB | 2.81 GB | 3 GiB |
 | llama-3.2-3b-instruct | 0.2461 GB | 9.84 GB | 10 GiB |
 | tinyllama-1.1b-chat | 0.0483 GB | 1.93 GB | 2 GiB |
-| opt-125m | 0.0509 GB | 2.04 GB | 3 GiB |
-| opt-1.3b | 0.1074 GB | 4.30 GB | 5 GiB |
 | granite-3.2-2b-instruct | 0.1172 GB | 4.69 GB | 5 GiB |
 | qwen3-0.6b | 0.0821 GB | 3.28 GB | 4 GiB |
 | qwen2.5-3b-instruct | 0.0403 GB | 1.61 GB | 2 GiB |

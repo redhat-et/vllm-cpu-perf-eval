@@ -181,7 +181,7 @@ Full documentation index: [docs/docs.md](docs/docs.md)
 Tests model performance under various concurrent request loads.
 
 - Concurrency levels: 1, 2, 4, 8, 16, 32
-- 8 LLM generative models (embedding models not yet supported)
+- 6 LLM models + 2 embedding models
 - Focus: P95 latency, TTFT, throughput scaling
 
 ### Test Suite: Scalability
@@ -206,11 +206,10 @@ Multi-tenant and resource sharing scenarios.
 
 Current model coverage:
 
-**LLM Models (8 total):**
+**LLM Models (6 total):**
 
 - Llama-3.2 (1B, 3B) - Prefill-heavy
 - TinyLlama-1.1B - Balanced small-scale
-- OPT (125M, 1.3B) - Decode-heavy legacy baseline
 - Granite-3.2-2B - Balanced enterprise
 - Qwen3-0.6B, Qwen2.5-3B - High-efficiency balanced
 
