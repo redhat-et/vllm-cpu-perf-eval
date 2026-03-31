@@ -136,7 +136,6 @@ All test playbooks now include:
    - Test run ID
    - Configuration details (cores, CPUs, NUMA, TP)
    - Model and workload info
-   - vLLM configuration (dtype, KV cache size, max model length, caching mode)
    - Timestamp
    - Test duration (total and per-benchmark)
    - Configuration type (auto/manual)

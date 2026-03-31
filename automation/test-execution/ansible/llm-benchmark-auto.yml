@@ -16,17 +16,27 @@
   gather_facts: false
 
   tasks:
+    - name: Detect if running from AWX
+      ansible.builtin.set_fact:
+        is_awx_job: "{{ lookup('env', 'AWX_JOB_ID') | length > 0 }}"
+        local_results_base: "{{ lookup('env', 'HOME') ~ '/benchmark-results' if (lookup('env', 'AWX_JOB_ID') | length > 0) else playbook_dir ~ '/../../../results/llm' }}"
+
     - name: Validate required variables are defined
       ansible.builtin.assert:
         that:
           - test_model is defined
           - workload_type is defined
           - requested_cores is defined
+          - requested_cores is not none
+          - requested_cores != None
         fail_msg: |
           Missing required variables. Please provide:
           -e "test_model=<model>"
           -e "workload_type=<summarization|chat|code|rag>"
           -e "requested_cores=<8|16|32|64|...>"
+
+          Note: For core sweeps, use llm-core-sweep-auto.yml instead with:
+          -e "requested_cores_list=[8,16,32,64]"
 
     - name: Validate requested_cores is a positive integer
       ansible.builtin.assert:
@@ -131,9 +141,9 @@
   become: true
   vars:
     requested_cores: "{{ hostvars['localhost']['requested_cores'] }}"
-    requested_tensor_parallel: "{{ hostvars['localhost']['requested_tensor_parallel'] | default(omit) }}"
-    requested_omp_threads: "{{ hostvars['localhost']['requested_omp_threads'] | default(omit) }}"
-    requested_omp_bind: "{{ hostvars['localhost']['requested_omp_bind'] | default(omit) }}"
+    requested_tensor_parallel: "{{ hostvars['localhost']['requested_tensor_parallel'] | default(None) }}"
+    requested_omp_threads: "{{ hostvars['localhost']['requested_omp_threads'] | default(None) }}"
+    requested_omp_bind: "{{ hostvars['localhost']['requested_omp_bind'] | default(None) }}"
 
   tasks:
     - block:
@@ -257,11 +267,6 @@
     core_configuration: "{{ hostvars['localhost']['core_configuration'] }}"
 
   tasks:
-    - name: Get vLLM configuration from DUT
-      ansible.builtin.include_role:
-        name: common
-        tasks_from: get-vllm-config-from-dut
-
     - name: Tag results with auto-config metadata
       ansible.builtin.copy:
         content: |
@@ -277,10 +282,6 @@
             "omp_threads_bind": {{ core_configuration.omp_threads_bind | default('null') }},
             "model": "{{ test_model }}",
             "workload": "{{ workload_type }}",
-            "vllm_dtype": "{{ vllm_dtype }}",
-            "vllm_kv_cache_size": "{{ vllm_kv_cache }}",
-            "vllm_max_model_len": "{{ vllm_max_model_len }}",
-            "vllm_caching_mode": "{{ vllm_caching_mode }}",
             "timestamp": "{{ lookup('pipe', 'date -Iseconds') }}",
             "test_duration": "{{ test_duration_string | default('unknown') }}",
             "test_duration_seconds": {{ test_duration_seconds | default('null') }}
@@ -291,7 +292,7 @@
     # The collect-sweep-results.yml playbook will fetch all results at once
     - name: Ensure local results directory exists
       ansible.builtin.file:
-        path: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}"
+        path: "{{ hostvars['localhost']['local_results_base'] }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}"
         state: directory
         mode: "0755"
       delegate_to: localhost
@@ -300,25 +301,20 @@
     - name: Fetch results to local machine
       ansible.posix.synchronize:
         src: "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/"
-        dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/"
+        dest: "{{ hostvars['localhost']['local_results_base'] }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/"
         mode: pull
         recursive: true
       when: is_core_sweep is not defined or not is_core_sweep
 
-    - name: Copy GuideLLM log from controller to final results
-      ansible.builtin.copy:
-        src: "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/guidellm.log"
-        dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/guidellm.log"
-      delegate_to: localhost
-      failed_when: false
-      when: is_core_sweep is not defined or not is_core_sweep
+    # Note: GuideLLM log is already included in the synchronize task above
+    # No separate copy needed
 
     - name: Extract per-benchmark timings from benchmarks.json
       ansible.builtin.command:
         cmd: >-
           python3 {{ playbook_dir }}/scripts/extract_benchmark_timings.py
-          {{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/benchmarks.json
-          {{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/test-metadata.json
+          {{ hostvars['localhost']['local_results_base'] }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/benchmarks.json
+          {{ hostvars['localhost']['local_results_base'] }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/test-metadata.json
       delegate_to: localhost
       register: timing_extraction
       changed_when: false
@@ -341,7 +337,7 @@
           - "Configuration: {{ core_configuration.name }}"
           - "  CPUs: {{ core_configuration.cpuset_cpus }}"
           - "  NUMA: {{ core_configuration.cpuset_mems }}"
-          - "Results: results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/"
+          - "Results: {{ hostvars['localhost']['local_results_base'] }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/"
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       when: is_core_sweep is not defined or not is_core_sweep
 
@@ -379,7 +375,7 @@
   roles:
     - role: results_collector
       vars:
-        log_collection_dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/"
+        log_collection_dest: "{{ hostvars['localhost']['local_results_base'] }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/"
         journald_identifier: "vllm-{{ workload_type }}-{{ core_configuration.cores }}c-tp{{ core_configuration.tensor_parallel }}"
         log_filename_prefix: "vllm-server"
         journald_time_range: "1 hour ago"

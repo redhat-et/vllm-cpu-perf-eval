@@ -17,6 +17,15 @@
     test_run_id: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
 
   tasks:
+    - name: Detect if running from AWX
+      ansible.builtin.set_fact:
+        awx_job_id: "{{ lookup('env', 'AWX_JOB_ID') }}"
+
+    - name: Set AWX-aware paths
+      ansible.builtin.set_fact:
+        is_awx_job: "{{ awx_job_id | length > 0 }}"
+        local_results_base: "{{ lookup('env', 'HOME') ~ '/benchmark-results' if (awx_job_id | length > 0) else playbook_dir ~ '/../../../results/llm' }}"
+
     - name: Validate required variables
       ansible.builtin.assert:
         that:
@@ -182,7 +191,7 @@
     - block:
         - name: Ensure local results directory exists
           ansible.builtin.file:
-            path: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}"
+            path: "{{ hostvars['localhost']['local_results_base'] }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}"
             state: directory
             mode: "0755"
           delegate_to: localhost
@@ -190,7 +199,7 @@
         - name: Fetch all core sweep results
           ansible.posix.synchronize:
             src: "{{ bench_config.results_dir }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}/"
-            dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/"
+            dest: "{{ hostvars['localhost']['local_results_base'] }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/"
             mode: pull
             recursive: true
 
@@ -200,7 +209,7 @@
               - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
               - "✓ Auto-configured core sweep completed!"
               - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-              - "Results: results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/"
+              - "Results: {{ '~/benchmark-results' if hostvars['localhost']['is_awx_job'] else 'results/llm' }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/"
               - "Analyze results to find optimal core configuration"
               - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 

@@ -1,0 +1,15 @@
+---
+# Ansible Galaxy Collections Requirements - AWX/Production
+#
+# This file is the CANONICAL requirements file for AWX deployments.
+# AWX auto-installs collections from this file location (collections/requirements.yml).
+#
+# Uses exact version pins for reproducible AWX job execution.
+# For CLI/development usage with version ranges, see:
+#   automation/test-execution/ansible/requirements.yml
+
+collections:
+  - name: containers.podman
+    version: "1.9.4"
+  - name: ansible.posix
+    version: "1.5.4"
