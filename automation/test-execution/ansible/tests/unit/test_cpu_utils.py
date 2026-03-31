@@ -33,6 +33,9 @@ except ImportError:
                 if exc_type is not None and issubclass(exc_type, self.exc):
                     # Suppress the exception by returning True
                     return True
+                # If no exception was raised, that's a test failure
+                if exc_type is None:
+                    raise AssertionError(f"Did not raise {self.exc}")
                 # Let unexpected exceptions propagate
                 return False
 
@@ -54,6 +57,17 @@ except ImportError:
     # Use the same fallback class from cpu_utils
     import cpu_utils
     AnsibleFilterError = cpu_utils.AnsibleFilterError
+
+# Import AnsibleUnsafeText for testing normalization
+try:
+    from ansible.utils.unsafe_proxy import AnsibleUnsafeText  # noqa: E402
+    HAS_ANSIBLE_UNSAFE = True
+except ImportError:
+    # Fallback: create a simple mock class that behaves like AnsibleUnsafeText
+    class AnsibleUnsafeText(str):
+        """Mock AnsibleUnsafeText for testing without Ansible."""
+        pass
+    HAS_ANSIBLE_UNSAFE = False
 
 
 # ============================================================================
@@ -533,6 +547,21 @@ class TestMultiNumaAllocation:
 
         # Should auto-select TP=2
         assert result['tensor_parallel'] == 2
+        assert result['cores_per_node'] == [32, 32]
+
+    def test_serialized_tp_ansible_unsafe_text(self):
+        """AnsibleUnsafeText requested_tp should be normalized and behave like auto-TP."""
+        topology = create_numa_topology(num_nodes=6, cores_per_node=32)
+
+        # Wrap requested_tp as AnsibleUnsafeText to exercise normalization logic
+        unsafe_tp = AnsibleUnsafeText('2')
+        result = allocate_cores_multi_numa(
+            topology, requested_cores=64, requested_tp=unsafe_tp
+        )
+
+        # Should use the provided TP=2 after normalization
+        assert result['tensor_parallel'] == 2
+        assert result['allocated_nodes'] == [1, 2]
         assert result['cores_per_node'] == [32, 32]
 
 

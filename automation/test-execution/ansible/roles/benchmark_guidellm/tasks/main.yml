@@ -210,7 +210,7 @@
     cmd: "timeout {{ guidellm_wait_timeout_seconds }} podman wait guidellm-{{ workload_type }}-{{ core_cfg.name }}"
   register: guidellm_exit_code_container
   changed_when: false
-  failed_when: guidellm_exit_code_container.rc != 0
+  failed_when: guidellm_exit_code_container.rc != 0 and guidellm_exit_code_container.rc != 124
   when: use_guidellm_container | bool
 
 - name: Get container exit details

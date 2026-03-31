@@ -90,7 +90,7 @@
 # Add backward compatibility fields for existing playbooks
 - name: Calculate node IDs for backward compatibility
   ansible.builtin.set_fact:
-    housekeeping_node_id: "{{ (numa_nodes_inventory | first).id }}"
+    housekeeping_node_id: "{{ allocation_policy.housekeeping.reserved_node if (allocation_policy.housekeeping.reserved_node is defined and allocation_policy.housekeeping.reserved_node != '') else (numa_nodes_inventory | first).id }}"
     guidellm_node_id: "{{ numa_nodes_inventory[1].id if numa_node_count | int >= 2 else (numa_nodes_inventory | first).id }}"
     vllm_node_id: "{{ (numa_nodes_inventory | last).id if numa_node_count | int >= 2 else (numa_nodes_inventory | first).id }}"
 
