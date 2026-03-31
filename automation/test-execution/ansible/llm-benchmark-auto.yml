@@ -28,7 +28,6 @@
           - workload_type is defined
           - requested_cores is defined
           - requested_cores is not none
-          - requested_cores != None
         fail_msg: |
           Missing required variables. Please provide:
           -e "test_model=<model>"
