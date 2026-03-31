@@ -188,7 +188,7 @@
     requested_cores: "{{ effective_requested_cores }}"
   when:
     - not (skip_phase_2 | default(false) | bool)
-    - (base_workload + '_var') in ['chat_var', 'code_var']
+    - (base_workload + '_var') in ['chat_var', 'code_var', 'summarization_var']
 
 - name: Phase 2 Complete
   hosts: localhost
@@ -227,7 +227,7 @@
     requested_cores: "{{ effective_requested_cores }}"
   when:
     - not (skip_phase_3 | default(false) | bool)
-    - (base_workload + '_var') in ['chat_var', 'code_var']
+    - (base_workload + '_var') in ['chat_var', 'code_var', 'summarization_var']
 
 - name: Phase 3 Complete
   hosts: localhost
