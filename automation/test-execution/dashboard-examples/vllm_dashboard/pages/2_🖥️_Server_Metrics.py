@@ -131,14 +131,33 @@ test_runs = sorted(set(r.get('test_run_id', 'unknown') for r in results))
 cores = sorted(set(r.get('cores', 'N/A') for r in results))
 versions = sorted(set(r.get('vllm_version', 'unknown') for r in results))
 
-# Mode selection
-analysis_mode = st.sidebar.radio(
-    "Analysis Mode",
-    ["Single Test Analysis", "Test Comparison"],
-    help="Choose between analyzing a single test or comparing multiple"
-)
+# Section navigation
+section_list = [
+    "📈 Performance Plots",
+    "⚖️ Compare Configurations",
+]
 
-if analysis_mode == "Single Test Analysis":
+current_section = st.session_state.get("active_section_server", section_list[0])
+if current_section not in section_list:
+    current_section = section_list[0]
+st.session_state.active_section_server = current_section
+
+# Sidebar navigation
+st.sidebar.markdown("---")
+st.sidebar.markdown("### Navigation")
+for section_name in section_list:
+    is_active = section_name == current_section
+    btn_type = "primary" if is_active else "secondary"
+    if st.sidebar.button(
+        section_name,
+        key=f"nav_{section_name}",
+        use_container_width=True,
+        type=btn_type,
+    ):
+        st.session_state.active_section_server = section_name
+        st.rerun()
+
+if current_section == "📈 Performance Plots":
     # Single test mode - filters in main area
     st.markdown("### 🔍 Filter Test Data")
 
@@ -642,38 +661,98 @@ if analysis_mode == "Single Test Analysis":
                         )
                         st.plotly_chart(fig, use_container_width=True)
 
-else:
+elif current_section == "⚖️ Compare Configurations":
     # Comparison mode
-    st.sidebar.subheader("Select Tests to Compare")
+    st.markdown("### ⚖️ Compare Test Configurations")
+    st.markdown("Compare server metrics between two test runs")
 
-    # Multi-select for platforms
-    compare_platforms = st.sidebar.multiselect(
-        "Platforms",
-        platforms,
-        default=platforms[:min(2, len(platforms))]
-    )
+    col1, col2 = st.columns(2)
 
-    # Model filter
-    compare_model = st.sidebar.selectbox("Model", models)
-    compare_workload = st.sidebar.selectbox("Workload", workloads)
-    compare_cores = st.sidebar.selectbox("Cores", cores)
-    compare_version = st.sidebar.selectbox("vLLM Version", versions)
+    with col1:
+        st.markdown("#### Baseline Configuration")
+        baseline_platform = st.selectbox("Platform", platforms, key="baseline_platform")
 
-    # Filter results for comparison
-    comparison_results = [
-        r for r in results
-        if r.get('platform') in compare_platforms
-        and r.get('model') == compare_model
-        and r.get('workload') == compare_workload
-        and r.get('cores') == compare_cores
-        and r.get('vllm_version') == compare_version
-    ]
+        baseline_filtered = [r for r in results if r.get('platform') == baseline_platform]
+        baseline_models = sorted(set(r.get('model', 'unknown') for r in baseline_filtered))
+        baseline_model = st.selectbox("Model", baseline_models, key="baseline_model")
 
-    if len(comparison_results) < 2:
-        st.warning("Need at least 2 test results for comparison. Adjust filters.")
+        baseline_filtered = [r for r in baseline_filtered if r.get('model') == baseline_model]
+        baseline_workloads = sorted(set(r.get('workload', 'unknown') for r in baseline_filtered))
+        baseline_workload = st.selectbox("Workload", baseline_workloads, key="baseline_workload")
+
+        baseline_filtered = [r for r in baseline_filtered if r.get('workload') == baseline_workload]
+        baseline_cores_list = sorted(set(r.get('cores', 'N/A') for r in baseline_filtered))
+        baseline_cores_sel = st.selectbox("Cores", baseline_cores_list, key="baseline_cores")
+
+        baseline_filtered = [r for r in baseline_filtered if r.get('cores') == baseline_cores_sel]
+        baseline_versions = sorted(set(r.get('vllm_version', 'unknown') for r in baseline_filtered))
+        baseline_version = st.selectbox("vLLM Version", baseline_versions, key="baseline_version")
+
+        baseline_filtered = [r for r in baseline_filtered if r.get('vllm_version') == baseline_version]
+
+        # Get available test runs for this configuration
+        if baseline_filtered:
+            baseline_test_run_options = {
+                f"{r.get('test_run_id', 'unknown')[:8]} | {r.get('backend', 'unknown')}": r
+                for r in baseline_filtered
+            }
+
+            baseline_test_run_label = st.selectbox(
+                "Test Run",
+                list(baseline_test_run_options.keys()),
+                key="baseline_test_run"
+            )
+            baseline_result = baseline_test_run_options[baseline_test_run_label]
+        else:
+            baseline_result = None
+            st.warning("No data for selected filters")
+
+    with col2:
+        st.markdown("#### Comparison Configuration")
+        compare_platform = st.selectbox("Platform", platforms, key="compare_platform")
+
+        compare_filtered = [r for r in results if r.get('platform') == compare_platform]
+        compare_models = sorted(set(r.get('model', 'unknown') for r in compare_filtered))
+        compare_model = st.selectbox("Model", compare_models, key="compare_model")
+
+        compare_filtered = [r for r in compare_filtered if r.get('model') == compare_model]
+        compare_workloads = sorted(set(r.get('workload', 'unknown') for r in compare_filtered))
+        compare_workload = st.selectbox("Workload", compare_workloads, key="compare_workload")
+
+        compare_filtered = [r for r in compare_filtered if r.get('workload') == compare_workload]
+        compare_cores_list = sorted(set(r.get('cores', 'N/A') for r in compare_filtered))
+        compare_cores_sel = st.selectbox("Cores", compare_cores_list, key="compare_cores")
+
+        compare_filtered = [r for r in compare_filtered if r.get('cores') == compare_cores_sel]
+        compare_versions = sorted(set(r.get('vllm_version', 'unknown') for r in compare_filtered))
+        compare_version = st.selectbox("vLLM Version", compare_versions, key="compare_version")
+
+        compare_filtered = [r for r in compare_filtered if r.get('vllm_version') == compare_version]
+
+        # Get available test runs for this configuration
+        if compare_filtered:
+            compare_test_run_options = {
+                f"{r.get('test_run_id', 'unknown')[:8]} | {r.get('backend', 'unknown')}": r
+                for r in compare_filtered
+            }
+
+            compare_test_run_label = st.selectbox(
+                "Test Run",
+                list(compare_test_run_options.keys()),
+                key="compare_test_run"
+            )
+            compare_result = compare_test_run_options[compare_test_run_label]
+        else:
+            compare_result = None
+            st.warning("No data for selected filters")
+
+    if not baseline_result or not compare_result:
+        st.error("Please select valid configurations for both baseline and comparison")
         st.stop()
 
-    st.subheader(f"Comparing {len(comparison_results)} Test Results")
+    comparison_results = [baseline_result, compare_result]
+    st.markdown("---")
+    st.subheader("Comparison Results")
 
     # Helper functions
     def sum_metric(sample: Dict, metric_name: str) -> float:
@@ -689,6 +768,71 @@ else:
             return sum(values) / len(values) if values else 0
         return 0
 
+    # Calculate key metrics for comparison
+    baseline_samples = baseline_result.get('samples', [])
+    compare_samples = compare_result.get('samples', [])
+
+    if baseline_samples and compare_samples:
+        # Calculate metrics
+        baseline_cache_avg = sum(mean_metric(s, 'vllm:kv_cache_usage_perc') for s in baseline_samples) / len(baseline_samples)
+        compare_cache_avg = sum(mean_metric(s, 'vllm:kv_cache_usage_perc') for s in compare_samples) / len(compare_samples)
+        cache_diff = ((compare_cache_avg - baseline_cache_avg) / baseline_cache_avg * 100) if baseline_cache_avg > 0 else 0
+
+        baseline_queue_avg = sum(sum_metric(s, 'vllm:num_requests_running') for s in baseline_samples) / len(baseline_samples)
+        compare_queue_avg = sum(sum_metric(s, 'vllm:num_requests_running') for s in compare_samples) / len(compare_samples)
+        queue_diff = ((compare_queue_avg - baseline_queue_avg) / baseline_queue_avg * 100) if baseline_queue_avg > 0 else 0
+
+        # Calculate token generation rates
+        baseline_gen_tokens = [sum_metric(s, 'vllm:generation_tokens_total') for s in baseline_samples]
+        compare_gen_tokens = [sum_metric(s, 'vllm:generation_tokens_total') for s in compare_samples]
+        baseline_timestamps = [s['elapsed_seconds'] for s in baseline_samples]
+        compare_timestamps = [s['elapsed_seconds'] for s in compare_samples]
+
+        baseline_gen_rates = []
+        for i in range(1, len(baseline_gen_tokens)):
+            time_delta = baseline_timestamps[i] - baseline_timestamps[i-1]
+            if time_delta > 0:
+                baseline_gen_rates.append((baseline_gen_tokens[i] - baseline_gen_tokens[i-1]) / time_delta)
+
+        compare_gen_rates = []
+        for i in range(1, len(compare_gen_tokens)):
+            time_delta = compare_timestamps[i] - compare_timestamps[i-1]
+            if time_delta > 0:
+                compare_gen_rates.append((compare_gen_tokens[i] - compare_gen_tokens[i-1]) / time_delta)
+
+        baseline_peak_gen = max(baseline_gen_rates) if baseline_gen_rates else 0
+        compare_peak_gen = max(compare_gen_rates) if compare_gen_rates else 0
+        gen_diff = ((compare_peak_gen - baseline_peak_gen) / baseline_peak_gen * 100) if baseline_peak_gen > 0 else 0
+
+        # Display metrics
+        metrics_col1, metrics_col2, metrics_col3 = st.columns(3)
+
+        with metrics_col1:
+            st.metric(
+                "Peak Token Generation",
+                f"{compare_peak_gen:.2f} tok/s",
+                f"{gen_diff:+.1f}% vs baseline",
+                delta_color="normal"
+            )
+
+        with metrics_col2:
+            st.metric(
+                "Avg Cache Usage",
+                f"{compare_cache_avg:.1f}%",
+                f"{cache_diff:+.1f}% vs baseline",
+                delta_color="inverse"
+            )
+
+        with metrics_col3:
+            st.metric(
+                "Avg Queue Depth",
+                f"{compare_queue_avg:.2f}",
+                f"{queue_diff:+.1f}% vs baseline",
+                delta_color="inverse"
+            )
+
+        st.markdown("---")
+
     # Create comparison charts
     fig = make_subplots(
         rows=2, cols=2,
@@ -702,7 +846,12 @@ else:
         horizontal_spacing=0.1
     )
 
-    colors = ['#3498db', '#e74c3c', '#2ecc71', '#f39c12', '#9b59b6', '#1abc9c']
+    colors = ['#3b82f6', '#ef4444']
+
+    # Create detailed labels
+    baseline_label = f"Baseline: {baseline_result.get('platform', 'unknown')} | {baseline_result.get('vllm_version', 'unknown')} | {baseline_result.get('workload', 'unknown')} | {baseline_result.get('backend', 'unknown')}"
+    compare_label = f"Compare: {compare_result.get('platform', 'unknown')} | {compare_result.get('vllm_version', 'unknown')} | {compare_result.get('workload', 'unknown')} | {compare_result.get('backend', 'unknown')}"
+    labels = [baseline_label, compare_label]
 
     for idx, result in enumerate(comparison_results):
         samples = result.get('samples', [])
@@ -731,7 +880,7 @@ else:
                 else:
                     gen_rate.append(0)
 
-        label = f"{result.get('platform', 'unknown')} ({result.get('backend', 'unknown')})"
+        label = labels[idx]
         color = colors[idx % len(colors)]
 
         # Cache usage

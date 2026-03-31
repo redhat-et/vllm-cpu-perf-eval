@@ -382,7 +382,25 @@ def render_compare_versions(df: pd.DataFrame):
         baseline_cores_list = sorted(baseline_df['cores'].unique())
         baseline_cores = st.selectbox("Cores", baseline_cores_list, key="baseline_cores")
 
-        baseline_data = baseline_df[baseline_df['cores'] == baseline_cores]
+        baseline_df = baseline_df[baseline_df['cores'] == baseline_cores]
+
+        # Get available test runs for this configuration
+        baseline_test_runs = baseline_df[['test_run_id', 'vllm_version', 'workload', 'tensor_parallel']].drop_duplicates()
+        baseline_test_run_options = {
+            f"{row['test_run_id'][:8]} | {row['vllm_version']} | {row['workload']} | TP={row['tensor_parallel']}": row['test_run_id']
+            for _, row in baseline_test_runs.iterrows()
+        }
+
+        if baseline_test_run_options:
+            baseline_test_run_label = st.selectbox(
+                "Test Run",
+                list(baseline_test_run_options.keys()),
+                key="baseline_test_run"
+            )
+            baseline_test_run_id = baseline_test_run_options[baseline_test_run_label]
+            baseline_data = baseline_df[baseline_df['test_run_id'] == baseline_test_run_id]
+        else:
+            baseline_data = pd.DataFrame()
 
     with col2:
         st.markdown("#### Comparison Configuration")
@@ -397,7 +415,25 @@ def render_compare_versions(df: pd.DataFrame):
         compare_cores_list = sorted(compare_df['cores'].unique())
         compare_cores = st.selectbox("Cores", compare_cores_list, key="compare_cores")
 
-        compare_data = compare_df[compare_df['cores'] == compare_cores]
+        compare_df = compare_df[compare_df['cores'] == compare_cores]
+
+        # Get available test runs for this configuration
+        compare_test_runs = compare_df[['test_run_id', 'vllm_version', 'workload', 'tensor_parallel']].drop_duplicates()
+        compare_test_run_options = {
+            f"{row['test_run_id'][:8]} | {row['vllm_version']} | {row['workload']} | TP={row['tensor_parallel']}": row['test_run_id']
+            for _, row in compare_test_runs.iterrows()
+        }
+
+        if compare_test_run_options:
+            compare_test_run_label = st.selectbox(
+                "Test Run",
+                list(compare_test_run_options.keys()),
+                key="compare_test_run"
+            )
+            compare_test_run_id = compare_test_run_options[compare_test_run_label]
+            compare_data = compare_df[compare_df['test_run_id'] == compare_test_run_id]
+        else:
+            compare_data = pd.DataFrame()
 
     if baseline_data.empty or compare_data.empty:
         st.warning("Insufficient data for comparison.")
@@ -468,12 +504,19 @@ def render_compare_versions(df: pd.DataFrame):
         subplot_titles=('Throughput Comparison', 'TTFT P95 Comparison')
     )
 
+    # Create detailed labels with test run info
+    baseline_run_info = baseline_data.iloc[0]
+    compare_run_info = compare_data.iloc[0]
+
+    baseline_label = f"Baseline: {baseline_platform} | {baseline_run_info['vllm_version']} | {baseline_run_info['workload']}"
+    compare_label = f"Compare: {compare_platform} | {compare_run_info['vllm_version']} | {compare_run_info['workload']}"
+
     # Throughput
     for data, name, color in [
         (baseline_data.sort_values(x_col_compare),
-         f"Baseline ({baseline_platform})", '#3b82f6'),
+         baseline_label, '#3b82f6'),
         (compare_data.sort_values(x_col_compare),
-         f"Compare ({compare_platform})", '#ef4444')
+         compare_label, '#ef4444')
     ]:
         fig.add_trace(
             go.Scatter(
@@ -491,9 +534,9 @@ def render_compare_versions(df: pd.DataFrame):
     # TTFT
     for data, name, color in [
         (baseline_data.sort_values(x_col_compare),
-         f"Baseline ({baseline_platform})", '#3b82f6'),
+         baseline_label, '#3b82f6'),
         (compare_data.sort_values(x_col_compare),
-         f"Compare ({compare_platform})", '#ef4444')
+         compare_label, '#ef4444')
     ]:
         fig.add_trace(
             go.Scatter(
