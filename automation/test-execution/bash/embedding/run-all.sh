@@ -21,12 +21,8 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-# Early bypass for --help (before blocking guard)
-for arg in "$@"; do
-    if [[ "$arg" == "-h" || "$arg" == "--help" ]]; then
-        # Jump to usage function definition below
-        usage() {
-            cat <<EOF
+usage() {
+    cat <<EOF
 Usage: $0 [OPTIONS]
 
 Run complete embedding model performance test suite.
@@ -60,7 +56,11 @@ Examples:
     $0 --baseline-only
 
 EOF
-        }
+}
+
+# Early bypass for --help (before blocking guard)
+for arg in "$@"; do
+    if [[ "$arg" == "-h" || "$arg" == "--help" ]]; then
         usage
         exit 0
     fi
@@ -104,43 +104,6 @@ log_section() {
     echo -e "${BLUE}$*${NC}"
     echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
     echo ""
-}
-
-usage() {
-    cat <<EOF
-Usage: $0 [OPTIONS]
-
-Run complete embedding model performance test suite.
-
-Options:
-    --vllm-host HOST       vLLM server host (default: localhost)
-    --vllm-port PORT       vLLM server port (default: 8000)
-    --models "MODEL..."    Space-separated list of models to test
-    --baseline-only        Run only baseline tests
-    --latency-only         Run only latency tests
-    -h, --help             Show this help message
-
-Environment Variables:
-    VLLM_HOST              Override vLLM host
-    VLLM_PORT              Override vLLM port
-    MODELS                 Override models to test
-    RUN_BASELINE           Set to false to skip baseline tests
-    RUN_LATENCY            Set to false to skip latency tests
-
-Examples:
-    # Run all tests with local vLLM
-    $0
-
-    # Run all tests with remote vLLM
-    $0 --vllm-host 192.168.1.10
-
-    # Test specific models
-    $0 --models "ibm-granite/granite-embedding-english-r2 ibm-granite/granite-embedding-278m-multilingual"
-
-    # Run only baseline tests
-    $0 --baseline-only
-
-EOF
 }
 
 # Parse arguments
