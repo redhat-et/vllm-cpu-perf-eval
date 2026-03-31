@@ -1,5 +1,5 @@
 ---
-name: Unit Tests
+name: Tests
 permissions:
   contents: read
 
@@ -7,9 +7,11 @@ on:  # yamllint disable-line rule:truthy
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
-  test:
+  unit-tests:
+    name: Unit Tests
     runs-on: ubuntu-latest
 
     steps:
@@ -24,14 +26,43 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest ansible
+          pip install pytest ansible pyyaml
 
       - name: Run unit tests
         run: |
           cd automation/test-execution/ansible/tests
-          python -m pytest test_cpu_utils.py -v
+          python -m pytest unit/ -v -m unit
 
       - name: Test results summary
         if: always()
         run: |
           echo "Unit test execution completed"
+
+  smoke-tests:
+    name: Smoke Tests
+    runs-on: ubuntu-latest
+    needs: unit-tests
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest ansible pyyaml
+
+      - name: Run smoke tests
+        run: |
+          cd automation/test-execution/ansible/tests
+          python -m pytest smoke/ -v -m smoke
+
+      - name: Test results summary
+        if: always()
+        run: |
+          echo "Smoke test execution completed"

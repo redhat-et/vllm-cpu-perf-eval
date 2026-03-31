@@ -124,6 +124,7 @@ def create_numa_topology(num_nodes, cores_per_node=32):
 # Test Classes
 # ============================================================================
 
+@pytest.mark.unit
 class TestCpuListToRange:
     """Test cpu_list_to_range filter."""
 
@@ -173,6 +174,7 @@ class TestCpuListToRange:
             cpu_list_to_range(123)
 
 
+@pytest.mark.unit
 class TestExtractPrimaryCpus:
     """Test extract_primary_cpus filter."""
 
@@ -225,6 +227,7 @@ invalid line
         assert "Failed to parse lscpu data: Line 2: Expected 3 columns (CPU NODE CORE), got 2: 'invalid line'" in error_msg
 
 
+@pytest.mark.unit
 class TestExtractAllCpus:
     """Test extract_all_cpus filter."""
 
@@ -253,6 +256,7 @@ class TestExtractAllCpus:
         assert extract_all_cpus("", 0) == ""
 
 
+@pytest.mark.unit
 class TestExtractNumaNodes:
     """Test extract_numa_nodes filter."""
 
@@ -287,6 +291,7 @@ class TestExtractNumaNodes:
         assert result == ['0', '1']
 
 
+@pytest.mark.unit
 class TestMergeCpuRanges:
     """Test merge_cpu_ranges filter."""
 
@@ -320,6 +325,7 @@ class TestMergeCpuRanges:
             merge_cpu_ranges(["0-3-5"])
 
 
+@pytest.mark.unit
 class TestRealWorldScenarios:
     """Test real-world scenarios from vLLM benchmarking."""
 
@@ -383,6 +389,7 @@ class TestRealWorldScenarios:
         assert len(result) < len(','.join(str(c) for c in cpus))  # Compressed
 
 
+@pytest.mark.unit
 class TestMultiNumaAllocation:
     """Test multi-NUMA allocation with auto-TP calculation."""
 
@@ -565,6 +572,7 @@ class TestMultiNumaAllocation:
         assert result['cores_per_node'] == [32, 32]
 
 
+@pytest.mark.unit
 class TestOmpBinding:
     """Test OMP binding string generation."""
 
@@ -605,6 +613,7 @@ class TestOmpBinding:
         assert result['omp_threads_bind'] == expected_binding
 
 
+@pytest.mark.unit
 class TestValidTpValues:
     """Test TP value constraints."""
 
