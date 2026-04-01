@@ -1,0 +1,120 @@
+---
+name: Ansible Playbook Syntax Check
+
+"on":
+  pull_request:
+    paths:
+      - "automation/test-execution/ansible/**/*.yml"
+      - ".github/workflows/playbook-syntax-check.yml"
+  push:
+    branches:
+      - "main"
+    paths:
+      - "automation/test-execution/ansible/**/*.yml"
+
+jobs:
+  syntax-check:
+    name: Validate Ansible Playbooks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Ansible
+        run: |
+          python -m pip install --upgrade pip
+          pip install ansible-core==2.17.7
+
+      - name: Install required Ansible collections
+        working-directory: automation/test-execution/ansible
+        run: |
+          if [ -f requirements.yml ]; then
+            ansible-galaxy collection install -r requirements.yml
+          fi
+
+      - name: Create dummy inventory for syntax check
+        run: |
+          mkdir -p /tmp/test-inventory
+          cat > /tmp/test-inventory/hosts.yml <<EOF
+          all:
+            children:
+              dut:
+                hosts:
+                  test-dut:
+                    ansible_host: 192.168.1.100
+                    ansible_user: test
+                    ansible_ssh_private_key_file: /dev/null
+              load_generator:
+                hosts:
+                  test-loadgen:
+                    ansible_host: 192.168.1.101
+                    ansible_user: test
+                    ansible_ssh_private_key_file: /dev/null
+          EOF
+
+      - name: Syntax check - llm-benchmark-auto.yml
+        working-directory: automation/test-execution/ansible
+        run: |
+          ansible-playbook llm-benchmark-auto.yml \
+            -i /tmp/test-inventory/hosts.yml \
+            -e "test_model=test/model" \
+            -e "workload_type=chat" \
+            -e "requested_cores=16" \
+            --syntax-check
+
+      - name: Syntax check - llm-core-sweep-auto.yml
+        working-directory: automation/test-execution/ansible
+        run: |
+          ansible-playbook llm-core-sweep-auto.yml \
+            -i /tmp/test-inventory/hosts.yml \
+            -e "test_model=test/model" \
+            -e "workload_type=chat" \
+            -e "requested_cores_list=[16,32]" \
+            --syntax-check
+
+      - name: Syntax check - llm-benchmark-concurrent-load.yml
+        working-directory: automation/test-execution/ansible
+        run: |
+          ansible-playbook llm-benchmark-concurrent-load.yml \
+            -i /tmp/test-inventory/hosts.yml \
+            -e "test_model=test/model" \
+            -e "base_workload=chat" \
+            -e "core_sweep_counts=[16,32]" \
+            --syntax-check
+
+      - name: Syntax check - embedding-benchmark.yml
+        working-directory: automation/test-execution/ansible
+        run: |
+          ansible-playbook embedding-benchmark.yml \
+            -i /tmp/test-inventory/hosts.yml \
+            -e "test_model=test/model" \
+            -e "requested_cores=16" \
+            --syntax-check
+
+      - name: Check playbook tags
+        working-directory: automation/test-execution/ansible
+        run: |
+          echo "=== llm-benchmark-auto.yml tags ==="
+          ansible-playbook llm-benchmark-auto.yml \
+            -i /tmp/test-inventory/hosts.yml \
+            -e "test_model=test/model" \
+            -e "workload_type=chat" \
+            -e "requested_cores=16" \
+            --list-tags
+
+      - name: List tasks - llm-benchmark-auto.yml
+        working-directory: automation/test-execution/ansible
+        run: |
+          echo "=== llm-benchmark-auto.yml tasks ==="
+          ansible-playbook llm-benchmark-auto.yml \
+            -i /tmp/test-inventory/hosts.yml \
+            -e "test_model=test/model" \
+            -e "workload_type=chat" \
+            -e "requested_cores=16" \
+            --list-tasks | head -50
