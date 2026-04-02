@@ -227,24 +227,24 @@
     - name: Update Prometheus datasource URL (Linux - host networking)
       ansible.builtin.replace:
         path: "{{ grafana_dir }}/provisioning/datasources/prometheus.yaml"
-        regexp: 'url: http://[^:]+:\d+'
-        replace: 'url: http://localhost:{{ prometheus_port }}'
+        regexp: "url: http://[^:]+:\\d+"
+        replace: "url: http://localhost:{{ prometheus_port }}"
       register: datasource_update_linux
       when: is_linux
 
     - name: Update Prometheus datasource URL (macOS - bridge networking)
       ansible.builtin.replace:
         path: "{{ grafana_dir }}/provisioning/datasources/prometheus.yaml"
-        regexp: 'url: http://[^:]+:\d+'
-        replace: 'url: http://vllm-prometheus:9090'
+        regexp: "url: http://[^:]+:\\d+"
+        replace: "url: http://vllm-prometheus:9090"
       when: is_macos
       register: datasource_update_macos
 
     - name: Bump datasource version to force reload
       ansible.builtin.replace:
         path: "{{ grafana_dir }}/provisioning/datasources/prometheus.yaml"
-        regexp: 'version: \d+'
-        replace: 'version: {{ 99 | random(start=10) }}'
+        regexp: "version: \\d+"
+        replace: "version: {{ 99 | random(start=10) }}"
       when: datasource_update_linux.changed or datasource_update_macos.changed
 
     - name: Display datasource configuration
@@ -287,7 +287,7 @@
       register: container_logs
       changed_when: false
       failed_when: false
-      when: '"Up" not in container_status.stdout and "running" not in container_status.stdout'
+      when: "'Up' not in container_status.stdout and 'running' not in container_status.stdout"
 
     - name: Display compose output
       ansible.builtin.debug:

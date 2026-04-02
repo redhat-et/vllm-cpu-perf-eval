@@ -168,13 +168,6 @@ Server-side vLLM metrics are **automatically collected** during benchmarks by di
 - ✅ Automatic collection during benchmark execution
 - ✅ No additional configuration needed
 - ✅ Works out-of-the-box with all benchmark playbooks
-# Check targets page (use port 9091 if 9090 was in use)
-open http://localhost:9090/targets
-# OR if using port 9091:
-open http://localhost:9091/targets
-
-# vllm-live should show as UP
-```
 
 ### How It Works
 
@@ -198,7 +191,7 @@ ansible-playbook start-grafana.yml
 
 **Key point:** Grafana is only for real-time dashboards during test execution. Metrics collection works with or without it.
 
-### Output Files
+## Output Files
 
 ```
 results/llm/model-name/test-date/config/
