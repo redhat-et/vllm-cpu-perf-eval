@@ -27,6 +27,12 @@
 
     - name: Detect available compose tool
       block:
+        - name: Check for podman-compose
+          ansible.builtin.command: podman-compose --version
+          register: podman_compose_check
+          failed_when: false
+          changed_when: false
+
         - name: Check for docker-compose
           ansible.builtin.command: docker-compose --version
           register: docker_compose_check
@@ -39,42 +45,36 @@
           failed_when: false
           changed_when: false
 
-        - name: Check for podman-compose
-          ansible.builtin.command: podman-compose --version
-          register: podman_compose_check
-          failed_when: false
-          changed_when: false
+        - name: Set compose command (podman-compose)
+          ansible.builtin.set_fact:
+            compose_cmd: podman-compose
+            runtime_name: Podman
+          when: podman_compose_check.rc == 0
 
         - name: Set compose command (docker-compose)
           ansible.builtin.set_fact:
             compose_cmd: docker-compose
             runtime_name: Docker
-          when: docker_compose_check.rc == 0
+          when:
+            - podman_compose_check.rc != 0
+            - docker_compose_check.rc == 0
 
         - name: Set compose command (docker compose CLI v2)
           ansible.builtin.set_fact:
             compose_cmd: docker compose
             runtime_name: Docker
           when:
+            - podman_compose_check.rc != 0
             - docker_compose_check.rc != 0
             - docker_cli_compose_check.rc == 0
 
-        - name: Set compose command (podman-compose)
-          ansible.builtin.set_fact:
-            compose_cmd: podman-compose
-            runtime_name: Podman
-          when:
-            - docker_compose_check.rc != 0
-            - docker_cli_compose_check.rc != 0
-            - podman_compose_check.rc == 0
-
         - name: Fail if no compose tool found
           ansible.builtin.fail:
-            msg: "Neither docker-compose, docker compose, nor podman-compose found!"
+            msg: "Neither podman-compose, docker-compose, nor docker compose found!"
           when:
+            - podman_compose_check.rc != 0
             - docker_compose_check.rc != 0
             - docker_cli_compose_check.rc != 0
-            - podman_compose_check.rc != 0
 
     - name: Display detected configuration
       ansible.builtin.debug:

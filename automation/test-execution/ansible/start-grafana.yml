@@ -60,6 +60,12 @@
 
         - name: Auto-detect compose tool
           block:
+            - name: Check for podman-compose
+              ansible.builtin.command: podman-compose --version
+              register: podman_compose_check
+              failed_when: false
+              changed_when: false
+
             - name: Check for docker-compose
               ansible.builtin.command: docker-compose --version
               register: docker_compose_check
@@ -72,47 +78,41 @@
               failed_when: false
               changed_when: false
 
-            - name: Check for podman-compose
-              ansible.builtin.command: podman-compose --version
-              register: podman_compose_check
-              failed_when: false
-              changed_when: false
+            - name: Set compose command (podman-compose)
+              ansible.builtin.set_fact:
+                compose_cmd: podman-compose
+                runtime_name: Podman
+              when: podman_compose_check.rc == 0
 
             - name: Set compose command (docker-compose)
               ansible.builtin.set_fact:
                 compose_cmd: docker-compose
                 runtime_name: Docker
-              when: docker_compose_check.rc == 0
+              when:
+                - podman_compose_check.rc != 0
+                - docker_compose_check.rc == 0
 
             - name: Set compose command (docker compose CLI v2)
               ansible.builtin.set_fact:
                 compose_cmd: docker compose
                 runtime_name: Docker
               when:
+                - podman_compose_check.rc != 0
                 - docker_compose_check.rc != 0
                 - docker_cli_compose_check.rc == 0
-
-            - name: Set compose command (podman-compose)
-              ansible.builtin.set_fact:
-                compose_cmd: podman-compose
-                runtime_name: Podman
-              when:
-                - docker_compose_check.rc != 0
-                - docker_cli_compose_check.rc != 0
-                - podman_compose_check.rc == 0
 
             - name: Fail if no compose tool found
               ansible.builtin.fail:
                 msg: |
-                  Neither docker-compose, docker compose, nor podman-compose found!
+                  Neither podman-compose, docker-compose, nor docker compose found!
 
                   Install one of the following:
                   - Docker Desktop (includes docker-compose or docker compose)
                   - podman-compose: pip3 install podman-compose
               when:
+                - podman_compose_check.rc != 0
                 - docker_compose_check.rc != 0
                 - docker_cli_compose_check.rc != 0
-                - podman_compose_check.rc != 0
           when: compose_cmd_override == ""
 
     # ========================================================================
@@ -160,48 +160,52 @@
       when: prometheus_port_env != ""
 
     - name: Check if preferred Prometheus port is in use
-      ansible.builtin.wait_for:
-        port: "{{ prometheus_port_preferred }}"
-        state: stopped
-        timeout: 1
+      ansible.builtin.shell: |
+        ss -tuln | grep -E ':{{ prometheus_port_preferred }}\s' || netstat -tuln 2>/dev/null | grep -E ':{{ prometheus_port_preferred }}\s' || echo "available"
       register: preferred_port_check
+      changed_when: false
       failed_when: false
       when: prometheus_port_env == ""
 
     - name: Check if fallback Prometheus port is in use
-      ansible.builtin.wait_for:
-        port: "{{ prometheus_port_fallback }}"
-        state: stopped
-        timeout: 1
+      ansible.builtin.shell: |
+        ss -tuln | grep -E ':{{ prometheus_port_fallback }}\s' || netstat -tuln 2>/dev/null | grep -E ':{{ prometheus_port_fallback }}\s' || echo "available"
       register: fallback_port_check
+      changed_when: false
       failed_when: false
-      when: prometheus_port_env == "" and preferred_port_check.failed
+      when: prometheus_port_env == "" and preferred_port_check.stdout is defined and "available" not in preferred_port_check.stdout
 
     - name: Set Prometheus port to preferred
       ansible.builtin.set_fact:
         prometheus_port: "{{ prometheus_port_preferred }}"
-      when: prometheus_port_env == "" and not preferred_port_check.failed
+      when: prometheus_port_env == "" and preferred_port_check.stdout is defined and "available" in preferred_port_check.stdout
 
     - name: Set Prometheus port to fallback
       ansible.builtin.set_fact:
         prometheus_port: "{{ prometheus_port_fallback }}"
-      when: prometheus_port_env == "" and preferred_port_check.failed and not fallback_port_check.failed
+      when: prometheus_port_env == "" and preferred_port_check.stdout is defined and "available" not in preferred_port_check.stdout and fallback_port_check.stdout is defined and "available" in fallback_port_check.stdout
 
     - name: Fail if no Prometheus port available
       ansible.builtin.fail:
         msg: |
           Neither port {{ prometheus_port_preferred }} nor {{ prometheus_port_fallback }} are available!
 
+          Current port usage:
+          - Port {{ prometheus_port_preferred }}: IN USE
+            {{ preferred_port_check.stdout }}
+          - Port {{ prometheus_port_fallback }}: IN USE
+            {{ fallback_port_check.stdout }}
+
           Please free one of these ports or stop existing Prometheus services:
             sudo lsof -i :{{ prometheus_port_preferred }}
             sudo lsof -i :{{ prometheus_port_fallback }}
-      when: prometheus_port_env == "" and preferred_port_check.failed and fallback_port_check.failed
+      when: prometheus_port_env == "" and preferred_port_check.stdout is defined and "available" not in preferred_port_check.stdout and fallback_port_check.stdout is defined and "available" not in fallback_port_check.stdout
 
     - name: Display selected Prometheus port
       ansible.builtin.debug:
         msg:
-          - "{{ '✓ Using preferred Prometheus port: ' + prometheus_port_preferred|string if not preferred_port_check.failed else '⚠ Port ' + prometheus_port_preferred|string + ' in use, using fallback port: ' + prometheus_port_fallback|string }}"
-      when: prometheus_port_env == "" and preferred_port_check is defined
+          - "{{ '✓ Using preferred Prometheus port: ' + prometheus_port_preferred|string if 'available' in preferred_port_check.stdout else '⚠ Port ' + prometheus_port_preferred|string + ' in use, using fallback port: ' + prometheus_port_fallback|string }}"
+      when: prometheus_port_env == "" and preferred_port_check.stdout is defined
 
     - name: Display detected configuration
       ansible.builtin.debug:
