@@ -66,6 +66,12 @@
               failed_when: false
               changed_when: false
 
+            - name: Check for docker compose (CLI v2)
+              ansible.builtin.command: docker compose version
+              register: docker_cli_compose_check
+              failed_when: false
+              changed_when: false
+
             - name: Check for podman-compose
               ansible.builtin.command: podman-compose --version
               register: podman_compose_check
@@ -78,24 +84,34 @@
                 runtime_name: Docker
               when: docker_compose_check.rc == 0
 
+            - name: Set compose command (docker compose CLI v2)
+              ansible.builtin.set_fact:
+                compose_cmd: docker compose
+                runtime_name: Docker
+              when:
+                - docker_compose_check.rc != 0
+                - docker_cli_compose_check.rc == 0
+
             - name: Set compose command (podman-compose)
               ansible.builtin.set_fact:
                 compose_cmd: podman-compose
                 runtime_name: Podman
               when:
                 - docker_compose_check.rc != 0
+                - docker_cli_compose_check.rc != 0
                 - podman_compose_check.rc == 0
 
             - name: Fail if no compose tool found
               ansible.builtin.fail:
                 msg: |
-                  Neither docker-compose nor podman-compose found!
+                  Neither docker-compose, docker compose, nor podman-compose found!
 
                   Install one of the following:
-                  - Docker Desktop (includes docker-compose)
+                  - Docker Desktop (includes docker-compose or docker compose)
                   - podman-compose: pip3 install podman-compose
               when:
                 - docker_compose_check.rc != 0
+                - docker_cli_compose_check.rc != 0
                 - podman_compose_check.rc != 0
           when: compose_cmd_override == ""
 
@@ -144,52 +160,48 @@
       when: prometheus_port_env != ""
 
     - name: Check if preferred Prometheus port is in use
-      ansible.builtin.shell: |
-        ss -tuln | grep -E ':{{ prometheus_port_preferred }}\s' || netstat -tuln 2>/dev/null | grep -E ':{{ prometheus_port_preferred }}\s' || echo "available"
+      ansible.builtin.wait_for:
+        port: "{{ prometheus_port_preferred }}"
+        state: stopped
+        timeout: 1
       register: preferred_port_check
-      changed_when: false
       failed_when: false
       when: prometheus_port_env == ""
 
     - name: Check if fallback Prometheus port is in use
-      ansible.builtin.shell: |
-        ss -tuln | grep -E ':{{ prometheus_port_fallback }}\s' || netstat -tuln 2>/dev/null | grep -E ':{{ prometheus_port_fallback }}\s' || echo "available"
+      ansible.builtin.wait_for:
+        port: "{{ prometheus_port_fallback }}"
+        state: stopped
+        timeout: 1
       register: fallback_port_check
-      changed_when: false
       failed_when: false
-      when: prometheus_port_env == "" and preferred_port_check.stdout is defined and "available" not in preferred_port_check.stdout
+      when: prometheus_port_env == "" and preferred_port_check.failed
 
     - name: Set Prometheus port to preferred
       ansible.builtin.set_fact:
         prometheus_port: "{{ prometheus_port_preferred }}"
-      when: prometheus_port_env == "" and preferred_port_check.stdout is defined and "available" in preferred_port_check.stdout
+      when: prometheus_port_env == "" and not preferred_port_check.failed
 
     - name: Set Prometheus port to fallback
       ansible.builtin.set_fact:
         prometheus_port: "{{ prometheus_port_fallback }}"
-      when: prometheus_port_env == "" and preferred_port_check.stdout is defined and "available" not in preferred_port_check.stdout and fallback_port_check.stdout is defined and "available" in fallback_port_check.stdout
+      when: prometheus_port_env == "" and preferred_port_check.failed and not fallback_port_check.failed
 
     - name: Fail if no Prometheus port available
       ansible.builtin.fail:
         msg: |
           Neither port {{ prometheus_port_preferred }} nor {{ prometheus_port_fallback }} are available!
 
-          Current port usage:
-          - Port {{ prometheus_port_preferred }}: IN USE
-            {{ preferred_port_check.stdout }}
-          - Port {{ prometheus_port_fallback }}: IN USE
-            {{ fallback_port_check.stdout }}
-
           Please free one of these ports or stop existing Prometheus services:
             sudo lsof -i :{{ prometheus_port_preferred }}
             sudo lsof -i :{{ prometheus_port_fallback }}
-      when: prometheus_port_env == "" and preferred_port_check.stdout is defined and "available" not in preferred_port_check.stdout and fallback_port_check.stdout is defined and "available" not in fallback_port_check.stdout
+      when: prometheus_port_env == "" and preferred_port_check.failed and fallback_port_check.failed
 
     - name: Display selected Prometheus port
       ansible.builtin.debug:
         msg:
-          - "{{ '✓ Using preferred Prometheus port: ' + prometheus_port_preferred|string if 'available' in preferred_port_check.stdout else '⚠ Port ' + prometheus_port_preferred|string + ' in use, using fallback port: ' + prometheus_port_fallback|string }}"
-      when: prometheus_port_env == "" and preferred_port_check.stdout is defined
+          - "{{ '✓ Using preferred Prometheus port: ' + prometheus_port_preferred|string if not preferred_port_check.failed else '⚠ Port ' + prometheus_port_preferred|string + ' in use, using fallback port: ' + prometheus_port_fallback|string }}"
+      when: prometheus_port_env == "" and preferred_port_check is defined
 
     - name: Display detected configuration
       ansible.builtin.debug:
@@ -240,11 +252,18 @@
       when: is_macos
       register: datasource_update_macos
 
+    - name: Read current datasource version
+      ansible.builtin.shell: |
+        grep -oP 'version: \K\d+' "{{ grafana_dir }}/provisioning/datasources/prometheus.yaml" || echo "1"
+      register: current_version
+      changed_when: false
+      when: datasource_update_linux.changed or datasource_update_macos.changed
+
     - name: Bump datasource version to force reload
       ansible.builtin.replace:
         path: "{{ grafana_dir }}/provisioning/datasources/prometheus.yaml"
         regexp: "version: \\d+"
-        replace: "version: {{ 99 | random(start=10) }}"
+        replace: "version: {{ current_version.stdout | int + 1 }}"
       when: datasource_update_linux.changed or datasource_update_macos.changed
 
     - name: Display datasource configuration
@@ -287,7 +306,7 @@
       register: container_logs
       changed_when: false
       failed_when: false
-      when: "'Up' not in container_status.stdout and 'running' not in container_status.stdout"
+      when: compose_up.rc != 0 or "Exited" in container_status.stdout or ("Up" not in container_status.stdout and "running" not in container_status.stdout)
 
     - name: Display compose output
       ansible.builtin.debug:
@@ -404,7 +423,7 @@
       block:
         - name: Check if tunnel already exists
           ansible.builtin.shell: |
-            ps aux | grep "ssh.*8000:localhost:8000" | grep -v grep || true
+            ps aux | grep "ssh.*8000:localhost:8000.*{{ dut_hostname }}" | grep -v grep || true
           register: existing_tunnel
           changed_when: false
 
@@ -425,7 +444,7 @@
 
         - name: Verify tunnel is active
           ansible.builtin.shell: |
-            ps aux | grep "ssh.*8000:localhost:8000" | grep -v grep
+            ps aux | grep "ssh.*8000:localhost:8000.*{{ dut_hostname }}" | grep -v grep
           register: tunnel_status
           changed_when: false
           failed_when: false

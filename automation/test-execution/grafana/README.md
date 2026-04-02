@@ -324,7 +324,9 @@ scrape_configs:
   - job_name: 'vllm-live'
     scrape_interval: 10s
     static_configs:
-      - targets: ['host.containers.internal:8000']
+      # macOS: use host.containers.internal:8000
+      # Linux: use localhost:8000
+      - targets: ['<vllm_host>:8000']
     metric_relabel_configs:
       - source_labels: [__name__]
         regex: 'vllm_.*'
@@ -336,6 +338,9 @@ scrape_configs:
 - **Scrape interval:** 10s for real-time monitoring
 - **Retention:** 30 days by default
 - **Storage:** Local volume (persists between restarts)
+- **Target host:** Platform-specific
+  - macOS: Use `host.containers.internal:8000` (bridge networking)
+  - Linux: Use `localhost:8000` (host networking)
 
 ### Customization
 

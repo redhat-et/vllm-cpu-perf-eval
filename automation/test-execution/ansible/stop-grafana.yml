@@ -16,6 +16,7 @@
   vars:
     grafana_dir: "{{ playbook_dir }}/../grafana"
     compose_project_name: vllm-monitoring
+    compose_file: "{{ 'docker-compose.macos.yml' if ansible_os_family == 'Darwin' else 'docker-compose.yml' }}"
     # remove_volumes can be passed via -e "remove_volumes=true"
     remove_volumes_flag: "{{ remove_volumes | default(false) | bool }}"
 
@@ -32,6 +33,12 @@
           failed_when: false
           changed_when: false
 
+        - name: Check for docker compose (CLI v2)
+          ansible.builtin.command: docker compose version
+          register: docker_cli_compose_check
+          failed_when: false
+          changed_when: false
+
         - name: Check for podman-compose
           ansible.builtin.command: podman-compose --version
           register: podman_compose_check
@@ -44,19 +51,29 @@
             runtime_name: Docker
           when: docker_compose_check.rc == 0
 
+        - name: Set compose command (docker compose CLI v2)
+          ansible.builtin.set_fact:
+            compose_cmd: docker compose
+            runtime_name: Docker
+          when:
+            - docker_compose_check.rc != 0
+            - docker_cli_compose_check.rc == 0
+
         - name: Set compose command (podman-compose)
           ansible.builtin.set_fact:
             compose_cmd: podman-compose
             runtime_name: Podman
           when:
             - docker_compose_check.rc != 0
+            - docker_cli_compose_check.rc != 0
             - podman_compose_check.rc == 0
 
         - name: Fail if no compose tool found
           ansible.builtin.fail:
-            msg: "Neither docker-compose nor podman-compose found!"
+            msg: "Neither docker-compose, docker compose, nor podman-compose found!"
           when:
             - docker_compose_check.rc != 0
+            - docker_cli_compose_check.rc != 0
             - podman_compose_check.rc != 0
 
     - name: Display detected configuration
@@ -119,14 +136,14 @@
       block:
         - name: Stop Grafana stack (preserving volumes)
           ansible.builtin.command:
-            cmd: "{{ compose_cmd }} down"
+            cmd: "{{ compose_cmd }} -f {{ compose_file }} down"
             chdir: "{{ grafana_dir }}"
           register: compose_down
           when: not remove_volumes_flag
 
         - name: Stop Grafana stack (removing volumes)
           ansible.builtin.command:
-            cmd: "{{ compose_cmd }} down -v"
+            cmd: "{{ compose_cmd }} -f {{ compose_file }} down -v"
             chdir: "{{ grafana_dir }}"
           register: compose_down_volumes
           when: remove_volumes_flag
@@ -139,7 +156,7 @@
 
     - name: Verify containers stopped
       ansible.builtin.command:
-        cmd: "{{ compose_cmd }} ps"
+        cmd: "{{ compose_cmd }} -f {{ compose_file }} ps"
         chdir: "{{ grafana_dir }}"
       register: compose_ps_final
       changed_when: false

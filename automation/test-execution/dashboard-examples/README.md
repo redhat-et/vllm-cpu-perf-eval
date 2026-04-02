@@ -30,7 +30,7 @@ This Streamlit dashboard provides comprehensive analysis of vLLM benchmark resul
 **Server-Side Metrics (vLLM)**
 - Internal server state
 - Queue depth, cache usage, token generation rates
-- Source: `vllm-metrics.json` (collected via Prometheus)
+- Source: `vllm-metrics.json` (scraped directly from `/metrics` endpoint)
 
 **Architecture:**
 ```
@@ -38,7 +38,7 @@ Benchmark Run
      ↓
 GuideLLM → benchmarks.json (client metrics)
      ↓
-vLLM Server → Prometheus → vllm-metrics.json (server metrics)
+vLLM Server /metrics → vllm-metrics.json (server metrics)
      ↓
 Streamlit Dashboard → Analysis + Visualization
 ```
@@ -218,7 +218,7 @@ ansible-playbook start-grafana.yml
 results/llm/model-name/test-date/config/
 ├── benchmarks.json           # GuideLLM results (client-side)
 ├── test-metadata.json        # Test configuration
-├── vllm-metrics.json         # vLLM server metrics (from Prometheus)
+├── vllm-metrics.json         # vLLM server metrics (scraped from /metrics)
 └── vllm-server.log           # Server logs
 ```
 
@@ -267,7 +267,7 @@ results/llm/
             └── vllm-server.log         ← Server logs
 ```
 
-**Default path:** `../../../../../results/llm` (relative to dashboard pages)
+**Default path:** `../../../../results/llm` (relative to dashboard pages)
 
 ## Configuration
 
