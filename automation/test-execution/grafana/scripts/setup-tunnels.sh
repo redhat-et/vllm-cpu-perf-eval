@@ -13,6 +13,7 @@
 #   LOADGEN_HOSTNAME    - LOADGEN EC2 hostname (required)
 #   ANSIBLE_SSH_USER    - SSH username (default: ec2-user)
 #   ANSIBLE_SSH_KEY     - SSH key path (required)
+#   PROMETHEUS_PORT     - Prometheus port (default: 9091, or use 9090)
 
 set -e
 
@@ -22,7 +23,7 @@ set -e
 : "${ANSIBLE_SSH_USER:=ec2-user}"
 : "${ANSIBLE_SSH_KEY:=}"
 
-PUSHGATEWAY_PORT=9091
+PUSHGATEWAY_PORT="${PROMETHEUS_PORT:-9091}"
 VLLM_METRICS_PORT=8000
 
 # Colors for output
