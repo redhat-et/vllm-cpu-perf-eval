@@ -384,8 +384,8 @@ if current_section == "📈 Performance Plots":
         itl_sum = sum_metric(s, 'vllm:request_time_per_output_token_seconds_sum')
         itl_count = sum_metric(s, 'vllm:request_time_per_output_token_seconds_count')
         if i > 0 and itl_count > 0:
-            prev_sum = sum_metric(samples[i-1], 'vllm:time_per_output_token_seconds_sum')
-            prev_count = sum_metric(samples[i-1], 'vllm:time_per_output_token_seconds_count')
+            prev_sum = sum_metric(samples[i-1], 'vllm:request_time_per_output_token_seconds_sum')
+            prev_count = sum_metric(samples[i-1], 'vllm:request_time_per_output_token_seconds_count')
             delta_sum = itl_sum - prev_sum
             delta_count = itl_count - prev_count
             itl_latency.append((delta_sum / delta_count * 1000) if delta_count > 0 else 0)  # Convert to ms

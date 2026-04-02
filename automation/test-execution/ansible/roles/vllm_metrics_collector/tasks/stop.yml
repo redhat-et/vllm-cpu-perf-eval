@@ -1,6 +1,15 @@
 ---
 # Stop vLLM Metrics Collector
 
+- name: Wait for metrics collection to complete
+  ansible.builtin.wait_for:
+    path: "{{ results_path }}/vllm-metrics.json"
+    timeout: "{{ (metrics_collection_duration | default(60) | int) + 30 }}"
+  delegate_to: localhost
+  become: false
+  ignore_errors: true
+  when: enable_vllm_metrics_collection | default(true)
+
 - name: Send SIGTERM to metrics collector for graceful shutdown
   ansible.builtin.shell: |
     if ps -p {{ vllm_metrics_collector_pid }} > /dev/null 2>&1; then

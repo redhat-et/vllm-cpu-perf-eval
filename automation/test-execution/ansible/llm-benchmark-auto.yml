@@ -486,6 +486,7 @@
             tasks_from: stop
           vars:
             results_path: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ hostvars['localhost']['test_run_id'] }}/{{ core_configuration.name }}"
+            metrics_collection_duration: "{{ hostvars['localhost']['estimated_test_duration'] | default(60) }}"
             enable_vllm_metrics_collection: true
       delegate_to: localhost
       become: false
@@ -723,7 +724,8 @@
     - block:
         - name: Get tunnel PID
           ansible.builtin.shell: |
-            lsof -ti :8000 -sTCP:LISTEN | head -1
+            # Only kill SSH tunnel processes, not vLLM server or other services
+            pgrep -f "ssh.*-L.*8000:localhost:8000" | head -1
           register: tunnel_pid_check
           failed_when: false
           changed_when: false

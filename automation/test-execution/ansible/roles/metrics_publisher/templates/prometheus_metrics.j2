@@ -31,10 +31,10 @@ guidellm_itl_ms_p95{ {{ labels }} } {{ benchmark.metrics.inter_token_latency_ms.
 guidellm_itl_ms_p99{ {{ labels }} } {{ benchmark.metrics.inter_token_latency_ms.successful.percentiles.p99 | default(0) }}
 
 # End-to-End Request Latency in milliseconds (convert from seconds)
-guidellm_e2e_latency_ms_mean{ {{ labels }} } {{ (benchmark.metrics.request_latency.successful.mean * 1000) | default(0) }}
-guidellm_e2e_latency_ms_p50{ {{ labels }} } {{ (benchmark.metrics.request_latency.successful.percentiles.p50 * 1000) | default(0) }}
-guidellm_e2e_latency_ms_p95{ {{ labels }} } {{ (benchmark.metrics.request_latency.successful.percentiles.p95 * 1000) | default(0) }}
-guidellm_e2e_latency_ms_p99{ {{ labels }} } {{ (benchmark.metrics.request_latency.successful.percentiles.p99 * 1000) | default(0) }}
+guidellm_e2e_latency_ms_mean{ {{ labels }} } {{ (benchmark.metrics.request_latency.successful.mean | default(0)) * 1000 }}
+guidellm_e2e_latency_ms_p50{ {{ labels }} } {{ (benchmark.metrics.request_latency.successful.percentiles.p50 | default(0)) * 1000 }}
+guidellm_e2e_latency_ms_p95{ {{ labels }} } {{ (benchmark.metrics.request_latency.successful.percentiles.p95 | default(0)) * 1000 }}
+guidellm_e2e_latency_ms_p99{ {{ labels }} } {{ (benchmark.metrics.request_latency.successful.percentiles.p99 | default(0)) * 1000 }}
 
 # Request Statistics
 guidellm_total_requests{ {{ labels }} } {{ benchmark.metrics.request_totals.total | default(0) }}

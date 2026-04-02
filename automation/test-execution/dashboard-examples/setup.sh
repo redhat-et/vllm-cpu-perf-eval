@@ -3,7 +3,7 @@
 # Safe to run multiple times
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+cd "$SCRIPT_DIR" || { echo "Error: Cannot change to script directory"; exit 1; }
 
 echo "Setting up Python virtual environment for dashboards..."
 echo ""

@@ -16,17 +16,33 @@
           - requested_cores is defined
         fail_msg: "Missing required variables. Provide: test_model, workload_type, test_run_id, requested_cores"
 
+    - name: Search for test-metadata.json to find core_config_name
+      ansible.builtin.find:
+        paths: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}"
+        patterns: "test-metadata.json"
+        recurse: true
+      register: metadata_search
+      when: core_config_name is not defined
+
+    - name: Load core_config_name from metadata if found
+      ansible.builtin.set_fact:
+        core_config_name: "{{ (lookup('file', metadata_search.files[0].path) | from_json).core_config_name }}"
+      when:
+        - core_config_name is not defined
+        - metadata_search.matched > 0
+
     - name: Set core configuration if not provided
       ansible.builtin.set_fact:
         core_configuration:
           cores: "{{ requested_cores }}"
           tensor_parallel: 1
           numa_node: 0
+          name: "{{ core_config_name | default(requested_cores | string + 'cores-numa0-tp1') }}"
       when: core_configuration is not defined
 
     - name: Build results path
       ansible.builtin.set_fact:
-        results_path: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ requested_cores }}cores-numa{{ core_configuration.numa_node | default(0) }}-tp{{ core_configuration.tensor_parallel | default(1) }}"
+        results_path: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name | default(core_config_name) | default(requested_cores | string + 'cores-numa' + (core_configuration.numa_node | default(0) | string) + '-tp' + (core_configuration.tensor_parallel | default(1) | string)) }}"
 
     - name: Display publishing configuration
       ansible.builtin.debug:
