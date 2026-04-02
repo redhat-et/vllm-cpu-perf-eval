@@ -1,8 +1,8 @@
 version: "3.8"
 
-# vLLM CPU Performance Evaluation - Monitoring Stack (Runs on Ansible Controller)
+# vLLM CPU Performance Evaluation - Monitoring Stack (macOS)
 # Real-time monitoring of vLLM server metrics during benchmark execution
-# Deploy on your local machine/laptop for live performance visualization
+# macOS-specific: Uses bridge networking (host networking doesn't work in podman VM)
 
 services:
   # Prometheus - Metrics scraping for vLLM server
@@ -10,31 +10,40 @@ services:
     image: docker.io/prom/prometheus:v2.51.0
     container_name: vllm-prometheus
     restart: unless-stopped
-    network_mode: host
-    environment:
-      - PROMETHEUS_PORT=${PROMETHEUS_PORT:-9090}
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.path=/prometheus"
       - "--storage.tsdb.retention.time=30d"
       - "--web.enable-lifecycle"
-      - "--web.listen-address=:${PROMETHEUS_PORT:-9090}"
     volumes:
-      - ./prometheus:/etc/prometheus:ro,z
+      - ./prometheus/prometheus.macos.yml:/etc/prometheus/prometheus.yml:ro,Z
       - prometheus-data:/prometheus
+    networks:
+      - vllm-monitoring
     healthcheck:
-      test: ["CMD", "sh", "-c", "wget --spider -q http://localhost:$${PROMETHEUS_PORT:-9090}/-/healthy"]
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:9090/-/healthy"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 1G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
 
   # Grafana 10.4 - Visualization and dashboarding
   grafana:
     image: docker.io/grafana/grafana:10.4.0
     container_name: vllm-grafana
     restart: unless-stopped
-    network_mode: host
+    ports:
+      - "3000:3000"
     environment:
       # Security settings
       - GF_SECURITY_ADMIN_USER=admin
@@ -44,7 +53,6 @@ services:
       # Server settings
       - GF_SERVER_ROOT_URL=http://localhost:3000
       - GF_SERVER_SERVE_FROM_SUB_PATH=false
-      - GF_SERVER_HTTP_PORT=3000
 
       # Logging
       - GF_LOG_MODE=console
@@ -54,20 +62,37 @@ services:
       - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/etc/grafana/dashboards/vllm_comprehensive.json
     volumes:
       - grafana-data:/var/lib/grafana
-      - ./provisioning:/etc/grafana/provisioning:ro,z
-      - ./dashboards:/etc/grafana/dashboards:ro,z
+      - ./provisioning:/etc/grafana/provisioning:ro,Z
+      - ./dashboards:/etc/grafana/dashboards:ro,Z
     depends_on:
       prometheus:
         condition: service_healthy
+    networks:
+      - vllm-monitoring
     healthcheck:
       test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: "1"
+          memory: 2G
+        reservations:
+          cpus: "0.5"
+          memory: 512M
 
 volumes:
   grafana-data:
     driver: local
   prometheus-data:
     driver: local
+
+networks:
+  vllm-monitoring:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16

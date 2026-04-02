@@ -18,70 +18,89 @@
     grafana_dir: "{{ playbook_dir }}/../grafana"
     compose_project_name: vllm-monitoring
     grafana_port: 3000
-    prometheus_port: 9090
+    prometheus_port_preferred: 9090
+    prometheus_port_fallback: 9091
     health_check_timeout: 60
     health_check_interval: 5
+    compose_file: "{{ 'docker-compose.macos.yml' if ansible_os_family == 'Darwin' else 'docker-compose.yml' }}"
 
   tasks:
     # ========================================================================
-    # STEP 1: Detect Container Runtime and Compose Tool
+    # STEP 1: Detect OS and Container Runtime
+    # ========================================================================
+
+    - name: Detect operating system
+      ansible.builtin.set_fact:
+        is_macos: "{{ ansible_os_family == 'Darwin' }}"
+        is_linux: "{{ ansible_os_family != 'Darwin' }}"
+
+    - name: Display OS detection
+      ansible.builtin.debug:
+        msg:
+          - "Operating System: {{ ansible_os_family }}"
+          - "macOS: {{ is_macos }}"
+          - "Linux: {{ is_linux }}"
+          - "Compose file: {{ compose_file }}"
+
+    # ========================================================================
+    # STEP 2: Detect Container Runtime and Compose Tool
     # ========================================================================
 
     - name: Detect available compose tool
       block:
-        - name: Check for docker-compose
-          ansible.builtin.command: docker-compose --version
-          register: docker_compose_check
-          failed_when: false
-          changed_when: false
-
-        - name: Check for podman-compose
-          ansible.builtin.command: podman-compose --version
-          register: podman_compose_check
-          failed_when: false
-          changed_when: false
-
-        - name: Set compose command (docker-compose)
+        - name: Check for environment variable override
           ansible.builtin.set_fact:
-            compose_cmd: docker-compose
-            runtime_name: Docker
-          when: docker_compose_check.rc == 0
+            compose_cmd_override: "{{ lookup('env', 'COMPOSE_CMD') }}"
 
-        - name: Set compose command (podman-compose)
+        - name: Use environment variable if set
           ansible.builtin.set_fact:
-            compose_cmd: podman-compose
-            runtime_name: Podman
-          when:
-            - docker_compose_check.rc != 0
-            - podman_compose_check.rc == 0
+            compose_cmd: "{{ compose_cmd_override }}"
+            runtime_name: "{{ 'Docker' if 'docker' in compose_cmd_override else 'Podman' }}"
+          when: compose_cmd_override != ""
 
-        - name: Fail if no compose tool found
-          ansible.builtin.fail:
-            msg: |
-              Neither docker-compose nor podman-compose found!
+        - name: Auto-detect compose tool
+          block:
+            - name: Check for docker-compose
+              ansible.builtin.command: docker-compose --version
+              register: docker_compose_check
+              failed_when: false
+              changed_when: false
 
-              Install one of the following:
-              - Docker Desktop (includes docker-compose)
-              - podman-compose: pip3 install podman-compose
-          when:
-            - docker_compose_check.rc != 0
-            - podman_compose_check.rc != 0
+            - name: Check for podman-compose
+              ansible.builtin.command: podman-compose --version
+              register: podman_compose_check
+              failed_when: false
+              changed_when: false
 
-    - name: Display detected configuration
-      ansible.builtin.debug:
-        msg:
-          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          - "Grafana Monitoring Stack - Configuration"
-          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          - "Container Runtime: {{ runtime_name }}"
-          - "Compose Tool: {{ compose_cmd }}"
-          - "Grafana Directory: {{ grafana_dir }}"
-          - "Grafana URL: http://localhost:{{ grafana_port }}"
-          - "Prometheus URL: http://localhost:{{ prometheus_port }}"
-          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            - name: Set compose command (docker-compose)
+              ansible.builtin.set_fact:
+                compose_cmd: docker-compose
+                runtime_name: Docker
+              when: docker_compose_check.rc == 0
+
+            - name: Set compose command (podman-compose)
+              ansible.builtin.set_fact:
+                compose_cmd: podman-compose
+                runtime_name: Podman
+              when:
+                - docker_compose_check.rc != 0
+                - podman_compose_check.rc == 0
+
+            - name: Fail if no compose tool found
+              ansible.builtin.fail:
+                msg: |
+                  Neither docker-compose nor podman-compose found!
+
+                  Install one of the following:
+                  - Docker Desktop (includes docker-compose)
+                  - podman-compose: pip3 install podman-compose
+              when:
+                - docker_compose_check.rc != 0
+                - podman_compose_check.rc != 0
+          when: compose_cmd_override == ""
 
     # ========================================================================
-    # STEP 2: Pre-flight Checks
+    # STEP 3: Pre-flight Checks
     # ========================================================================
 
     - name: Check if Grafana directory exists
@@ -104,44 +123,211 @@
         msg: "docker-compose.yml not found in {{ grafana_dir }}"
       when: not compose_file_stat.stat.exists
 
-    - name: Check if ports are available
-      ansible.builtin.wait_for:
-        port: "{{ item }}"
-        state: stopped
-        timeout: 1
-      register: port_check
-      failed_when: false
-      loop:
-        - "{{ grafana_port }}"
-        - "{{ prometheus_port }}"
+    # ========================================================================
+    # STEP 3.5: Detect Available Prometheus Port
+    # ========================================================================
 
-    - name: Warn if ports are in use
+    - name: Check for manually set PROMETHEUS_PORT environment variable
+      ansible.builtin.set_fact:
+        prometheus_port_env: "{{ lookup('env', 'PROMETHEUS_PORT') }}"
+
+    - name: Use manually set port if available
+      ansible.builtin.set_fact:
+        prometheus_port: "{{ prometheus_port_env }}"
+        port_detection_skipped: true
+      when: prometheus_port_env != ""
+
+    - name: Display manually configured port
       ansible.builtin.debug:
         msg:
-          - "⚠️  WARNING: Port {{ item.item }} is already in use"
+          - "✓ Using PROMETHEUS_PORT from environment: {{ prometheus_port_env }}"
+      when: prometheus_port_env != ""
+
+    - name: Check if preferred Prometheus port is in use
+      ansible.builtin.shell: |
+        ss -tuln | grep -E ':{{ prometheus_port_preferred }}\s' || netstat -tuln 2>/dev/null | grep -E ':{{ prometheus_port_preferred }}\s' || echo "available"
+      register: preferred_port_check
+      changed_when: false
+      failed_when: false
+      when: prometheus_port_env == ""
+
+    - name: Check if fallback Prometheus port is in use
+      ansible.builtin.shell: |
+        ss -tuln | grep -E ':{{ prometheus_port_fallback }}\s' || netstat -tuln 2>/dev/null | grep -E ':{{ prometheus_port_fallback }}\s' || echo "available"
+      register: fallback_port_check
+      changed_when: false
+      failed_when: false
+      when: prometheus_port_env == "" and preferred_port_check.stdout is defined and "available" not in preferred_port_check.stdout
+
+    - name: Set Prometheus port to preferred
+      ansible.builtin.set_fact:
+        prometheus_port: "{{ prometheus_port_preferred }}"
+      when: prometheus_port_env == "" and preferred_port_check.stdout is defined and "available" in preferred_port_check.stdout
+
+    - name: Set Prometheus port to fallback
+      ansible.builtin.set_fact:
+        prometheus_port: "{{ prometheus_port_fallback }}"
+      when: prometheus_port_env == "" and preferred_port_check.stdout is defined and "available" not in preferred_port_check.stdout and fallback_port_check.stdout is defined and "available" in fallback_port_check.stdout
+
+    - name: Fail if no Prometheus port available
+      ansible.builtin.fail:
+        msg: |
+          Neither port {{ prometheus_port_preferred }} nor {{ prometheus_port_fallback }} are available!
+
+          Current port usage:
+          - Port {{ prometheus_port_preferred }}: IN USE
+            {{ preferred_port_check.stdout }}
+          - Port {{ prometheus_port_fallback }}: IN USE
+            {{ fallback_port_check.stdout }}
+
+          Please free one of these ports or stop existing Prometheus services:
+            sudo lsof -i :{{ prometheus_port_preferred }}
+            sudo lsof -i :{{ prometheus_port_fallback }}
+      when: prometheus_port_env == "" and preferred_port_check.stdout is defined and "available" not in preferred_port_check.stdout and fallback_port_check.stdout is defined and "available" not in fallback_port_check.stdout
+
+    - name: Display selected Prometheus port
+      ansible.builtin.debug:
+        msg:
+          - "{{ '✓ Using preferred Prometheus port: ' + prometheus_port_preferred|string if 'available' in preferred_port_check.stdout else '⚠ Port ' + prometheus_port_preferred|string + ' in use, using fallback port: ' + prometheus_port_fallback|string }}"
+      when: prometheus_port_env == "" and preferred_port_check.stdout is defined
+
+    - name: Display detected configuration
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Grafana Monitoring Stack - Configuration"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Container Runtime: {{ runtime_name }}"
+          - "Compose Tool: {{ compose_cmd }}"
+          - "Grafana Directory: {{ grafana_dir }}"
+          - "Grafana URL: http://localhost:{{ grafana_port }}"
+          - "Prometheus URL: http://localhost:{{ prometheus_port }}"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+    - name: Check if Grafana port is available
+      ansible.builtin.wait_for:
+        port: "{{ grafana_port }}"
+        state: stopped
+        timeout: 1
+      register: grafana_port_check
+      failed_when: false
+
+    - name: Warn if Grafana port is in use
+      ansible.builtin.debug:
+        msg:
+          - "⚠️  WARNING: Port {{ grafana_port }} is already in use"
           - "This may indicate Grafana stack is already running"
           - "Run 'cd {{ grafana_dir }} && {{ compose_cmd }} ps' to check"
-      when: item.failed
-      loop: "{{ port_check.results }}"
+      when: grafana_port_check.failed
 
     # ========================================================================
-    # STEP 3: Start Grafana Stack
+    # STEP 4: Configure Prometheus Port in Datasource
     # ========================================================================
 
-    - name: Start Prometheus and Grafana containers
-      ansible.builtin.command:
-        cmd: "{{ compose_cmd }} up -d"
+    - name: Update Prometheus datasource URL (Linux - host networking)
+      ansible.builtin.replace:
+        path: "{{ grafana_dir }}/provisioning/datasources/prometheus.yaml"
+        regexp: 'url: http://[^:]+:\d+'
+        replace: 'url: http://localhost:{{ prometheus_port }}'
+      register: datasource_update_linux
+      when: is_linux
+
+    - name: Update Prometheus datasource URL (macOS - bridge networking)
+      ansible.builtin.replace:
+        path: "{{ grafana_dir }}/provisioning/datasources/prometheus.yaml"
+        regexp: 'url: http://[^:]+:\d+'
+        replace: 'url: http://vllm-prometheus:9090'
+      when: is_macos
+      register: datasource_update_macos
+
+    - name: Bump datasource version to force reload
+      ansible.builtin.replace:
+        path: "{{ grafana_dir }}/provisioning/datasources/prometheus.yaml"
+        regexp: 'version: \d+'
+        replace: 'version: {{ 99 | random(start=10) }}'
+      when: datasource_update_linux.changed or datasource_update_macos.changed
+
+    - name: Display datasource configuration
+      ansible.builtin.debug:
+        msg:
+          - "OS: {{ 'macOS' if is_macos else 'Linux' }}"
+          - "Prometheus datasource URL (Grafana internal): {{ 'http://vllm-prometheus:9090' if is_macos else 'http://localhost:' + prometheus_port|string }}"
+          - "Prometheus external URL: http://localhost:{{ prometheus_port }}"
+      when: datasource_update_linux.changed or is_macos
+
+    # ========================================================================
+    # STEP 6: Start Grafana Stack
+    # ========================================================================
+
+    - name: Start Grafana stack
+      ansible.builtin.shell: |
+        export PROMETHEUS_PORT={{ prometheus_port }}
+        {{ compose_cmd }} -f {{ compose_file }} up -d
+      args:
         chdir: "{{ grafana_dir }}"
       register: compose_up
-      changed_when: "'Started' in compose_up.stdout or 'Creating' in compose_up.stdout"
+      changed_when: "'Started' in compose_up.stdout or 'Creating' in compose_up.stdout or 'created' in compose_up.stdout"
+      failed_when: false
+
+    - name: Check actual container status
+      ansible.builtin.shell: "{{ compose_cmd }} -f {{ compose_file }} ps"
+      args:
+        chdir: "{{ grafana_dir }}"
+      register: container_status
+      changed_when: false
+      failed_when: false
+
+    - name: Get container logs if failed
+      ansible.builtin.shell: |
+        {{ compose_cmd }} -f {{ compose_file }} logs --tail=50 prometheus 2>&1 || echo "No prometheus logs"
+        echo "---"
+        {{ compose_cmd }} -f {{ compose_file }} logs --tail=50 grafana 2>&1 || echo "No grafana logs"
+      args:
+        chdir: "{{ grafana_dir }}"
+      register: container_logs
+      changed_when: false
+      failed_when: false
+      when: '"Up" not in container_status.stdout and "running" not in container_status.stdout'
 
     - name: Display compose output
       ansible.builtin.debug:
-        msg: "{{ compose_up.stdout_lines }}"
-      when: compose_up.stdout_lines | length > 0
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Container Start Output"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Command: {{ compose_cmd }} -f {{ compose_file }} up -d"
+          - "Working Directory: {{ grafana_dir }}"
+          - "PROMETHEUS_PORT: {{ prometheus_port }}"
+          - ""
+          - "Output:"
+          - "{{ compose_up.stdout }}"
+          - "{{ compose_up.stderr }}"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        verbosity: 0
+
+    - name: Display container status
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Container Status"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "{{ container_status.stdout }}"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        verbosity: 0
+
+    - name: Display container logs
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Container Logs (Last 50 lines)"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "{{ container_logs.stdout }}"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        verbosity: 0
+      when: container_logs is defined and container_logs.stdout is defined
 
     # ========================================================================
-    # STEP 4: Wait for Services to be Healthy
+    # STEP 7: Wait for Services to be Healthy
     # ========================================================================
 
     - name: Wait for Prometheus to be healthy
@@ -180,7 +366,7 @@
       when: grafana_health.status is defined
 
     # ========================================================================
-    # STEP 5: Display Container Status
+    # STEP 8: Display Container Status
     # ========================================================================
 
     - name: Get container status
@@ -195,13 +381,24 @@
         msg: "{{ compose_ps.stdout_lines }}"
 
     # ========================================================================
-    # STEP 6: Setup SSH Tunnel for Live vLLM Metrics (Optional)
+    # STEP 9: Setup SSH Tunnel for Live vLLM Metrics (Optional)
     # ========================================================================
 
     - name: Check if DUT_HOSTNAME is set
       ansible.builtin.set_fact:
         dut_hostname: "{{ lookup('env', 'DUT_HOSTNAME') }}"
         ansible_ssh_key: "{{ lookup('env', 'ANSIBLE_SSH_KEY') }}"
+        ansible_ssh_user: "{{ lookup('env', 'ANSIBLE_SSH_USER') | default('ec2-user', true) }}"
+
+    - name: Display SSH tunnel configuration
+      ansible.builtin.debug:
+        msg:
+          - "SSH Tunnel Configuration:"
+          - "  DUT_HOSTNAME: {{ dut_hostname if dut_hostname else 'Not set' }}"
+          - "  ANSIBLE_SSH_KEY: {{ ansible_ssh_key if ansible_ssh_key else 'Not set' }}"
+          - "  ANSIBLE_SSH_USER: {{ ansible_ssh_user }}"
+          - ""
+          - "{{ 'Will create SSH tunnel to forward vLLM metrics' if (dut_hostname and ansible_ssh_key) else 'SSH tunnel will NOT be created (environment variables not set)' }}"
 
     - name: Setup SSH tunnel for live vLLM metrics
       block:
@@ -213,7 +410,7 @@
 
         - name: Create SSH tunnel to vLLM server
           ansible.builtin.shell: |
-            ssh -L 8000:localhost:8000 ec2-user@{{ dut_hostname }} -N -f -i {{ ansible_ssh_key }} \
+            ssh -L 8000:localhost:8000 {{ ansible_ssh_user }}@{{ dut_hostname }} -N -f -i {{ ansible_ssh_key }} \
               -o ServerAliveInterval=60 \
               -o ServerAliveCountMax=3 \
               -o ExitOnForwardFailure=yes \
@@ -297,7 +494,7 @@
         - dut_hostname == "" or ansible_ssh_key == ""
 
     # ========================================================================
-    # STEP 7: Display Access Information
+    # STEP 10: Display Access Information
     # ========================================================================
 
     - name: Display success message and access information
