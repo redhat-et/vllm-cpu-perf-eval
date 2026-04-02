@@ -16,7 +16,8 @@
   vars:
     grafana_dir: "{{ playbook_dir }}/../grafana"
     compose_project_name: vllm-monitoring
-    remove_volumes: "{{ remove_volumes | default(false) | bool }}"
+    # remove_volumes can be passed via -e "remove_volumes=true"
+    remove_volumes_flag: "{{ remove_volumes | default(false) | bool }}"
 
   tasks:
     # ========================================================================
@@ -66,7 +67,7 @@
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           - "Container Runtime: {{ runtime_name }}"
           - "Compose Tool: {{ compose_cmd }}"
-          - "Remove Volumes: {{ 'YES - ALL METRICS WILL BE DELETED' if remove_volumes else 'NO - Metrics preserved' }}"
+          - "Remove Volumes: {{ 'YES - ALL METRICS WILL BE DELETED' if remove_volumes_flag else 'NO - Metrics preserved' }}"
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
     # ========================================================================
@@ -92,6 +93,8 @@
           ansible.builtin.shell: |
             pkill -f "ssh.*8000:localhost:8000" || true
           register: kill_vllm_tunnel
+          failed_when: false
+          changed_when: false
 
         - name: Verify vLLM tunnel stopped
           ansible.builtin.shell: |
@@ -119,18 +122,18 @@
             cmd: "{{ compose_cmd }} down"
             chdir: "{{ grafana_dir }}"
           register: compose_down
-          when: not remove_volumes
+          when: not remove_volumes_flag
 
         - name: Stop Grafana stack (removing volumes)
           ansible.builtin.command:
             cmd: "{{ compose_cmd }} down -v"
             chdir: "{{ grafana_dir }}"
           register: compose_down_volumes
-          when: remove_volumes
+          when: remove_volumes_flag
 
         - name: Display compose output
           ansible.builtin.debug:
-            msg: "{{ compose_down.stdout_lines if not remove_volumes else compose_down_volumes.stdout_lines }}"
+            msg: "{{ compose_down.stdout_lines if not remove_volumes_flag else compose_down_volumes.stdout_lines }}"
 
       when: grafana_dir_stat.stat.exists
 
@@ -166,10 +169,10 @@
           - "  ✓ Prometheus"
           - "  ✓ SSH tunnel (vLLM metrics)"
           - ""
-          - "{{ 'Data Volumes: DELETED (all historical data removed)' if remove_volumes else 'Data Volumes: PRESERVED (historical data retained)' }}"
+          - "{{ 'Data Volumes: DELETED (all historical data removed)' if remove_volumes_flag else 'Data Volumes: PRESERVED (historical data retained)' }}"
           - ""
           - "To restart:"
           - "  ansible-playbook start-grafana.yml"
           - ""
-          - "{{ 'To stop and preserve data next time, omit -e remove_volumes=true' if remove_volumes else 'To stop and delete all data, use: -e remove_volumes=true' }}"
+          - "{{ 'To stop and preserve data next time, omit -e remove_volumes=true' if remove_volumes_flag else 'To stop and delete all data, use: -e remove_volumes=true' }}"
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

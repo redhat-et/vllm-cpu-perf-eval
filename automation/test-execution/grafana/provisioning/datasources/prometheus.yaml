@@ -1,5 +1,14 @@
 # Grafana Datasource Configuration - Prometheus
 # Auto-provisions Prometheus datasource for vLLM live metrics
+#
+# IMPORTANT: If port 9090 is already in use on your system:
+#   1. Manual docker-compose deployment:
+#      - Update the URL below to match your PROMETHEUS_PORT (e.g., http://localhost:9091)
+#      - Run: export PROMETHEUS_PORT=9091 && docker-compose up -d
+#
+#   2. Ansible playbook deployment (RECOMMENDED):
+#      - Run: ansible-playbook start-grafana.yml
+#      - The playbook automatically detects available ports and updates this file
 
 apiVersion: 1
 
@@ -7,7 +16,7 @@ datasources:
   - name: Prometheus-vLLM
     type: prometheus
     access: proxy
-    url: http://prometheus:9090
+    url: http://vllm-prometheus:9090
     isDefault: false
     uid: prometheus-vllm
     editable: true
@@ -15,4 +24,4 @@ datasources:
       httpMethod: POST
       timeInterval: 15s
       queryTimeout: 60s
-    version: 1
+    version: 66

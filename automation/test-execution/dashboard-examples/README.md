@@ -168,6 +168,14 @@ Server-side vLLM metrics are **automatically collected** during benchmarks by di
 - ✅ Automatic collection during benchmark execution
 - ✅ No additional configuration needed
 - ✅ Works out-of-the-box with all benchmark playbooks
+# Check targets page (use port 9091 if 9090 was in use)
+open http://localhost:9090/targets
+# OR if using port 9091:
+open http://localhost:9091/targets
+
+# vllm-live should show as UP
+```
+>>>>>>> Stashed changes
 
 ### How It Works
 

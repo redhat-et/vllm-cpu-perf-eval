@@ -19,12 +19,55 @@ This monitoring stack runs on your **local machine** (Ansible controller) to vis
 - **Grafana** - Real-time visualization dashboards
 - **vLLM Official Dashboards** - Performance Statistics & Query Statistics dashboards from vLLM project
 
+**Platform-Specific Configurations:**
+- **macOS**: Uses `docker-compose.macos.yml` (bridge networking with port mappings)
+- **Linux**: Uses `docker-compose.yml` (host networking for direct access)
+- **Ansible playbook**: Automatically detects OS and uses the correct configuration
+
 **For Metrics Collection & Analysis:**
 - ✅ **vLLM server metrics** are automatically collected during all benchmarks (no Grafana needed)
 - ✅ **Post-test analysis** via Streamlit Dashboard
 - See [dashboard-examples](../dashboard-examples/README.md) for metrics visualization
 
 ## Architecture
+
+### Deployment Scenario 1: Co-located (Same Server)
+
+When running everything on the same server (vLLM + Grafana/Prometheus):
+
+```
+┌──────────────────────────────────────────────────┐
+│ DUT Server (e.g., nfvsdn-14)                     │
+│                                                   │
+│  ┌────────────────────────────────────────────┐  │
+│  │ vLLM Server :8000                          │  │
+│  │  - Exposes /metrics endpoint               │  │
+│  └────────────────────────────────────────────┘  │
+│                      ▲                            │
+│                      │ localhost:8000             │
+│  ┌───────────────────┴────────────────────────┐  │
+│  │ Prometheus :9090/9091 (host network)      │  │
+│  │  - Scrapes localhost:8000 directly        │  │
+│  │  - Stores vLLM metrics                    │  │
+│  └───────────────────┬────────────────────────┘  │
+│                      │ localhost:9090             │
+│  ┌───────────────────▼────────────────────────┐  │
+│  │ Grafana :3000 (host network)              │  │
+│  │  - Real-time vLLM metrics dashboards      │  │
+│  └───────────────────────────────────────────┘  │
+│                      │                            │
+└──────────────────────┼────────────────────────────┘
+                       │ SSH port forward 3000:3000
+              ┌────────▼────────┐
+              │ Your Laptop     │
+              │  - View Grafana │
+              │    in browser   │
+              └─────────────────┘
+```
+
+### Deployment Scenario 2: Remote Monitoring (SSH Tunnel)
+
+When running Grafana locally to monitor a remote vLLM server:
 
 ```
 ┌──────────────────────────────┐
@@ -48,10 +91,10 @@ This monitoring stack runs on your **local machine** (Ansible controller) to vis
 │  │  - Monitor tests as they run             │   │
 │  └──────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────┘
-
-Note: Post-test benchmark analysis (GuideLLM results) is handled by
-      Streamlit Dashboard - see ../dashboard-examples/README.md
 ```
+
+**Note:** Post-test benchmark analysis (GuideLLM results) is handled by
+Streamlit Dashboard - see ../dashboard-examples/README.md
 
 **Benefits:**
 - ✅ Real-time monitoring during test execution
@@ -62,8 +105,54 @@ Note: Post-test benchmark analysis (GuideLLM results) is handled by
 
 ## Quick Start
 
-### 1. Start Monitoring Stack
+### Recommended: Using Ansible Playbook
 
+The Ansible playbook automatically handles port detection and configuration:
+
+```bash
+cd automation/test-execution/ansible
+
+# Start Grafana stack (auto-detects available ports and OS)
+ansible-playbook start-grafana.yml
+```
+
+The playbook will:
+- Auto-detect OS (macOS vs Linux) and use correct configuration
+- Auto-detect available Prometheus port (9090 or 9091)
+- Update Grafana datasource configuration automatically
+- Start all services with proper networking
+- **Create SSH tunnel automatically if DUT_HOSTNAME and ANSIBLE_SSH_KEY are set**
+
+**For remote vLLM monitoring (SSH tunnel):**
+```bash
+# Set environment variables first (usually already set when running benchmarks)
+export DUT_HOSTNAME=your-vllm-server.compute.amazonaws.com
+export ANSIBLE_SSH_KEY=/path/to/your/key.pem
+export ANSIBLE_SSH_USER=ec2-user  # Optional, defaults to ec2-user
+
+# Then run the playbook - it will create the SSH tunnel automatically
+ansible-playbook start-grafana.yml
+```
+
+### Alternative: Manual Docker Compose
+
+For manual deployment without Ansible:
+
+**On macOS:**
+```bash
+cd automation/test-execution/grafana
+
+# Start with Docker Compose
+docker-compose -f docker-compose.macos.yml up -d
+
+# OR with Podman
+podman-compose -f docker-compose.macos.yml up -d
+
+# Verify services
+docker-compose -f docker-compose.macos.yml ps
+```
+
+**On Linux:**
 ```bash
 cd automation/test-execution/grafana
 
@@ -71,18 +160,59 @@ cd automation/test-execution/grafana
 docker-compose up -d
 
 # OR with Podman
-podman compose up -d
+podman-compose up -d
 
 # Verify services
 docker-compose ps
 ```
 
-**Expected output:**
+**Expected output (macOS):**
 ```
-NAME           STATUS    PORTS
-prometheus     running   0.0.0.0:9090->9090/tcp
-grafana        running   0.0.0.0:3000->3000/tcp
+NAME              STATUS              PORTS
+prometheus        running             0.0.0.0:9090->9090/tcp
+grafana           running             0.0.0.0:3000->3000/tcp
 ```
+
+**Expected output (Linux):**
+```
+NAME           STATUS
+prometheus     running (host network)
+grafana        running (host network)
+```
+
+#### Handling Port Conflicts (Manual Deployment)
+
+If port 9090 is already in use on your system (e.g., by systemd):
+
+1. **Set the Prometheus port:**
+   ```bash
+   export PROMETHEUS_PORT=9091
+   ```
+
+2. **Update the Grafana datasource file:**
+   Edit `provisioning/datasources/prometheus.yaml` and change:
+   ```yaml
+   url: http://localhost:9090
+   ```
+   to:
+   ```yaml
+   url: http://localhost:9091
+   ```
+
+3. **Start the stack:**
+   ```bash
+   docker-compose up -d
+   # OR
+   podman-compose up -d
+   ```
+
+4. **Verify the datasource in Grafana:**
+   - Open Grafana at `http://localhost:3000`
+   - Go to **Configuration → Data Sources → Prometheus-vLLM**
+   - Verify URL shows `http://localhost:9091` (or your port)
+   - If not, update it manually and click **Save & Test**
+
+**Note:** The Ansible playbook handles all of this automatically.
 
 ### 2. Access Grafana
 
@@ -109,6 +239,16 @@ vLLM server metrics will appear in Grafana dashboards in real-time.
 
 ### 4. Stop Monitoring Stack
 
+**macOS:**
+```bash
+# Stop and keep data
+docker-compose -f docker-compose.macos.yml down
+
+# Stop and remove all data
+docker-compose -f docker-compose.macos.yml down -v
+```
+
+**Linux:**
 ```bash
 # Stop and keep data
 docker-compose down
@@ -117,9 +257,11 @@ docker-compose down
 docker-compose down -v
 ```
 
-## SSH Tunnel Setup (Required)
+## SSH Tunnel Setup (Only for Remote Deployment)
 
-To monitor **real-time vLLM metrics** during benchmarks, you must create an SSH tunnel from your local machine to the remote vLLM server. This forwards the vLLM metrics endpoint (port 8000) to localhost.
+**Note:** If you're running Grafana/Prometheus on the **same server as vLLM**, you don't need an SSH tunnel. The containers use host networking and can access vLLM directly at `localhost:8000`.
+
+If deploying Grafana on your **local machine** to monitor a **remote vLLM server**, you must create an SSH tunnel to forward the vLLM metrics endpoint (port 8000) to localhost.
 
 ### Manual Tunnel Setup
 
@@ -283,38 +425,66 @@ vLLM metrics typically include labels like:
 
 ## Troubleshooting
 
-### Grafana shows "No data"
+### Grafana shows "No data" or datasource errors
 
 1. **Check time range** - Top-right picker, try "Last 5 minutes" or "Last 15 minutes"
-2. **Check datasource** - Settings → Data Sources → Prometheus → Test
-3. **Verify Prometheus** - Open <http://localhost:9090/graph>
-4. **Verify SSH tunnel is active:**
+
+2. **Verify datasource port is correct:**
+   - In Grafana, go to **Configuration → Data Sources → Prometheus-vLLM**
+   - Check the URL matches your Prometheus port (e.g., `http://localhost:9091`)
+   - If it's wrong, update it manually:
+     - Change URL to `http://localhost:9091` (or your PROMETHEUS_PORT)
+     - Click **Save & Test**
+   - Common issue: If you see `http://vllm-prometheus:9090`, the datasource wasn't updated for host networking
+
+3. **Test the datasource** - Settings → Data Sources → Prometheus → Save & Test
+   - Should show "Data source is working"
+   - If you see connection errors, verify the port number matches Prometheus
+
+4. **Verify Prometheus is accessible:**
    ```bash
-   ps aux | grep "ssh.*8000:localhost:8000" | grep -v grep
-   ```
-5. **Check vLLM server is running** on the remote DUT
-
-### No live vLLM metrics
-
-1. **Verify SSH tunnel is active:**
-   ```bash
-   ps aux | grep "ssh.*8000:localhost:8000" | grep -v grep
+   curl http://localhost:9091/api/v1/targets
    ```
 
-2. **Test vLLM endpoint through tunnel:**
+5. **Check vLLM server is running** and exposing metrics:
    ```bash
    curl http://localhost:8000/metrics | grep vllm
    ```
 
-3. **Check Prometheus is scraping:**
+### Manually Updating Datasource Port in Grafana
+
+If Prometheus is using a different port (e.g., 9091 instead of 9090):
+
+1. Open Grafana: `http://localhost:3000`
+2. Navigate to **Configuration** (⚙️) → **Data Sources**
+3. Click on **Prometheus-vLLM**
+4. Update the **URL** field:
+   - Change from: `http://localhost:9090` or `http://vllm-prometheus:9090`
+   - Change to: `http://localhost:9091` (or your PROMETHEUS_PORT)
+5. Click **Save & Test**
+6. Should show: "Data source is working" ✅
+
+### No live vLLM metrics
+
+1. **Verify vLLM is running and exposing metrics:**
    ```bash
-   open http://localhost:9090/targets
-   # vllm-live should show as UP
+   curl http://localhost:8000/metrics | grep vllm
    ```
 
-4. **Verify vLLM server is running:**
-   - SSH to DUT and check vLLM process
-   - Ensure vLLM was started with metrics enabled (default)
+2. **Check Prometheus is scraping:**
+   ```bash
+   curl -s http://localhost:9091/api/v1/targets | grep -A 10 vllm-live
+   # Should show "health": "up"
+   ```
+
+3. **Verify Prometheus can reach vLLM:**
+   ```bash
+   curl -s "http://localhost:9091/api/v1/query?query=up{job='vllm-live'}"
+   ```
+
+4. **Check Prometheus targets page:**
+   - Open `http://localhost:9091/targets`
+   - Look for `vllm-live` target showing as UP
 
 ### Containers won't start
 

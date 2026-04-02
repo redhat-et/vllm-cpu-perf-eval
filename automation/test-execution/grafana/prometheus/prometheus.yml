@@ -26,11 +26,10 @@ scrape_configs:
     scrape_timeout: 5s
     metrics_path: "/metrics"
 
-    # When SSH tunnel is active, vLLM metrics available via host gateway
-    # Podman: Use host.containers.internal (automatically resolves to host)
-    # Docker: Use host.docker.internal
+    # When running on DUT with host networking, access vLLM directly
+    # For remote SSH tunnel deployment, use localhost:8000
     static_configs:
-      - targets: ["host.containers.internal:8000"]
+      - targets: ["localhost:8000"]
         labels:
           instance: "dut"
           source: "vllm-live"

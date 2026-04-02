@@ -1,0 +1,39 @@
+# Prometheus Configuration - macOS Deployment
+# Runs on macOS with bridge networking (podman VM)
+# Scrapes vLLM server metrics via SSH tunnel on Mac host
+#
+# Architecture:
+#   1. SSH Tunnel on Mac host - Forwards vLLM server :8000 to localhost:8000
+#   2. Prometheus in container - Accesses Mac host via host.containers.internal
+#   3. Grafana in container - Visualizes real-time metrics in dashboards
+
+global:
+  scrape_interval: 15s      # How often to scrape targets
+  evaluation_interval: 15s  # How often to evaluate rules
+
+  # Attach these labels to all time series
+  external_labels:
+    monitor: "vllm-perf-eval"
+    environment: "benchmark"
+
+# Scrape configurations
+scrape_configs:
+  # vLLM Server Live Metrics
+  # Requires SSH tunnel on Mac host: ssh -L 8000:localhost:8000 ec2-user@$DUT_HOSTNAME
+  - job_name: "vllm-live"
+    scrape_interval: 10s
+    scrape_timeout: 5s
+    metrics_path: "/metrics"
+
+    # On macOS, Prometheus runs in podman VM with bridge networking
+    # Use host.containers.internal to reach SSH tunnel on Mac host
+    static_configs:
+      - targets: ["host.containers.internal:8000"]
+        labels:
+          instance: "dut"
+          source: "vllm-live"
+
+  # Prometheus self-monitoring
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
