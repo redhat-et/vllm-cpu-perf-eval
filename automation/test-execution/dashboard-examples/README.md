@@ -175,7 +175,6 @@ open http://localhost:9091/targets
 
 # vllm-live should show as UP
 ```
->>>>>>> Stashed changes
 
 ### How It Works
 
