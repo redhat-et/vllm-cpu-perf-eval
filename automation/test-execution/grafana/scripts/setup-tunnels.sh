@@ -9,18 +9,18 @@
 #   ./setup-tunnels.sh
 #
 # Environment variables (or set in script):
-#   DUT_HOSTNAME        - DUT EC2 hostname
-#   LOADGEN_HOSTNAME    - LOADGEN EC2 hostname
+#   DUT_HOSTNAME        - DUT EC2 hostname (required)
+#   LOADGEN_HOSTNAME    - LOADGEN EC2 hostname (required)
 #   ANSIBLE_SSH_USER    - SSH username (default: ec2-user)
-#   ANSIBLE_SSH_KEY     - SSH key path (default: ~/mtahhan.pem)
+#   ANSIBLE_SSH_KEY     - SSH key path (required)
 
 set -e
 
 # Configuration
-: "${DUT_HOSTNAME:=ec2-3-17-205-30.us-east-2.compute.amazonaws.com}"
-: "${LOADGEN_HOSTNAME:=ec2-18-216-8-240.us-east-2.compute.amazonaws.com}"
+: "${DUT_HOSTNAME:=}"
+: "${LOADGEN_HOSTNAME:=}"
 : "${ANSIBLE_SSH_USER:=ec2-user}"
-: "${ANSIBLE_SSH_KEY:=~/mtahhan.pem}"
+: "${ANSIBLE_SSH_KEY:=}"
 
 PUSHGATEWAY_PORT=9091
 VLLM_METRICS_PORT=8000
