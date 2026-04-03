@@ -95,10 +95,7 @@ def load_vllm_metrics(base_dir: str):
                     with open(metadata_file) as f:
                         metadata = json.load(f)
 
-                        # Skip external endpoint runs (no server metrics available)
-                        if metadata.get('vllm_mode') == 'external':
-                            continue
-
+                        # Load metadata for both managed and external endpoints
                         data['platform'] = metadata.get('platform', 'unknown')
                         data['model'] = metadata.get('model', 'unknown')
                         data['workload'] = metadata.get('workload', 'unknown')
@@ -108,6 +105,7 @@ def load_vllm_metrics(base_dir: str):
                         data['vllm_version'] = metadata.get('vllm_version', 'unknown')
                         data['core_config'] = metadata.get('core_config_name', 'unknown')
                         data['vllm_mode'] = metadata.get('vllm_mode', 'managed')
+                        data['vllm_endpoint_url'] = metadata.get('vllm_endpoint_url', 'n/a')
 
                 # Add file path
                 data['_file_path'] = str(metrics_file.parent)
@@ -125,34 +123,57 @@ if not results:
     st.error("No vLLM metrics found!")
     st.info(f"Looking in: {Path(results_dir).absolute()}")
     st.info("Make sure vLLM metrics collection is enabled in your benchmark runs.")
-    st.info("**Note**: External endpoint runs do not have server metrics (only client-side metrics available)")
     st.stop()
 
 st.sidebar.success(f"Loaded {len(results)} metric files")
 
-# Check if any external runs were skipped
-results_path = Path(results_dir)
-external_count = 0
-if results_path.exists():
-    for metadata_file in results_path.rglob("test-metadata.json"):
-        try:
-            with open(metadata_file) as f:
-                metadata = json.load(f)
-                if metadata.get('vllm_mode') == 'external':
-                    external_count += 1
-        except:
-            pass
+# Check if we have both managed and external tests
+has_managed = any(r.get('vllm_mode') == 'managed' for r in results)
+has_external = any(r.get('vllm_mode') == 'external' for r in results)
 
-if external_count > 0:
-    st.info(f"ℹ️ Skipped {external_count} external endpoint runs (no server metrics available). View them in the Client Metrics dashboard.")
+# Deployment mode selection (only show if both types exist)
+if has_managed and has_external:
+    st.markdown("---")
+    deployment_mode = st.radio(
+        "📍 Test Deployment Mode",
+        ["Managed (DUT Container)", "External Endpoints"],
+        horizontal=True,
+        help="Managed: vLLM runs on DUT in container | External: vLLM runs on external endpoint (cloud/K8s)"
+    )
+    test_mode = 'managed' if deployment_mode == "Managed (DUT Container)" else 'external'
 
-# Extract filter options
-platforms = sorted(set(r.get('platform', 'unknown') for r in results))
+    # Info message about different filters
+    if test_mode == 'external':
+        st.info("ℹ️ External endpoint view: Filter by endpoint URL instead of platform/cores")
+
+    # Filter results by mode
+    mode_filtered_results = [r for r in results if r.get('vllm_mode') == test_mode]
+
+    if not mode_filtered_results:
+        st.warning(f"⚠️ No {test_mode} test results found.")
+        st.stop()
+
+    results = mode_filtered_results
+elif has_external:
+    # Only external tests exist
+    st.info("ℹ️ Showing external endpoint test results only")
+    test_mode = 'external'
+    results = [r for r in results if r.get('vllm_mode') == 'external']
+else:
+    # Only managed tests exist (default)
+    test_mode = 'managed'
+    results = [r for r in results if r.get('vllm_mode') == 'managed']
+
+# Extract filter options based on test mode
+if test_mode == 'managed':
+    platforms = sorted(set(r.get('platform', 'unknown') for r in results))
+    cores = sorted(set(r.get('cores', 'N/A') for r in results), key=lambda x: (isinstance(x, str), x))
+else:  # external mode
+    endpoints = sorted(set(r.get('vllm_endpoint_url', 'n/a') for r in results if r.get('vllm_endpoint_url') != 'n/a'))
+
 models = sorted(set(r.get('model', 'unknown') for r in results))
 workloads = sorted(set(r.get('workload', 'unknown') for r in results))
 test_runs = sorted(set(r.get('test_run_id', 'unknown') for r in results))
-# Handle mixed int/str types for cores (some tests may not have core_count in metadata)
-cores = sorted(set(r.get('cores', 'N/A') for r in results), key=lambda x: (isinstance(x, str), x))
 versions = sorted(set(r.get('vllm_version', 'unknown') for r in results))
 
 # Section navigation
@@ -185,34 +206,63 @@ if current_section == "📈 Performance Plots":
     # Single test mode - filters in main area
     st.markdown("### 🔍 Filter Test Data")
 
-    col1, col2, col3 = st.columns(3)
+    if test_mode == 'managed':
+        # Managed mode filters
+        col1, col2, col3 = st.columns(3)
 
-    with col1:
-        selected_platform = st.selectbox("Platform", platforms)
+        with col1:
+            selected_platform = st.selectbox("Platform", platforms)
 
-    with col2:
-        selected_model = st.selectbox("Model", models)
+        with col2:
+            selected_model = st.selectbox("Model", models)
 
-    with col3:
-        selected_workload = st.selectbox("Workload", workloads)
+        with col3:
+            selected_workload = st.selectbox("Workload", workloads)
 
-    col4, col5, col6 = st.columns(3)
+        col4, col5, col6 = st.columns(3)
 
-    with col4:
-        selected_cores = st.selectbox("Cores", cores)
+        with col4:
+            selected_cores = st.selectbox("Cores", cores)
 
-    with col5:
-        selected_version = st.selectbox("vLLM Version", versions)
+        with col5:
+            selected_version = st.selectbox("vLLM Version", versions)
 
-    # Filter results (before test run selection)
-    filtered_pre = [
-        r for r in results
-        if r.get('platform') == selected_platform
-        and r.get('model') == selected_model
-        and r.get('workload') == selected_workload
-        and r.get('cores') == selected_cores
-        and r.get('vllm_version') == selected_version
-    ]
+        # Filter results (before test run selection)
+        filtered_pre = [
+            r for r in results
+            if r.get('platform') == selected_platform
+            and r.get('model') == selected_model
+            and r.get('workload') == selected_workload
+            and r.get('cores') == selected_cores
+            and r.get('vllm_version') == selected_version
+        ]
+
+    else:  # external mode
+        # External mode filters
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            selected_endpoint = st.selectbox("Endpoint URL", endpoints)
+
+        with col2:
+            selected_model = st.selectbox("Model", models)
+
+        with col3:
+            selected_workload = st.selectbox("Workload", workloads)
+
+        col4, col5, col6 = st.columns(3)
+
+        with col4:
+            selected_version = st.selectbox("vLLM Version", versions)
+
+        # Filter results (before test run selection)
+        filtered_pre = [
+            r for r in results
+            if r.get('vllm_endpoint_url') == selected_endpoint
+            and r.get('model') == selected_model
+            and r.get('workload') == selected_workload
+            and r.get('vllm_version') == selected_version
+        ]
 
     if not filtered_pre:
         st.warning("No results match the selected filters")
@@ -237,13 +287,24 @@ if current_section == "📈 Performance Plots":
 
     # Show metadata
     st.subheader("Test Configuration")
-    cols = st.columns(6)
-    cols[0].metric("Platform", test_data.get('platform', 'N/A'))
-    cols[1].metric("Model", test_data.get('model', 'unknown').split('/')[-1])
-    cols[2].metric("Workload", test_data.get('workload', 'N/A'))
-    cols[3].metric("Cores", test_data.get('cores', 'N/A'))
-    cols[4].metric("Backend", test_data.get('backend', 'N/A'))
-    cols[5].metric("Test Run ID", test_data.get('test_run_id', 'N/A')[:8])
+    if test_mode == 'managed':
+        cols = st.columns(6)
+        cols[0].metric("Platform", test_data.get('platform', 'N/A'))
+        cols[1].metric("Model", test_data.get('model', 'unknown').split('/')[-1])
+        cols[2].metric("Workload", test_data.get('workload', 'N/A'))
+        cols[3].metric("Cores", test_data.get('cores', 'N/A'))
+        cols[4].metric("Backend", test_data.get('backend', 'N/A'))
+        cols[5].metric("Test Run ID", test_data.get('test_run_id', 'N/A')[:8])
+    else:  # external mode
+        cols = st.columns(5)
+        endpoint_url = test_data.get('vllm_endpoint_url', 'N/A')
+        # Shorten endpoint for display
+        endpoint_short = endpoint_url.split('//')[1].split(':')[0] if '//' in endpoint_url else endpoint_url
+        cols[0].metric("Endpoint", endpoint_short)
+        cols[1].metric("Model", test_data.get('model', 'unknown').split('/')[-1])
+        cols[2].metric("Workload", test_data.get('workload', 'N/A'))
+        cols[3].metric("Backend", test_data.get('backend', 'N/A'))
+        cols[4].metric("Test Run ID", test_data.get('test_run_id', 'N/A')[:8])
 
     # Collection info
     collection_info = test_data.get('collection_info', {})
@@ -694,25 +755,43 @@ elif current_section == "⚖️ Compare Configurations":
 
     with col1:
         st.markdown("#### Baseline Configuration")
-        baseline_platform = st.selectbox("Platform", platforms, key="baseline_platform")
 
-        baseline_filtered = [r for r in results if r.get('platform') == baseline_platform]
-        baseline_models = sorted(set(r.get('model', 'unknown') for r in baseline_filtered))
-        baseline_model = st.selectbox("Model", baseline_models, key="baseline_model")
+        if test_mode == 'managed':
+            # Managed mode filters
+            baseline_platform = st.selectbox("Platform", platforms, key="baseline_platform")
+            baseline_filtered = [r for r in results if r.get('platform') == baseline_platform]
 
-        baseline_filtered = [r for r in baseline_filtered if r.get('model') == baseline_model]
-        baseline_workloads = sorted(set(r.get('workload', 'unknown') for r in baseline_filtered))
-        baseline_workload = st.selectbox("Workload", baseline_workloads, key="baseline_workload")
+            baseline_models = sorted(set(r.get('model', 'unknown') for r in baseline_filtered))
+            baseline_model = st.selectbox("Model", baseline_models, key="baseline_model")
+            baseline_filtered = [r for r in baseline_filtered if r.get('model') == baseline_model]
 
-        baseline_filtered = [r for r in baseline_filtered if r.get('workload') == baseline_workload]
-        baseline_cores_list = sorted(set(r.get('cores', 'N/A') for r in baseline_filtered), key=lambda x: (isinstance(x, str), x))
-        baseline_cores_sel = st.selectbox("Cores", baseline_cores_list, key="baseline_cores")
+            baseline_workloads = sorted(set(r.get('workload', 'unknown') for r in baseline_filtered))
+            baseline_workload = st.selectbox("Workload", baseline_workloads, key="baseline_workload")
+            baseline_filtered = [r for r in baseline_filtered if r.get('workload') == baseline_workload]
 
-        baseline_filtered = [r for r in baseline_filtered if r.get('cores') == baseline_cores_sel]
-        baseline_versions = sorted(set(r.get('vllm_version', 'unknown') for r in baseline_filtered))
-        baseline_version = st.selectbox("vLLM Version", baseline_versions, key="baseline_version")
+            baseline_cores_list = sorted(set(r.get('cores', 'N/A') for r in baseline_filtered), key=lambda x: (isinstance(x, str), x))
+            baseline_cores_sel = st.selectbox("Cores", baseline_cores_list, key="baseline_cores")
+            baseline_filtered = [r for r in baseline_filtered if r.get('cores') == baseline_cores_sel]
 
-        baseline_filtered = [r for r in baseline_filtered if r.get('vllm_version') == baseline_version]
+            baseline_versions = sorted(set(r.get('vllm_version', 'unknown') for r in baseline_filtered))
+            baseline_version = st.selectbox("vLLM Version", baseline_versions, key="baseline_version")
+            baseline_filtered = [r for r in baseline_filtered if r.get('vllm_version') == baseline_version]
+        else:  # external mode
+            # External mode filters
+            baseline_endpoint = st.selectbox("Endpoint URL", endpoints, key="baseline_endpoint")
+            baseline_filtered = [r for r in results if r.get('vllm_endpoint_url') == baseline_endpoint]
+
+            baseline_models = sorted(set(r.get('model', 'unknown') for r in baseline_filtered))
+            baseline_model = st.selectbox("Model", baseline_models, key="baseline_model")
+            baseline_filtered = [r for r in baseline_filtered if r.get('model') == baseline_model]
+
+            baseline_workloads = sorted(set(r.get('workload', 'unknown') for r in baseline_filtered))
+            baseline_workload = st.selectbox("Workload", baseline_workloads, key="baseline_workload")
+            baseline_filtered = [r for r in baseline_filtered if r.get('workload') == baseline_workload]
+
+            baseline_versions = sorted(set(r.get('vllm_version', 'unknown') for r in baseline_filtered))
+            baseline_version = st.selectbox("vLLM Version", baseline_versions, key="baseline_version")
+            baseline_filtered = [r for r in baseline_filtered if r.get('vllm_version') == baseline_version]
 
         # Get available test runs for this configuration
         if baseline_filtered:
@@ -733,25 +812,43 @@ elif current_section == "⚖️ Compare Configurations":
 
     with col2:
         st.markdown("#### Comparison Configuration")
-        compare_platform = st.selectbox("Platform", platforms, key="compare_platform")
 
-        compare_filtered = [r for r in results if r.get('platform') == compare_platform]
-        compare_models = sorted(set(r.get('model', 'unknown') for r in compare_filtered))
-        compare_model = st.selectbox("Model", compare_models, key="compare_model")
+        if test_mode == 'managed':
+            # Managed mode filters
+            compare_platform = st.selectbox("Platform", platforms, key="compare_platform")
+            compare_filtered = [r for r in results if r.get('platform') == compare_platform]
 
-        compare_filtered = [r for r in compare_filtered if r.get('model') == compare_model]
-        compare_workloads = sorted(set(r.get('workload', 'unknown') for r in compare_filtered))
-        compare_workload = st.selectbox("Workload", compare_workloads, key="compare_workload")
+            compare_models = sorted(set(r.get('model', 'unknown') for r in compare_filtered))
+            compare_model = st.selectbox("Model", compare_models, key="compare_model")
+            compare_filtered = [r for r in compare_filtered if r.get('model') == compare_model]
 
-        compare_filtered = [r for r in compare_filtered if r.get('workload') == compare_workload]
-        compare_cores_list = sorted(set(r.get('cores', 'N/A') for r in compare_filtered), key=lambda x: (isinstance(x, str), x))
-        compare_cores_sel = st.selectbox("Cores", compare_cores_list, key="compare_cores")
+            compare_workloads = sorted(set(r.get('workload', 'unknown') for r in compare_filtered))
+            compare_workload = st.selectbox("Workload", compare_workloads, key="compare_workload")
+            compare_filtered = [r for r in compare_filtered if r.get('workload') == compare_workload]
 
-        compare_filtered = [r for r in compare_filtered if r.get('cores') == compare_cores_sel]
-        compare_versions = sorted(set(r.get('vllm_version', 'unknown') for r in compare_filtered))
-        compare_version = st.selectbox("vLLM Version", compare_versions, key="compare_version")
+            compare_cores_list = sorted(set(r.get('cores', 'N/A') for r in compare_filtered), key=lambda x: (isinstance(x, str), x))
+            compare_cores_sel = st.selectbox("Cores", compare_cores_list, key="compare_cores")
+            compare_filtered = [r for r in compare_filtered if r.get('cores') == compare_cores_sel]
 
-        compare_filtered = [r for r in compare_filtered if r.get('vllm_version') == compare_version]
+            compare_versions = sorted(set(r.get('vllm_version', 'unknown') for r in compare_filtered))
+            compare_version = st.selectbox("vLLM Version", compare_versions, key="compare_version")
+            compare_filtered = [r for r in compare_filtered if r.get('vllm_version') == compare_version]
+        else:  # external mode
+            # External mode filters
+            compare_endpoint = st.selectbox("Endpoint URL", endpoints, key="compare_endpoint")
+            compare_filtered = [r for r in results if r.get('vllm_endpoint_url') == compare_endpoint]
+
+            compare_models = sorted(set(r.get('model', 'unknown') for r in compare_filtered))
+            compare_model = st.selectbox("Model", compare_models, key="compare_model")
+            compare_filtered = [r for r in compare_filtered if r.get('model') == compare_model]
+
+            compare_workloads = sorted(set(r.get('workload', 'unknown') for r in compare_filtered))
+            compare_workload = st.selectbox("Workload", compare_workloads, key="compare_workload")
+            compare_filtered = [r for r in compare_filtered if r.get('workload') == compare_workload]
+
+            compare_versions = sorted(set(r.get('vllm_version', 'unknown') for r in compare_filtered))
+            compare_version = st.selectbox("vLLM Version", compare_versions, key="compare_version")
+            compare_filtered = [r for r in compare_filtered if r.get('vllm_version') == compare_version]
 
         # Get available test runs for this configuration
         if compare_filtered:
@@ -873,8 +970,18 @@ elif current_section == "⚖️ Compare Configurations":
     colors = ['#3b82f6', '#ef4444']
 
     # Create detailed labels
-    baseline_label = f"Baseline: {baseline_result.get('platform', 'unknown')} | {baseline_result.get('vllm_version', 'unknown')} | {baseline_result.get('workload', 'unknown')} | {baseline_result.get('backend', 'unknown')}"
-    compare_label = f"Compare: {compare_result.get('platform', 'unknown')} | {compare_result.get('vllm_version', 'unknown')} | {compare_result.get('workload', 'unknown')} | {compare_result.get('backend', 'unknown')}"
+    if test_mode == 'managed':
+        baseline_label = f"Baseline: {baseline_result.get('platform', 'unknown')} | {baseline_result.get('vllm_version', 'unknown')} | {baseline_result.get('workload', 'unknown')} | {baseline_result.get('backend', 'unknown')}"
+        compare_label = f"Compare: {compare_result.get('platform', 'unknown')} | {compare_result.get('vllm_version', 'unknown')} | {compare_result.get('workload', 'unknown')} | {compare_result.get('backend', 'unknown')}"
+    else:  # external mode
+        baseline_endpoint_short = baseline_result.get('vllm_endpoint_url', 'unknown')
+        if '//' in baseline_endpoint_short:
+            baseline_endpoint_short = baseline_endpoint_short.split('//')[1].split(':')[0]
+        compare_endpoint_short = compare_result.get('vllm_endpoint_url', 'unknown')
+        if '//' in compare_endpoint_short:
+            compare_endpoint_short = compare_endpoint_short.split('//')[1].split(':')[0]
+        baseline_label = f"Baseline: {baseline_endpoint_short} | {baseline_result.get('vllm_version', 'unknown')} | {baseline_result.get('workload', 'unknown')} | {baseline_result.get('backend', 'unknown')}"
+        compare_label = f"Compare: {compare_endpoint_short} | {compare_result.get('vllm_version', 'unknown')} | {compare_result.get('workload', 'unknown')} | {compare_result.get('backend', 'unknown')}"
     labels = [baseline_label, compare_label]
 
     for idx, result in enumerate(comparison_results):
@@ -971,16 +1078,24 @@ elif current_section == "⚖️ Compare Configurations":
         running_avg = sum(sum_metric(s, 'vllm:num_requests_running') for s in samples) / len(samples)
         waiting_avg = sum(sum_metric(s, 'vllm:num_requests_waiting') for s in samples) / len(samples)
 
-        comparison_table.append({
-            'Platform': result.get('platform', 'unknown'),
+        row = {
             'Backend': result.get('backend', 'unknown'),
             'Version': result.get('vllm_version', 'unknown'),
-            'Cores': result.get('cores', 'N/A'),
             'Test Run ID': result.get('test_run_id', 'unknown')[:8],
             'Avg Cache %': f"{cache_avg:.1f}",
             'Avg Running': f"{running_avg:.2f}",
             'Avg Waiting': f"{waiting_avg:.2f}"
-        })
+        }
+
+        if test_mode == 'managed':
+            row['Platform'] = result.get('platform', 'unknown')
+            row['Cores'] = result.get('cores', 'N/A')
+        else:  # external mode
+            endpoint_url = result.get('vllm_endpoint_url', 'unknown')
+            endpoint_short = endpoint_url.split('//')[1].split(':')[0] if '//' in endpoint_url else endpoint_url
+            row['Endpoint'] = endpoint_short
+
+        comparison_table.append(row)
 
     comparison_df = pd.DataFrame(comparison_table)
     st.dataframe(comparison_df, use_container_width=True)
