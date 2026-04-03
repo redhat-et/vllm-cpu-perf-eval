@@ -18,10 +18,9 @@
 #   requested_cores: 16 # Single core count instead of sweep
 #
 # Workload Types:
-#   - chat: Chat workload (512:256)
-#   - rag: RAG workload (4096:512)
-#   - code: Code generation (512:4096)
-#   - summarization: Summarization (1024:256)
+#   Any workload defined in inventory/group_vars/all/test-workloads.yml
+#   Examples: chat, rag, code, summarization, reasoning
+#   Add custom workloads by editing test-workloads.yml
 #
 # Example - Full 3-phase test:
 #   ansible-playbook llm-benchmark-concurrent-load.yml \
@@ -60,8 +59,10 @@
       ansible.builtin.assert:
         that:
           - base_workload is defined
-          - base_workload in ['chat', 'rag', 'code', 'summarization']
-        fail_msg: "base_workload must be one of: chat, rag, code, summarization"
+          - base_workload in test_configs.keys()
+        fail_msg: |
+          Unsupported base_workload: {{ base_workload }}
+          Supported workloads: {{ test_configs.keys() | list | join(', ') }}
 
     - name: Validate required parameters (managed mode only)
       ansible.builtin.assert:
