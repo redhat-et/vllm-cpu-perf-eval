@@ -85,6 +85,7 @@
       - "GuideLLM Benchmark Configuration"
       - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       - "Mode: {{ 'Container' if use_guidellm_container else 'Host' }}"
+      - "Image: {{ guidellm_cfg.container_image if use_guidellm_container else 'N/A (using host guidellm)' }}"
       - "Target: http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}"
       - "{{ 'API Key: Enabled' if (vllm_api_key is defined and vllm_api_key | length > 0) else 'API Key: Not configured' }}"
       - "Workload: {{ workload_type }} (ISL:{{ workload_cfg.isl }}/OSL:{{ workload_cfg.osl }})"
