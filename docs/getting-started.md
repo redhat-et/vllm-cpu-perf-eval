@@ -237,6 +237,36 @@ cat results/llm/TinyLlama__TinyLlama-1.1B-Chat-v1.0/chat-*/benchmarks.csv
 
 ## Common Test Scenarios
 
+### Testing Against External Endpoints
+
+Test existing vLLM deployments (cloud, K8s, production) without managing containers:
+
+```bash
+# Configure external endpoint
+export VLLM_ENDPOINT_MODE=external
+export VLLM_ENDPOINT_URL=http://your-vllm-instance:8000
+
+# Run concurrent load test (model auto-detected from endpoint)
+ansible-playbook -i inventory/hosts.yml llm-benchmark-concurrent-load.yml \
+  -e "base_workload=chat" \
+  -e "requested_cores=16"
+```
+
+**Features:**
+- ✅ Auto-detects model from endpoint `/v1/models`
+- ✅ Skips vLLM container management
+- ✅ Collects client metrics (GuideLLM)
+- ✅ Collects server metrics if `/metrics` exposed
+- ✅ Works with cloud, K8s, or on-premise deployments
+
+**Environment Variables:**
+- `VLLM_ENDPOINT_MODE=external` - Enable external mode
+- `VLLM_ENDPOINT_URL=http://...` - Full URL with protocol and port
+- `LOADGEN_HOSTNAME=...` - Load generator hostname/IP
+- `ANSIBLE_SSH_KEY=...` - SSH key for load generator access
+
+**Note:** `DUT_HOSTNAME` not required in external mode (endpoint accessed directly via HTTP).
+
 ### Concurrent Load Testing
 
 Test performance under increasing concurrent load:

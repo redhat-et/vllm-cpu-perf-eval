@@ -94,6 +94,11 @@ def load_vllm_metrics(base_dir: str):
                 if metadata_file.exists():
                     with open(metadata_file) as f:
                         metadata = json.load(f)
+
+                        # Skip external endpoint runs (no server metrics available)
+                        if metadata.get('vllm_mode') == 'external':
+                            continue
+
                         data['platform'] = metadata.get('platform', 'unknown')
                         data['model'] = metadata.get('model', 'unknown')
                         data['workload'] = metadata.get('workload', 'unknown')
@@ -102,6 +107,7 @@ def load_vllm_metrics(base_dir: str):
                         data['backend'] = metadata.get('backend', 'unknown')
                         data['vllm_version'] = metadata.get('vllm_version', 'unknown')
                         data['core_config'] = metadata.get('core_config_name', 'unknown')
+                        data['vllm_mode'] = metadata.get('vllm_mode', 'managed')
 
                 # Add file path
                 data['_file_path'] = str(metrics_file.parent)
@@ -119,16 +125,34 @@ if not results:
     st.error("No vLLM metrics found!")
     st.info(f"Looking in: {Path(results_dir).absolute()}")
     st.info("Make sure vLLM metrics collection is enabled in your benchmark runs.")
+    st.info("**Note**: External endpoint runs do not have server metrics (only client-side metrics available)")
     st.stop()
 
 st.sidebar.success(f"Loaded {len(results)} metric files")
+
+# Check if any external runs were skipped
+results_path = Path(results_dir)
+external_count = 0
+if results_path.exists():
+    for metadata_file in results_path.rglob("test-metadata.json"):
+        try:
+            with open(metadata_file) as f:
+                metadata = json.load(f)
+                if metadata.get('vllm_mode') == 'external':
+                    external_count += 1
+        except:
+            pass
+
+if external_count > 0:
+    st.info(f"ℹ️ Skipped {external_count} external endpoint runs (no server metrics available). View them in the Client Metrics dashboard.")
 
 # Extract filter options
 platforms = sorted(set(r.get('platform', 'unknown') for r in results))
 models = sorted(set(r.get('model', 'unknown') for r in results))
 workloads = sorted(set(r.get('workload', 'unknown') for r in results))
 test_runs = sorted(set(r.get('test_run_id', 'unknown') for r in results))
-cores = sorted(set(r.get('cores', 'N/A') for r in results))
+# Handle mixed int/str types for cores (some tests may not have core_count in metadata)
+cores = sorted(set(r.get('cores', 'N/A') for r in results), key=lambda x: (isinstance(x, str), x))
 versions = sorted(set(r.get('vllm_version', 'unknown') for r in results))
 
 # Section navigation
@@ -681,7 +705,7 @@ elif current_section == "⚖️ Compare Configurations":
         baseline_workload = st.selectbox("Workload", baseline_workloads, key="baseline_workload")
 
         baseline_filtered = [r for r in baseline_filtered if r.get('workload') == baseline_workload]
-        baseline_cores_list = sorted(set(r.get('cores', 'N/A') for r in baseline_filtered))
+        baseline_cores_list = sorted(set(r.get('cores', 'N/A') for r in baseline_filtered), key=lambda x: (isinstance(x, str), x))
         baseline_cores_sel = st.selectbox("Cores", baseline_cores_list, key="baseline_cores")
 
         baseline_filtered = [r for r in baseline_filtered if r.get('cores') == baseline_cores_sel]
@@ -720,7 +744,7 @@ elif current_section == "⚖️ Compare Configurations":
         compare_workload = st.selectbox("Workload", compare_workloads, key="compare_workload")
 
         compare_filtered = [r for r in compare_filtered if r.get('workload') == compare_workload]
-        compare_cores_list = sorted(set(r.get('cores', 'N/A') for r in compare_filtered))
+        compare_cores_list = sorted(set(r.get('cores', 'N/A') for r in compare_filtered), key=lambda x: (isinstance(x, str), x))
         compare_cores_sel = st.selectbox("Cores", compare_cores_list, key="compare_cores")
 
         compare_filtered = [r for r in compare_filtered if r.get('cores') == compare_cores_sel]

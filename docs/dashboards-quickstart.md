@@ -95,6 +95,43 @@ ansible-playbook start-grafana.yml
 | Watch long test progress | Grafana | Real-time monitoring |
 | Debug performance issue | Both | Live view + detailed analysis |
 | Quick test (<2 min) | Streamlit only | Not worth Grafana setup |
+| External endpoint testing | Streamlit | Client metrics always available |
+
+## Testing External Endpoints
+
+When testing external vLLM deployments (cloud, K8s, production):
+
+**Client Metrics (Always Available):**
+- ✅ Full GuideLLM results (throughput, latency, success rate)
+- ✅ Displayed in Streamlit Client Metrics dashboard
+- ✅ Can filter by "vLLM Mode = external"
+
+**Server Metrics (Conditional):**
+- ✅ Collected if endpoint exposes `/metrics` endpoint
+- ⚠️ Not available if `/metrics` endpoint is private/blocked
+- ✅ Automatically detected during test execution
+- ✅ Displayed in Streamlit Server Metrics dashboard (if available)
+
+**Grafana Live Monitoring:**
+- ❌ Not auto-configured for external endpoints
+- ⚠️ Requires manual Prometheus setup
+- ℹ️  Rarely available for production endpoints (security)
+
+**Typical workflow:**
+```bash
+# 1. Configure external endpoint
+export VLLM_ENDPOINT_MODE=external
+export VLLM_ENDPOINT_URL=http://your-endpoint:8000
+
+# 2. Run test
+ansible-playbook llm-benchmark-concurrent-load.yml \
+  -e "base_workload=chat" \
+  -e "requested_cores=16"
+
+# 3. View results in Streamlit (client metrics + server metrics if available)
+cd automation/test-execution/dashboard-examples/vllm_dashboard
+./launch-dashboard.sh
+```
 
 ## Streamlit Dashboard Pages
 
@@ -119,6 +156,7 @@ ansible-playbook start-grafana.yml
 - Finding optimal load point
 - Comparing platforms
 - SLO validation
+- External endpoint testing (works for both managed and external modes)
 
 ### 🖥️ Server Metrics
 

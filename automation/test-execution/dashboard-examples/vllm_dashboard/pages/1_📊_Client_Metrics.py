@@ -106,6 +106,9 @@ def load_guidellm_data(results_dir: str) -> pd.DataFrame:
                     'vllm_version': metadata.get('vllm_version', 'unknown'),
                     'core_config': metadata.get('core_config_name', 'unknown'),
                     'tensor_parallel': metadata.get('tensor_parallel', 1),
+                    'vllm_mode': metadata.get('vllm_mode', 'managed'),
+                    'vllm_endpoint_url': metadata.get('vllm_endpoint_url', 'n/a'),
+                    'model_source': metadata.get('model_source', 'specified'),
 
                     # Load characteristics
                     'concurrency': concurrency,
@@ -160,70 +163,141 @@ def load_guidellm_data(results_dir: str) -> pd.DataFrame:
     return df
 
 
-def render_filters(df: pd.DataFrame) -> pd.DataFrame:
-    """Render filter UI and return filtered DataFrame."""
+def render_filters(df: pd.DataFrame, test_mode: str) -> pd.DataFrame:
+    """Render filter UI and return filtered DataFrame.
+
+    Args:
+        df: DataFrame to filter
+        test_mode: Either 'managed' or 'external'
+    """
     st.markdown('<div class="filter-section">', unsafe_allow_html=True)
     st.markdown("### 🔍 Filter your data")
 
-    col1, col2, col3 = st.columns(3)
+    if test_mode == 'managed':
+        # Managed mode filters - traditional platform/cores filtering
+        col1, col2, col3 = st.columns(3)
 
-    with col1:
-        platforms = sorted(df['platform'].unique())
-        selected_platforms = st.multiselect(
-            "Platform",
-            platforms,
-            default=platforms,
-            key="platform_filter"
-        )
+        with col1:
+            platforms = sorted(df['platform'].unique())
+            selected_platforms = st.multiselect(
+                "Platform",
+                platforms,
+                default=platforms,
+                key="platform_filter_managed"
+            )
 
-    with col2:
-        models = sorted(df['model_short'].unique())
-        selected_models = st.multiselect(
-            "Model",
-            models,
-            default=models,
-            key="model_filter"
-        )
+        with col2:
+            models = sorted(df['model_short'].unique())
+            selected_models = st.multiselect(
+                "Model",
+                models,
+                default=models,
+                key="model_filter_managed"
+            )
 
-    with col3:
-        workloads = sorted(df['workload'].unique())
-        selected_workloads = st.multiselect(
-            "Workload",
-            workloads,
-            default=workloads,
-            key="workload_filter"
-        )
+        with col3:
+            workloads = sorted(df['workload'].unique())
+            selected_workloads = st.multiselect(
+                "Workload",
+                workloads,
+                default=workloads,
+                key="workload_filter_managed"
+            )
 
-    col4, col5 = st.columns(2)
+        col4, col5 = st.columns(2)
 
-    with col4:
-        cores = sorted(df['cores'].unique())
-        selected_cores = st.multiselect(
-            "Core Count",
-            cores,
-            default=cores,
-            key="cores_filter"
-        )
+        with col4:
+            cores = sorted(df['cores'].unique())
+            selected_cores = st.multiselect(
+                "Core Count",
+                cores,
+                default=cores,
+                key="cores_filter_managed"
+            )
 
-    with col5:
-        versions = sorted(df['vllm_version'].unique())
-        selected_versions = st.multiselect(
-            "vLLM Version",
-            versions,
-            default=versions,
-            key="version_filter"
-        )
+        with col5:
+            versions = sorted(df['vllm_version'].unique())
+            selected_versions = st.multiselect(
+                "vLLM Version",
+                versions,
+                default=versions,
+                key="version_filter_managed"
+            )
 
-    st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    # Apply filters
-    filtered_df = df[
-        df['platform'].isin(selected_platforms) &
-        df['model_short'].isin(selected_models) &
-        df['workload'].isin(selected_workloads) &
-        df['cores'].isin(selected_cores) &
-        df['vllm_version'].isin(selected_versions)
-    ]
+        # Apply filters
+        filtered_df = df[
+            df['platform'].isin(selected_platforms) &
+            df['model_short'].isin(selected_models) &
+            df['workload'].isin(selected_workloads) &
+            df['cores'].isin(selected_cores) &
+            df['vllm_version'].isin(selected_versions)
+        ]
+
+    else:  # external mode
+        # External mode filters - endpoint-based filtering
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            endpoints = sorted([e for e in df['vllm_endpoint_url'].unique() if e != 'n/a'])
+            selected_endpoints = st.multiselect(
+                "Endpoint URL",
+                endpoints,
+                default=endpoints,
+                key="endpoint_filter_external"
+            )
+
+        with col2:
+            models = sorted(df['model_short'].unique())
+            selected_models = st.multiselect(
+                "Model",
+                models,
+                default=models,
+                key="model_filter_external"
+            )
+
+        with col3:
+            workloads = sorted(df['workload'].unique())
+            selected_workloads = st.multiselect(
+                "Workload",
+                workloads,
+                default=workloads,
+                key="workload_filter_external"
+            )
+
+        col4, col5 = st.columns(2)
+
+        with col4:
+            versions = sorted(df['vllm_version'].unique())
+            selected_versions = st.multiselect(
+                "vLLM Version",
+                versions,
+                default=versions,
+                key="version_filter_external"
+            )
+
+        with col5:
+            # Model source (auto-detected vs specified)
+            sources = sorted(df['model_source'].unique())
+            selected_sources = st.multiselect(
+                "Model Source",
+                sources,
+                default=sources,
+                key="source_filter_external",
+                help="'auto-detected' = model discovered from endpoint, 'specified' = model explicitly provided"
+            )
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        # Apply filters
+        filtered_df = df[
+            df['vllm_endpoint_url'].isin(selected_endpoints) &
+            df['model_short'].isin(selected_models) &
+            df['workload'].isin(selected_workloads) &
+            df['vllm_version'].isin(selected_versions) &
+            df['model_source'].isin(selected_sources)
+        ]
 
     return filtered_df
 
@@ -366,23 +440,35 @@ def render_compare_versions(df: pd.DataFrame):
         st.warning("No data available for selected filters.")
         return
 
+    # Detect test mode from dataframe
+    test_mode = df['vllm_mode'].iloc[0] if not df.empty else 'managed'
+
     # Comparison selector
     col1, col2 = st.columns(2)
 
     with col1:
         st.markdown("#### Baseline Configuration")
-        baseline_platforms = df['platform'].unique()
-        baseline_platform = st.selectbox("Platform", baseline_platforms, key="baseline_platform")
 
-        baseline_df = df[df['platform'] == baseline_platform]
+        if test_mode == 'managed':
+            # Managed mode: filter by platform
+            baseline_platforms = df['platform'].unique()
+            baseline_platform = st.selectbox("Platform", baseline_platforms, key="baseline_platform")
+            baseline_df = df[df['platform'] == baseline_platform]
+        else:
+            # External mode: filter by endpoint
+            baseline_endpoints = [e for e in df['vllm_endpoint_url'].unique() if e != 'n/a']
+            baseline_endpoint = st.selectbox("Endpoint URL", baseline_endpoints, key="baseline_endpoint")
+            baseline_df = df[df['vllm_endpoint_url'] == baseline_endpoint]
+
         baseline_models = baseline_df['model_short'].unique()
         baseline_model = st.selectbox("Model", baseline_models, key="baseline_model")
 
         baseline_df = baseline_df[baseline_df['model_short'] == baseline_model]
-        baseline_cores_list = sorted(baseline_df['cores'].unique())
-        baseline_cores = st.selectbox("Cores", baseline_cores_list, key="baseline_cores")
 
-        baseline_df = baseline_df[baseline_df['cores'] == baseline_cores]
+        if test_mode == 'managed':
+            baseline_cores_list = sorted(baseline_df['cores'].unique())
+            baseline_cores = st.selectbox("Cores", baseline_cores_list, key="baseline_cores")
+            baseline_df = baseline_df[baseline_df['cores'] == baseline_cores]
 
         # Get available test runs for this configuration
         baseline_test_runs = baseline_df[['test_run_id', 'vllm_version', 'workload', 'tensor_parallel']].drop_duplicates()
@@ -404,18 +490,27 @@ def render_compare_versions(df: pd.DataFrame):
 
     with col2:
         st.markdown("#### Comparison Configuration")
-        compare_platforms = df['platform'].unique()
-        compare_platform = st.selectbox("Platform", compare_platforms, key="compare_platform")
 
-        compare_df = df[df['platform'] == compare_platform]
+        if test_mode == 'managed':
+            # Managed mode: filter by platform
+            compare_platforms = df['platform'].unique()
+            compare_platform = st.selectbox("Platform", compare_platforms, key="compare_platform")
+            compare_df = df[df['platform'] == compare_platform]
+        else:
+            # External mode: filter by endpoint
+            compare_endpoints = [e for e in df['vllm_endpoint_url'].unique() if e != 'n/a']
+            compare_endpoint = st.selectbox("Endpoint URL", compare_endpoints, key="compare_endpoint")
+            compare_df = df[df['vllm_endpoint_url'] == compare_endpoint]
+
         compare_models = compare_df['model_short'].unique()
         compare_model = st.selectbox("Model", compare_models, key="compare_model")
 
         compare_df = compare_df[compare_df['model_short'] == compare_model]
-        compare_cores_list = sorted(compare_df['cores'].unique())
-        compare_cores = st.selectbox("Cores", compare_cores_list, key="compare_cores")
 
-        compare_df = compare_df[compare_df['cores'] == compare_cores]
+        if test_mode == 'managed':
+            compare_cores_list = sorted(compare_df['cores'].unique())
+            compare_cores = st.selectbox("Cores", compare_cores_list, key="compare_cores")
+            compare_df = compare_df[compare_df['cores'] == compare_cores]
 
         # Get available test runs for this configuration
         compare_test_runs = compare_df[['test_run_id', 'vllm_version', 'workload', 'tensor_parallel']].drop_duplicates()
@@ -508,8 +603,15 @@ def render_compare_versions(df: pd.DataFrame):
     baseline_run_info = baseline_data.iloc[0]
     compare_run_info = compare_data.iloc[0]
 
-    baseline_label = f"Baseline: {baseline_platform} | {baseline_run_info['vllm_version']} | {baseline_run_info['workload']}"
-    compare_label = f"Compare: {compare_platform} | {compare_run_info['vllm_version']} | {compare_run_info['workload']}"
+    if test_mode == 'managed':
+        baseline_label = f"Baseline: {baseline_platform} | {baseline_run_info['vllm_version']} | {baseline_run_info['workload']}"
+        compare_label = f"Compare: {compare_platform} | {compare_run_info['vllm_version']} | {compare_run_info['workload']}"
+    else:
+        # For external mode, show endpoint URL (shortened for display)
+        baseline_endpoint_short = baseline_endpoint.split('//')[1].split(':')[0] if '//' in baseline_endpoint else baseline_endpoint
+        compare_endpoint_short = compare_endpoint.split('//')[1].split(':')[0] if '//' in compare_endpoint else compare_endpoint
+        baseline_label = f"Baseline: {baseline_endpoint_short} | {baseline_run_info['vllm_version']} | {baseline_run_info['workload']}"
+        compare_label = f"Compare: {compare_endpoint_short} | {compare_run_info['vllm_version']} | {compare_run_info['workload']}"
 
     # Throughput
     for data, name, color in [
@@ -670,8 +772,43 @@ def render_dashboard():
         current_section = section_list[0]
     st.session_state.active_section = current_section
 
+    # Check if we have both managed and external tests
+    has_managed = 'managed' in df['vllm_mode'].unique()
+    has_external = 'external' in df['vllm_mode'].unique()
+
+    # Deployment mode selection (only show if both types exist)
+    if has_managed and has_external:
+        st.markdown("---")
+        deployment_mode = st.radio(
+            "📍 Test Deployment Mode",
+            ["Managed (DUT Container)", "External Endpoints"],
+            horizontal=True,
+            help="Managed: vLLM runs on DUT in container | External: vLLM runs on external endpoint (cloud/K8s)"
+        )
+        test_mode = 'managed' if deployment_mode == "Managed (DUT Container)" else 'external'
+
+        # Info message about different filters
+        if test_mode == 'external':
+            st.info("ℹ️ External endpoint view: Filter by endpoint URL instead of platform/cores")
+
+        # Filter dataframe by mode
+        mode_filtered_df = df[df['vllm_mode'] == test_mode]
+
+        if mode_filtered_df.empty:
+            st.warning(f"⚠️ No {test_mode} test results found.")
+            return
+    elif has_external:
+        # Only external tests exist
+        st.info("ℹ️ Showing external endpoint test results only")
+        test_mode = 'external'
+        mode_filtered_df = df[df['vllm_mode'] == 'external']
+    else:
+        # Only managed tests exist (default)
+        test_mode = 'managed'
+        mode_filtered_df = df[df['vllm_mode'] == 'managed']
+
     # Global filters (shown for all sections)
-    filtered_df = render_filters(df)
+    filtered_df = render_filters(mode_filtered_df, test_mode)
 
     if filtered_df.empty:
         st.warning("⚠️ No runs match the selected filters.")

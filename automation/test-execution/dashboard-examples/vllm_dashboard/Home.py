@@ -45,11 +45,12 @@ st.markdown("---")
 st.markdown("""
 ### Welcome!
 
-This dashboard suite provides three complementary views of your vLLM CPU benchmark results:
+This dashboard suite provides three complementary views of your
+vLLM CPU benchmark results:
 
-📊 **Client-Side Metrics** - End-user performance (GuideLLM results)
-🖥️ **Server-Side Metrics** - Internal server behavior (vLLM metrics)
-🔄 **Unified View** - Combined client + server correlation analysis
+📊 **Client-Side Metrics** - End-user performance (GuideLLM)
+🖥️ **Server-Side Metrics** - Internal server (vLLM metrics)
+🔄 **Unified View** - Combined client + server correlation
 
 **👈 Use the sidebar to navigate between dashboards**
 """)
@@ -122,6 +123,7 @@ with tab1:
     st.markdown("""
     #### Running Benchmarks
 
+    **Managed Mode (Default)** - vLLM runs on DUT:
     ```bash
     # Single test
     ansible-playbook llm-benchmark-auto.yml \\
@@ -136,9 +138,22 @@ with tab1:
       -e "requested_cores_list=[8,16,32,64]"
     ```
 
+    **External Endpoint Mode** - Test existing vLLM deployment:
+    ```bash
+    export VLLM_ENDPOINT_MODE=external
+    export VLLM_ENDPOINT_URL=http://your-vllm-endpoint:8000
+
+    # Concurrent load test (auto-detects model)
+    ansible-playbook llm-benchmark-concurrent-load.yml \\
+      -e "base_workload=chat" \\
+      -e "requested_cores=16"
+    ```
+
     **Results are automatically saved to:** `results/llm/`
 
     Each dashboard loads from this directory - just run a test and refresh!
+
+    **Note**: External endpoint runs show client metrics only (no server-side metrics).
     """)
 
 with tab2:
@@ -220,8 +235,14 @@ with col2:
 results_base = Path(results_dir_input)
 if results_base.exists():
     # Count test runs (filter out hidden files like .DS_Store)
-    model_dirs = [m for m in results_base.glob("*") if m.is_dir() and not m.name.startswith('.')]
-    test_count = sum(len(list(m.rglob("test-metadata.json"))) for m in model_dirs)
+    model_dirs = [
+        m for m in results_base.glob("*")
+        if m.is_dir() and not m.name.startswith('.')
+    ]
+    test_count = sum(
+        len(list(m.rglob("test-metadata.json")))
+        for m in model_dirs
+    )
 
     col1, col2, col3 = st.columns(3)
     col1.metric("Models Tested", len(model_dirs))
@@ -229,9 +250,15 @@ if results_base.exists():
     col3.metric("Results Directory", "✓ Found")
 
     if test_count > 0:
-        st.success(f"✓ Found {test_count} test results. Navigate to a dashboard to analyze!")
+        st.success(
+            f"✓ Found {test_count} test results. "
+            "Navigate to a dashboard to analyze!"
+        )
     else:
-        st.warning("⚠️ No test results found yet. Run a benchmark to get started.")
+        st.warning(
+            "⚠️ No test results found yet. "
+            "Run a benchmark to get started."
+        )
 else:
     st.warning(f"⚠️ Results directory not found: `{results_base}`")
     st.info("Run your first benchmark to create the results directory.")

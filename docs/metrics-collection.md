@@ -10,10 +10,14 @@ Comprehensive guide to how metrics are collected, stored, and visualized in the 
 The framework collects three types of metrics:
 
 1. **Client-Side Metrics** - GuideLLM benchmark results (always collected)
-2. **Server-Side Metrics** - vLLM server performance (automatically collected)
-3. **System Metrics** - CPU, memory, container stats (always collected)
+2. **Server-Side Metrics** - vLLM server performance (automatically collected when available)
+3. **System Metrics** - CPU, memory, container stats (collected for managed mode)
 
 **Key Point:** All metrics are collected automatically. Grafana/Prometheus are **optional** for real-time visualization only.
+
+**Deployment Modes:**
+- **Managed Mode** (default): vLLM runs in container on DUT → full metrics
+- **External Mode**: vLLM runs externally (cloud/K8s) → client metrics + server metrics if `/metrics` exposed
 
 ## Metrics Collection Flow
 
@@ -217,6 +221,63 @@ ansible-playbook llm-benchmark-auto.yml \
 ansible-playbook llm-benchmark-auto.yml \
   -e "metrics_collection_interval=5"
 ```
+
+### External Endpoint Metrics Collection
+
+When testing external vLLM endpoints (cloud, K8s, production):
+
+**Automatic Detection:**
+1. Playbook checks if `${VLLM_ENDPOINT_URL}/metrics` is accessible
+2. If YES (HTTP 200): Server metrics collection enabled
+3. If NO (HTTP 404/403/timeout): Server metrics collection skipped
+
+**Example - Metrics Available:**
+```bash
+export VLLM_ENDPOINT_MODE=external
+export VLLM_ENDPOINT_URL=http://your-endpoint:8000
+
+# Test endpoint
+curl http://your-endpoint:8000/metrics
+# → Returns Prometheus metrics (vllm:*, etc.)
+
+# Run test
+ansible-playbook llm-benchmark-concurrent-load.yml \
+  -e "base_workload=chat" -e "requested_cores=16"
+
+# Result: vllm-metrics.json created ✅
+```
+
+**Example - Metrics Not Available:**
+```bash
+export VLLM_ENDPOINT_MODE=external
+export VLLM_ENDPOINT_URL=http://production-lb.company.com:8000
+
+# Test endpoint
+curl http://production-lb.company.com:8000/metrics
+# → 403 Forbidden (metrics not publicly exposed)
+
+# Run test
+ansible-playbook llm-benchmark-concurrent-load.yml \
+  -e "base_workload=chat" -e "requested_cores=16"
+
+# Result: Only benchmarks.json created (client metrics) ⚠️
+```
+
+**What You Get:**
+
+| Endpoint Type | Client Metrics | Server Metrics | System Metrics |
+|---------------|----------------|----------------|----------------|
+| Managed (DUT container) | ✅ Always | ✅ Always | ✅ Always |
+| External + `/metrics` public | ✅ Always | ✅ Auto-collected | ❌ Not applicable |
+| External + `/metrics` private | ✅ Always | ❌ Skipped | ❌ Not applicable |
+
+**Why `/metrics` might not be available:**
+- Security policies (production endpoints)
+- Load balancer configuration (metrics endpoint not forwarded)
+- Firewall rules (port blocked)
+- Authentication required (bearer token not configured)
+
+**Note:** Client metrics (GuideLLM) are always sufficient for performance evaluation. Server metrics provide additional debugging insight but are not required.
 
 ## 3. System Metrics
 

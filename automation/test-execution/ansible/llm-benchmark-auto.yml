@@ -374,7 +374,7 @@
       delegate_to: localhost
       delegate_facts: true
 
-    - name: Save vLLM endpoint URL for metrics collection
+    - name: Save vLLM endpoint URL for metrics collection (managed mode)
       ansible.builtin.set_fact:
         vllm_metrics_url: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}"
       delegate_to: localhost
@@ -382,6 +382,40 @@
       when:
         - not (skip_metrics_collection | default(false) | bool)
         - hostvars['localhost']['vllm_mode'] == 'managed'
+
+    - name: Check if external endpoint exposes metrics
+      ansible.builtin.uri:
+        url: "{{ vllm_endpoint.external.url }}/metrics"
+        method: GET
+        status_code: [200, 404, 403]
+        timeout: 5
+      register: external_metrics_check
+      delegate_to: localhost
+      failed_when: false
+      when:
+        - not (skip_metrics_collection | default(false) | bool)
+        - hostvars['localhost']['vllm_mode'] == 'external'
+
+    - name: Set external metrics URL if available
+      ansible.builtin.set_fact:
+        vllm_metrics_url: "{{ vllm_endpoint.external.url }}"
+        external_metrics_available: true
+      delegate_to: localhost
+      delegate_facts: true
+      when:
+        - not (skip_metrics_collection | default(false) | bool)
+        - hostvars['localhost']['vllm_mode'] == 'external'
+        - external_metrics_check.status is defined
+        - external_metrics_check.status == 200
+
+    - name: Display external metrics availability
+      ansible.builtin.debug:
+        msg:
+          - "{{ '✅ External endpoint exposes /metrics - server metrics collection ENABLED' if (external_metrics_check.status | default(0) == 200) else '⚠️  External endpoint does not expose /metrics - server metrics collection DISABLED' }}"
+          - "{{ 'Metrics URL: ' + vllm_endpoint.external.url + '/metrics' if (external_metrics_check.status | default(0) == 200) else 'Client-side metrics (GuideLLM) will still be collected' }}"
+      when:
+        - not (skip_metrics_collection | default(false) | bool)
+        - hostvars['localhost']['vllm_mode'] == 'external'
 
     - name: Start vLLM metrics collection
       block:
@@ -403,7 +437,10 @@
       become: false
       when:
         - not (skip_metrics_collection | default(false) | bool)
-        - hostvars['localhost']['vllm_mode'] == 'managed'
+        - >-
+          hostvars['localhost']['vllm_mode'] == 'managed' or
+          (hostvars['localhost']['vllm_mode'] == 'external' and
+           hostvars['localhost'].get('external_metrics_available', false))
 
   roles:
     - role: hf_token
@@ -424,7 +461,10 @@
       become: false
       when:
         - not (skip_metrics_collection | default(false) | bool)
-        - hostvars['localhost']['vllm_mode'] == 'managed'
+        - >-
+          hostvars['localhost']['vllm_mode'] == 'managed' or
+          (hostvars['localhost']['vllm_mode'] == 'external' and
+           hostvars['localhost'].get('external_metrics_available', false))
 
 # ==============================================================================
 # STEP 6: Collect Results
