@@ -1,19 +1,15 @@
 ---
 # Stop vLLM Metrics Collector
 
-- name: Wait for metrics collection to complete
-  ansible.builtin.wait_for:
-    path: "{{ results_path }}/vllm-metrics.json"
-    timeout: 30
-  delegate_to: localhost
-  become: false
-  ignore_errors: true
-  when: enable_vllm_metrics_collection | default(true)
-
-- name: Check if collector is still running
+- name: Send SIGTERM to metrics collector for graceful shutdown
   ansible.builtin.shell: |
-    ps -p {{ vllm_metrics_collector_pid }} > /dev/null 2>&1 && echo "running" || echo "stopped"
-  register: collector_status
+    if ps -p {{ vllm_metrics_collector_pid }} > /dev/null 2>&1; then
+      kill -TERM {{ vllm_metrics_collector_pid }} 2>/dev/null || true
+      echo "sent"
+    else
+      echo "not_running"
+    fi
+  register: sigterm_sent
   delegate_to: localhost
   become: false
   failed_when: false
@@ -21,21 +17,46 @@
     - enable_vllm_metrics_collection | default(true)
     - vllm_metrics_collector_pid is defined
 
-- name: Stop metrics collector if still running
-  ansible.builtin.shell: |
-    kill {{ vllm_metrics_collector_pid }} 2>/dev/null || true
+- name: Wait for metrics collector to finish writing
+  ansible.builtin.wait_for:
+    path: "{{ results_path }}/vllm-metrics.json"
+    timeout: 60
   delegate_to: localhost
   become: false
+  ignore_errors: true
+  when:
+    - enable_vllm_metrics_collection | default(true)
+    - sigterm_sent.stdout | default('') == 'sent'
+
+- name: Force kill if still running after timeout
+  ansible.builtin.shell: |
+    if ps -p {{ vllm_metrics_collector_pid }} > /dev/null 2>&1; then
+      kill -9 {{ vllm_metrics_collector_pid }} 2>/dev/null || true
+      echo "force_killed"
+    else
+      echo "already_stopped"
+    fi
+  register: force_kill_result
+  delegate_to: localhost
+  become: false
+  failed_when: false
   when:
     - enable_vllm_metrics_collection | default(true)
     - vllm_metrics_collector_pid is defined
-    - collector_status.stdout | default('stopped') == 'running'
+
+- name: Check if metrics file was created
+  ansible.builtin.stat:
+    path: "{{ results_path }}/vllm-metrics.json"
+  register: metrics_file
+  delegate_to: localhost
+  when: enable_vllm_metrics_collection | default(true)
 
 - name: Display metrics collection results
   ansible.builtin.debug:
     msg:
-      - "✓ vLLM metrics collection completed"
-      - "  Metrics file: {{ results_path }}/vllm-metrics.json"
+      - "{{ '✓ vLLM metrics collection completed' if metrics_file.stat.exists else '⚠ vLLM metrics collection did not complete' }}"
+      - "{{ '  Metrics file: ' + results_path + '/vllm-metrics.json' if metrics_file.stat.exists else '  No metrics file generated' }}"
+      - "{{ '  File size: ' + (metrics_file.stat.size | filesizeformat) if metrics_file.stat.exists else '' }}"
   when: enable_vllm_metrics_collection | default(true)
 
 - name: Clean up temporary metrics collection script
