@@ -104,6 +104,10 @@ export LOADGEN_HOSTNAME=your-loadgen-hostname.compute.amazonaws.com
 export ANSIBLE_SSH_USER=ec2-user
 export ANSIBLE_SSH_KEY=~/.ssh/your-key.pem
 export HF_TOKEN=hf_xxxxx  # If using gated models like Llama
+
+# Container images (optional - defaults are provided)
+export VLLM_CONTAINER_IMAGE=docker.io/vllm/vllm-openai-cpu:v0.18.0
+export GUIDELLM_CONTAINER_IMAGE=ghcr.io/vllm-project/guidellm:latest
 ```
 
 The inventory automatically uses these variables with sensible defaults.

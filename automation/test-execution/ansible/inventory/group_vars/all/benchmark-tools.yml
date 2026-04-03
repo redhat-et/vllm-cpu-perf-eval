@@ -15,7 +15,8 @@ benchmark_tool:
     use_container: true
 
     # Using GuideLLM official container image
-    container_image: "ghcr.io/vllm-project/guidellm:latest"
+    # Can be overridden with environment variable: export GUIDELLM_CONTAINER_IMAGE=...
+    container_image: "{{ lookup('env', 'GUIDELLM_CONTAINER_IMAGE') | default('ghcr.io/vllm-project/guidellm:latest', true) }}"
 
     # CPU allocation (only applies to containerized mode)
     # Load generator CPU allocation
@@ -90,7 +91,8 @@ benchmark_tool:
     use_container: true
 
     # Container image for vllm bench
-    container_image: "quay.io/mtahhan/vllm:arm-base-cpu"
+    # Can be overridden with environment variable: export VLLM_BENCH_CONTAINER_IMAGE=...
+    container_image: "{{ lookup('env', 'VLLM_BENCH_CONTAINER_IMAGE') | default('quay.io/mtahhan/vllm:arm-base-cpu', true) }}"
 
     # Number of prompts for embedding benchmark tests
     # Trade-off: sample size vs test duration

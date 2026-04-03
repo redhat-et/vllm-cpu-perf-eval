@@ -143,6 +143,10 @@ chmod 600 ~/your-key.pem
 
 # HuggingFace token (for gated models like Llama)
 export HF_TOKEN=$(cat ~/hf-token)
+
+# Container images (optional - defaults are provided)
+export VLLM_CONTAINER_IMAGE=docker.io/vllm/vllm-openai-cpu:v0.18.0
+export GUIDELLM_CONTAINER_IMAGE=ghcr.io/vllm-project/guidellm:latest
 ```
 
 The inventory file automatically uses these environment variables with sensible defaults.
