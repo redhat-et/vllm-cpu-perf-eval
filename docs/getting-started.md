@@ -32,7 +32,8 @@ brew install ansible
 sudo apt update && sudo apt install -y ansible
 
 # On RHEL/Fedora
-sudo dnf install -y ansible
+sudo dnf install -y ansible-core python3-pip
+pip install podman-compose
 
 # Verify installation
 ansible --version  # Should be 2.14+
