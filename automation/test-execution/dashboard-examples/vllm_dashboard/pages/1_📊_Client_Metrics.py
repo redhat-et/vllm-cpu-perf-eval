@@ -9,7 +9,7 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal
 
 import numpy as np
 import pandas as pd
@@ -302,6 +302,94 @@ def render_filters(df: pd.DataFrame, test_mode: str) -> pd.DataFrame:
     return filtered_df
 
 
+def geometric_mean(values):
+    """Geometric mean of positive values. Accepts a list or pandas Series."""
+    if hasattr(values, "values"):
+        positive = values[values > 0].values
+    else:
+        positive = [v for v in values if v > 0]
+    if len(positive) == 0:
+        return None
+    return float(np.exp(np.mean(np.log(positive))))
+
+
+def compare_two_datasets(
+    data_a,
+    data_b,
+    metric_column,
+    aggregation,
+    higher_is_better,
+    x_axis_column='request_rate'
+):
+    """Compare two DataFrames on a metric.
+
+    Args:
+        data_a: Baseline DataFrame
+        data_b: Comparison DataFrame
+        metric_column: Column name to compare
+        aggregation: 'peak' or 'geom_mean'
+        higher_is_better: True if higher values are better
+        x_axis_column: 'request_rate' or 'concurrency'
+
+    Returns:
+        (pct_diff, a_is_better, a_peak_load, b_peak_load, is_similar)
+    """
+    # Get common load points
+    a_loads = set(data_a[x_axis_column].dropna().unique())
+    b_loads = set(data_b[x_axis_column].dropna().unique())
+    common = a_loads.intersection(b_loads)
+
+    if not common:
+        return None, None, None, None, None
+
+    # Filter to common load points
+    a_common = data_a[data_a[x_axis_column].isin(common)]
+    b_common = data_b[data_b[x_axis_column].isin(common)]
+
+    a_vals = a_common[metric_column].dropna().tolist()
+    b_vals = b_common[metric_column].dropna().tolist()
+
+    if not a_vals or not b_vals:
+        return None, None, None, None, None
+
+    # Calculate aggregate value based on method
+    if aggregation == "peak":
+        if higher_is_better:
+            a_val, b_val = max(a_vals), max(b_vals)
+            # Track at which load point the peak occurs
+            a_peak_load = float(
+                a_common.loc[a_common[metric_column].idxmax(), x_axis_column]
+            )
+            b_peak_load = float(
+                b_common.loc[b_common[metric_column].idxmax(), x_axis_column]
+            )
+        else:
+            a_val, b_val = min(a_vals), min(b_vals)
+            a_peak_load = float(
+                a_common.loc[a_common[metric_column].idxmin(), x_axis_column]
+            )
+            b_peak_load = float(
+                b_common.loc[b_common[metric_column].idxmin(), x_axis_column]
+            )
+    else:  # geom_mean
+        a_val = geometric_mean(a_vals)
+        b_val = geometric_mean(b_vals)
+        a_peak_load = None
+        b_peak_load = None
+
+    if a_val is None or b_val is None or b_val == 0:
+        return None, None, None, None, None
+
+    # Calculate percentage difference
+    pct_diff = ((a_val - b_val) / b_val) * 100
+    a_better = pct_diff > 0 if higher_is_better else pct_diff < 0
+
+    # Consider similar if within 5%
+    is_similar = abs(pct_diff) < 5
+
+    return pct_diff, a_better, a_peak_load, b_peak_load, is_similar
+
+
 def render_performance_plots(df: pd.DataFrame):
     """Render performance vs load plots section."""
     st.markdown('<p class="section-header">📈 Performance Plots</p>', unsafe_allow_html=True)
@@ -310,15 +398,21 @@ def render_performance_plots(df: pd.DataFrame):
         st.warning("No data available for selected filters.")
         return
 
+    # Detect test mode from dataframe
+    test_mode = df['vllm_mode'].iloc[0] if not df.empty else 'managed'
+
     # Axis selectors
     metric_options = {
         "Throughput (tokens/sec)": "throughput_mean",
         "TTFT (ms)": "ttft_p95",
         "ITL (ms)": "itl_p95",
         "E2E Latency (s)": "e2e_p95",
-        "Efficiency (tokens/sec/core)": "efficiency",
         "Success Rate (%)": "success_rate"
     }
+
+    # Only add efficiency metric for managed mode (requires core count)
+    if test_mode == 'managed':
+        metric_options["Efficiency (tokens/sec/core)"] = "efficiency"
 
     x_axis_options = {
         "Request Rate (req/s)": "request_rate",
@@ -406,27 +500,53 @@ def render_performance_plots(df: pd.DataFrame):
 
     # Show load sweep details
     with st.expander("📊 View Detailed Load Sweep Data"):
-        # Summary table
+        # Summary table with peak load tracking
         summary = []
-        for (platform, model, workload, vllm_version, cores, tp, test_id), group_df in grouped:
-            max_throughput = group_df['throughput_mean'].max()
-            best_ttft = group_df['ttft_p95'].min()
-            max_concurrency = group_df['concurrency'].max()
-            backend = group_df['backend'].iloc[0]
+        x_label = (
+            "@ Request Rate"
+            if x_col == "request_rate"
+            else "@ Concurrency"
+        )
 
-            summary.append({
-                'Platform': platform,
+        for (
+            platform, model, workload,
+            vllm_version, cores, tp, test_id
+        ), group_df in grouped:
+            # Peak throughput and where it occurs
+            max_tput_idx = group_df['throughput_mean'].idxmax()
+            max_throughput = group_df.loc[max_tput_idx, 'throughput_mean']
+            peak_tput_load = group_df.loc[max_tput_idx, x_col]
+
+            # Best TTFT and where it occurs
+            min_ttft_idx = group_df['ttft_p95'].idxmin()
+            best_ttft = group_df.loc[min_ttft_idx, 'ttft_p95']
+            best_ttft_load = group_df.loc[min_ttft_idx, x_col]
+
+            backend = group_df['backend'].iloc[0]
+            vllm_mode = group_df['vllm_mode'].iloc[0]
+
+            row = {
                 'Model': model,
                 'Workload': workload,
                 'Release': vllm_version,
-                'Cores': cores,
                 'TP': tp,
                 'Backend': backend,
-                'Peak Throughput (tok/s)': f"{max_throughput:.2f}",
-                'Best TTFT P95 (ms)': f"{best_ttft:.2f}",
-                'Max Concurrency': max_concurrency,
+                f'Peak Throughput {x_label}': f"{max_throughput:.2f} @ {peak_tput_load:.1f}",  # noqa: E501
+                f'Best TTFT P95 {x_label}': f"{best_ttft:.2f} @ {best_ttft_load:.1f}",  # noqa: E501
                 'Load Points': len(group_df)
-            })
+            }
+
+            # Add platform/cores for managed, endpoint for external
+            if vllm_mode == 'managed':
+                row['Platform'] = platform
+                row['Cores'] = cores
+            else:
+                endpoint_short = group_df['vllm_endpoint_url'].iloc[0]
+                if '//' in endpoint_short:
+                    endpoint_short = endpoint_short.split('//')[1]
+                row['Endpoint'] = endpoint_short[:40]
+
+            summary.append(row)
 
         summary_df = pd.DataFrame(summary)
         st.dataframe(summary_df, use_container_width=True)
@@ -538,60 +658,117 @@ def render_compare_versions(df: pd.DataFrame):
     st.markdown("---")
     st.markdown("### Comparison Results")
 
-    # X-axis selector for comparison plots
+    # Chart options
     st.markdown("#### Chart Options")
-    x_axis_options = {
-        "Request Rate (req/s)": "request_rate",
-        "Concurrency": "concurrency"
+    col_opt1, col_opt2 = st.columns(2)
+
+    with col_opt1:
+        x_axis_options = {
+            "Request Rate (req/s)": "request_rate",
+            "Concurrency": "concurrency"
+        }
+        selected_x_axis_compare = st.selectbox(
+            "X-axis",
+            list(x_axis_options.keys()),
+            key="x_axis_compare"
+        )
+        x_col_compare = x_axis_options[selected_x_axis_compare]
+
+    with col_opt2:
+        aggregation_options = {
+            "Peak": "peak",
+            "Geometric Mean": "geom_mean"
+        }
+        selected_aggregation = st.selectbox(
+            "Aggregation Method",
+            list(aggregation_options.keys()),
+            key="aggregation_compare",
+            help="Peak: Compare best single value | "
+                 "Geom Mean: Compare average across all load points"
+        )
+        aggregation = aggregation_options[selected_aggregation]
+
+    # Performance metrics comparison
+    st.markdown("---")
+
+    # Define metrics to compare
+    metrics_config = {
+        "Throughput": {
+            "column": "throughput_mean",
+            "higher_is_better": True,
+            "format": "{:.2f} tok/s",
+            "show": True
+        },
+        "TTFT P95": {
+            "column": "ttft_p95",
+            "higher_is_better": False,
+            "format": "{:.2f} ms",
+            "show": True
+        }
     }
 
-    selected_x_axis_compare = st.selectbox(
-        "X-axis for comparison charts",
-        list(x_axis_options.keys()),
-        key="x_axis_compare"
-    )
+    # Add efficiency only for managed mode
+    if test_mode == 'managed':
+        metrics_config["Efficiency"] = {
+            "column": "efficiency",
+            "higher_is_better": True,
+            "format": "{:.2f} tok/s/core",
+            "show": True
+        }
 
-    x_col_compare = x_axis_options[selected_x_axis_compare]
+    # Calculate comparisons
+    comparison_results = {}
+    for metric_name, config in metrics_config.items():
+        result = compare_two_datasets(
+            baseline_data,
+            compare_data,
+            config["column"],
+            aggregation,
+            config["higher_is_better"],
+            x_col_compare
+        )
+        comparison_results[metric_name] = result
 
-    # Peak performance metrics
-    st.markdown("---")
-    metrics_col1, metrics_col2, metrics_col3 = st.columns(3)
+    # Display metrics
+    num_metrics = len([m for m in metrics_config.values() if m["show"]])
+    cols = st.columns(num_metrics)
+    col_idx = 0
 
-    baseline_peak_tput = baseline_data['throughput_mean'].max()
-    compare_peak_tput = compare_data['throughput_mean'].max()
-    tput_diff = ((compare_peak_tput - baseline_peak_tput) / baseline_peak_tput) * 100
+    for metric_name, config in metrics_config.items():
+        if not config["show"]:
+            continue
 
-    baseline_best_ttft = baseline_data['ttft_p95'].min()
-    compare_best_ttft = compare_data['ttft_p95'].min()
-    ttft_diff = ((compare_best_ttft - baseline_best_ttft) / baseline_best_ttft) * 100
-
-    baseline_efficiency = baseline_data['efficiency'].max()
-    compare_efficiency = compare_data['efficiency'].max()
-    eff_diff = ((compare_efficiency - baseline_efficiency) / baseline_efficiency) * 100
-
-    with metrics_col1:
-        st.metric(
-            "Peak Throughput",
-            f"{compare_peak_tput:.2f} tok/s",
-            f"{tput_diff:+.1f}% vs baseline",
-            delta_color="normal"
+        pct_diff, better, a_load, b_load, similar = (
+            comparison_results[metric_name]
         )
 
-    with metrics_col2:
-        st.metric(
-            "Best TTFT P95",
-            f"{compare_best_ttft:.2f} ms",
-            f"{ttft_diff:+.1f}% vs baseline",
-            delta_color="inverse"
-        )
+        if pct_diff is not None:
+            # Get the actual values for display
+            if aggregation == "peak":
+                if config["higher_is_better"]:
+                    compare_val = compare_data[config["column"]].max()
+                else:
+                    compare_val = compare_data[config["column"]].min()
+            else:
+                compare_val = geometric_mean(
+                    compare_data[config["column"]].dropna().tolist()
+                )
 
-    with metrics_col3:
-        st.metric(
-            "Efficiency",
-            f"{compare_efficiency:.2f} tok/s/core",
-            f"{eff_diff:+.1f}% vs baseline",
-            delta_color="normal"
-        )
+            load_label = "@ rate" if x_col_compare == "request_rate" else "@ conc"
+
+            with cols[col_idx]:
+                st.metric(
+                    metric_name,
+                    config["format"].format(compare_val),
+                    f"{pct_diff:+.1f}% vs baseline",
+                    delta_color=(
+                        "normal" if config["higher_is_better"] else "inverse"
+                    )
+                )
+                if aggregation == "peak" and b_load is not None:
+                    st.caption(f"{load_label} {b_load:.1f}")
+
+        col_idx += 1
 
     # Comparison plot
     fig = make_subplots(
