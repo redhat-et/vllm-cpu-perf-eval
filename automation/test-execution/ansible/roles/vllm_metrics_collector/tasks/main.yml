@@ -168,7 +168,7 @@
 
 - name: Start metrics collection in background
   ansible.builtin.shell: |
-    nohup python3 {{ metrics_script_path }} \
+    nohup python3 -u {{ metrics_script_path }} \
       "{{ vllm_url }}" \
       "{{ results_path }}/vllm-metrics.json" \
       "{{ metrics_collection_interval | default(5) }}" \
