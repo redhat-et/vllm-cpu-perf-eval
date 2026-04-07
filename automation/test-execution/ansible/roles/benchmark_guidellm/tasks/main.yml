@@ -86,6 +86,7 @@
       - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       - "Mode: {{ 'Container' if use_guidellm_container else 'Host' }}"
       - "Target: http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}"
+      - "{{ 'API Key: Enabled' if (vllm_api_key is defined and vllm_api_key | length > 0) else 'API Key: Not configured' }}"
       - "Workload: {{ workload_type }} (ISL:{{ workload_cfg.isl }}/OSL:{{ workload_cfg.osl }})"
       - "Profile: {{ guidellm_cfg.profile }}"
       - "Rate: {{ 'N/A (synchronous)' if guidellm_cfg.profile == 'synchronous' else guidellm_cfg.rate | default([]) }}"
@@ -142,6 +143,14 @@
   ansible.builtin.set_fact:
     guidellm_env: "{{ guidellm_env | combine({'GUIDELLM_RATE': guidellm_cfg.rate | default([]) | join(',')}) }}"
   when: guidellm_cfg.profile != 'synchronous'
+  no_log: true
+
+- name: Add API key to backend kwargs if configured
+  ansible.builtin.set_fact:
+    guidellm_env: "{{ guidellm_env | combine({'GUIDELLM_BACKEND_KWARGS': '{\"api_key\": \"' + vllm_api_key + '\"}'}) }}"
+  when:
+    - vllm_api_key is defined
+    - vllm_api_key | length > 0
   no_log: true
 
 - name: Start GuideLLM benchmark container
@@ -305,6 +314,9 @@
       --cooldown {{ guidellm_cfg.cooldown }}
       --outputs {{ guidellm_cfg.outputs }}
       --output-dir {{ results_path }}
+      {% if vllm_api_key is defined and vllm_api_key | length > 0 %}
+      --backend-kwargs '{"api_key": "{{ vllm_api_key }}"}'
+      {% endif %}
   when: not (use_guidellm_container | bool)
 
 - name: Run GuideLLM benchmark on host
