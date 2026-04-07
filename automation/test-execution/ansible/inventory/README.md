@@ -243,7 +243,7 @@ export HF_TOKEN=hf_xxxxx
 - ✅ Version detection (`/version` endpoint)
 - ✅ Model auto-detection (`/v1/models` endpoint)
 
-#### 3B. OpenAI-Compatible Endpoint (LiteLLM, OpenAI API, etc.)
+#### 3B. OpenAI-Compatible Endpoint (HuggingFace, LiteLLM, OpenAI API, etc.)
 
 For OpenAI-compatible services that only support `/v1/*` endpoints:
 
@@ -253,22 +253,19 @@ export LOADGEN_HOSTNAME=192.168.1.200
 export ANSIBLE_SSH_USER=ec2-user
 export ANSIBLE_SSH_KEY=~/.ssh/my-key.pem
 
-# OpenAI-compatible endpoint
+# HuggingFace Inference API endpoint
 export VLLM_ENDPOINT_MODE=external
 export VLLM_ENDPOINT_TYPE=openai-compatible  # Skips vLLM-specific health checks
-export VLLM_ENDPOINT_URL=https://litellm-prod.example.com
+export VLLM_ENDPOINT_URL=https://router.huggingface.co/models/meta-llama/Llama-3.2-1B-Instruct
 
-# API key authentication (usually required)
+# API key authentication (HuggingFace token)
 export VLLM_API_KEY_ENABLED=true
-export VLLM_API_KEY=sk-your-litellm-api-key
-
-# Optional: HuggingFace token
-export HF_TOKEN=hf_xxxxx
+export VLLM_API_KEY=$HF_TOKEN  # Your HuggingFace token
 ```
 
 **Features:**
-- ✅ Model auto-detection (`/v1/models` endpoint)
-- ✅ API key authentication support
+- ✅ Model auto-detection (extracted from HuggingFace URL pattern)
+- ✅ API key authentication support (Bearer token)
 - ⏩ Health checks skipped (no `/health` endpoint)
 - ⏩ Server metrics skipped (no `/metrics` endpoint)
 - ⏩ Version detection skipped (no `/version` endpoint)

@@ -239,16 +239,20 @@ Concurrent load tests support two vLLM deployment modes:
 - Fully automated but adds container startup time to each test
 
 **External Mode:**
-- Connect to existing vLLM instance (cloud, K8s, bare metal)
+- Connect to existing vLLM instance or OpenAI-compatible endpoint (cloud,
+  K8s, HuggingFace, etc.)
 - No container management - faster test execution
 - Better reflects production deployment patterns
-- Requires manual vLLM setup before running tests
-- Model name auto-detected from endpoint (no need to specify `test_model`)
+- Supports vLLM endpoints (with health/metrics) and OpenAI-compatible
+  endpoints
+- Model name auto-detected from endpoint or URL pattern (no need to
+  specify `test_model`)
 
 **To use external mode:**
 
 ```bash
 export VLLM_ENDPOINT_MODE=external
+export VLLM_ENDPOINT_TYPE=vllm  # or 'openai-compatible' for HuggingFace/LiteLLM/etc
 export VLLM_ENDPOINT_URL=http://your-vllm-instance:8000
 ```
 
@@ -429,9 +433,10 @@ export HF_TOKEN=hf_xxxxx
 
 **Features:** Health checks ✓ | Server metrics ✓ | Version detection ✓
 
-##### Option B: OpenAI-Compatible Endpoint (LiteLLM, OpenAI API, etc.)
+##### Option B: OpenAI-Compatible Endpoint (HuggingFace, LiteLLM, etc.)
 
-For OpenAI-compatible services (LiteLLM, OpenAI API, Together AI, etc.):
+For OpenAI-compatible services (HuggingFace Inference API, LiteLLM, OpenAI
+API, Together AI, etc.):
 
 **1. Configure load generator and OpenAI-compatible endpoint:**
 
@@ -441,17 +446,14 @@ export LOADGEN_HOSTNAME=192.168.1.200
 export ANSIBLE_SSH_USER=ec2-user
 export ANSIBLE_SSH_KEY=~/.ssh/my-key.pem
 
-# OpenAI-compatible endpoint
+# HuggingFace Inference API endpoint
 export VLLM_ENDPOINT_MODE=external
 export VLLM_ENDPOINT_TYPE=openai-compatible  # Skips vLLM-specific checks
-export VLLM_ENDPOINT_URL=https://litellm-prod.example.com
+export VLLM_ENDPOINT_URL=https://router.huggingface.co/models/meta-llama/Llama-3.2-1B-Instruct
 
-# API key authentication (usually required)
+# API key authentication (HuggingFace token)
 export VLLM_API_KEY_ENABLED=true
-export VLLM_API_KEY=sk-your-litellm-api-key
-
-# Optional: HuggingFace token
-export HF_TOKEN=hf_xxxxx
+export VLLM_API_KEY=$HF_TOKEN  # Your HuggingFace token
 ```
 
 **Features:** Health checks ⏩ | Server metrics ⏩ | Client metrics ✓
@@ -459,7 +461,8 @@ export HF_TOKEN=hf_xxxxx
 **Note:** For both options:
 - **No DUT connection needed** - endpoint is already running externally
 - **No `requested_cores` needed** - you don't control server CPU allocation
-- **Model auto-detected** - omit `test_model` (queried from `/v1/models`)
+- **Model auto-detected** - omit `test_model` (extracted from HuggingFace
+  URL pattern or `/v1/models` API)
 
 **2. Run tests (model name auto-detected from endpoint):**
 
