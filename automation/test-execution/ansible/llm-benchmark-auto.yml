@@ -49,20 +49,36 @@
       ansible.builtin.assert:
         that:
           - workload_type is defined
-          - requested_cores is defined
         fail_msg: |
           Missing required variables. Please provide:
           -e "workload_type=<summarization|chat|code|rag>"
-          -e "requested_cores=<8|16|32|64|...>"
           Note: test_model is optional in external mode (will be queried from endpoint)
       when: vllm_mode == 'external'
 
-    - name: Validate requested_cores is a positive integer
+    - name: Warn if cores specified in external mode
+      ansible.builtin.debug:
+        msg:
+          - "⚠️  Warning: requested_cores={{ requested_cores }} specified but not used in external mode"
+          - "   External endpoints have their own CPU allocation - core count will be ignored"
+          - "   Core count will be set to 0 for metadata purposes"
+      when:
+        - vllm_mode == 'external'
+        - requested_cores is defined
+        - requested_cores | int > 0
+
+    - name: Override core count to 0 for external mode
+      ansible.builtin.set_fact:
+        requested_cores: 0
+      when:
+        - vllm_mode == 'external'
+
+    - name: Validate requested_cores is a positive integer (managed mode only)
       ansible.builtin.assert:
         that:
           - requested_cores | int > 0
           - requested_cores | int == requested_cores | float
         fail_msg: "requested_cores must be a positive integer, got: {{ requested_cores }}"
+      when: vllm_mode == 'managed'
 
     - name: Validate workload_type is supported
       ansible.builtin.assert:

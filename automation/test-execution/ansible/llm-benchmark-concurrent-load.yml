@@ -63,7 +63,7 @@
           - base_workload in ['chat', 'rag', 'code', 'summarization']
         fail_msg: "base_workload must be one of: chat, rag, code, summarization"
 
-    - name: Validate required parameters
+    - name: Validate required parameters (managed mode only)
       ansible.builtin.assert:
         that:
           - >-
@@ -77,6 +77,24 @@
 
           The concurrent load test requires at least one core configuration to test.
           This playbook will run 3 phases with the specified core configuration(s).
+      when: vllm_mode == 'managed'
+
+    - name: Warn if cores specified in external mode
+      ansible.builtin.debug:
+        msg:
+          - "⚠️  Warning: requested_cores={{ requested_cores }} specified but not used in external mode"
+          - "   External endpoints have their own CPU allocation - core count will be ignored"
+          - "   Core count will be set to 0 for metadata purposes"
+      when:
+        - vllm_mode == 'external'
+        - requested_cores is defined
+        - requested_cores | int > 0
+
+    - name: Override core count to 0 for external mode
+      ansible.builtin.set_fact:
+        requested_cores: 0
+      when:
+        - vllm_mode == 'external'
 
     - name: Normalize core configuration input
       ansible.builtin.set_fact:
@@ -132,7 +150,7 @@
           - "Phase 1 (Baseline - Fixed, No Cache): {{ 'SKIP' if (skip_phase_1 | default(false) | bool) else 'RUN' }}"
           - "Phase 2 (Realistic - Variable, No Cache): {{ 'SKIP' if (skip_phase_2 | default(false) | bool) else ('RUN' if has_variable_workload else 'N/A') }}"
           - "Phase 3 (Production - Variable, With Cache): {{ 'SKIP' if (skip_phase_3 | default(false) | bool) else ('RUN' if has_variable_workload else 'N/A') }}"
-          - "Core Configuration: {{ effective_requested_cores }} cores"
+          - "Core Configuration: {{ '0 cores (external endpoint manages its own CPUs)' if vllm_mode == 'external' else (effective_requested_cores | string) + ' cores' }}"
           - "============================================================"
 
 # ==========================================================================
