@@ -17,10 +17,17 @@
     - enable_vllm_metrics_collection | default(true)
     - vllm_metrics_collector_pid is defined
 
-- name: Wait for metrics collector to finish writing
-  ansible.builtin.wait_for:
-    path: "{{ results_path }}/vllm-metrics.json"
-    timeout: 60
+- name: Wait for metrics collector to exit after SIGTERM
+  ansible.builtin.shell: |
+    for i in $(seq 1 60); do
+      if ! ps -p {{ vllm_metrics_collector_pid }} > /dev/null 2>&1; then
+        echo "stopped"
+        exit 0
+      fi
+      sleep 1
+    done
+    echo "timeout"
+  register: collector_stop_wait
   delegate_to: localhost
   become: false
   ignore_errors: true
@@ -43,6 +50,7 @@
   when:
     - enable_vllm_metrics_collection | default(true)
     - vllm_metrics_collector_pid is defined
+    - collector_stop_wait.stdout | default('') == 'timeout'
 
 - name: Check if metrics file was created
   ansible.builtin.stat:

@@ -298,8 +298,8 @@ if current_section == "📈 Performance Plots":
     else:  # external mode
         cols = st.columns(5)
         endpoint_url = test_data.get('vllm_endpoint_url', 'N/A')
-        # Shorten endpoint for display
-        endpoint_short = endpoint_url.split('//')[1].split(':')[0] if '//' in endpoint_url else endpoint_url
+        # Shorten endpoint for display (preserve host:port)
+        endpoint_short = endpoint_url.split('//', 1)[-1].rsplit('@', 1)[-1].split('/', 1)[0]
         cols[0].metric("Endpoint", endpoint_short)
         cols[1].metric("Model", test_data.get('model', 'unknown').split('/')[-1])
         cols[2].metric("Workload", test_data.get('workload', 'N/A'))
@@ -976,10 +976,10 @@ elif current_section == "⚖️ Compare Configurations":
     else:  # external mode
         baseline_endpoint_short = baseline_result.get('vllm_endpoint_url', 'unknown')
         if '//' in baseline_endpoint_short:
-            baseline_endpoint_short = baseline_endpoint_short.split('//')[1].split(':')[0]
+            baseline_endpoint_short = baseline_endpoint_short.split('//', 1)[-1].rsplit('@', 1)[-1].split('/', 1)[0]
         compare_endpoint_short = compare_result.get('vllm_endpoint_url', 'unknown')
         if '//' in compare_endpoint_short:
-            compare_endpoint_short = compare_endpoint_short.split('//')[1].split(':')[0]
+            compare_endpoint_short = compare_endpoint_short.split('//', 1)[-1].rsplit('@', 1)[-1].split('/', 1)[0]
         baseline_label = f"Baseline: {baseline_endpoint_short} | {baseline_result.get('vllm_version', 'unknown')} | {baseline_result.get('workload', 'unknown')} | {baseline_result.get('backend', 'unknown')}"
         compare_label = f"Compare: {compare_endpoint_short} | {compare_result.get('vllm_version', 'unknown')} | {compare_result.get('workload', 'unknown')} | {compare_result.get('backend', 'unknown')}"
     labels = [baseline_label, compare_label]
@@ -1092,7 +1092,7 @@ elif current_section == "⚖️ Compare Configurations":
             row['Cores'] = result.get('cores', 'N/A')
         else:  # external mode
             endpoint_url = result.get('vllm_endpoint_url', 'unknown')
-            endpoint_short = endpoint_url.split('//')[1].split(':')[0] if '//' in endpoint_url else endpoint_url
+            endpoint_short = endpoint_url.split('//', 1)[-1].rsplit('@', 1)[-1].split('/', 1)[0]
             row['Endpoint'] = endpoint_short
 
         comparison_table.append(row)

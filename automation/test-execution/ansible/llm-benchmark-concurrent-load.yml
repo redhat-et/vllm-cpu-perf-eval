@@ -96,13 +96,6 @@
               -e "test_model=<YOUR_MODEL>" \
               -e "workload_type=<WORKLOAD_TYPE>"
 
-    - name: Validate base_workload parameter
-      ansible.builtin.assert:
-        that:
-          - base_workload is defined
-          - base_workload in ['chat', 'rag', 'code', 'summarization']
-        fail_msg: "base_workload must be one of: chat, rag, code, summarization"
-
     - name: Validate test_model in managed mode
       ansible.builtin.assert:
         that:

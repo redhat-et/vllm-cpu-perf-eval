@@ -400,13 +400,6 @@ vllm serve meta-llama/Llama-3.2-1B-Instruct \
   --max-model-len 8192 \
   --no-enable-prefix-caching
 
-# For Phase 3 (production - with caching)
-vllm serve meta-llama/Llama-3.2-1B-Instruct \
-  --host 0.0.0.0 \
-  --port 8000 \
-  --dtype bfloat16 \
-  --max-model-len 8192 \
-  --enable-prefix-caching
 ```
 
 **2. Configure load generator and external endpoint:**
@@ -439,19 +432,12 @@ cd ../../automation/test-execution/ansible
 
 # Run Phases 1 & 2 (against baseline vLLM instance)
 # Note: test_model is optional - will be queried from endpoint
+# Note: Phase 3 is not yet supported (blocked by realistic dataset availability)
 ansible-playbook -i inventory/hosts.yml \
   llm-benchmark-concurrent-load.yml \
   -e "base_workload=chat" \
   -e "requested_cores=16" \
   -e "skip_phase_3=true"
-
-# Restart vLLM with caching enabled, then run Phase 3
-ansible-playbook -i inventory/hosts.yml \
-  llm-benchmark-concurrent-load.yml \
-  -e "base_workload=chat" \
-  -e "requested_cores=16" \
-  -e "skip_phase_1=true" \
-  -e "skip_phase_2=true"
 ```
 
 **Benefits:**

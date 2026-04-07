@@ -123,8 +123,18 @@
             url: "{{ vllm_endpoint.external.url }}/v1/models"
             method: GET
             status_code: 200
+            headers: "{{ {'Authorization': 'Bearer ' + (vllm_endpoint.external.api_key | default(''))} if (vllm_endpoint.external.api_key_enabled | default(false)) else {} }}"
           register: external_models_response
           delegate_to: localhost
+
+        - name: Validate endpoint returned at least one model
+          ansible.builtin.assert:
+            that:
+              - external_models_response.json.data | length > 0
+            fail_msg: |
+              External endpoint returned no models.
+              URL: {{ vllm_endpoint.external.url }}/v1/models
+              Ensure the vLLM server has a model loaded.
 
         - name: Extract model name from endpoint
           ansible.builtin.set_fact:
@@ -134,12 +144,14 @@
           ansible.builtin.set_fact:
             test_model: "{{ endpoint_model }}"
             actual_model: "{{ endpoint_model }}"
+            model_source: "auto-detected"
             cacheable: true
           when: test_model is not defined or test_model == '__AUTO_DETECT__'
 
         - name: Set actual_model to test_model if explicitly provided
           ansible.builtin.set_fact:
             actual_model: "{{ test_model }}"
+            model_source: "specified"
             cacheable: true
           when: test_model is defined and test_model != '__AUTO_DETECT__'
 
@@ -162,6 +174,7 @@
     - name: Set actual_model for managed mode
       ansible.builtin.set_fact:
         actual_model: "{{ test_model }}"
+        model_source: "specified"
       when: vllm_mode == 'managed'
 
     - name: Display auto-config test information
@@ -493,7 +506,7 @@
             "omp_num_threads": {{ core_configuration.omp_num_threads | default('null') }},
             "omp_threads_bind": {{ core_configuration.omp_threads_bind | default('null') }},
             "model": "{{ actual_model }}",
-            "model_source": "{{ 'auto-detected' if hostvars['localhost']['vllm_mode'] == 'external' else 'specified' }}",
+            "model_source": "{{ hostvars['localhost']['model_source'] | default('specified') }}",
             "workload": "{{ workload_type }}",
             "platform": "{{ hostvars['localhost']['dut_platform_name'] | default('unknown') }}",
             "backend": "{{ hostvars['localhost']['vllm_backend'] | default('upstream') }}",

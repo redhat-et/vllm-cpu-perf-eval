@@ -153,7 +153,8 @@ with tab1:
 
     Each dashboard loads from this directory - just run a test and refresh!
 
-    **Note**: External endpoint runs show client metrics only (no server-side metrics).
+    **Note**: External endpoint runs always show client metrics. Server-side metrics are
+    available when the external endpoint exposes `/metrics`.
     """)
 
 with tab2:

@@ -158,7 +158,9 @@ def load_guidellm_data(results_dir: str) -> pd.DataFrame:
     df = pd.DataFrame(all_results)
 
     # Calculate efficiency (throughput per core)
-    df['efficiency'] = df['throughput_mean'] / df['cores']
+    # Guard against missing/zero cores to avoid inf/NaN
+    cores = pd.to_numeric(df['cores'], errors='coerce')
+    df['efficiency'] = np.where(cores > 0, df['throughput_mean'] / cores, np.nan)
 
     return df
 
@@ -332,25 +334,37 @@ def compare_two_datasets(
         x_axis_column: 'request_rate' or 'concurrency'
 
     Returns:
-        (pct_diff, a_is_better, a_peak_load, b_peak_load, is_similar)
+        (pct_diff, a_is_better, a_peak_load, b_peak_load, is_similar, a_val, b_val)
     """
     # Get common load points
-    a_loads = set(data_a[x_axis_column].dropna().unique())
-    b_loads = set(data_b[x_axis_column].dropna().unique())
+    # For request_rate, round to avoid floating-point comparison issues
+    if x_axis_column == "request_rate":
+        a_keys = np.round(pd.to_numeric(data_a[x_axis_column], errors='coerce'), 2)
+        b_keys = np.round(pd.to_numeric(data_b[x_axis_column], errors='coerce'), 2)
+    else:
+        a_keys = pd.to_numeric(data_a[x_axis_column], errors='coerce')
+        b_keys = pd.to_numeric(data_b[x_axis_column], errors='coerce')
+
+    a_loads = set(a_keys.dropna().unique())
+    b_loads = set(b_keys.dropna().unique())
     common = a_loads.intersection(b_loads)
 
     if not common:
-        return None, None, None, None, None
+        return None, None, None, None, None, None, None
 
     # Filter to common load points
-    a_common = data_a[data_a[x_axis_column].isin(common)]
-    b_common = data_b[data_b[x_axis_column].isin(common)]
+    if x_axis_column == "request_rate":
+        a_common = data_a[a_keys.isin(common)]
+        b_common = data_b[b_keys.isin(common)]
+    else:
+        a_common = data_a[data_a[x_axis_column].isin(common)]
+        b_common = data_b[data_b[x_axis_column].isin(common)]
 
     a_vals = a_common[metric_column].dropna().tolist()
     b_vals = b_common[metric_column].dropna().tolist()
 
     if not a_vals or not b_vals:
-        return None, None, None, None, None
+        return None, None, None, None, None, None, None
 
     # Calculate aggregate value based on method
     if aggregation == "peak":
@@ -378,7 +392,7 @@ def compare_two_datasets(
         b_peak_load = None
 
     if a_val is None or b_val is None or b_val == 0:
-        return None, None, None, None, None
+        return None, None, None, None, None, None, None
 
     # Calculate percentage difference
     pct_diff = ((a_val - b_val) / b_val) * 100
@@ -387,7 +401,7 @@ def compare_two_datasets(
     # Consider similar if within 5%
     is_similar = abs(pct_diff) < 5
 
-    return pct_diff, a_better, a_peak_load, b_peak_load, is_similar
+    return pct_diff, a_better, a_peak_load, b_peak_load, is_similar, a_val, b_val
 
 
 def render_performance_plots(df: pd.DataFrame):
@@ -577,6 +591,9 @@ def render_compare_versions(df: pd.DataFrame):
         else:
             # External mode: filter by endpoint
             baseline_endpoints = [e for e in df['vllm_endpoint_url'].unique() if e != 'n/a']
+            if not baseline_endpoints:
+                st.warning("No valid endpoint URLs found for external runs.")
+                return
             baseline_endpoint = st.selectbox("Endpoint URL", baseline_endpoints, key="baseline_endpoint")
             baseline_df = df[df['vllm_endpoint_url'] == baseline_endpoint]
 
@@ -619,6 +636,9 @@ def render_compare_versions(df: pd.DataFrame):
         else:
             # External mode: filter by endpoint
             compare_endpoints = [e for e in df['vllm_endpoint_url'].unique() if e != 'n/a']
+            if not compare_endpoints:
+                st.warning("No valid endpoint URLs found for external runs.")
+                return
             compare_endpoint = st.selectbox("Endpoint URL", compare_endpoints, key="compare_endpoint")
             compare_df = df[df['vllm_endpoint_url'] == compare_endpoint]
 
@@ -738,21 +758,12 @@ def render_compare_versions(df: pd.DataFrame):
         if not config["show"]:
             continue
 
-        pct_diff, better, a_load, b_load, similar = (
+        pct_diff, better, a_load, b_load, similar, _a_val, compare_val = (
             comparison_results[metric_name]
         )
 
         if pct_diff is not None:
-            # Get the actual values for display
-            if aggregation == "peak":
-                if config["higher_is_better"]:
-                    compare_val = compare_data[config["column"]].max()
-                else:
-                    compare_val = compare_data[config["column"]].min()
-            else:
-                compare_val = geometric_mean(
-                    compare_data[config["column"]].dropna().tolist()
-                )
+            # compare_val comes from the same subset used for pct_diff
 
             load_label = "@ rate" if x_col_compare == "request_rate" else "@ conc"
 
