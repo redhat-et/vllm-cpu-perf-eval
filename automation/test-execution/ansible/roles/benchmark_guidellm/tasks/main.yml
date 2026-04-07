@@ -145,12 +145,30 @@
   when: guidellm_cfg.profile != 'synchronous'
   no_log: true
 
+- name: Build backend kwargs for GuideLLM
+  ansible.builtin.set_fact:
+    guidellm_backend_kwargs: {}
+
 - name: Add API key to backend kwargs if configured
   ansible.builtin.set_fact:
-    guidellm_env: "{{ guidellm_env | combine({'GUIDELLM_BACKEND_KWARGS': '{\"api_key\": \"' + vllm_api_key + '\"}'}) }}"
+    guidellm_backend_kwargs: "{{ guidellm_backend_kwargs | combine({'api_key': vllm_api_key}) }}"  # pragma: allowlist secret
   when:
     - vllm_api_key is defined
     - vllm_api_key | length > 0
+  no_log: true
+
+- name: Disable backend validation for OpenAI-compatible endpoints
+  ansible.builtin.set_fact:
+    guidellm_backend_kwargs: "{{ guidellm_backend_kwargs | combine({'validate_backend': false}) }}"
+  when:
+    - vllm_endpoint is defined
+    - vllm_endpoint.external is defined
+    - vllm_endpoint.external.type | default('vllm') == 'openai-compatible'
+
+- name: Add backend kwargs to environment if any configured
+  ansible.builtin.set_fact:
+    guidellm_env: "{{ guidellm_env | combine({'GUIDELLM_BACKEND_KWARGS': guidellm_backend_kwargs | to_json}) }}"
+  when: guidellm_backend_kwargs | length > 0
   no_log: true
 
 - name: Start GuideLLM benchmark container
@@ -314,8 +332,8 @@
       --cooldown {{ guidellm_cfg.cooldown }}
       --outputs {{ guidellm_cfg.outputs }}
       --output-dir {{ results_path }}
-      {% if vllm_api_key is defined and vllm_api_key | length > 0 %}
-      --backend-kwargs '{"api_key": "{{ vllm_api_key }}"}'
+      {% if guidellm_backend_kwargs is defined and guidellm_backend_kwargs | length > 0 %}
+      --backend-kwargs '{{ guidellm_backend_kwargs | to_json }}'
       {% endif %}
   when: not (use_guidellm_container | bool)
 
