@@ -93,8 +93,8 @@
           Example:
             ansible-playbook llm-core-sweep-auto.yml \
               -e "requested_cores_list=[16,32,64]" \
-              -e "test_model={{ test_model }}" \
-              -e "workload_type={{ base_workload }}"
+              -e "test_model=<YOUR_MODEL>" \
+              -e "workload_type=<WORKLOAD_TYPE>"
 
     - name: Validate base_workload parameter
       ansible.builtin.assert:
