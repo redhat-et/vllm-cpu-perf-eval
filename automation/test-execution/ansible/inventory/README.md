@@ -41,12 +41,12 @@ export VLLM_ENDPOINT_MODE=external
 export VLLM_ENDPOINT_TYPE=vllm  # Default, supports /health, /metrics, /version
 export VLLM_ENDPOINT_URL=http://my-vllm-instance.example.com:8000
 
-# For OpenAI-compatible endpoints (LiteLLM, OpenAI API, etc.):
+# For OpenAI-compatible endpoints (HuggingFace, LiteLLM, OpenAI API, etc.):
 export VLLM_ENDPOINT_MODE=external
 export VLLM_ENDPOINT_TYPE=openai-compatible  # Skips vLLM-specific health checks
-export VLLM_ENDPOINT_URL=https://litellm-prod.example.com
+export VLLM_ENDPOINT_URL=https://router.huggingface.co/models/meta-llama/Llama-3.2-1B-Instruct
 export VLLM_API_KEY_ENABLED=true  # If endpoint requires authentication
-export VLLM_API_KEY=sk-your-api-key-here
+export VLLM_API_KEY=$HF_TOKEN
 ```
 
 The inventory file automatically uses these environment variables with sensible defaults if not set.
