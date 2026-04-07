@@ -470,8 +470,15 @@ def render_performance_plots(df: pd.DataFrame):
         # Get full model name from the first row
         full_model = group_df['model'].iloc[0]
 
-        # Format label: platform | model | release | core_count | TP | workload
-        label = f"{platform} | {full_model} | {vllm_version} | {cores}c | TP={tp} | {workload}"
+        # Format label based on mode
+        if test_mode == 'managed':
+            # Format label: platform | model | release | core_count | TP | workload
+            label = f"{platform} | {full_model} | {vllm_version} | {cores}c | TP={tp} | {workload}"
+        else:
+            # External mode: endpoint | model | release | TP | workload
+            endpoint_url = group_df['vllm_endpoint_url'].iloc[0]
+            endpoint_short = endpoint_url.split('//', 1)[-1].rsplit('@', 1)[-1].split('/', 1)[0]
+            label = f"{endpoint_short} | {full_model} | {vllm_version} | TP={tp} | {workload}"
 
         fig.add_trace(go.Scatter(
             x=group_df[x_col],
@@ -555,10 +562,10 @@ def render_performance_plots(df: pd.DataFrame):
                 row['Platform'] = platform
                 row['Cores'] = cores
             else:
-                endpoint_short = group_df['vllm_endpoint_url'].iloc[0]
-                if '//' in endpoint_short:
-                    endpoint_short = endpoint_short.split('//')[1]
-                row['Endpoint'] = endpoint_short[:40]
+                endpoint_url = group_df['vllm_endpoint_url'].iloc[0]
+                # Preserve host:port in endpoint display
+                endpoint_short = endpoint_url.split('//', 1)[-1].rsplit('@', 1)[-1].split('/', 1)[0]
+                row['Endpoint'] = endpoint_short[:50]  # Allow more space for host:port
 
             summary.append(row)
 
