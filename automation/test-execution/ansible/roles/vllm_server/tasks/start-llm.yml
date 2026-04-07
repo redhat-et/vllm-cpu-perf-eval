@@ -55,8 +55,9 @@
 - name: Validate workload type
   ansible.builtin.assert:
     that:
-      - workload_type in ['summarization', 'chat', 'code', 'rag', 'chat_var', 'code_var']
-    fail_msg: "Invalid workload_type: {{ workload_type }}. Must be one of: summarization, chat, code, rag, chat_var, code_var"
+      - workload_type in test_configs.keys()
+      - workload_type != 'embedding'
+    fail_msg: "Invalid workload_type: {{ workload_type }}. Must be a non-embedding workload from: {{ test_configs.keys() | list | select('ne', 'embedding') | sort | join(', ') }}"
 
 # ============================================================================
 # CPU Configuration Validation
