@@ -10,7 +10,7 @@
       ansible.builtin.set_fact:
         vllm_api_key_resolved: "{{ lookup('env', vllm_endpoint.external.api_key.env_var) }}"
       when:
-        - vllm_endpoint.external.api_key.source | default('value') == 'env_var'
+        - vllm_endpoint.external.api_key.source | default('value') == 'env'
         - vllm_endpoint.external.api_key.env_var is defined
       no_log: true
 
@@ -19,7 +19,7 @@
         src: "{{ vllm_endpoint.external.api_key.file_path }}"
       register: vllm_api_key_file_content
       when:
-        - vllm_endpoint.external.api_key.source | default('value') == 'file_path'
+        - vllm_endpoint.external.api_key.source | default('value') == 'file'
         - vllm_endpoint.external.api_key.file_path is defined
       no_log: true
 
@@ -27,7 +27,7 @@
       ansible.builtin.set_fact:
         vllm_api_key_resolved: "{{ vllm_api_key_file_content.content | b64decode | trim }}"
       when:
-        - vllm_endpoint.external.api_key.source | default('value') == 'file_path'
+        - vllm_endpoint.external.api_key.source | default('value') == 'file'
         - vllm_api_key_file_content is defined
       no_log: true
 
@@ -35,7 +35,7 @@
       ansible.builtin.set_fact:
         vllm_api_key_resolved: "{{ vllm_endpoint.external.api_key.vault_var }}"
       when:
-        - vllm_endpoint.external.api_key.source | default('value') == 'vault_var'
+        - vllm_endpoint.external.api_key.source | default('value') == 'vault'
         - vllm_endpoint.external.api_key.vault_var is defined
       no_log: true
 
