@@ -758,7 +758,7 @@ def render_compare_versions(df: pd.DataFrame):
         if not config["show"]:
             continue
 
-        pct_diff, better, a_load, b_load, similar, _a_val, compare_val = (
+        pct_diff, _better, _a_load, b_load, _similar, _a_val, compare_val = (
             comparison_results[metric_name]
         )
 
@@ -795,9 +795,9 @@ def render_compare_versions(df: pd.DataFrame):
         baseline_label = f"Baseline: {baseline_platform} | {baseline_run_info['vllm_version']} | {baseline_run_info['workload']}"
         compare_label = f"Compare: {compare_platform} | {compare_run_info['vllm_version']} | {compare_run_info['workload']}"
     else:
-        # For external mode, show endpoint URL (shortened for display)
-        baseline_endpoint_short = baseline_endpoint.split('//')[1].split(':')[0] if '//' in baseline_endpoint else baseline_endpoint
-        compare_endpoint_short = compare_endpoint.split('//')[1].split(':')[0] if '//' in compare_endpoint else compare_endpoint
+        # For external mode, show endpoint URL (shortened for display, preserving host:port)
+        baseline_endpoint_short = baseline_endpoint.split('//', 1)[-1].rsplit('@', 1)[-1].split('/', 1)[0]
+        compare_endpoint_short = compare_endpoint.split('//', 1)[-1].rsplit('@', 1)[-1].split('/', 1)[0]
         baseline_label = f"Baseline: {baseline_endpoint_short} | {baseline_run_info['vllm_version']} | {baseline_run_info['workload']}"
         compare_label = f"Compare: {compare_endpoint_short} | {compare_run_info['vllm_version']} | {compare_run_info['workload']}"
 

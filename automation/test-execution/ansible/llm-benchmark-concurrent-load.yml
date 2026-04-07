@@ -112,6 +112,10 @@
       ansible.builtin.set_fact:
         has_variable_workload: "{{ variable_workload in ['chat_var', 'code_var'] }}"
 
+    # Set test_model passthrough for downstream playbooks
+    # '__AUTO_DETECT__' is a sentinel value that tells llm-benchmark-auto.yml
+    # to auto-detect the model from the external endpoint's /v1/models API
+    # (see llm-benchmark-auto.yml external endpoint model detection block)
     - name: Set passthrough test_model variable
       ansible.builtin.set_fact:
         passthrough_test_model: "{{ test_model | default('__AUTO_DETECT__') }}"

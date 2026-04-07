@@ -162,10 +162,13 @@
               except Exception as e:
                   print(f"  Error: {e}")
 
-              # Sleep for remaining interval time
+              # Sleep for remaining interval time, checking should_stop every 0.5s
               elapsed = time.time() - sample_start
-              if elapsed < INTERVAL:
-                  time.sleep(INTERVAL - elapsed)
+              remaining = INTERVAL - elapsed
+              while remaining > 0 and not should_stop:
+                  sleep_chunk = min(0.5, remaining)
+                  time.sleep(sleep_chunk)
+                  remaining -= sleep_chunk
 
       except KeyboardInterrupt:
           print("\n✓ Collection interrupted by user")
