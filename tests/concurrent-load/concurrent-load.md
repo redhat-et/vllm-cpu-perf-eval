@@ -385,9 +385,13 @@ ansible-playbook -i inventory/hosts.yml \
   -e "skip_phase_2=true"
 ```
 
-#### Using External vLLM Endpoint
+#### Using External Endpoints
 
-To test against an existing vLLM instance:
+External mode supports two types of endpoints:
+
+##### Option A: External vLLM Endpoint (AWS/K8s/Production vLLM)
+
+For external vLLM servers that support vLLM-specific health/metrics endpoints:
 
 **1. Start your vLLM instance:**
 
@@ -402,30 +406,62 @@ vllm serve meta-llama/Llama-3.2-1B-Instruct \
 
 ```
 
-**2. Configure load generator and external endpoint:**
+**2. Configure load generator and external vLLM endpoint:**
 
 ```bash
 # Load generator connection (required - GuideLLM runs here)
-export LOADGEN_HOSTNAME=192.168.1.200  # or your load generator hostname/IP
+export LOADGEN_HOSTNAME=192.168.1.200
 export ANSIBLE_SSH_USER=ec2-user
 export ANSIBLE_SSH_KEY=~/.ssh/my-key.pem
 
 # External vLLM endpoint (replaces DUT configuration)
 export VLLM_ENDPOINT_MODE=external
+export VLLM_ENDPOINT_TYPE=vllm  # Default, enables health checks & metrics
 export VLLM_ENDPOINT_URL=http://your-vllm-host:8000
 
 # Optional: API key for secured vLLM endpoints
 export VLLM_API_KEY_ENABLED=true
-export VLLM_API_KEY=your-api-key
+export VLLM_API_KEY=sk-your-vllm-api-key
 
-# Optional: HuggingFace token (if needed by GuideLLM)
+# Optional: HuggingFace token
 export HF_TOKEN=hf_xxxxx
 ```
 
-**Note:** In external mode, you only need to configure the load generator.
-DUT connection is not required since vLLM is already running externally.
+**Features:** Health checks ✓ | Server metrics ✓ | Version detection ✓
 
-**3. Run tests (model name auto-detected from endpoint):**
+##### Option B: OpenAI-Compatible Endpoint (LiteLLM, OpenAI API, etc.)
+
+For OpenAI-compatible services (LiteLLM, OpenAI API, Together AI, etc.):
+
+**1. Configure load generator and OpenAI-compatible endpoint:**
+
+```bash
+# Load generator connection (required - GuideLLM runs here)
+export LOADGEN_HOSTNAME=192.168.1.200
+export ANSIBLE_SSH_USER=ec2-user
+export ANSIBLE_SSH_KEY=~/.ssh/my-key.pem
+
+# OpenAI-compatible endpoint
+export VLLM_ENDPOINT_MODE=external
+export VLLM_ENDPOINT_TYPE=openai-compatible  # Skips vLLM-specific checks
+export VLLM_ENDPOINT_URL=https://litellm-prod.example.com
+
+# API key authentication (usually required)
+export VLLM_API_KEY_ENABLED=true
+export VLLM_API_KEY=sk-your-litellm-api-key
+
+# Optional: HuggingFace token
+export HF_TOKEN=hf_xxxxx
+```
+
+**Features:** Health checks ⏩ | Server metrics ⏩ | Client metrics ✓
+
+**Note:** For both options:
+- **No DUT connection needed** - endpoint is already running externally
+- **No `requested_cores` needed** - you don't control server CPU allocation
+- **Model auto-detected** - omit `test_model` (queried from `/v1/models`)
+
+**2. Run tests (model name auto-detected from endpoint):**
 
 ```bash
 cd ../../automation/test-execution/ansible
