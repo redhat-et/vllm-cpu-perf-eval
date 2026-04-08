@@ -123,10 +123,9 @@ When testing external vLLM deployments (cloud, K8s, production):
 export VLLM_ENDPOINT_MODE=external
 export VLLM_ENDPOINT_URL=http://your-endpoint:8000
 
-# 2. Run test
+# 2. Run test (cores not needed in external mode)
 ansible-playbook llm-benchmark-concurrent-load.yml \
-  -e "base_workload=chat" \
-  -e "requested_cores=16"
+  -e "base_workload=chat"
 
 # 3. View results in Streamlit (client metrics + server metrics if available)
 cd automation/test-execution/dashboard-examples/vllm_dashboard

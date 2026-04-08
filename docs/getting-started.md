@@ -249,8 +249,7 @@ export VLLM_ENDPOINT_URL=http://your-vllm-instance:8000
 
 # Run concurrent load test (model auto-detected from endpoint)
 ansible-playbook -i inventory/hosts.yml llm-benchmark-concurrent-load.yml \
-  -e "base_workload=chat" \
-  -e "requested_cores=16"
+  -e "base_workload=chat"
 ```
 
 **Features:**
@@ -266,7 +265,7 @@ ansible-playbook -i inventory/hosts.yml llm-benchmark-concurrent-load.yml \
 - `LOADGEN_HOSTNAME=...` - Load generator hostname/IP
 - `ANSIBLE_SSH_KEY=...` - SSH key for load generator access
 
-**Note:** `DUT_HOSTNAME` not required in external mode (endpoint accessed directly via HTTP).
+**Note:** `DUT_HOSTNAME` and `requested_cores` not required in external mode (endpoint accessed directly via HTTP and manages its own CPU allocation).
 
 ### Concurrent Load Testing
 
