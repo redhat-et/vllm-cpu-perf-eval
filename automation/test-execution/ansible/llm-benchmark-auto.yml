@@ -64,7 +64,6 @@
       when:
         - vllm_mode == 'external'
         - requested_cores is defined
-        - requested_cores | int > 0
 
     - name: Override core count to 0 for external mode
       ansible.builtin.set_fact:

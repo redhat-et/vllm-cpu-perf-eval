@@ -88,7 +88,6 @@
       when:
         - vllm_mode == 'external'
         - requested_cores is defined
-        - requested_cores | int > 0
 
     - name: Override core count to 0 for external mode
       ansible.builtin.set_fact:
@@ -98,7 +97,7 @@
 
     - name: Normalize core configuration input
       ansible.builtin.set_fact:
-        effective_requested_cores: "{{ requested_cores if (requested_cores is defined and requested_cores | int > 0) else (core_sweep_counts | first if (core_sweep_counts is defined and core_sweep_counts | length > 0) else 0) }}"
+        effective_requested_cores: "{{ 0 if vllm_mode == 'external' else (requested_cores if (requested_cores is defined and requested_cores | int > 0) else (core_sweep_counts | first if (core_sweep_counts is defined and core_sweep_counts | length > 0) else 0)) }}"
 
     - name: Validate single core configuration for concurrent load testing
       ansible.builtin.assert:
