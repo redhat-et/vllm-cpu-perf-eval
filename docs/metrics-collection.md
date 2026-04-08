@@ -240,9 +240,9 @@ export VLLM_ENDPOINT_URL=http://your-endpoint:8000
 curl http://your-endpoint:8000/metrics
 # → Returns Prometheus metrics (vllm:*, etc.)
 
-# Run test
+# Run test (cores not needed - external endpoint manages its own CPUs)
 ansible-playbook llm-benchmark-concurrent-load.yml \
-  -e "base_workload=chat" -e "requested_cores=16"
+  -e "base_workload=chat"
 
 # Result: vllm-metrics.json created ✅
 ```
@@ -256,9 +256,9 @@ export VLLM_ENDPOINT_URL=http://production-lb.company.com:8000
 curl http://production-lb.company.com:8000/metrics
 # → 403 Forbidden (metrics not publicly exposed)
 
-# Run test
+# Run test (cores not needed - external endpoint manages its own CPUs)
 ansible-playbook llm-benchmark-concurrent-load.yml \
-  -e "base_workload=chat" -e "requested_cores=16"
+  -e "base_workload=chat"
 
 # Result: Only benchmarks.json created (client metrics) ⚠️
 ```
