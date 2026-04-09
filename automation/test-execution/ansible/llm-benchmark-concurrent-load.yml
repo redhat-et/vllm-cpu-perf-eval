@@ -127,7 +127,7 @@
 
     - name: Check if variable workload exists
       ansible.builtin.set_fact:
-        has_variable_workload: "{{ variable_workload in ['chat_var', 'code_var'] }}"
+        has_variable_workload: "{{ variable_workload in ['chat_var', 'code_var','summarization_var'] }}"
 
     # Set test_model passthrough for downstream playbooks
     # '__AUTO_DETECT__' is a sentinel value that tells llm-benchmark-auto.yml
@@ -194,13 +194,13 @@
   hosts: localhost
   gather_facts: false
   vars:
-    has_variable_workload: "{{ (base_workload + '_var') in ['chat_var', 'code_var'] }}"
+    has_variable_workload: "{{ (base_workload + '_var') in ['chat_var', 'code_var','summarization_var' ] }}"
   tasks:
     - name: Phase 2 skipped notification
       ansible.builtin.debug:
         msg:
           - "⊘ Phase 2 Skipped: No variable workload defined for {{ base_workload }}"
-          - "  Variable workloads only available for: chat, code"
+          - "  Variable workloads only available for: chat, code, summarization"
       when:
         - not (skip_phase_2 | default(false) | bool)
         - not has_variable_workload
@@ -233,14 +233,14 @@
   hosts: localhost
   gather_facts: false
   vars:
-    has_variable_workload: "{{ (base_workload + '_var') in ['chat_var', 'code_var'] }}"
+    has_variable_workload: "{{ (base_workload + '_var') in ['chat_var', 'code_var','summarization_var'] }}"
   tasks:
     - name: Phase 3 skipped notification
       ansible.builtin.debug:
         msg:
           - "⊘ Phase 3 Skipped: No variable workload defined for {{ base_workload }}"
           - "  Production testing (Phase 3) requires variable workload"
-          - "  Variable workloads only available for: chat, code"
+          - "  Variable workloads only available for: chat, code, summarization"
       when:
         - not (skip_phase_3 | default(false) | bool)
         - not has_variable_workload
@@ -262,7 +262,7 @@
   hosts: localhost
   gather_facts: false
   vars:
-    has_variable_workload: "{{ (base_workload + '_var') in ['chat_var', 'code_var'] }}"
+    has_variable_workload: "{{ (base_workload + '_var') in ['chat_var', 'code_var','summarization_var'] }}"
   tasks:
     - name: Display test suite summary
       ansible.builtin.debug:
