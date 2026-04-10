@@ -146,7 +146,7 @@ export HF_TOKEN=$(cat ~/hf-token)
 
 # Container images (optional - defaults are provided)
 export VLLM_CONTAINER_IMAGE=docker.io/vllm/vllm-openai-cpu:v0.18.0
-export GUIDELLM_CONTAINER_IMAGE=ghcr.io/vllm-project/guidellm:latest
+export GUIDELLM_CONTAINER_IMAGE=ghcr.io/vllm-project/guidellm:v0.6.0
 ```
 
 The inventory file automatically uses these environment variables with sensible defaults.

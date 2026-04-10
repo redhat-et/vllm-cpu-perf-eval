@@ -534,6 +534,7 @@
             "vllm_caching_mode": "{{ vllm_caching_mode | default('baseline') }}",
             "vllm_mode": "{{ hostvars['localhost']['vllm_mode'] }}",
             "vllm_endpoint_url": "{{ vllm_endpoint.external.url if hostvars['localhost']['vllm_mode'] == 'external' else 'n/a' }}",
+            "guidellm_version": "{{ hostvars['localhost']['guidellm_version'] | default('unknown') }}",
             "timestamp": "{{ lookup('pipe', 'date -Iseconds') }}",
             "test_duration": "{{ test_duration_string | default('unknown') }}",
             "test_duration_seconds": {{ test_duration_seconds | default('null') }}

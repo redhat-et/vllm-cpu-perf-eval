@@ -504,7 +504,7 @@ sudo podman run --rm -it \\
   -e GUIDELLM_OUTPUTS="html,json,csv" \\
   -e HF_TOKEN=\$HF_TOKEN \\
   -e GUIDELLM_MAX_CONCURRENCY=196 \\
-  ghcr.io/vllm-project/guidellm:latest
+  ghcr.io/vllm-project/guidellm:v0.6.0
 
 After reboot, validate configuration:
   cat /proc/cmdline | tr ' ' '\\n' | grep -E 'isolcpus|nohz|rcu|irq|pstate'

@@ -63,6 +63,16 @@
   ansible.builtin.set_fact:
     use_guidellm_container: "{{ guidellm_cfg.use_container | default(true) | bool }}"
 
+- name: Extract GuideLLM version from container image
+  ansible.builtin.set_fact:
+    guidellm_version: "{{ guidellm_cfg.container_image.split(':')[-1] if ':' in guidellm_cfg.container_image else 'latest' }}"
+
+- name: Save GuideLLM version to localhost for metadata
+  ansible.builtin.set_fact:
+    guidellm_version: "{{ guidellm_version }}"
+  delegate_to: localhost
+  delegate_facts: true
+
 - name: Set model name for results path (prefer actual_model if available)
   ansible.builtin.set_fact:
     resolved_model: "{{ actual_model | default(test_model) }}"

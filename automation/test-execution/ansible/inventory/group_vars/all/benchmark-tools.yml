@@ -16,7 +16,7 @@ benchmark_tool:
 
     # Using GuideLLM official container image
     # Can be overridden with environment variable: export GUIDELLM_CONTAINER_IMAGE=...
-    container_image: "{{ lookup('env', 'GUIDELLM_CONTAINER_IMAGE') | default('ghcr.io/vllm-project/guidellm:latest', true) }}"
+    container_image: "{{ lookup('env', 'GUIDELLM_CONTAINER_IMAGE') | default('ghcr.io/vllm-project/guidellm:v0.6.0', true) }}"
 
     # CPU allocation (only applies to containerized mode)
     # Load generator CPU allocation
