@@ -107,7 +107,7 @@ export HF_TOKEN=hf_xxxxx  # If using gated models like Llama
 
 # Container images (optional - defaults are provided)
 export VLLM_CONTAINER_IMAGE=docker.io/vllm/vllm-openai-cpu:v0.18.0
-export GUIDELLM_CONTAINER_IMAGE=ghcr.io/vllm-project/guidellm:latest
+export GUIDELLM_CONTAINER_IMAGE=ghcr.io/vllm-project/guidellm:v0.6.0
 ```
 
 The inventory automatically uses these variables with sensible defaults.

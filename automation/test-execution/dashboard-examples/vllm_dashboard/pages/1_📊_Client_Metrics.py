@@ -104,6 +104,7 @@ def load_guidellm_data(results_dir: str) -> pd.DataFrame:
                     'cores': metadata.get('core_count', 0),
                     'backend': metadata.get('backend', 'unknown'),
                     'vllm_version': metadata.get('vllm_version', 'unknown'),
+                    'guidellm_version': metadata.get('guidellm_version', 'unknown'),
                     'core_config': metadata.get('core_config_name', 'unknown'),
                     'tensor_parallel': metadata.get('tensor_parallel', 1),
                     'vllm_mode': metadata.get('vllm_mode', 'managed'),
@@ -206,7 +207,7 @@ def render_filters(df: pd.DataFrame, test_mode: str) -> pd.DataFrame:
                 key="workload_filter_managed"
             )
 
-        col4, col5 = st.columns(2)
+        col4, col5, col6 = st.columns(3)
 
         with col4:
             cores = sorted(df['cores'].unique())
@@ -226,6 +227,15 @@ def render_filters(df: pd.DataFrame, test_mode: str) -> pd.DataFrame:
                 key="version_filter_managed"
             )
 
+        with col6:
+            guidellm_versions = sorted(df['guidellm_version'].unique())
+            selected_guidellm_versions = st.multiselect(
+                "GuideLLM Version",
+                guidellm_versions,
+                default=guidellm_versions,
+                key="guidellm_version_filter_managed"
+            )
+
         st.markdown('</div>', unsafe_allow_html=True)
 
         # Apply filters
@@ -234,7 +244,8 @@ def render_filters(df: pd.DataFrame, test_mode: str) -> pd.DataFrame:
             df['model_short'].isin(selected_models) &
             df['workload'].isin(selected_workloads) &
             df['cores'].isin(selected_cores) &
-            df['vllm_version'].isin(selected_versions)
+            df['vllm_version'].isin(selected_versions) &
+            df['guidellm_version'].isin(selected_guidellm_versions)
         ]
 
     else:  # external mode
@@ -268,7 +279,7 @@ def render_filters(df: pd.DataFrame, test_mode: str) -> pd.DataFrame:
                 key="workload_filter_external"
             )
 
-        col4, col5 = st.columns(2)
+        col4, col5, col6 = st.columns(3)
 
         with col4:
             versions = sorted(df['vllm_version'].unique())
@@ -280,6 +291,15 @@ def render_filters(df: pd.DataFrame, test_mode: str) -> pd.DataFrame:
             )
 
         with col5:
+            guidellm_versions = sorted(df['guidellm_version'].unique())
+            selected_guidellm_versions = st.multiselect(
+                "GuideLLM Version",
+                guidellm_versions,
+                default=guidellm_versions,
+                key="guidellm_version_filter_external"
+            )
+
+        with col6:
             # Model source (auto-detected vs specified)
             sources = sorted(df['model_source'].unique())
             selected_sources = st.multiselect(
@@ -298,6 +318,7 @@ def render_filters(df: pd.DataFrame, test_mode: str) -> pd.DataFrame:
             df['model_short'].isin(selected_models) &
             df['workload'].isin(selected_workloads) &
             df['vllm_version'].isin(selected_versions) &
+            df['guidellm_version'].isin(selected_guidellm_versions) &
             df['model_source'].isin(selected_sources)
         ]
 

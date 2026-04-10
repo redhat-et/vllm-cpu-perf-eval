@@ -103,6 +103,7 @@ def load_vllm_metrics(base_dir: str):
                         data['cores'] = metadata.get('core_count', 'N/A')
                         data['backend'] = metadata.get('backend', 'unknown')
                         data['vllm_version'] = metadata.get('vllm_version', 'unknown')
+                        data['guidellm_version'] = metadata.get('guidellm_version', 'unknown')
                         data['core_config'] = metadata.get('core_config_name', 'unknown')
                         data['vllm_mode'] = metadata.get('vllm_mode', 'managed')
                         data['vllm_endpoint_url'] = metadata.get('vllm_endpoint_url', 'n/a')
