@@ -59,7 +59,7 @@ This test suite evaluates generative LLM models across multiple architecture fam
 
 | Variable | Description | Baseline Tests | Realistic Tests |
 | --- | --- | --- | --- |
-| **Workload** | Input/Output token counts (ISL:OSL) | • Chat (512:256)<br>• RAG (4096:512)<br>• CodeGen (512:4096)<br>• Summarization (1024:256) | • Chat (512±128:256±64)<br>• CodeGen (512±128:4096±1024) |
+| **Workload** | Input/Output token counts (ISL:OSL) | • Chat (512:512)<br>• RAG (7680:512)<br>• Code (1024:1024)<br>• Summarization (2048:256) | • Chat (512±128:512±128, max 1024:1024)<br>• Code (1024±256:1024±256, max 2048:2048) |
 | **Test Duration** | Time per profile | `--max-seconds=600` (10 min) | `--max-seconds=600` (10 min) |
 | **Warmup** | Warmup period | `--warmup=0.1` (10% = 60s) | `--warmup=0.1` (10% = 60s) |
 | **Request Timeout** | Max time per request | `--request-timeout=600` | `--request-timeout=600` |
@@ -82,20 +82,20 @@ Concurrency levels: **{1, 2, 4, 8, 16, 32}**
 
 | Test ID | Model | Workload | Primary Metric Focus |
 | --- | --- | --- | --- |
-| CONC-LLAMA32-CHAT | Llama-3.2-1B | Chat (512:256) | P95 Latency Scaling (Baseline) |
-| CONC-LLAMA32-RAG | Llama-3.2-1B | RAG (4096:512) | P95 Latency for Long Context RAG |
-| CONC-LLAMA32-CODE | Llama-3.2-1B | CodeGen (512:4096) | P95 Latency for Long Output (Baseline) |
-| CONC-QWEN06-CHAT | Qwen/Qwen3-0.6B | Chat (512:256) | P95 Latency (Efficient Model) |
-| CONC-QWEN06-CODE | Qwen/Qwen3-0.6B | CodeGen (512:4096) | P95 Latency for Long Output |
-| CONC-GRANITE32-CHAT | granite-3.2-2b-instruct | Chat (512:256) | P95 Latency (Enterprise) |
-| CONC-GRANITE32-RAG | granite-3.2-2b-instruct | RAG (4096:512) | P95 Latency for Enterprise RAG |
-| CONC-GRANITE32-CODE | granite-3.2-2b-instruct | CodeGen (512:4096) | P95 Latency for Code Generation |
-| CONC-GPT20B-CHAT | gpt-oss-20b | Chat (512:256) | P95 Latency (Large-Scale MoE) |
-| CONC-GPT20B-RAG | gpt-oss-20b | RAG (4096:512) | P95 Latency for Long Context RAG (128k capable) |
-| CONC-GPT20B-CODE | gpt-oss-20b | CodeGen (512:4096) | P95 Latency for Code Generation (MoE) |
-| CONC-TINY11-CHAT | TinyLlama-1.1B | Chat (512:256) | P95 Latency (Small Llama) |
-| CONC-OPT125M-SUMM | facebook/opt-125m | Summarization (1024:256) | P95 Latency for Summarization |
-| CONC-OPT125M-CHAT | facebook/opt-125m | Chat (512:256) | P95 Latency (Small Baseline) |
+| CONC-LLAMA32-CHAT | Llama-3.2-1B | Chat (512:512) | P95 Latency Scaling (Baseline) |
+| CONC-LLAMA32-RAG | Llama-3.2-1B | RAG (7680:512) | P95 Latency for Long Context RAG |
+| CONC-LLAMA32-CODE | Llama-3.2-1B | Code (1024:1024) | P95 Latency for Long Output (Baseline) |
+| CONC-QWEN06-CHAT | Qwen/Qwen3-0.6B | Chat (512:512) | P95 Latency (Efficient Model) |
+| CONC-QWEN06-CODE | Qwen/Qwen3-0.6B | Code (1024:1024) | P95 Latency for Long Output |
+| CONC-GRANITE32-CHAT | granite-3.2-2b-instruct | Chat (512:512) | P95 Latency (Enterprise) |
+| CONC-GRANITE32-RAG | granite-3.2-2b-instruct | RAG (7680:512) | P95 Latency for Enterprise RAG |
+| CONC-GRANITE32-CODE | granite-3.2-2b-instruct | Code (1024:1024) | P95 Latency for Code Generation |
+| CONC-GPT20B-CHAT | gpt-oss-20b | Chat (512:512) | P95 Latency (Large-Scale MoE) |
+| CONC-GPT20B-RAG | gpt-oss-20b | RAG (7680:512) | P95 Latency for Long Context RAG (128k capable) |
+| CONC-GPT20B-CODE | gpt-oss-20b | Code (1024:1024) | P95 Latency for Code Generation (MoE) |
+| CONC-TINY11-CHAT | TinyLlama-1.1B | Chat (512:512) | P95 Latency (Small Llama) |
+| CONC-OPT125M-SUMM | facebook/opt-125m | Summarization (2048:256) | P95 Latency for Summarization |
+| CONC-OPT125M-CHAT | facebook/opt-125m | Chat (512:512) | P95 Latency (Small Baseline) |
 
 <!-- markdownlint-enable MD013 -->
 
@@ -107,14 +107,14 @@ Concurrency levels: **{1, 2, 4, 8, 16, 32}**
 
 | Test ID | Model | Workload | Primary Metric Focus |
 | --- | --- | --- | --- |
-| CONC-LLAMA32-CHAT-VAR | Llama-3.2-1B | Chat (512±128:256±64) | P95 Latency (Realistic) |
-| CONC-LLAMA32-CODE-VAR | Llama-3.2-1B | CodeGen (512±128:4096±1024) | P95 Latency for Long Output (Realistic) |
-| CONC-QWEN06-CHAT-VAR | Qwen/Qwen3-0.6B | Chat (512±128:256±64) | P95 Latency (Realistic) |
-| CONC-QWEN06-CODE-VAR | Qwen/Qwen3-0.6B | CodeGen (512±128:4096±1024) | P95 Latency for Long Output (Realistic) |
-| CONC-GRANITE32-CHAT-VAR | granite-3.2-2b-instruct | Chat (512±128:256±64) | P95 Latency (Realistic) |
-| CONC-GPT20B-CHAT-VAR | gpt-oss-20b | Chat (512±128:256±64) | P95 Latency (Realistic, Large-Scale) |
-| CONC-TINY11-CHAT-VAR | TinyLlama-1.1B | Chat (512±128:256±64) | P95 Latency (Realistic) |
-| CONC-OPT125M-SUMM-VAR | facebook/opt-125m | Summarization (1024±256:256±64) | P95 Latency for Summarization (Realistic) |
+| CONC-LLAMA32-CHAT-VAR | Llama-3.2-1B | Chat (512±128:512±128) | P95 Latency (Realistic) |
+| CONC-LLAMA32-CODE-VAR | Llama-3.2-1B | Code (1024±256:1024±256) | P95 Latency for Long Output (Realistic) |
+| CONC-QWEN06-CHAT-VAR | Qwen/Qwen3-0.6B | Chat (512±128:512±128) | P95 Latency (Realistic) |
+| CONC-QWEN06-CODE-VAR | Qwen/Qwen3-0.6B | Code (1024±256:1024±256) | P95 Latency for Long Output (Realistic) |
+| CONC-GRANITE32-CHAT-VAR | granite-3.2-2b-instruct | Chat (512±128:512±128) | P95 Latency (Realistic) |
+| CONC-GPT20B-CHAT-VAR | gpt-oss-20b | Chat (512±128:512±128) | P95 Latency (Realistic, Large-Scale) |
+| CONC-TINY11-CHAT-VAR | TinyLlama-1.1B | Chat (512±128:512±128) | P95 Latency (Realistic) |
+| CONC-OPT125M-SUMM-VAR | facebook/opt-125m | Summarization (2048±512:256±64) | P95 Latency for Summarization (Realistic) |
 
 <!-- markdownlint-enable MD013 -->
 

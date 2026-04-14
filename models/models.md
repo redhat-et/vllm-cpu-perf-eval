@@ -404,7 +404,11 @@ KV Cache Size (GB) = Total Bytes ÷ (1024³)
 
 ### KV Cache Sizes by Model and Workload
 
-Calculated with **32 concurrent requests** (MAX concurrency across all workloads) and 25% safety margin (1.25x):
+Calculated with **32 concurrent requests** (MAX concurrency across all workloads):
+
+**Safety Margins:**
+- **Fixed workloads** (chat, rag, code, summarization, reasoning): 25% safety margin (1.25x)
+- **Variable workloads** (chat_var, code_var): 50% safety margin (1.5x) to account for multiple concurrent requests at max token lengths
 
 **Note**: All KV cache sizes are calculated for 32 concurrent requests to provide maximum headroom:
 - **chat**: 32 concurrent (MAX)
@@ -412,6 +416,8 @@ Calculated with **32 concurrent requests** (MAX concurrency across all workloads
 - **code**: 32 concurrent (MAX)
 - **summarization**: 32 concurrent (MAX)
 - **reasoning**: 32 concurrent (MAX)
+- **chat_var**: 32 concurrent at max 2048 tokens (1024 + 1024)
+- **code_var**: 32 concurrent at max 4096 tokens (2048 + 2048)
 
 #### Chat Workload (512:512, 1024 tokens)
 
@@ -482,6 +488,38 @@ Calculated with **32 concurrent requests** (MAX concurrency across all workloads
 | qwen3-0.6b | 0.0821 GB | 3.28 GB | 4 GiB |
 | qwen2.5-3b-instruct | 0.0403 GB | 1.61 GB | 2 GiB |
 | gpt-oss-20b | 0.0954 GB | 3.82 GB | 4 GiB |
+
+#### Chat Variable Workload (max 1024:1024, 2048 tokens, 32 concurrent)
+
+**Note**: Sized for maximum token counts with 1.5x safety margin
+
+| Model | Per-Request | 32 × 1.5x | Configured |
+|-------|-------------|-----------|------------|
+| llama-3.2-1b-instruct | 0.0625 GB | 3.00 GB | 3 GiB |
+| llama-3.2-3b-instruct | 0.2188 GB | 10.5 GB | 11 GiB |
+| tinyllama-1.1b-chat | 0.0430 GB | 2.06 GB | 3 GiB |
+| opt-125m | 0.0452 GB | 2.17 GB | 4 GiB |
+| opt-1.3b | 0.0954 GB | 4.58 GB | 8 GiB |
+| granite-3.2-2b-instruct | 0.1042 GB | 5.00 GB | 8 GiB |
+| qwen3-0.6b | 0.0730 GB | 3.50 GB | 6 GiB |
+| qwen2.5-3b-instruct | 0.0358 GB | 1.72 GB | 4 GiB |
+| gpt-oss-20b | 0.0848 GB | 4.07 GB | 4 GiB |
+
+#### Code Variable Workload (max 2048:2048, 4096 tokens, 32 concurrent)
+
+**Note**: Sized for maximum token counts with 1.5x safety margin
+
+| Model | Per-Request | 32 × 1.5x | Configured |
+|-------|-------------|-----------|------------|
+| llama-3.2-1b-instruct | 0.125 GB | 6.00 GB | 6 GiB |
+| llama-3.2-3b-instruct | 0.438 GB | 21.0 GB | 21 GiB |
+| tinyllama-1.1b-chat | 0.086 GB | 4.12 GB | 5 GiB |
+| opt-125m | 0.090 GB | 4.32 GB | 7 GiB |
+| opt-1.3b | 0.191 GB | 9.17 GB | 15 GiB |
+| granite-3.2-2b-instruct | 0.208 GB | 10.0 GB | 15 GiB |
+| qwen3-0.6b | 0.146 GB | 7.01 GB | 11 GiB |
+| qwen2.5-3b-instruct | 0.072 GB | 3.46 GB | 7 GiB |
+| gpt-oss-20b | 0.170 GB | 8.16 GB | 7 GiB |
 
 ### Usage in Test Automation
 

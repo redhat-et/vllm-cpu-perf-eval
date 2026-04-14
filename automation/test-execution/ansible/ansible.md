@@ -227,10 +227,10 @@ Pre-configured in [inventory/group_vars/all/test-workloads.yml](inventory/group_
 
 ### Variable Workloads (Realistic Traffic)
 
-| Workload | ISL±σ:OSL±σ | Use Case | Baseline vLLM Args |
+| Workload | ISL±σ:OSL±σ (max) | Use Case | Baseline vLLM Args |
 |----------|---------|----------|-----------|
-| `chat_var` | 512±128:256±64 | Realistic chat traffic | `--dtype=bfloat16 --no-enable-prefix-caching` |
-| `code_var` | 512±128:4096±1024 | Realistic code generation | `--dtype=bfloat16 --no-enable-prefix-caching` |
+| `chat_var` | 512±128:512±128 (1024:1024) | Realistic chat traffic | `--dtype=bfloat16 --no-enable-prefix-caching` |
+| `code_var` | 1024±256:1024±256 (2048:2048) | Realistic code generation | `--dtype=bfloat16 --no-enable-prefix-caching` |
 
 **Note:** Baseline mode disables both prefix caching and radix cache for true baseline measurements. Production mode enables caching optimizations.
 

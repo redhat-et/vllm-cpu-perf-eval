@@ -33,8 +33,8 @@ matrix:
         code: "3GiB"          # 2048 tokens, 32 concurrent
         summarization: "3GiB" # 2304 tokens, 32 concurrent
         reasoning: "3GiB"     # 2304 tokens, 32 concurrent
-        chat_var: "2GiB"      # Same as chat
-        code_var: "3GiB"      # Same as code
+        chat_var: "3GiB"      # 2048 max tokens, 32 concurrent, 1.5x safety
+        code_var: "6GiB"      # 4096 max tokens, 32 concurrent, 1.5x safety
       default_workloads:
         - chat
       test_suites:
@@ -64,8 +64,8 @@ matrix:
         code: "9GiB"          # 2048 tokens, 32 concurrent
         summarization: "9GiB" # 2304 tokens, 32 concurrent
         reasoning: "10GiB"    # 2304 tokens, 32 concurrent
-        chat_var: "5GiB"      # Same as chat
-        code_var: "9GiB"      # Same as code
+        chat_var: "11GiB"     # 2048 max tokens, 32 concurrent, 1.5x safety
+        code_var: "21GiB"     # 4096 max tokens, 32 concurrent, 1.5x safety
       default_workloads:
         - chat
       test_suites:
@@ -96,8 +96,8 @@ matrix:
         code: "2GiB"          # 2048 tokens, 32 concurrent
         summarization: "2GiB" # 2304 tokens, 32 concurrent
         reasoning: "2GiB"     # 2304 tokens, 32 concurrent
-        chat_var: "1GiB"      # Same as chat
-        code_var: "2GiB"      # Same as code
+        chat_var: "3GiB"      # 2048 max tokens, 32 concurrent, 1.5x safety
+        code_var: "5GiB"      # 4096 max tokens, 32 concurrent, 1.5x safety
       default_workloads:
         - chat
       test_suites:
@@ -128,8 +128,8 @@ matrix:
         code: "2GiB"          # 2048 tokens, 32 concurrent
         summarization: "2GiB" # 2304 tokens, 32 concurrent
         reasoning: "3GiB"     # 2304 tokens, 32 concurrent
-        chat_var: "1GiB"      # Same as chat
-        code_var: "2GiB"      # Same as code
+        chat_var: "4GiB"      # 2048 max tokens, 32 concurrent, 1.5x safety
+        code_var: "7GiB"      # 4096 max tokens, 32 concurrent, 1.5x safety
       default_workloads:
         - chat
         - summarization
@@ -160,8 +160,8 @@ matrix:
         code: "4GiB"          # 2048 tokens, 32 concurrent
         summarization: "4GiB" # 2304 tokens, 32 concurrent
         reasoning: "5GiB"     # 2304 tokens, 32 concurrent
-        chat_var: "2GiB"      # Same as chat
-        code_var: "4GiB"      # Same as code
+        chat_var: "8GiB"      # 2048 max tokens, 32 concurrent, 1.5x safety
+        code_var: "15GiB"     # 4096 max tokens, 32 concurrent, 1.5x safety
       default_workloads:
         - chat
         - summarization
@@ -192,8 +192,8 @@ matrix:
         code: "5GiB"          # 2048 tokens, 32 concurrent
         summarization: "4GiB" # 2304 tokens, 32 concurrent
         reasoning: "5GiB"     # 2304 tokens, 32 concurrent
-        chat_var: "3GiB"      # Same as chat
-        code_var: "5GiB"      # Same as code
+        chat_var: "8GiB"      # 2048 max tokens, 32 concurrent, 1.5x safety
+        code_var: "15GiB"     # 4096 max tokens, 32 concurrent, 1.5x safety
       default_workloads:
         - chat
       test_suites:
@@ -224,8 +224,8 @@ matrix:
         code: "3GiB"          # 2048 tokens, 32 concurrent
         summarization: "3GiB" # 2304 tokens, 32 concurrent
         reasoning: "4GiB"     # 2304 tokens, 32 concurrent
-        chat_var: "2GiB"      # Same as chat
-        code_var: "3GiB"      # Same as code
+        chat_var: "6GiB"      # 2048 max tokens, 32 concurrent, 1.5x safety
+        code_var: "11GiB"     # 4096 max tokens, 32 concurrent, 1.5x safety
       default_workloads:
         - chat
         - code
@@ -256,8 +256,8 @@ matrix:
         code: "2GiB"          # 2048 tokens, 32 concurrent
         summarization: "2GiB" # 2304 tokens, 32 concurrent
         reasoning: "2GiB"     # 2304 tokens, 32 concurrent
-        chat_var: "1GiB"      # Same as chat
-        code_var: "2GiB"      # Same as code
+        chat_var: "4GiB"      # 2048 max tokens, 32 concurrent, 1.5x safety
+        code_var: "7GiB"      # 4096 max tokens, 32 concurrent, 1.5x safety
       default_workloads:
         - chat
         - code
@@ -300,8 +300,8 @@ matrix:
         code: "4GiB"          # 2048 tokens, 32 concurrent
         summarization: "3GiB" # 2304 tokens, 32 concurrent
         reasoning: "4GiB"     # 2304 tokens, 32 concurrent
-        chat_var: "2GiB"      # Same as chat
-        code_var: "4GiB"      # Same as code
+        chat_var: "4GiB"      # 2048 max tokens, 32 concurrent, 1.5x safety
+        code_var: "7GiB"      # 4096 max tokens, 32 concurrent, 1.5x safety
       default_workloads:
         - rag       # Primary - leverages large context
         - chat      # Baseline conversational
