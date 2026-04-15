@@ -549,13 +549,38 @@
       when: is_core_sweep is not defined or not is_core_sweep
 
     - name: Fetch results to local machine
-      ansible.posix.synchronize:
-        src: "{{ bench_config.results_dir }}/{{ actual_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/"
-        dest: "{{ hostvars['localhost']['local_results_base'] }}/{{ actual_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/"
-        mode: pull
-        recursive: true
-      when: is_core_sweep is not defined or not is_core_sweep
+      block:
+        - name: Fetch results to local machine via synchronize
+          ansible.posix.synchronize:
+            src: "{{ bench_config.results_dir }}/{{ actual_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/"
+            dest: "{{ hostvars['localhost']['local_results_base'] }}/{{ actual_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/"
+            mode: pull
+            recursive: true
+      rescue:
+        - name: Note synchronize fallback
+          ansible.builtin.debug:
+            msg: "Result sync via synchronize failed; falling back to per-file fetch."
 
+        - name: Fetch benchmarks.json to local machine (fallback)
+          ansible.builtin.fetch:
+            src: "{{ bench_config.results_dir }}/{{ actual_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/benchmarks.json"
+            dest: "{{ hostvars['localhost']['local_results_base'] }}/{{ actual_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/benchmarks.json"
+            flat: true
+
+        - name: Fetch benchmarks.csv to local machine (fallback)
+          ansible.builtin.fetch:
+            src: "{{ bench_config.results_dir }}/{{ actual_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/benchmarks.csv"
+            dest: "{{ hostvars['localhost']['local_results_base'] }}/{{ actual_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/benchmarks.csv"
+            flat: true
+
+        - name: Fetch test-metadata.json to local machine (fallback)
+          ansible.builtin.fetch:
+            src: "{{ bench_config.results_dir }}/{{ actual_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/test-metadata.json"
+            dest: "{{ hostvars['localhost']['local_results_base'] }}/{{ actual_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/test-metadata.json"
+            flat: true
+          failed_when: false
+
+      when: is_core_sweep is not defined or not is_core_sweep
     # Copy GuideLLM log from controller to final results directory
     # The log is fetched to controller's ~/benchmark-results by the benchmark_guidellm role
     # but synchronize above pulls from load_generator, so we need this separate copy
