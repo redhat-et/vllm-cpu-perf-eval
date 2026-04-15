@@ -1,0 +1,48 @@
+- name: Check whether GuideLLM container is still running (containerized)
+  ansible.builtin.command:
+    cmd: "podman ps --format {{ '{{.Names}}' }}"
+  register: guidellm_ps_check
+  changed_when: false
+
+- name: Compute elapsed benchmark time (containerized)
+  ansible.builtin.set_fact:
+    guidellm_elapsed_seconds: "{{ (lookup('pipe', 'date +%s') | int) - (guidellm_wait_start_epoch | int) }}"
+    guidellm_container_running: "{{ guidellm_container_name in guidellm_ps_check.stdout_lines }}"
+
+- name: Build progress message (containerized)
+  ansible.builtin.set_fact:
+    guidellm_progress_message: >-
+      {{ lookup('pipe', 'date -u +%Y-%m-%dT%H:%M:%SZ') }} | RUNNING |
+      elapsed={{ '%02d' | format(((guidellm_elapsed_seconds | int) // 60) | int) }}:{{ '%02d' | format(((guidellm_elapsed_seconds | int) % 60) | int) }}
+  when: guidellm_container_running | bool
+
+- name: Append benchmark progress to controller-side log only when message changes
+  ansible.builtin.shell: >-
+    printf '%s\n' {{ (guidellm_progress_message | trim) | quote }} >> {{ guidellm_progress_log_file | quote }}
+  delegate_to: localhost
+  changed_when: false
+  when:
+    - guidellm_container_running | bool
+    - (guidellm_progress_message | trim) != (guidellm_last_progress_message | trim)
+
+- name: Remember last benchmark progress message
+  ansible.builtin.set_fact:
+    guidellm_last_progress_message: "{{ guidellm_progress_message | trim }}"
+  when: guidellm_container_running | bool
+
+- name: Fail if safety timeout is exceeded while waiting for benchmark completion (containerized)
+  ansible.builtin.fail:
+    msg: >-
+      GuideLLM benchmark did not complete before safety timeout of {{ guidellm_wait_timeout_seconds }} seconds.
+  when:
+    - guidellm_container_running | bool
+    - (guidellm_elapsed_seconds | int) >= (guidellm_wait_timeout_seconds | int)
+
+- name: Pause before next benchmark status check (containerized)
+  ansible.builtin.pause:
+    seconds: "{{ guidellm_poll_seconds }}"
+  when: guidellm_container_running | bool
+
+- name: Continue polling while benchmark is still running (containerized)
+  ansible.builtin.include_tasks: benchmark_progress_poll.yml
+  when: guidellm_container_running | bool

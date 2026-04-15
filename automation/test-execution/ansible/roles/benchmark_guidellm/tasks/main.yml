@@ -199,31 +199,93 @@
         ] | min
       }}
 
+- name: Record benchmark wait start time (containerized)
+  ansible.builtin.set_fact:
+    guidellm_wait_start_epoch: "{{ lookup('pipe', 'date +%s') | int }}"
+    guidellm_expected_seconds: "{{ guidellm_max_seconds | default(guidellm_cfg.max_seconds | default(600)) | int }}"
+    guidellm_poll_seconds: 30
+    guidellm_last_progress_message: ""
+    guidellm_container_name: "guidellm-{{ workload_type }}-{{ core_cfg.name }}"
+  when: use_guidellm_container | bool
+
+- name: Set controller-side benchmark progress log directory (containerized)
+  ansible.builtin.set_fact:
+    guidellm_progress_log_dir: "{{ (playbook_dir + '/../../../progress-logs') | realpath }}"
+  when: use_guidellm_container | bool
+
+- name: Set controller-side benchmark progress log file (containerized)
+  ansible.builtin.set_fact:
+    guidellm_progress_log_file: >-
+      {{ guidellm_progress_log_dir }}/{{ test_model | replace('/', '__') }}-{{ workload_type }}-{{ core_cfg.name }}-progress.log
+  when: use_guidellm_container | bool
+
+- name: Ensure controller-side benchmark progress log directory exists
+  ansible.builtin.file:
+    path: "{{ guidellm_progress_log_dir }}"
+    state: directory
+    mode: "0755"
+  delegate_to: localhost
+  when: use_guidellm_container | bool
+
+- name: Initialize benchmark progress log on controller
+  ansible.builtin.copy:
+    dest: "{{ guidellm_progress_log_file }}"
+    content: ""
+    mode: "0644"
+  delegate_to: localhost
+  when: use_guidellm_container | bool
+
+- name: Write benchmark start entry to progress log
+  ansible.builtin.shell: >-
+    printf '%s\n' {{ (lookup('pipe', 'date -u +%Y-%m-%dT%H:%M:%SZ') ~ ' | START') | quote }} >> {{ guidellm_progress_log_file | quote }}
+  delegate_to: localhost
+  changed_when: false
+  when: use_guidellm_container | bool
+
 - name: Display benchmark start info (containerized)
   ansible.builtin.debug:
     msg:
       - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       - "GuideLLM Benchmark Started (Container Mode)"
       - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-      - "Container: {{ guidellm_container.container.Id[:12] }}"
+      - "Container: {{ guidellm_container.container.Id[:12] if (guidellm_container is defined and guidellm_container.container is defined and guidellm_container.container.Id is defined) else 'N/A' }}"
       - "Max Duration: {{ guidellm_cfg.max_seconds }}s | Max Requests: {{ guidellm_cfg.max_requests }}"
       - "Safety Timeout: {{ guidellm_wait_timeout_seconds }}s ({{ (guidellm_wait_timeout_seconds | int / 60) | round(1) }} min)"
-      - "{{ 'Location: localhost' if ansible_connection == 'local' else 'Location: ' + ansible_host }}"
+      - "{{ 'Location: localhost' if ansible_connection == 'local' else 'Location: ' + (ansible_host | default(inventory_hostname)) }}"
       - ""
-      - "⚠️  Ansible will now wait silently for completion"
-      - "⚠️  This may take several minutes (or hours for sweep tests)"
+      - "Progress log:"
+      - "  {{ guidellm_progress_log_file }}"
       - ""
-      - "To monitor progress, open another terminal and run:"
+      - "Watch progress:"
+      - "  tail -F {{ guidellm_progress_log_file }}"
+      - ""
+      - "Optional: container logs, open another terminal and run:"
       - "  {{ monitor_cmd }}"
       - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   when: use_guidellm_container | bool
 
-- name: Wait for GuideLLM benchmark to complete (containerized)
+- name: Poll for GuideLLM benchmark completion with visible progress (containerized)
+  ansible.builtin.include_tasks: benchmark_progress_poll.yml
+  when: use_guidellm_container | bool
+
+- name: Write benchmark completion entry to progress log
+  ansible.builtin.shell: >-
+    printf '%s\n' {{ (lookup('pipe', 'date -u +%Y-%m-%dT%H:%M:%SZ') ~ ' | COMPLETED') | quote }} >> {{ guidellm_progress_log_file | quote }}
+  delegate_to: localhost
+  changed_when: false
+  when: use_guidellm_container | bool
+
+- name: Wait for GuideLLM benchmark to complete and capture exit code (containerized)
   ansible.builtin.command:
-    cmd: "timeout {{ guidellm_wait_timeout_seconds }} podman wait guidellm-{{ workload_type }}-{{ core_cfg.name }}"
+    cmd: "podman wait {{ guidellm_container_name }}"
   register: guidellm_exit_code_container
   changed_when: false
-  failed_when: guidellm_exit_code_container.rc != 0 and guidellm_exit_code_container.rc != 124
+  failed_when: guidellm_exit_code_container.rc != 0
+  when: use_guidellm_container | bool
+
+- name: Announce benchmark completion (containerized)
+  ansible.builtin.debug:
+    msg: "GuideLLM benchmark completed. Collecting results."
   when: use_guidellm_container | bool
 
 - name: Get container exit details
