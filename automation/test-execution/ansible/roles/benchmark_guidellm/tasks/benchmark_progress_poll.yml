@@ -46,4 +46,3 @@
 - name: Continue polling while benchmark is still running (containerized)
   ansible.builtin.include_tasks: benchmark_progress_poll.yml
   when: guidellm_container_running | bool
-  
