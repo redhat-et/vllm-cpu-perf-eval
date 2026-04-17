@@ -452,11 +452,11 @@ cd vllm_dashboard
 - No database, no Prometheus, no Grafana needed!
 
 **Features:**
-- 📊 Client Metrics - GuideLLM analysis (throughput, latency, success rate)
-- 🖥️ Server Metrics - vLLM internals (queue, cache, tokens)
-- 🔄 Unified View - Correlate client & server behavior
-- 📈 Platform Comparison - Side-by-side performance
+- 📊 Client Metrics - GuideLLM analysis (multi-percentile overlay for throughput, latency, success rate)
+- 🖥️ Server Metrics - vLLM internals (time-series for queue, cache, tokens)
+- 📈 Platform Comparison - Side-by-side performance with % differences
 - 💾 CSV Export - For external analysis
+- 🔄 Correlation - Switch between dashboards to correlate client & server behavior
 
 ### Grafana Dashboards (Real-Time)
 

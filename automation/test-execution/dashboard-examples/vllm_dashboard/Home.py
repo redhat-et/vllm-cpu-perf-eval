@@ -45,12 +45,11 @@ st.markdown("---")
 st.markdown("""
 ### Welcome!
 
-This dashboard suite provides three complementary views of your
+This dashboard suite provides two complementary views of your
 vLLM CPU benchmark results:
 
 📊 **Client-Side Metrics** - End-user performance (GuideLLM)
 🖥️ **Server-Side Metrics** - Internal server (vLLM metrics)
-🔄 **Unified View** - Combined client + server correlation
 
 **👈 Use the sidebar to navigate between dashboards**
 """)
@@ -58,7 +57,7 @@ vLLM CPU benchmark results:
 st.markdown("---")
 
 # Dashboard overview cards
-col1, col2, col3 = st.columns(3)
+col1, col2 = st.columns(2)
 
 with col1:
     st.markdown("### 📊 Client-Side")
@@ -72,10 +71,11 @@ with col1:
     - Efficiency (tok/s/core)
 
     **Features**:
+    - Multi-percentile overlay
     - Platform comparison
     - Configurable X-axis
     - CSV data export
-    - Percentile analysis
+    - Percentile analysis (Mean, P50, P95, P99)
     """)
 
 with col2:
@@ -92,24 +92,8 @@ with col2:
     **Features**:
     - Time-series analysis
     - Multi-test comparison
+    - Summary statistics
     - Raw data inspection
-    """)
-
-with col3:
-    st.markdown("### 🔄 Unified")
-    st.info("""
-    **What**: Client + Server combined
-
-    **Analysis**:
-    - Correlation view
-    - Side-by-side comparison
-    - Unified filtering
-    - Peak performance
-
-    **Use for**:
-    - Root cause analysis
-    - Bottleneck identification
-    - Performance validation
     """)
 
 st.markdown("---")
@@ -194,11 +178,10 @@ with tab3:
     - 📊 Summary statistics
     - 🔍 Raw data tab
 
-    **Unified Dashboard provides:**
-    - 🔗 Client-Server correlation
-    - 📊 Side-by-side metrics
-    - 🎯 Peak performance summary
-    - 💡 Troubleshooting tips
+    **Analysis Workflow:**
+    - Start with Client Metrics to understand user experience
+    - Switch to Server Metrics to identify bottlenecks
+    - Compare metrics between dashboards for root cause analysis
     """)
 
 st.markdown("---")
