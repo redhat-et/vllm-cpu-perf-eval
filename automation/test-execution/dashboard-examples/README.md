@@ -115,20 +115,24 @@ Percentile definition: Pxx = the value below which xx% of data points fall
 - Identifying bottlenecks (queue buildup, cache thrashing)
 - Debugging performance issues
 
-### 🔄 Unified View
+## Analysis Workflow
 
-**Data Source:** Combined GuideLLM + vLLM metrics
+**Recommended approach for performance analysis:**
 
-**Analysis:**
-- Client-server correlation
-- Side-by-side performance comparison
-- Peak performance metrics
-- Bottleneck identification
+1. **Start with Client Metrics** - Understand end-user experience
+   - Analyze throughput and latency trends
+   - Identify optimal load points using multi-percentile overlay
+   - Compare P95 vs P99 to spot tail latency degradation
 
-**Best For:**
-- Root cause analysis
-- Performance validation
-- Understanding end-to-end behavior
+2. **Switch to Server Metrics** - Investigate server behavior
+   - Look for queue buildup patterns
+   - Check cache usage and efficiency
+   - Identify resource bottlenecks
+
+3. **Correlate findings** - Root cause analysis
+   - High client latency + server queue buildup = Insufficient capacity
+   - Good throughput + high cache usage = Optimal utilization
+   - Client issues + empty server queue = Network/routing problem
 
 ## Usage
 
@@ -492,8 +496,7 @@ vllm_dashboard/
 ├── Home.py                          # Main entry point
 ├── pages/
 │   ├── 1_📊_Client_Metrics.py      # GuideLLM analysis
-│   ├── 2_🖥️_Server_Metrics.py      # vLLM server metrics
-│   └── 3_🔄_Unified_View.py        # Combined view
+│   └── 2_🖥️_Server_Metrics.py      # vLLM server metrics
 ├── launch-dashboard.sh              # Start script
 ├── stop-dashboard.sh                # Stop script
 └── README.md                        # This file

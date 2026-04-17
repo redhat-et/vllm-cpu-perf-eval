@@ -6,11 +6,10 @@ Comprehensive performance analysis dashboard for vLLM CPU benchmarks.
 
 **Single URL Access**: All dashboards accessible from `http://localhost:8501`
 
-**Four Views**:
+**Three Views**:
 - 🏠 **Home** - Overview, quick start, system status
 - 📊 **Client Metrics** - GuideLLM performance analysis
 - 🖥️ **Server Metrics** - vLLM server-side metrics
-- 🔄 **Unified View** - Combined client + server correlation
 
 **Navigation**: Use the sidebar to switch between views
 
@@ -58,7 +57,6 @@ ansible-playbook llm-core-sweep-auto.yml \
 - **Home** - Click "Home" in sidebar
 - **Client Metrics** - Click "📊 Client Metrics" in sidebar
 - **Server Metrics** - Click "🖥️ Server Metrics" in sidebar
-- **Unified View** - Click "🔄 Unified View" in sidebar
 
 ## Dashboard Details
 
@@ -114,20 +112,24 @@ Percentile definition: Pxx = the value below which xx% of data points fall
 - Summary statistics
 - Raw data inspection
 
-### 🔄 Unified View
+## Analysis Workflow
 
-**Source**: Combined GuideLLM + vLLM metrics
+**Recommended approach**:
 
-**Analysis**:
-- Client-server correlation
-- Side-by-side metrics
-- Peak performance comparison
-- Bottleneck identification
+1. **Start with Client Metrics** - Understand end-user performance
+   - Check throughput and latency trends
+   - Identify optimal load points
+   - Compare P95 vs P99 to understand tail latency
 
-**Use For**:
-- Root cause analysis
-- Performance validation
-- Troubleshooting
+2. **Switch to Server Metrics** - Investigate bottlenecks
+   - Look for queue buildup
+   - Check cache usage patterns
+   - Identify resource constraints
+
+3. **Correlate findings** - Root cause analysis
+   - High client latency + server queue buildup = Insufficient capacity
+   - Good throughput + high cache usage = Optimal utilization
+   - Client issues + empty queue = Network/configuration problem
 
 ## Stopping
 
@@ -189,8 +191,7 @@ vllm_dashboard/
 ├── Home.py                           # Main entry point (run this)
 ├── pages/
 │   ├── 1_📊_Client_Metrics.py       # GuideLLM analysis
-│   ├── 2_🖥️_Server_Metrics.py       # vLLM server metrics
-│   └── 3_🔄_Unified_View.py         # Combined view
+│   └── 2_🖥️_Server_Metrics.py       # vLLM server metrics
 ├── launch-dashboard.sh               # Start script
 ├── stop-dashboard.sh                 # Stop script
 └── README.md                         # This file

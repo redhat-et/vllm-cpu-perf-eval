@@ -198,20 +198,24 @@ Percentile definition: Pxx = the value below which xx% of data points fall
 - Cache behavior analysis
 - Server capacity planning
 
-### 🔄 Unified View
+## Analysis Workflow
 
-**Shows:** Combined client + server analysis
+**Recommended approach:**
 
-**Features:**
-- Correlated metrics
-- Side-by-side comparison
-- Peak performance identification
-- Bottleneck detection
+1. **Start with Client Metrics**
+   - Understand end-user performance
+   - Identify optimal load points
+   - Check P95/P99 tail latency with multi-percentile overlay
 
-**Best for:**
-- Root cause analysis
-- Performance validation
-- Comprehensive test review
+2. **Switch to Server Metrics**
+   - Investigate queue buildup
+   - Check cache usage patterns
+   - Identify bottlenecks
+
+3. **Correlate findings**
+   - High latency + queue buildup = Capacity issue
+   - Good throughput + high cache = Optimal utilization
+   - Client issues + empty queue = Network problem
 
 ## Quick Examples
 
@@ -306,9 +310,9 @@ ansible-playbook llm-benchmark-auto.yml -e "guidellm_max_seconds=600" ...
    - Watch for preemptions
 
 3. **Analyze in Streamlit** after test:
-   - Go to Unified View
-   - Correlate client latency with server queue
-   - Identify root cause
+   - Start with Client Metrics to check latency
+   - Switch to Server Metrics to check queue depth
+   - Correlate findings to identify root cause
 
 ### Workflow: Validate SLO Compliance
 
@@ -386,7 +390,7 @@ open http://localhost:9090/targets
 
 - ✅ Start with Client Metrics to understand user experience
 - ✅ Check Server Metrics if performance is below expectations
-- �� Use Unified View to correlate client & server behavior
+- ✅ Switch between dashboards to correlate client & server behavior
 - ✅ Use multi-percentile overlay to compare Mean/P50/P95/P99 on one chart
 - ✅ Watch for P99 divergence under load - indicates tail latency degradation
 - ✅ Select multiple percentiles (e.g., P95 + P99) to understand latency spread
