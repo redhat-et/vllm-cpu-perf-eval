@@ -176,6 +176,7 @@ models = sorted(set(r.get('model', 'unknown') for r in results))
 workloads = sorted(set(r.get('workload', 'unknown') for r in results))
 test_runs = sorted(set(r.get('test_run_id', 'unknown') for r in results))
 versions = sorted(set(r.get('vllm_version', 'unknown') for r in results))
+guidellm_versions = sorted(set(r.get('guidellm_version', 'unknown') for r in results))
 
 # Section navigation
 section_list = [
@@ -228,6 +229,9 @@ if current_section == "📈 Performance Plots":
         with col5:
             selected_version = st.selectbox("vLLM Version", versions)
 
+        with col6:
+            selected_guidellm_version = st.selectbox("GuideLLM Version", guidellm_versions)
+
         # Filter results (before test run selection)
         filtered_pre = [
             r for r in results
@@ -236,6 +240,7 @@ if current_section == "📈 Performance Plots":
             and r.get('workload') == selected_workload
             and r.get('cores') == selected_cores
             and r.get('vllm_version') == selected_version
+            and r.get('guidellm_version') == selected_guidellm_version
         ]
 
     else:  # external mode
@@ -256,6 +261,9 @@ if current_section == "📈 Performance Plots":
         with col4:
             selected_version = st.selectbox("vLLM Version", versions)
 
+        with col5:
+            selected_guidellm_version = st.selectbox("GuideLLM Version", guidellm_versions)
+
         # Filter results (before test run selection)
         filtered_pre = [
             r for r in results
@@ -263,6 +271,7 @@ if current_section == "📈 Performance Plots":
             and r.get('model') == selected_model
             and r.get('workload') == selected_workload
             and r.get('vllm_version') == selected_version
+            and r.get('guidellm_version') == selected_guidellm_version
         ]
 
     if not filtered_pre:
@@ -272,7 +281,8 @@ if current_section == "📈 Performance Plots":
     # Show test run selector if multiple runs match
     available_test_runs = sorted(set(r.get('test_run_id', 'unknown') for r in filtered_pre))
     if len(available_test_runs) > 1:
-        with col6:
+        col7, _, _ = st.columns(3)
+        with col7:
             selected_test_run = st.selectbox(
                 "Test Run",
                 available_test_runs,
@@ -289,15 +299,16 @@ if current_section == "📈 Performance Plots":
     # Show metadata
     st.subheader("Test Configuration")
     if test_mode == 'managed':
-        cols = st.columns(6)
+        cols = st.columns(7)
         cols[0].metric("Platform", test_data.get('platform', 'N/A'))
         cols[1].metric("Model", test_data.get('model', 'unknown').split('/')[-1])
         cols[2].metric("Workload", test_data.get('workload', 'N/A'))
         cols[3].metric("Cores", test_data.get('cores', 'N/A'))
         cols[4].metric("Backend", test_data.get('backend', 'N/A'))
-        cols[5].metric("Test Run ID", test_data.get('test_run_id', 'N/A')[:8])
+        cols[5].metric("GuideLLM", test_data.get('guidellm_version', 'N/A'))
+        cols[6].metric("Test Run ID", test_data.get('test_run_id', 'N/A')[:8])
     else:  # external mode
-        cols = st.columns(5)
+        cols = st.columns(6)
         endpoint_url = test_data.get('vllm_endpoint_url', 'N/A')
         # Shorten endpoint for display (preserve host:port)
         endpoint_short = endpoint_url.split('//', 1)[-1].rsplit('@', 1)[-1].split('/', 1)[0]
@@ -305,7 +316,8 @@ if current_section == "📈 Performance Plots":
         cols[1].metric("Model", test_data.get('model', 'unknown').split('/')[-1])
         cols[2].metric("Workload", test_data.get('workload', 'N/A'))
         cols[3].metric("Backend", test_data.get('backend', 'N/A'))
-        cols[4].metric("Test Run ID", test_data.get('test_run_id', 'N/A')[:8])
+        cols[4].metric("GuideLLM", test_data.get('guidellm_version', 'N/A'))
+        cols[5].metric("Test Run ID", test_data.get('test_run_id', 'N/A')[:8])
 
     # Collection info
     collection_info = test_data.get('collection_info', {})
@@ -777,6 +789,10 @@ elif current_section == "⚖️ Compare Configurations":
             baseline_versions = sorted(set(r.get('vllm_version', 'unknown') for r in baseline_filtered))
             baseline_version = st.selectbox("vLLM Version", baseline_versions, key="baseline_version")
             baseline_filtered = [r for r in baseline_filtered if r.get('vllm_version') == baseline_version]
+
+            baseline_guidellm_versions = sorted(set(r.get('guidellm_version', 'unknown') for r in baseline_filtered))
+            baseline_guidellm_version = st.selectbox("GuideLLM Version", baseline_guidellm_versions, key="baseline_guidellm_version")
+            baseline_filtered = [r for r in baseline_filtered if r.get('guidellm_version') == baseline_guidellm_version]
         else:  # external mode
             # External mode filters
             baseline_endpoint = st.selectbox("Endpoint URL", endpoints, key="baseline_endpoint")
@@ -793,6 +809,10 @@ elif current_section == "⚖️ Compare Configurations":
             baseline_versions = sorted(set(r.get('vllm_version', 'unknown') for r in baseline_filtered))
             baseline_version = st.selectbox("vLLM Version", baseline_versions, key="baseline_version")
             baseline_filtered = [r for r in baseline_filtered if r.get('vllm_version') == baseline_version]
+
+            baseline_guidellm_versions = sorted(set(r.get('guidellm_version', 'unknown') for r in baseline_filtered))
+            baseline_guidellm_version = st.selectbox("GuideLLM Version", baseline_guidellm_versions, key="baseline_guidellm_version_ext")
+            baseline_filtered = [r for r in baseline_filtered if r.get('guidellm_version') == baseline_guidellm_version]
 
         # Get available test runs for this configuration
         if baseline_filtered:
@@ -834,6 +854,10 @@ elif current_section == "⚖️ Compare Configurations":
             compare_versions = sorted(set(r.get('vllm_version', 'unknown') for r in compare_filtered))
             compare_version = st.selectbox("vLLM Version", compare_versions, key="compare_version")
             compare_filtered = [r for r in compare_filtered if r.get('vllm_version') == compare_version]
+
+            compare_guidellm_versions = sorted(set(r.get('guidellm_version', 'unknown') for r in compare_filtered))
+            compare_guidellm_version = st.selectbox("GuideLLM Version", compare_guidellm_versions, key="compare_guidellm_version")
+            compare_filtered = [r for r in compare_filtered if r.get('guidellm_version') == compare_guidellm_version]
         else:  # external mode
             # External mode filters
             compare_endpoint = st.selectbox("Endpoint URL", endpoints, key="compare_endpoint")
@@ -850,6 +874,10 @@ elif current_section == "⚖️ Compare Configurations":
             compare_versions = sorted(set(r.get('vllm_version', 'unknown') for r in compare_filtered))
             compare_version = st.selectbox("vLLM Version", compare_versions, key="compare_version")
             compare_filtered = [r for r in compare_filtered if r.get('vllm_version') == compare_version]
+
+            compare_guidellm_versions = sorted(set(r.get('guidellm_version', 'unknown') for r in compare_filtered))
+            compare_guidellm_version = st.selectbox("GuideLLM Version", compare_guidellm_versions, key="compare_guidellm_version_ext")
+            compare_filtered = [r for r in compare_filtered if r.get('guidellm_version') == compare_guidellm_version]
 
         # Get available test runs for this configuration
         if compare_filtered:
@@ -972,8 +1000,8 @@ elif current_section == "⚖️ Compare Configurations":
 
     # Create detailed labels
     if test_mode == 'managed':
-        baseline_label = f"Baseline: {baseline_result.get('platform', 'unknown')} | {baseline_result.get('vllm_version', 'unknown')} | {baseline_result.get('workload', 'unknown')} | {baseline_result.get('backend', 'unknown')}"
-        compare_label = f"Compare: {compare_result.get('platform', 'unknown')} | {compare_result.get('vllm_version', 'unknown')} | {compare_result.get('workload', 'unknown')} | {compare_result.get('backend', 'unknown')}"
+        baseline_label = f"Baseline: {baseline_result.get('platform', 'unknown')} | vLLM {baseline_result.get('vllm_version', 'unknown')} | GuideLLM {baseline_result.get('guidellm_version', 'unknown')} | {baseline_result.get('workload', 'unknown')}"
+        compare_label = f"Compare: {compare_result.get('platform', 'unknown')} | vLLM {compare_result.get('vllm_version', 'unknown')} | GuideLLM {compare_result.get('guidellm_version', 'unknown')} | {compare_result.get('workload', 'unknown')}"
     else:  # external mode
         baseline_endpoint_short = baseline_result.get('vllm_endpoint_url', 'unknown')
         if '//' in baseline_endpoint_short:
@@ -981,8 +1009,8 @@ elif current_section == "⚖️ Compare Configurations":
         compare_endpoint_short = compare_result.get('vllm_endpoint_url', 'unknown')
         if '//' in compare_endpoint_short:
             compare_endpoint_short = compare_endpoint_short.split('//', 1)[-1].rsplit('@', 1)[-1].split('/', 1)[0]
-        baseline_label = f"Baseline: {baseline_endpoint_short} | {baseline_result.get('vllm_version', 'unknown')} | {baseline_result.get('workload', 'unknown')} | {baseline_result.get('backend', 'unknown')}"
-        compare_label = f"Compare: {compare_endpoint_short} | {compare_result.get('vllm_version', 'unknown')} | {compare_result.get('workload', 'unknown')} | {compare_result.get('backend', 'unknown')}"
+        baseline_label = f"Baseline: {baseline_endpoint_short} | vLLM {baseline_result.get('vllm_version', 'unknown')} | GuideLLM {baseline_result.get('guidellm_version', 'unknown')} | {baseline_result.get('workload', 'unknown')}"
+        compare_label = f"Compare: {compare_endpoint_short} | vLLM {compare_result.get('vllm_version', 'unknown')} | GuideLLM {compare_result.get('guidellm_version', 'unknown')} | {compare_result.get('workload', 'unknown')}"
     labels = [baseline_label, compare_label]
 
     for idx, result in enumerate(comparison_results):
