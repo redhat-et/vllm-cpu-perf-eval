@@ -65,7 +65,10 @@
 
 - name: Extract GuideLLM version from container image
   ansible.builtin.set_fact:
-    guidellm_version: "{{ guidellm_cfg.container_image.split(':')[-1] if ':' in guidellm_cfg.container_image else 'latest' }}"
+    guidellm_version: >-
+      {%- set image_no_digest = guidellm_cfg.container_image.split('@')[0] -%}
+      {%- set image_name = image_no_digest.rsplit('/', 1)[-1] -%}
+      {{ image_name.rsplit(':', 1)[1] if ':' in image_name else 'latest' }}
 
 - name: Save GuideLLM version to localhost for metadata
   ansible.builtin.set_fact:
