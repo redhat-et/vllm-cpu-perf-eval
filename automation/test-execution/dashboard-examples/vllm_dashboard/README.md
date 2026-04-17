@@ -66,17 +66,37 @@ ansible-playbook llm-core-sweep-auto.yml \
 
 **Source**: GuideLLM benchmark results (`benchmarks.json`)
 
-**Metrics**:
-- Throughput (tokens/sec)
-- TTFT, ITL, E2E latency (P50, P95, P99)
-- Success rates
-- Efficiency (tokens/sec/core)
+**Metric Families**:
+- Throughput (tokens/sec) - mean, P50, P95, P99
+- TTFT (ms) - Time To First Token across percentiles
+- ITL (ms) - Inter-Token Latency across percentiles
+- E2E Latency (s) - End-to-End request latency
+- Success Rate (%)
+- Efficiency (tokens/sec/core) - managed mode only
 
 **Features**:
-- Configurable X-axis (request rate or concurrency)
-- Platform comparison with % differences
-- CSV export
-- Peak performance summary
+- **Multi-percentile overlay**: Select metric family (e.g., TTFT) and view Mean, P50, P95, P99 on the same chart
+- **Visual differentiation**: Each percentile uses a distinct line style (solid, dashed, dotted, dash-dot)
+- **Configurable X-axis**: Request rate or concurrency
+- **Platform comparison**: Side-by-side with % differences for selected percentiles
+- **CSV export**: Download filtered data
+- **Peak performance summary**: Shows best/peak values for all selected percentiles
+
+**Understanding Percentiles**:
+
+Percentile definition: Pxx = the value below which xx% of data points fall
+
+*Latency percentiles (lower is better)*:
+- **P99 = 99% of requests completed within this latency** (worst-case tail)
+- High P99 latency = bad (slow tail)
+- Example: TTFT P99 = 200ms means 99% of requests got first token within 200ms
+
+*Throughput percentiles (higher is better)*:
+- **P99 = 99% of requests achieved this throughput or lower** (upper bound)
+- High P99 throughput = good (fast requests)
+- Example: Throughput P99 = 100 tok/s means only 1% of requests exceeded 100 tok/s
+- **P99 > Mean**: Some fast requests pulled up the average
+- **Narrow spread (P99 ≈ P50)**: Consistent per-request throughput
 
 ### 🖥️ Server Metrics
 

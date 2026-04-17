@@ -415,25 +415,49 @@ def render_performance_plots(df: pd.DataFrame):
     # Detect test mode from dataframe
     test_mode = df['vllm_mode'].iloc[0] if not df.empty else 'managed'
 
-    # Axis selectors
-    metric_options = {
-        "Throughput (tokens/sec)": "throughput_mean",
-        "TTFT (ms)": "ttft_p95",
-        "ITL (ms)": "itl_p95",
-        "E2E Latency (s)": "e2e_p95",
-        "Success Rate (%)": "success_rate"
+    # Metric families
+    metric_families = {
+        "Throughput (tokens/sec)": {
+            "prefix": "throughput",
+            "unit": "tokens/sec",
+            "percentiles": ["mean", "p50", "p95", "p99"]
+        },
+        "TTFT (ms)": {
+            "prefix": "ttft",
+            "unit": "ms",
+            "percentiles": ["mean", "p50", "p95", "p99"]
+        },
+        "ITL (ms)": {
+            "prefix": "itl",
+            "unit": "ms",
+            "percentiles": ["mean", "p50", "p95", "p99"]
+        },
+        "E2E Latency (s)": {
+            "prefix": "e2e",
+            "unit": "s",
+            "percentiles": ["mean", "p50", "p95", "p99"]
+        },
+        "Success Rate (%)": {
+            "prefix": "success_rate",
+            "unit": "%",
+            "percentiles": None  # No percentiles for success rate
+        }
     }
 
     # Only add efficiency metric for managed mode (requires core count)
     if test_mode == 'managed':
-        metric_options["Efficiency (tokens/sec/core)"] = "efficiency"
+        metric_families["Efficiency (tokens/sec/core)"] = {
+            "prefix": "efficiency",
+            "unit": "tokens/sec/core",
+            "percentiles": None
+        }
 
     x_axis_options = {
         "Request Rate (req/s)": "request_rate",
         "Concurrency": "concurrency"
     }
 
-    col1, col2, col3 = st.columns([1, 1, 2])
+    col1, col2 = st.columns([1, 1])
     with col1:
         selected_x_axis = st.selectbox(
             "X-axis",
@@ -442,14 +466,34 @@ def render_performance_plots(df: pd.DataFrame):
         )
 
     with col2:
-        selected_metric = st.selectbox(
-            "Y-axis Metric",
-            list(metric_options.keys()),
-            key="y_metric"
+        selected_metric_family = st.selectbox(
+            "Metric Family",
+            list(metric_families.keys()),
+            key="metric_family"
         )
 
     x_col = x_axis_options[selected_x_axis]
-    metric_col = metric_options[selected_metric]
+    metric_config = metric_families[selected_metric_family]
+
+    # Percentile labels for display
+    percentile_labels = {"mean": "Mean", "p50": "P50", "p95": "P95", "p99": "P99"}
+
+    # Percentile selector (only show for metrics with percentiles)
+    selected_percentiles = []
+    if metric_config["percentiles"]:
+        st.markdown("**Show percentiles:**")
+        cols = st.columns(len(metric_config["percentiles"]))
+        for idx, percentile in enumerate(metric_config["percentiles"]):
+            with cols[idx]:
+                if st.checkbox(percentile_labels[percentile], value=(percentile in ["p95", "p99"]), key=f"percentile_{percentile}"):
+                    selected_percentiles.append(percentile)
+
+        if not selected_percentiles:
+            st.warning("⚠️ Select at least one percentile to display")
+            return
+    else:
+        # For metrics without percentiles, use the base column
+        selected_percentiles = [None]
 
     # Group by test configuration
     grouped = df.groupby([
@@ -461,6 +505,14 @@ def render_performance_plots(df: pd.DataFrame):
     fig = go.Figure()
 
     colors = px.colors.qualitative.Set2
+    # Line styles for different percentiles
+    line_styles = {
+        "mean": "solid",
+        "p50": "dash",
+        "p95": "dot",
+        "p99": "dashdot"
+    }
+
     color_idx = 0
 
     for (platform, model, workload, vllm_version, cores, tp, test_id), group_df in grouped:
@@ -470,37 +522,54 @@ def render_performance_plots(df: pd.DataFrame):
         # Get full model name from the first row
         full_model = group_df['model'].iloc[0]
 
-        # Format label based on mode
+        # Format base label based on mode
         if test_mode == 'managed':
             # Format label: platform | model | release | core_count | TP | workload
-            label = f"{platform} | {full_model} | {vllm_version} | {cores}c | TP={tp} | {workload}"
+            base_label = f"{platform} | {full_model} | {vllm_version} | {cores}c | TP={tp} | {workload}"
         else:
             # External mode: endpoint | model | release | TP | workload
             endpoint_url = group_df['vllm_endpoint_url'].iloc[0]
             endpoint_short = endpoint_url.split('//', 1)[-1].rsplit('@', 1)[-1].split('/', 1)[0]
-            label = f"{endpoint_short} | {full_model} | {vllm_version} | TP={tp} | {workload}"
+            base_label = f"{endpoint_short} | {full_model} | {vllm_version} | TP={tp} | {workload}"
 
-        fig.add_trace(go.Scatter(
-            x=group_df[x_col],
-            y=group_df[metric_col],
-            name=label,
-            mode='lines+markers',
-            line=dict(color=colors[color_idx % len(colors)], width=3),
-            marker=dict(size=10),
-            hovertemplate=(
-                f"<b>{label}</b><br>" +
-                f"{selected_x_axis}: %{{x:.2f}}<br>" +
-                f"{selected_metric}: %{{y:.2f}}<br>" +
-                "<extra></extra>"
-            )
-        ))
+        # Plot each selected percentile
+        for percentile in selected_percentiles:
+            if percentile is None:
+                # No percentiles (e.g., success_rate, efficiency)
+                metric_col = metric_config["prefix"]
+                trace_label = base_label
+                line_style = "solid"
+            else:
+                # Build column name: prefix_percentile (e.g., ttft_p95)
+                metric_col = f"{metric_config['prefix']}_{percentile}"
+                trace_label = f"{base_label} ({percentile_labels[percentile]})"
+                line_style = line_styles.get(percentile, "solid")
+
+            fig.add_trace(go.Scatter(
+                x=group_df[x_col],
+                y=group_df[metric_col],
+                name=trace_label,
+                mode='lines+markers',
+                line=dict(
+                    color=colors[color_idx % len(colors)],
+                    width=3 if percentile in ["p95", "p99", None] else 2,
+                    dash=line_style
+                ),
+                marker=dict(size=8 if percentile in ["p95", "p99", None] else 6),
+                hovertemplate=(
+                    f"<b>{trace_label}</b><br>" +
+                    f"{selected_x_axis}: %{{x:.2f}}<br>" +
+                    f"{selected_metric_family}: %{{y:.2f}} {metric_config['unit']}<br>" +
+                    "<extra></extra>"
+                )
+            ))
 
         color_idx += 1
 
     fig.update_layout(
-        title=f"{selected_metric} vs {selected_x_axis}",
+        title=f"{selected_metric_family} vs {selected_x_axis}",
         xaxis_title=selected_x_axis,
-        yaxis_title=selected_metric,
+        yaxis_title=f"{selected_metric_family} ({metric_config['unit']})",
         height=600,
         hovermode='closest',
         legend=dict(
@@ -512,9 +581,9 @@ def render_performance_plots(df: pd.DataFrame):
             bgcolor="white",
             bordercolor="rgba(0, 0, 0, 0.3)",
             borderwidth=1,
-            font=dict(size=10, color="rgb(0, 0, 0)")
+            font=dict(size=9, color="rgb(0, 0, 0)")
         ),
-        margin=dict(r=350)  # Add right margin for legend panel
+        margin=dict(r=400)  # Add right margin for legend panel
     )
 
     st.plotly_chart(fig, use_container_width=True)
@@ -533,16 +602,6 @@ def render_performance_plots(df: pd.DataFrame):
             platform, model, workload,
             vllm_version, cores, tp, test_id
         ), group_df in grouped:
-            # Peak throughput and where it occurs
-            max_tput_idx = group_df['throughput_mean'].idxmax()
-            max_throughput = group_df.loc[max_tput_idx, 'throughput_mean']
-            peak_tput_load = group_df.loc[max_tput_idx, x_col]
-
-            # Best TTFT and where it occurs
-            min_ttft_idx = group_df['ttft_p95'].idxmin()
-            best_ttft = group_df.loc[min_ttft_idx, 'ttft_p95']
-            best_ttft_load = group_df.loc[min_ttft_idx, x_col]
-
             backend = group_df['backend'].iloc[0]
             vllm_mode = group_df['vllm_mode'].iloc[0]
 
@@ -552,9 +611,6 @@ def render_performance_plots(df: pd.DataFrame):
                 'Release': vllm_version,
                 'TP': tp,
                 'Backend': backend,
-                f'Peak Throughput {x_label}': f"{max_throughput:.2f} @ {peak_tput_load:.1f}",  # noqa: E501
-                f'Best TTFT P95 {x_label}': f"{best_ttft:.2f} @ {best_ttft_load:.1f}",  # noqa: E501
-                'Load Points': len(group_df)
             }
 
             # Add platform/cores for managed, endpoint for external
@@ -567,6 +623,42 @@ def render_performance_plots(df: pd.DataFrame):
                 endpoint_short = endpoint_url.split('//', 1)[-1].rsplit('@', 1)[-1].split('/', 1)[0]
                 row['Endpoint'] = endpoint_short[:50]  # Allow more space for host:port
 
+            # Add peak/best values for selected metric family and percentiles
+            if selected_percentiles[0] is None:
+                # Single metric without percentiles (e.g., success_rate, efficiency)
+                metric_col = metric_config["prefix"]
+                if metric_config["prefix"] in ["throughput", "efficiency"]:
+                    # Higher is better
+                    peak_idx = group_df[metric_col].idxmax()
+                    peak_val = group_df.loc[peak_idx, metric_col]
+                    peak_load = group_df.loc[peak_idx, x_col]
+                    row[f'Peak {selected_metric_family} {x_label}'] = f"{peak_val:.2f} @ {peak_load:.1f}"
+                else:
+                    # Lower is better
+                    best_idx = group_df[metric_col].idxmin()
+                    best_val = group_df.loc[best_idx, metric_col]
+                    best_load = group_df.loc[best_idx, x_col]
+                    row[f'Best {selected_metric_family} {x_label}'] = f"{best_val:.2f} @ {best_load:.1f}"
+            else:
+                # Metrics with percentiles
+                for percentile in selected_percentiles:
+                    metric_col = f"{metric_config['prefix']}_{percentile}"
+                    percentile_label = percentile_labels[percentile]
+
+                    if metric_config["prefix"] == "throughput":
+                        # Higher is better
+                        peak_idx = group_df[metric_col].idxmax()
+                        peak_val = group_df.loc[peak_idx, metric_col]
+                        peak_load = group_df.loc[peak_idx, x_col]
+                        row[f'Peak {percentile_label} {x_label}'] = f"{peak_val:.2f} @ {peak_load:.1f}"
+                    else:
+                        # Lower is better (latencies)
+                        best_idx = group_df[metric_col].idxmin()
+                        best_val = group_df.loc[best_idx, metric_col]
+                        best_load = group_df.loc[best_idx, x_col]
+                        row[f'Best {percentile_label} {x_label}'] = f"{best_val:.2f} @ {best_load:.1f}"
+
+            row['Load Points'] = len(group_df)
             summary.append(row)
 
         summary_df = pd.DataFrame(summary)
@@ -728,6 +820,24 @@ def render_compare_versions(df: pd.DataFrame):
         },
         "TTFT P95": {
             "column": "ttft_p95",
+            "higher_is_better": False,
+            "format": "{:.2f} ms",
+            "show": True
+        },
+        "TTFT P99": {
+            "column": "ttft_p99",
+            "higher_is_better": False,
+            "format": "{:.2f} ms",
+            "show": True
+        },
+        "ITL P95": {
+            "column": "itl_p95",
+            "higher_is_better": False,
+            "format": "{:.2f} ms",
+            "show": True
+        },
+        "ITL P99": {
+            "column": "itl_p99",
             "higher_is_better": False,
             "format": "{:.2f} ms",
             "show": True

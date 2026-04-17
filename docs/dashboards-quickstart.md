@@ -138,23 +138,42 @@ cd automation/test-execution/dashboard-examples/vllm_dashboard
 
 **Shows:** GuideLLM benchmark results
 
-**Key Metrics:**
-- Throughput (tokens/sec)
-- TTFT (Time to First Token)
-- ITL (Inter-Token Latency)
-- E2E Request Latency
-- Success Rate
+**Metric Families:**
+- Throughput (tokens/sec) - mean, P50, P95, P99
+- TTFT (Time to First Token) - all percentiles
+- ITL (Inter-Token Latency) - all percentiles
+- E2E Request Latency - all percentiles
+- Success Rate (%)
+- Efficiency (tokens/sec/core) - managed mode only
 
 **Visualizations:**
-- Line charts by request rate/concurrency
-- P50/P95/P99 percentiles
-- Peak performance summary
+- **Multi-percentile overlay**: Select metric family and view Mean, P50, P95, P99 on same chart
+- **Visual differentiation**: Each percentile uses distinct line style (solid, dashed, dotted, dash-dot)
+- Line charts by request rate or concurrency
+- Peak performance summary for selected percentiles
 - CSV export
+
+**Understanding Percentiles:**
+
+Percentile definition: Pxx = the value below which xx% of data points fall
+
+*Latency percentiles (lower is better)*:
+- **P99 = 99% of requests completed within this latency** (worst-case tail)
+- High P99 latency = bad (indicates slow tail)
+- Example: TTFT P99 = 200ms → 99% got first token within 200ms
+
+*Throughput percentiles (higher is better)*:
+- **P99 = 99% of requests achieved this throughput or lower** (upper bound)
+- High P99 throughput = good (shows fast requests)
+- Example: Throughput P99 = 100 tok/s → only 1% exceeded 100 tok/s
+- **P99 > Mean** = Some fast requests pulled up the average
+- **Narrow spread (P99 ≈ P50)** = Consistent per-request throughput
 
 **Best for:**
 - Finding optimal load point
-- Comparing platforms
-- SLO validation
+- Understanding tail latency behavior (P99 vs P95 vs Mean)
+- Comparing platforms across multiple percentiles
+- SLO validation (check P95/P99 thresholds)
 - External endpoint testing (works for both managed and external modes)
 
 ### 🖥️ Server Metrics
@@ -368,7 +387,9 @@ open http://localhost:9090/targets
 - ✅ Start with Client Metrics to understand user experience
 - ✅ Check Server Metrics if performance is below expectations
 - �� Use Unified View to correlate client & server behavior
-- ✅ Compare P50 vs P99 to understand tail latencies
+- ✅ Use multi-percentile overlay to compare Mean/P50/P95/P99 on one chart
+- ✅ Watch for P99 divergence under load - indicates tail latency degradation
+- ✅ Select multiple percentiles (e.g., P95 + P99) to understand latency spread
 
 ### Grafana Tips
 

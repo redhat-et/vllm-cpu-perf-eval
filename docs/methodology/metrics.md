@@ -5,6 +5,37 @@ title: Metrics
 
 ## Collected Metrics
 
+## Understanding Percentiles
+
+Percentile definition: **Pxx = the value below which xx% of data points fall**
+
+### Latency Percentiles (lower is better)
+
+- **P50 (median)**: 50% of requests completed within this latency
+- **P95**: 95% of requests completed within this latency
+- **P99**: 99% of requests completed within this latency (worst-case tail)
+
+**Interpretation**:
+- High P99 latency = **bad** (indicates slow tail)
+- Example: TTFT P99 = 200ms → 99% of requests got first token within 200ms, 1% took longer
+- **P99 > P95 > P50** is normal (higher percentiles show worse-case performance)
+
+### Throughput Percentiles (higher is better)
+
+- **P50 (median)**: 50% of requests achieved this throughput or lower
+- **P95**: 95% of requests achieved this throughput or lower
+- **P99**: 99% of requests achieved this throughput or lower (upper bound)
+
+**Interpretation**:
+- High P99 throughput = **good** (shows fast requests exist)
+- Example: Throughput P99 = 100 tok/s → only 1% of requests exceeded 100 tok/s
+- **P99 > Mean**: Some fast requests pulled up the average
+- **Narrow spread (P99 ≈ P50)**: Consistent per-request throughput
+
+**Key Difference**:
+- For **latency**: Higher percentiles (P95, P99) show **worst-case** performance
+- For **throughput**: Higher percentiles (P95, P99) show **upper bound** of performance
+
 ## Guidellm Metrics
 
 GuideLLM documents the key metrics measured/reported and how to interpret
