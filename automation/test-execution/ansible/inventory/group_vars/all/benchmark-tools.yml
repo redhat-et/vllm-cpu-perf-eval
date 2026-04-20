@@ -12,7 +12,8 @@ benchmark_tool:
     # Execution mode: containerized or host-based
     # - containerized (default): Run in Podman container (isolated, reproducible)
     # - host: Run guidellm from PATH (requires: pip install guidellm)
-    use_container: true
+    # Can be overridden with environment variable: export GUIDELLM_USE_CONTAINER=false
+    use_container: "{{ (lookup('env', 'GUIDELLM_USE_CONTAINER') | default('true', true) | lower) in ['true', '1', 'yes'] }}"
 
     # Using GuideLLM official container image
     # Can be overridden with environment variable: export GUIDELLM_CONTAINER_IMAGE=...

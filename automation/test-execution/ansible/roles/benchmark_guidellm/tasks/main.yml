@@ -359,10 +359,60 @@
       - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   when: not (use_guidellm_container | bool)
 
+- name: Detect guidellm version (host mode)
+  ansible.builtin.command:
+    cmd: "guidellm --version"
+  register: guidellm_version_output
+  changed_when: false
+  failed_when: false
+  when: not (use_guidellm_container | bool)
+
+- name: Parse guidellm version
+  ansible.builtin.set_fact:
+    guidellm_version_string: "{{ guidellm_version_output.stdout | regex_search('version: ([0-9]+\\.[0-9]+\\.[0-9]+)', '\\1') | first }}"
+  when:
+    - not (use_guidellm_container | bool)
+    - guidellm_version_output.rc == 0
+
+- name: Extract major.minor version
+  ansible.builtin.set_fact:
+    guidellm_major_minor: "{{ guidellm_version_string.split('.')[0] }}.{{ guidellm_version_string.split('.')[1] }}"
+  when:
+    - not (use_guidellm_container | bool)
+    - guidellm_version_string is defined
+
+- name: Display detected guidellm version
+  ansible.builtin.debug:
+    msg: "Detected guidellm version: {{ guidellm_major_minor | default('unknown') }}"
+  when: not (use_guidellm_container | bool)
+
+- name: Set guidellm CLI prefix for v0.6+ (uses subcommands)
+  ansible.builtin.set_fact:
+    guidellm_cli_prefix: "guidellm benchmark run"
+  when:
+    - not (use_guidellm_container | bool)
+    - guidellm_major_minor is defined
+    - guidellm_major_minor is version('0.6', '>=')
+
+- name: Set guidellm CLI prefix for v0.5 and earlier (no subcommands)
+  ansible.builtin.set_fact:
+    guidellm_cli_prefix: "guidellm"
+  when:
+    - not (use_guidellm_container | bool)
+    - guidellm_major_minor is defined
+    - guidellm_major_minor is version('0.6', '<')
+
+- name: Set guidellm CLI prefix fallback (assume v0.6+ if version detection failed)
+  ansible.builtin.set_fact:
+    guidellm_cli_prefix: "guidellm benchmark run"
+  when:
+    - not (use_guidellm_container | bool)
+    - guidellm_major_minor is not defined
+
 - name: Build GuideLLM command arguments
   ansible.builtin.set_fact:
     guidellm_cmd_args: >-
-      guidellm
+      {{ guidellm_cli_prefix }}
       --target http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}
       --profile {{ guidellm_cfg.profile }}
       {% if guidellm_cfg.profile != 'synchronous' and guidellm_cfg.rate is defined and guidellm_cfg.rate | length > 0 %}
@@ -370,10 +420,8 @@
       {% endif %}
       --max-seconds {{ guidellm_cfg.max_seconds }}
       --max-requests {{ guidellm_cfg.max_requests }}
-      --request-timeout {{ guidellm_cfg.request_timeout }}
       --warmup {{ guidellm_cfg.warmup }}
       --data {{ guidellm_data_string }}
-      --saturation-threshold {{ guidellm_cfg.saturation_threshold }}
       --cooldown {{ guidellm_cfg.cooldown }}
       --outputs {{ guidellm_cfg.outputs }}
       --output-dir {{ results_path }}
