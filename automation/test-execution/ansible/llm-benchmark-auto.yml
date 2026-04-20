@@ -465,7 +465,7 @@
             name: vllm_metrics_collector
           vars:
             vllm_url: "{{ hostvars['localhost']['vllm_metrics_url'] }}"
-            results_path: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ hostvars['localhost']['test_run_id'] }}/{{ core_configuration.name }}"
+            results_path: "{{ playbook_dir }}/../../../results/llm/{{ actual_model | replace('/', '__') }}/{{ workload_type }}-{{ hostvars['localhost']['test_run_id'] }}/{{ core_configuration.name }}"
             metrics_collection_interval: 10
             metrics_collection_duration: "{{ estimated_test_duration }}"
             test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
@@ -492,7 +492,7 @@
             name: vllm_metrics_collector
             tasks_from: stop
           vars:
-            results_path: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ hostvars['localhost']['test_run_id'] }}/{{ core_configuration.name }}"
+            results_path: "{{ playbook_dir }}/../../../results/llm/{{ actual_model | replace('/', '__') }}/{{ workload_type }}-{{ hostvars['localhost']['test_run_id'] }}/{{ core_configuration.name }}"
             enable_vllm_metrics_collection: true
       delegate_to: localhost
       become: false
@@ -699,8 +699,9 @@
   gather_facts: true
   vars:
     test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
+    actual_model: "{{ hostvars['localhost']['actual_model'] }}"
     core_configuration: "{{ hostvars['localhost']['core_configuration'] }}"
-    results_path: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}"
+    results_path: "{{ playbook_dir }}/../../../results/llm/{{ actual_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}"
 
   tasks:
     - name: Check if Prometheus publishing is enabled
