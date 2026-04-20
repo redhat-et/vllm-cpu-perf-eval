@@ -245,7 +245,7 @@
             dest: "{{ hostvars['localhost']['local_results_base'] }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/"
             mode: pull
             recursive: true
-          when: bench_config.results_dir != hostvars['localhost']['local_results_base']
+          when: ansible_connection != 'local'
 
         - name: Display results location
           ansible.builtin.debug:

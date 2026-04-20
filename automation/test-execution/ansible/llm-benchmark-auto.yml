@@ -558,23 +558,9 @@
       delegate_to: localhost
       when: is_core_sweep is not defined or not is_core_sweep
 
-    - name: Resolve canonical paths to detect local-host mode
-      ansible.builtin.command:
-        cmd: >-
-          python3 -c "
-          from pathlib import Path;
-          a = Path('{{ bench_config.results_dir }}').resolve().as_posix();
-          b = Path('{{ hostvars['localhost']['local_results_base'] }}').resolve().as_posix();
-          print(a == b)
-          "
-      register: _paths_equal
-      delegate_to: localhost
-      changed_when: false
-      when: is_core_sweep is not defined or not is_core_sweep
-
-    - name: Set results_dir_is_local_base fact
+    - name: Detect local execution mode
       ansible.builtin.set_fact:
-        results_dir_is_local_base: "{{ _paths_equal.stdout | trim | lower == 'true' }}"
+        is_local_execution: "{{ ansible_connection == 'local' }}"
       when: is_core_sweep is not defined or not is_core_sweep
 
     - name: Fetch results to local machine (remote execution only)
@@ -611,7 +597,7 @@
 
       when:
         - is_core_sweep is not defined or not is_core_sweep
-        - not (results_dir_is_local_base | default(false) | bool)
+        - ansible_connection != 'local'
 
     # Copy GuideLLM log from controller to final results directory (when results_dir differs)
     # The log is fetched to controller's ~/benchmark-results by the benchmark_guidellm role
@@ -625,7 +611,7 @@
       failed_when: false  # Don't fail if guidellm.log doesn't exist
       when:
         - is_core_sweep is not defined or not is_core_sweep
-        - not (results_dir_is_local_base | default(false) | bool)
+        - ansible_connection != 'local'
 
     # Clean up temporary results from controller's ~/benchmark-results (when results_dir differs)
     # Remove the entire test run directory since all files have been copied to final results
@@ -637,7 +623,7 @@
       delegate_to: localhost
       when:
         - is_core_sweep is not defined or not is_core_sweep
-        - not (results_dir_is_local_base | default(false) | bool)
+        - ansible_connection != 'local'
 
     - name: Extract per-benchmark timings from benchmarks.json
       ansible.builtin.command:
