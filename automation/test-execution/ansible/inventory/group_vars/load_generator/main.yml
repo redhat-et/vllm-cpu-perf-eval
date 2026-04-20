@@ -7,3 +7,9 @@
 
 # Log directory for load generator
 log_dir: /tmp/vllm-logs
+
+# Ansible connection type for load generator
+# Can be overridden with environment variable: export LOADGEN_CONNECTION=local
+# When set to 'local', ansible runs commands directly without SSH
+# Defaults to 'ssh' for remote execution
+ansible_connection: "{{ lookup('env', 'LOADGEN_CONNECTION') | default('ssh', true) }}"
