@@ -409,6 +409,32 @@ inventory/
 
 Ansible looks for `group_vars/` in the same directory as the inventory file.
 
+### Tokenizer/Processor Resolution Issues
+
+When vLLM's `served_model_name` differs from the HuggingFace model ID, GuideLLM may fail to resolve the correct tokenizer. This happens with quantized or custom models.
+
+**Symptoms:**
+```
+Error: Could not find tokenizer for model 'meta-llama-31-8b-instruct-quantizedw8a8'
+```
+
+**Solution:** Manually specify the HuggingFace model ID:
+
+```bash
+ansible-playbook -i inventory/hosts.yml \
+  llm-benchmark-auto.yml \
+  -e "test_model=meta-llama/Llama-3.1-8B-Instruct" \
+  -e "workload_type=chat" \
+  -e "requested_cores=16" \
+  -e "guidellm_processor=RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w8a8"
+```
+
+**How it works:**
+- By default, GuideLLM uses the model name from the `/v1/models` endpoint
+- If vLLM returns a simplified `served_model_name`, GuideLLM can't find the tokenizer
+- `guidellm_processor` overrides this with the full HuggingFace model ID
+- Works in both container mode (via `GUIDELLM_PROCESSOR` env var) and host mode (via `--processor` CLI arg)
+
 ## Best Practices
 
 1. **Never commit credentials:** Add `group_vars/all/credentials.yml` to `.gitignore` if storing secrets
