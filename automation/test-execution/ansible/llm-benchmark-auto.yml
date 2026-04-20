@@ -138,6 +138,7 @@
             url: "{{ vllm_endpoint.external.url }}/v1/models"
             method: GET
             status_code: 200
+            validate_certs: false
             headers: "{{ {'Authorization': 'Bearer ' + (vllm_endpoint.external.api_key | default(''))} if (vllm_endpoint.external.api_key_enabled | default(false)) else {} }}"
           register: external_models_response
           delegate_to: localhost
@@ -417,6 +418,7 @@
         method: GET
         status_code: [200, 404, 403]
         timeout: 5
+        validate_certs: false
       register: external_metrics_check
       delegate_to: localhost
       failed_when: false
