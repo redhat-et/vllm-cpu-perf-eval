@@ -61,7 +61,7 @@
 
 - name: Set GuideLLM execution mode
   ansible.builtin.set_fact:
-    use_guidellm_container: "{{ guidellm_cfg.use_container | default(true) | bool }}"
+    use_guidellm_container: "{{ guidellm_use_container | default(guidellm_cfg.use_container | default(true)) | bool }}"
 
 - name: Extract GuideLLM version from container image
   ansible.builtin.set_fact:
@@ -336,13 +336,23 @@
     - use_guidellm_container | bool
     - container_exit_code.stdout is defined
 
-- name: Fetch GuideLLM logs to controller
+- name: Fetch GuideLLM logs to controller (remote execution)
   ansible.builtin.fetch:
     src: "/tmp/guidellm-{{ workload_type }}-{{ core_cfg.name }}-{{ test_run_id }}.log"
     dest: "{{ results_path }}/guidellm.log"
     flat: true
   when:
     - use_guidellm_container | bool
+    - ansible_connection != 'local'
+
+- name: Copy GuideLLM logs to results directory (local execution)
+  ansible.builtin.copy:
+    src: "/tmp/guidellm-{{ workload_type }}-{{ core_cfg.name }}-{{ test_run_id }}.log"
+    dest: "{{ results_path }}/guidellm.log"
+    remote_src: true
+  when:
+    - use_guidellm_container | bool
+    - ansible_connection == 'local'
 
 
 - name: Remove completed container
@@ -382,10 +392,18 @@
 
 - name: Parse guidellm version
   ansible.builtin.set_fact:
-    guidellm_version_string: "{{ guidellm_version_output.stdout | regex_search('version: ([0-9]+\\.[0-9]+\\.[0-9]+)', '\\1') | first }}"
+    _guidellm_version_matches: "{{ guidellm_version_output.stdout | regex_findall('v?([0-9]+\\.[0-9]+\\.[0-9]+)') }}"
   when:
     - not (use_guidellm_container | bool)
     - guidellm_version_output.rc == 0
+
+- name: Extract version string from matches
+  ansible.builtin.set_fact:
+    guidellm_version_string: "{{ _guidellm_version_matches[0] }}"
+  when:
+    - not (use_guidellm_container | bool)
+    - _guidellm_version_matches is defined
+    - _guidellm_version_matches | length > 0
 
 - name: Extract major.minor version
   ansible.builtin.set_fact:
@@ -399,21 +417,21 @@
     msg: "Detected guidellm version: {{ guidellm_major_minor | default('unknown') }}"
   when: not (use_guidellm_container | bool)
 
-- name: Set guidellm CLI prefix for v0.6+ (uses subcommands)
+- name: Set guidellm CLI prefix for v0.4+ (uses subcommands)
   ansible.builtin.set_fact:
     guidellm_cli_prefix: "guidellm benchmark run"
   when:
     - not (use_guidellm_container | bool)
     - guidellm_major_minor is defined
-    - guidellm_major_minor is version('0.6', '>=')
+    - guidellm_major_minor is version('0.4', '>=')
 
-- name: Set guidellm CLI prefix for v0.5 and earlier (no subcommands)
+- name: Set guidellm CLI prefix for v0.3 and earlier (no subcommands)
   ansible.builtin.set_fact:
     guidellm_cli_prefix: "guidellm"
   when:
     - not (use_guidellm_container | bool)
     - guidellm_major_minor is defined
-    - guidellm_major_minor is version('0.6', '<')
+    - guidellm_major_minor is version('0.4', '<')
 
 - name: Set guidellm CLI prefix fallback (assume v0.6+ if version detection failed)
   ansible.builtin.set_fact:
@@ -434,7 +452,7 @@
       --max-seconds {{ guidellm_cfg.max_seconds }}
       --max-requests {{ guidellm_cfg.max_requests }}
       --warmup {{ guidellm_cfg.warmup }}
-      --data {{ guidellm_data_string }}
+      --data "{{ guidellm_data_string }}"
       --cooldown {{ guidellm_cfg.cooldown }}
       --outputs {{ guidellm_cfg.outputs }}
       --output-dir {{ results_path }}

@@ -29,10 +29,13 @@ inventory/
 **Option A: Environment Variables (Recommended - No file edits)**
 
 ```bash
+# Host connectivity
 export DUT_HOSTNAME=192.168.1.100
 export LOADGEN_HOSTNAME=192.168.1.200
 export ANSIBLE_SSH_USER=ec2-user
 export ANSIBLE_SSH_KEY=~/.ssh/my-key.pem
+
+# Credentials
 export HF_TOKEN=hf_xxxxx  # If using gated models
 
 # Optional: Use external vLLM endpoint instead of managed container
@@ -252,6 +255,21 @@ Then run tests normally - playbooks will skip vLLM container management and conn
 
 ### Scenario 4: Host-Based Execution (No Containers)
 
+**Option A: Command-line Flags (Recommended)**
+
+```bash
+cd automation/test-execution/ansible
+
+ansible-playbook -i inventory/hosts.yml \
+  llm-benchmark-auto.yml \
+  -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
+  -e "workload_type=chat" \
+  -e "requested_cores=16" \
+  -e "guidellm_use_container=false"
+```
+
+**Option B: Edit Configuration File**
+
 ```yaml
 # group_vars/all/benchmark-tools.yml
 benchmark_tool:
@@ -262,7 +280,59 @@ benchmark_tool:
     use_container: false  # Requires: pip install vllm
 ```
 
-Useful for CI/CD environments or when avoiding container overhead.
+**Prerequisites:**
+
+```bash
+# Install guidellm on the load generator host
+pip install guidellm  # Latest version (0.6.0+)
+
+# Or specify a version
+pip install guidellm==0.6.0
+```
+
+**Version Compatibility:**
+- guidellm 0.4.0+ uses `guidellm benchmark run` CLI syntax (auto-detected)
+- guidellm 0.3.x and earlier use `guidellm` directly (auto-detected)
+
+Useful for CI/CD environments, when avoiding container overhead, or when using specific Python versions.
+
+### Scenario 5: Local Execution (Ansible on Same Host as Guidellm)
+
+When running Ansible directly on the load generator machine (e.g., inside a container or VM), you need to override the connection type to `local` and disable container mode:
+
+**Setup:**
+
+```bash
+# Set environment variables for endpoint and credentials
+export VLLM_ENDPOINT_MODE=external
+export VLLM_ENDPOINT_URL=http://my-vllm-instance:8000
+export LOADGEN_HOSTNAME=localhost
+export HF_TOKEN=hf_xxxxx
+```
+
+**Run Tests:**
+
+```bash
+cd automation/test-execution/ansible
+
+ansible-playbook -i inventory/hosts.yml \
+  llm-benchmark-concurrent-load.yml \
+  -e "base_workload=chat" \
+  -e "guidellm_rate=[16]" \
+  -e "guidellm_max_seconds=300" \
+  -e "guidellm_use_container=false" \
+  -e "ansible_connection=local"
+```
+
+**Required Flags:**
+- `-e "guidellm_use_container=false"` - Run guidellm from PATH instead of container
+- `-e "ansible_connection=local"` - Use local execution (no SSH)
+
+**Benefits:**
+- No SSH overhead
+- No container overhead
+- Simpler setup for single-machine testing
+- Useful for containerized CI/CD environments
 
 ## Variable Precedence
 

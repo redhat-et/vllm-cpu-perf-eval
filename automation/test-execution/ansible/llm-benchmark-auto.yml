@@ -551,7 +551,7 @@
       delegate_to: localhost
       when: is_core_sweep is not defined or not is_core_sweep
 
-    - name: Fetch results to local machine
+    - name: Fetch results to local machine (remote execution only)
       block:
         - name: Fetch results to local machine via synchronize
           ansible.posix.synchronize:
@@ -583,26 +583,34 @@
             flat: true
           failed_when: false
 
-      when: is_core_sweep is not defined or not is_core_sweep
-    # Copy GuideLLM log from controller to final results directory
+      when:
+        - is_core_sweep is not defined or not is_core_sweep
+        - ansible_connection != 'local'
+    # Copy GuideLLM log from controller to final results directory (remote execution only)
     # The log is fetched to controller's ~/benchmark-results by the benchmark_guidellm role
     # but synchronize above pulls from load_generator, so we need this separate copy
+    # In local mode, results are already in the correct location, no copy needed
     - name: Copy GuideLLM log to final results directory
       ansible.builtin.copy:
         src: "{{ bench_config.results_dir }}/{{ actual_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/guidellm.log"
         dest: "{{ hostvars['localhost']['local_results_base'] }}/{{ actual_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/guidellm.log"
       delegate_to: localhost
       failed_when: false  # Don't fail if guidellm.log doesn't exist
-      when: is_core_sweep is not defined or not is_core_sweep
+      when:
+        - is_core_sweep is not defined or not is_core_sweep
+        - ansible_connection != 'local'
 
-    # Clean up temporary results from controller's ~/benchmark-results
+    # Clean up temporary results from controller's ~/benchmark-results (remote execution only)
     # Remove the entire test run directory since all files have been copied to final results
+    # In local mode, don't remove results as they're the primary copy
     - name: Remove temporary results directory from controller
       ansible.builtin.file:
         path: "{{ bench_config.results_dir }}/{{ actual_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}"
         state: absent
       delegate_to: localhost
-      when: is_core_sweep is not defined or not is_core_sweep
+      when:
+        - is_core_sweep is not defined or not is_core_sweep
+        - ansible_connection != 'local'
 
     - name: Extract per-benchmark timings from benchmarks.json
       ansible.builtin.command:
