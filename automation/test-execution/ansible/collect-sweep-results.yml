@@ -51,6 +51,7 @@
         dest: "{{ playbook_dir }}/../../../results/llm/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/"
         mode: pull
         recursive: true
+      when: bench_config.results_dir != (playbook_dir ~ '/../../../results/llm')
 
     # ==========================================================================
     # Step 2: Copy GuideLLM logs to final results directory

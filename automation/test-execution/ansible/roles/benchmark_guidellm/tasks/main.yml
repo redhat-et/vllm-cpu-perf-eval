@@ -116,6 +116,7 @@
       GUIDELLM_MAX_REQUESTS: "{{ guidellm_cfg.max_requests }}"
       GUIDELLM_REQUEST_TIMEOUT: "{{ guidellm_cfg.request_timeout }}"
       GUIDELLM_WARMUP: "{{ guidellm_cfg.warmup }}"
+      GUIDELLM_PROCESSOR: "{{ resolved_model }}"
       GUIDELLM__MAX_CONCURRENCY: "{{ guidellm_cfg.max_concurrency | default(128) }}"
       GUIDELLM__EXCLUDE_THROUGHPUT_TARGET: "{{ guidellm_cfg.exclude_throughput_target | string | lower }}"
       GUIDELLM__EXCLUDE_THROUGHPUT_RESULT: "{{ guidellm_cfg.exclude_throughput_result | string | lower }}"
@@ -440,6 +441,7 @@
       --max-requests {{ guidellm_cfg.max_requests }}
       --warmup {{ guidellm_cfg.warmup }}
       --data "{{ guidellm_data_string }}"
+      --processor "{{ resolved_model }}"
       --cooldown {{ guidellm_cfg.cooldown }}
       --outputs {{ guidellm_cfg.outputs }}
       --output-dir {{ results_path }}
