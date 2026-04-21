@@ -171,7 +171,7 @@ testing, see [Testing Phases](testing-phases.md).
 
 **Goal:** Measure P95 latency and throughput scaling under concurrent load
 
-- Tests 8 LLM models + 2 embedding models
+- Tests 6 LLM models + 2 embedding models
 - Concurrency levels: {1, 2, 4, 8, 16, 32} for LLMs
 - Concurrency levels: {4, 8, 16, 32, 64} for embeddings
 - Workloads: Chat, RAG, CodeGen, Summarization, Embedding
