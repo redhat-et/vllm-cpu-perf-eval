@@ -166,12 +166,29 @@ def remove_container(runtime: str, container_id: str, force: bool = True) -> boo
         True if removed successfully
     """
     try:
-        cmd = [runtime, "rm", container_id]
+        # If force removal, try to stop first to avoid hanging
         if force:
-            cmd.insert(2, "-f")
+            try:
+                subprocess.run(
+                    [runtime, "stop", "-t", "2", container_id],
+                    capture_output=True,
+                    timeout=5,
+                )
+            except Exception:
+                pass  # Ignore stop failures, rm -f should handle it
 
-        subprocess.run(cmd, capture_output=True, timeout=10)
-        return True
+        cmd = [runtime, "rm"]
+        if force:
+            cmd.append("-f")
+        cmd.append(container_id)
+
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            timeout=30,
+            text=True
+        )
+        return result.returncode == 0
     except Exception:
         return False
 

@@ -44,8 +44,11 @@ class TestContainerLifecycle:
         status = get_container_status(container_runtime, container_id)
         assert status in ["exited", "stopped"], f"Container still running: {status}"
 
-    def test_container_with_cpu_affinity(self, container_runtime, cleanup_containers):
+    def test_container_with_cpu_affinity(self, container_runtime, cleanup_containers, cpuset_available):
         """Test container with CPU affinity settings."""
+        if not cpuset_available:
+            pytest.skip("cpuset cgroup controller not available")
+
         result = run_container(
             runtime=container_runtime,
             image="busybox:latest",
@@ -167,12 +170,14 @@ class TestContainerCleanup:
             command=["sleep", "60"],
         )
 
+        assert result.returncode == 0, f"Container start failed: {result.stderr}"
         container_id = result.stdout.strip()
+        assert container_id, "No container ID returned"
 
         # Force remove without stopping
         removed = remove_container(container_runtime, container_id, force=True)
-        assert removed, "Failed to force remove container"
+        assert removed, f"Failed to force remove container {container_id}"
 
         # Verify removed
         status = get_container_status(container_runtime, container_id)
-        assert status is None, "Container still exists after removal"
+        assert status is None, f"Container still exists after removal with status: {status}"

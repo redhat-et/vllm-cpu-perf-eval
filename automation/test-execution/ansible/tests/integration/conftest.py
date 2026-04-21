@@ -48,6 +48,19 @@ def _get_container_runtime():
     return None
 
 
+def _check_cpuset_available(runtime):
+    """Check if cpuset cgroup controller is available."""
+    try:
+        result = subprocess.run(
+            [runtime, "run", "--rm", "--cpuset-cpus", "0", "busybox:latest", "true"],
+            capture_output=True,
+            timeout=10,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
 @pytest.fixture(scope="session")
 def container_runtime():
     """Get container runtime command."""
@@ -55,6 +68,12 @@ def container_runtime():
     if not runtime:
         pytest.skip("No container runtime (podman/docker) available")
     return runtime
+
+
+@pytest.fixture(scope="session")
+def cpuset_available(container_runtime):
+    """Check if cpuset cgroup controller is available."""
+    return _check_cpuset_available(container_runtime)
 
 
 @pytest.fixture
