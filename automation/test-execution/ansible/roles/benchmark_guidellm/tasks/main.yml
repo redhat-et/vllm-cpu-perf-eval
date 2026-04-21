@@ -342,23 +342,12 @@
     - use_guidellm_container | bool
     - container_exit_code.stdout is defined
 
-- name: Fetch GuideLLM logs to controller (remote execution)
-  ansible.builtin.fetch:
-    src: "/tmp/guidellm-{{ workload_type }}-{{ core_cfg.name }}-{{ test_run_id }}.log"
-    dest: "{{ results_path }}/guidellm.log"
-    flat: true
-  when:
-    - use_guidellm_container | bool
-    - ansible_connection != 'local'
-
-- name: Copy GuideLLM logs to results directory (local execution)
+- name: Copy GuideLLM logs to results directory
   ansible.builtin.copy:
     src: "/tmp/guidellm-{{ workload_type }}-{{ core_cfg.name }}-{{ test_run_id }}.log"
     dest: "{{ results_path }}/guidellm.log"
     remote_src: true
-  when:
-    - use_guidellm_container | bool
-    - ansible_connection == 'local'
+  when: use_guidellm_container | bool
 
 
 - name: Remove completed container
@@ -446,7 +435,7 @@
     - not (use_guidellm_container | bool)
     - guidellm_major_minor is not defined
 
-- name: Build GuideLLM command arguments
+- name: Build GuideLLM command arguments for v0.4+ (modern flags)
   ansible.builtin.set_fact:
     guidellm_cmd_args: >-
       {{ guidellm_cli_prefix }}
@@ -466,7 +455,33 @@
       {% if vllm_api_key is defined and vllm_api_key | length > 0 %}
       --backend-kwargs '{"api_key": "{{ vllm_api_key }}"}'
       {% endif %}
-  when: not (use_guidellm_container | bool)
+  when:
+    - not (use_guidellm_container | bool)
+    - guidellm_major_minor is not defined or guidellm_major_minor is version('0.4', '>=')
+
+- name: Build GuideLLM command arguments for v0.3 and earlier (legacy flags)
+  ansible.builtin.set_fact:
+    guidellm_cmd_args: >-
+      {{ guidellm_cli_prefix }} benchmark
+      --target http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}
+      --rate-type {{ guidellm_cfg.profile }}
+      {% if guidellm_cfg.profile != 'synchronous' and guidellm_cfg.rate is defined and guidellm_cfg.rate | length > 0 %}
+      --rate {{ guidellm_cfg.rate | join(' ') }}
+      {% endif %}
+      --max-seconds {{ guidellm_cfg.max_seconds }}
+      --max-requests {{ guidellm_cfg.max_requests }}
+      --warmup {{ guidellm_cfg.warmup }}
+      --data "{{ guidellm_data_string }}"
+      --processor "{{ processor_model }}"
+      --cooldown {{ guidellm_cfg.cooldown }}
+      --output-path {{ results_path }}
+      {% if vllm_api_key is defined and vllm_api_key | length > 0 %}
+      --backend-kwargs '{"api_key": "{{ vllm_api_key }}"}'
+      {% endif %}
+  when:
+    - not (use_guidellm_container | bool)
+    - guidellm_major_minor is defined
+    - guidellm_major_minor is version('0.4', '<')
 
 - name: Run GuideLLM benchmark on host
   ansible.builtin.command:
