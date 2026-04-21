@@ -429,7 +429,7 @@
       --target http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}
       --profile {{ guidellm_cfg.profile }}
       {% if guidellm_cfg.profile != 'synchronous' and guidellm_cfg.rate is defined and guidellm_cfg.rate | length > 0 %}
-      --rate {{ guidellm_cfg.rate | join(' ') }}
+      --rate {{ guidellm_cfg.rate | join(',') }}
       {% endif %}
       --max-seconds {{ guidellm_cfg.max_seconds }}
       --max-requests {{ guidellm_cfg.max_requests }}
@@ -453,17 +453,19 @@
       --target http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}
       --rate-type {{ guidellm_cfg.profile }}
       {% if guidellm_cfg.profile != 'synchronous' and guidellm_cfg.rate is defined and guidellm_cfg.rate | length > 0 %}
-      --rate {{ guidellm_cfg.rate | join(' ') }}
+      --rate {{ guidellm_cfg.rate | join(',') }}
       {% endif %}
       --max-seconds {{ guidellm_cfg.max_seconds }}
       --max-requests {{ guidellm_cfg.max_requests }}
-      --warmup {{ guidellm_cfg.warmup }}
+      --warmup-percent {{ guidellm_cfg.warmup }}
       --data "{{ guidellm_data_string }}"
       --processor "{{ processor_model }}"
-      --cooldown {{ guidellm_cfg.cooldown }}
+      {% if guidellm_cfg.cooldown is defined and (guidellm_cfg.cooldown is number or (guidellm_cfg.cooldown is string and guidellm_cfg.cooldown.endswith('%'))) %}
+      --cooldown-percent {{ guidellm_cfg.cooldown }}
+      {% endif %}
       --output-path {{ results_path }}
       {% if vllm_api_key is defined and vllm_api_key | length > 0 %}
-      --backend-kwargs '{"api_key": "{{ vllm_api_key }}"}'
+      --backend-args '{"api_key": "{{ vllm_api_key }}"}'
       {% endif %}
   when:
     - not (use_guidellm_container | bool)
