@@ -12,11 +12,11 @@ test_scenario:
   endpoint: "/v1/audio/transcriptions"
   request_type: "audio_transcriptions"
 
-  # Dataset configuration
+  # Dataset configuration - use dummy dataset for fast testing
   dataset:
-    name: "openslr/librispeech_asr"
+    name: "hf-internal-testing/librispeech_asr_dummy"
     config: "clean"
-    split: "test"
+    split: "validation"
     audio_column: "audio"
     num_samples: 5  # Only 5 samples for quick test
 
