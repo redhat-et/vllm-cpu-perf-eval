@@ -43,12 +43,16 @@ docs/
 │   ├── distributed-testing.md
 │   └── playbook-reference.md
 │
+├── proposals/               # Design proposals
+│   ├── README.md            # Proposal workflow
+│   └── results-directory-structure.md
+│
 └── reference/               # Reference documentation
     ├── model-yaml-schema.md
     ├── test-yaml-schema.md
     ├── matrix-yaml-schema.md
     └── cli-reference.md
-```text
+```
 
 ## Documentation by Topic
 
@@ -93,6 +97,14 @@ docs/
 2. [Test Scenario Schema](reference/test-yaml-schema.md) - Test YAML format
 3. [CLI Reference](reference/cli-reference.md) - Command-line tool reference
 
+### Design Proposals
+
+Design proposals for changes to the framework:
+
+1. [Proposals Overview](proposals/README.md) - Proposal workflow and guidelines
+2. [Results Directory Structure](proposals/results-directory-structure.md) -
+   Unified results structure and custom test run names
+
 ## Contributing to Documentation
 
 Documentation is written in Markdown and follows these conventions:
@@ -118,6 +130,7 @@ pre-commit run --all-files
 | methodology/metrics.md | ✅ Complete | 2024-02-08 |
 | methodology/reporting.md | ✅ Complete | 2024-02-08 |
 | platform-setup/x86/intel/deterministic-benchmarking.md | ✅ Complete | (current) |
+| proposals/results-directory-structure.md | 🚧 In Review | 2024-03-30 |
 | containers/* | 📝 Planned | - |
 | ansible/* | 📝 Planned | - |
 | getting-started/* | 📝 Planned | - |
