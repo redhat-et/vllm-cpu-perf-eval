@@ -58,7 +58,7 @@ class TestModelMatrix:
             if missing:
                 errors.append(f"{model_name}: missing fields {missing}")
 
-        assert not errors, f"Model validation errors:\n" + "\n".join(errors)
+        assert not errors, "Model validation errors:\n" + "\n".join(errors)
 
     def test_workloads_match_model_requirements(self, llm_matrix):
         """Validate workload context_length vs model capacity."""
@@ -85,7 +85,7 @@ class TestModelMatrix:
                             f"max_model_len ({max_len}) > context_length ({model_context})"
                         )
 
-        assert not errors, f"Workload validation errors:\n" + "\n".join(errors)
+        assert not errors, "Workload validation errors:\n" + "\n".join(errors)
 
     def test_all_workloads_have_required_fields(self, llm_matrix):
         """Each workload must have required fields."""
@@ -117,7 +117,7 @@ class TestModelMatrix:
             if missing:
                 errors.append(f"{workload_name}: missing fields {missing}")
 
-        assert not errors, f"Workload field validation errors:\n" + "\n".join(errors)
+        assert not errors, "Workload field validation errors:\n" + "\n".join(errors)
 
     def test_kv_cache_sizes_defined(self, llm_matrix):
         """Each model should have KV cache sizes for their workloads."""
@@ -174,7 +174,7 @@ class TestModelMatrix:
                         f"Valid suites: {valid_suites}"
                     )
 
-        assert not errors, f"Test suite validation errors:\n" + "\n".join(errors)
+        assert not errors, "Test suite validation errors:\n" + "\n".join(errors)
 
     def test_gated_models_marked_correctly(self, llm_matrix):
         """Models requiring HuggingFace tokens should be marked as gated."""
@@ -197,7 +197,7 @@ class TestModelMatrix:
 
         # This is a warning, not a hard error (new gated models may be added)
         if errors:
-            pytest.skip(f"Gated model warnings (not critical):\n" + "\n".join(errors))
+            pytest.skip("Gated model warnings (not critical):\n" + "\n".join(errors))
 
     def test_embedding_matrix_structure(self, embedding_matrix):
         """Embedding model matrix should have required structure."""
@@ -213,7 +213,7 @@ class TestModelMatrix:
             if missing:
                 errors.append(f"{model_name}: missing fields {missing}")
 
-        assert not errors, f"Embedding model validation errors:\n" + "\n".join(errors)
+        assert not errors, "Embedding model validation errors:\n" + "\n".join(errors)
 
     def test_no_duplicate_model_names(self, llm_matrix):
         """Model names should be unique."""

@@ -17,7 +17,7 @@ try:
 except ImportError:
     HAS_PYTEST = False
 
-    # Mock pytest.raises for fallback tests
+    # Mock pytest.raises and mark for fallback tests
     class pytest:
 
         class raises:
@@ -38,6 +38,12 @@ except ImportError:
                     raise AssertionError(f"Did not raise {self.exc}")
                 # Let unexpected exceptions propagate
                 return False
+
+        class mark:
+            @staticmethod
+            def unit(func):
+                """No-op decorator for @pytest.mark.unit."""
+                return func
 
 
 from cpu_utils import (  # noqa: E402
@@ -627,7 +633,7 @@ if __name__ == "__main__":
     import sys
 
     if HAS_PYTEST:
-        pytest.main([__file__, "-v"])
+        sys.exit(pytest.main([__file__, "-v"]))
     else:
         print("pytest not available, running basic tests...")
 
