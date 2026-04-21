@@ -332,7 +332,6 @@ ansible-playbook -i inventory/hosts.yml \
 - No SSH overhead
 - No container overhead
 - Simpler setup for single-machine testing
-- Useful for containerized CI/CD environments
 
 ## Variable Precedence
 
