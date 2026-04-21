@@ -74,10 +74,10 @@
           Missing required parameter: requested_cores or core_sweep_counts
           Please provide either:
             - Single core count: -e "requested_cores=<8|16|32|64|...>"
-            - Core sweep: -e "core_sweep_counts=[16,32,64]"
+            - Single-element list: -e "core_sweep_counts=[16]"
 
-          The concurrent load test requires at least one core configuration to test.
-          This playbook will run 3 phases with the specified core configuration(s).
+          Note: This playbook supports only a single core configuration.
+          For testing multiple core counts, use llm-core-sweep-auto.yml instead.
       when: vllm_mode == 'managed'
 
     - name: Warn if cores specified in external mode

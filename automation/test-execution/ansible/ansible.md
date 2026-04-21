@@ -65,8 +65,12 @@ ansible -i inventory/hosts.yml all -b -m reboot
 **Important Notes:**
 - **Option 2 (setup-platform.yml)**: Automatically installs Podman, Python 3,
   and all performance tools on **DUT and Load Generator hosts**. Your Ansible
-  control machine only needs Ansible itself and the collections from
-  requirements.yml.
+  control machine needs Ansible itself and the collections from requirements.yml.
+  **Before running setup-platform.yml**, install required collections:
+  ```bash
+  cd automation/test-execution/ansible
+  ansible-galaxy collection install -r requirements.yml
+  ```
 - **Option 1 (Manual)**: If you prefer minimal setup, manually install
   Podman/Docker and Python 3 on **DUT and Load Generator hosts** before running
   test playbooks.

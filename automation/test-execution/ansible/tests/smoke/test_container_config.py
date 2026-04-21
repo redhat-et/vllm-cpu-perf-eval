@@ -106,7 +106,15 @@ class TestContainerBasics:
         )
 
         # If image doesn't exist, skip (don't auto-pull in tests)
-        if "unable to find image" in result.stderr.lower():
+        # Handle both Docker and Podman error messages
+        stderr_lower = result.stderr.lower()
+        image_not_found_patterns = [
+            "unable to find image",  # Docker
+            "image not known",        # Podman
+            "no such image",          # Podman
+            "not found",              # Generic
+        ]
+        if any(pattern in stderr_lower for pattern in image_not_found_patterns):
             pytest.skip("vLLM image not available locally")
 
         if result.returncode == 0:
