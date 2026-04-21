@@ -1,0 +1,29 @@
+---
+# Cleanup tasks for vLLM scale-out deployment
+# This can be imported by other playbooks
+
+- name: Stop all vLLM containers
+  containers.podman.podman_container:
+    name: "vllm-instance-{{ item }}"
+    state: absent
+  loop: "{{ range(1, scaleout_num_instances + 1) | list }}"
+  ignore_errors: true
+  when: vllm_server.container_runtime == 'podman'
+
+- name: Stop nginx container
+  containers.podman.podman_container:
+    name: vllm-nginx-lb
+    state: absent
+  ignore_errors: true
+  when: vllm_server.container_runtime == 'podman'
+
+- name: Remove network
+  containers.podman.podman_network:
+    name: "{{ scaleout_network_name }}"
+    state: absent
+  ignore_errors: true
+  when: vllm_server.container_runtime == 'podman'
+
+- name: Display cleanup completion
+  ansible.builtin.debug:
+    msg: "vLLM scale-out cleanup completed"

@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+{% for i in range(1, scaleout_num_instances + 1) %}
+  # vLLM Instance {{ i }}
+  vllm-{{ i }}:
+    image: {{ scaleout_vllm_image }}
+    container_name: vllm-instance-{{ i }}
+    cpuset: "{{ scaleout_instance_cpusets[i - 1] }}"
+    cap_add:
+      - SYS_NICE
+    security_opt:
+      - seccomp=unconfined
+    environment:
+      - HF_HUB_OFFLINE=0
+      - HF_HOME=/root/.cache/huggingface
+{% if scaleout_hf_token is defined and scaleout_hf_token != '' %}
+      - HF_TOKEN={{ scaleout_hf_token }}
+{% endif %}
+    volumes:
+      - {{ scaleout_volume_name }}:/root/.cache/huggingface
+    command:
+      - --model
+      - {{ scaleout_model_name }}
+      - --port
+      - "8000"
+      - --host
+      - "0.0.0.0"
+{% if scaleout_enable_prefix_caching %}
+      - --enable-prefix-caching
+{% endif %}
+{% for arg in scaleout_vllm_extra_args %}
+      - {{ arg }}
+{% endfor %}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - {{ scaleout_network_name }}
+    restart: unless-stopped
+
+{% endfor %}
+  # Nginx Load Balancer
+  nginx:
+    image: {{ scaleout_nginx_image }}
+    container_name: vllm-nginx-lb
+    cpuset: "{{ scaleout_nginx_cores }}"
+    ports:
+      - "{{ scaleout_nginx_port }}:80"
+    volumes:
+      - {{ scaleout_config_dir }}/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+{% for i in range(1, scaleout_num_instances + 1) %}
+      - vllm-{{ i }}
+{% endfor %}
+    networks:
+      - {{ scaleout_network_name }}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+networks:
+  {{ scaleout_network_name }}:
+    driver: bridge
+
+volumes:
+  {{ scaleout_volume_name }}:

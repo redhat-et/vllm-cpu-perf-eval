@@ -1,0 +1,100 @@
+---
+# Example Inventory for vLLM Scale-Out Deployment
+# Copy this to your main inventory and customize
+#
+# Usage:
+#   ansible-playbook -i inventory/examples/vllm-scaleout-deployment.yml start-vllm-scaleout.yml
+
+all:
+  children:
+    dut:
+      hosts:
+        vllm-server:
+          ansible_host: 192.168.1.100  # Change to your DUT IP
+          ansible_user: root
+          ansible_connection: ssh
+
+      vars:
+        # vLLM Server Configuration (from existing setup)
+        vllm_server:
+          container_runtime: podman
+          container_image: "docker.io/vllm/vllm-openai-cpu:v0.18.0"
+          host: "0.0.0.0"
+          port: 8000
+
+        # Model cache and logs
+        model_cache_dir: /var/lib/vllm-models
+        log_dir: /tmp/vllm-logs
+
+        # ======================================================================
+        # vLLM Scale-Out Configuration
+        # ======================================================================
+
+        # Scenario 1: Default - 5 instances, 32 cores each, least connections
+        scaleout_num_instances: 5
+        scaleout_cores_per_instance: 32
+        scaleout_start_core: 32
+        scaleout_enable_smt: false
+        scaleout_enable_prefix_caching: true
+        scaleout_nginx_policy: "least_conn"
+        scaleout_nginx_port: 8080
+
+        # Model to deploy
+        test_model: "RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w8a8"
+
+        # Optional: HuggingFace token for gated models
+        # scaleout_hf_token: "hf_your_token_here"
+
+        # ======================================================================
+        # Alternative Scenarios (comment/uncomment as needed)
+        # ======================================================================
+
+        # Scenario 2: High instance count with smaller cores
+        # scaleout_num_instances: 8
+        # scaleout_cores_per_instance: 8
+        # scaleout_start_core: 32
+        # scaleout_enable_smt: true
+        # scaleout_nginx_policy: "round_robin"
+
+        # Scenario 3: Medium instance count
+        # scaleout_num_instances: 6
+        # scaleout_cores_per_instance: 16
+        # scaleout_start_core: 32
+        # scaleout_enable_smt: false
+        # scaleout_nginx_policy: "least_conn"
+
+        # Scenario 4: Prefix caching disabled
+        # scaleout_num_instances: 4
+        # scaleout_cores_per_instance: 32
+        # scaleout_enable_prefix_caching: false
+        # scaleout_nginx_policy: "ip_hash"
+
+        # ======================================================================
+        # Advanced Options
+        # ======================================================================
+
+        # Custom vLLM arguments
+        # scaleout_vllm_extra_args:
+        #   - "--max-model-len"
+        #   - "4096"
+        #   - "--dtype"
+        #   - "bfloat16"
+
+        # Custom nginx cores
+        # scaleout_nginx_cores: "1-15"
+
+        # Custom container images
+        # scaleout_vllm_image: "quay.io/vllm/automation-vllm:cpu-24515584412"
+        # scaleout_nginx_image: "nginx:alpine"
+
+    load_generator:
+      hosts:
+        benchmark-client:
+          ansible_host: 192.168.1.101  # Change to your load generator IP
+          ansible_user: root
+          ansible_connection: ssh
+
+      vars:
+        # GuideLLM configuration (for benchmarking the scale-out deployment)
+        guidellm:
+          target_url: "http://192.168.1.100:8080/v1"  # Points to nginx load balancer
