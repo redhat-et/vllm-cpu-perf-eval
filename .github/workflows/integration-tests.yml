@@ -1,0 +1,128 @@
+---
+name: Integration Tests
+
+"on":
+  pull_request:
+    paths:
+      - "automation/test-execution/ansible/**"
+      - "models/**"
+      - ".github/workflows/integration-tests.yml"
+  push:
+    branches:
+      - main
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  integration-fast:
+    name: Integration Tests (Fast)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install pytest ansible pyyaml
+
+      - name: Run fast integration tests
+        run: |
+          cd automation/test-execution/ansible/tests
+          pytest -m "integration and not slow and not e2e and not requires_numa" -v --tb=short
+
+  integration-standard:
+    name: Integration Tests (Standard)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install pytest ansible pyyaml
+
+      - name: Install container runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman
+
+      - name: Pull required images
+        run: |
+          podman pull busybox:latest
+        continue-on-error: true
+
+      - name: Run standard integration tests
+        run: |
+          cd automation/test-execution/ansible/tests
+          pytest -m "integration and not e2e and not requires_numa" -v --tb=short
+
+      - name: Upload test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: |
+            automation/test-execution/ansible/tests/.pytest_cache/
+            automation/test-execution/ansible/tests/**/*.log
+
+  integration-e2e:
+    name: End-to-End Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    if: github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install pytest ansible pyyaml
+
+      - name: Install container runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman
+
+      - name: Pull required images
+        run: |
+          podman pull busybox:latest
+          # podman pull vllm/vllm-openai:latest  # Uncomment when E2E tests are ready
+        continue-on-error: true
+
+      - name: Run E2E tests
+        run: |
+          cd automation/test-execution/ansible/tests
+          pytest -m "e2e and not requires_numa" -v --tb=short
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results
+          path: |
+            automation/test-execution/ansible/tests/.pytest_cache/
+            automation/test-execution/ansible/tests/**/*.log
+            automation/test-execution/ansible/tests/integration/fixtures/
