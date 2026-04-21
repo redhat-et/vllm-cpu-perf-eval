@@ -138,6 +138,31 @@ class LscpuParser:
         """Check if parser contains no data."""
         return len(self._cpu_entries) == 0
 
+def expand_cpu_range(cpu_range_str: str) -> List[int]:
+    """
+    Expand a CPU range string to a list of individual CPU IDs.
+    Args:
+        cpu_range_str: CPU range string (e.g., "0-3,8-11,16" or "32-63")
+    Returns:
+        List of individual CPU IDs
+    Examples:
+        "0-3" -> [0, 1, 2, 3]
+        "0-3,8-11,16" -> [0, 1, 2, 3, 8, 9, 10, 11, 16]
+        "32-63" -> [32, 33, 34, ..., 63]
+    """
+    if not cpu_range_str or not cpu_range_str.strip():
+        return []
+
+    cpus = []
+    for part in cpu_range_str.split(','):
+        part = part.strip()
+        if '-' in part:
+            start, end = part.split('-', 1)
+            cpus.extend(range(int(start), int(end) + 1))
+        else:
+            cpus.append(int(part))
+    return sorted(cpus)
+
 def cpu_list_to_range(cpu_list: Union[List[int], str]) -> str:
     """
     Convert a list of CPU IDs to a compact range string.
@@ -610,16 +635,17 @@ def build_allocation(selected_nodes, cores_per_node, tp):
         if not physical_cpus_str:
             physical_cpus_str = node.get('physical_cpus', '')
 
-        physical_cpus_list = physical_cpus_str.split(',')
+        # Expand range notation to individual CPU IDs (e.g., "32-63" -> [32,33,...,63])
+        physical_cpus_list = expand_cpu_range(physical_cpus_str)
 
         # Take first N physical cores
-        allocated_cpus = [int(cpu.strip()) for cpu in physical_cpus_list[:cores_per_node]]
+        allocated_cpus = physical_cpus_list[:cores_per_node]
 
         # Validate allocation produced requested number of CPUs
         if len(allocated_cpus) != cores_per_node:
             raise AnsibleFilterError(
                 f"CPU allocation failed: requested {cores_per_node} cores from NUMA node {node['id']}, "
-                f"but only {len(allocated_cpus)} CPUs available. "
+                f"but only {len(physical_cpus_list)} CPUs available. "
                 f"Available CPUs: {physical_cpus_str}"
             )
 
