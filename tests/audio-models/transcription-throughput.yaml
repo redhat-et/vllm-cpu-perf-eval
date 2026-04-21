@@ -34,9 +34,15 @@ test_scenario:
     env_vars:
       VLLM_CPU_KVCACHE_SPACE: "2GiB"
 
-  # Test stages - Sequential vs Concurrent processing
+  # Test stages - Covers BOTH offline batch and online serving patterns
+  # See README.md "Understanding Test Profiles" section for details
   stages:
-    # Stage 1: Sequential processing (baseline - one at a time)
+    # ========================================================================
+    # OFFLINE BATCH BASELINE
+    # ========================================================================
+    # Stage 1: Sequential processing (one file at a time, serially)
+    # Use case: "I have N files on disk, process them one-by-one"
+    # Metric: Total completion time
     - name: "sequential-100-files"
       description: "Process 100 files sequentially to establish baseline"
       profile: "synchronous"
@@ -48,34 +54,48 @@ test_scenario:
         - "Total audio seconds processed"
         - "Audio seconds per wall-clock second (throughput)"
 
-    # Stage 2: Concurrent processing with 2 workers
+    # ========================================================================
+    # ONLINE SERVING SIMULATION
+    # ========================================================================
+    # Stage 2-4: Concurrent user simulation (NOT parallel batch processing)
+    # Use case: "N users simultaneously submitting audio to a live API"
+    # Metric: Per-request latency under concurrent load (P50, P95, P99)
+    # Important: This maintains N concurrent requests continuously, simulating
+    #            N active users, not batch parallel processing of N files
+
+    # Stage 2: Simulate 2 concurrent users
     - name: "concurrent-2-workers"
       description: "Process files with 2 concurrent requests"
       profile: "concurrent"
-      rate: 2  # 2 concurrent requests
+      rate: 2  # Maintain 2 concurrent users
       max_requests: 100
       result_filename_suffix: "concurrent-2"
-      expected_improvement: "~2x faster than sequential"
+      expected_improvement: "Lower latency than sequential under light load"
 
-    # Stage 3: Concurrent processing with 4 workers
+    # Stage 3: Simulate 4 concurrent users
     - name: "concurrent-4-workers"
       description: "Process files with 4 concurrent requests"
       profile: "concurrent"
-      rate: 4  # 4 concurrent requests
+      rate: 4  # Maintain 4 concurrent users
       max_requests: 100
       result_filename_suffix: "concurrent-4"
-      expected_improvement: "~4x faster than sequential (if CPU cores available)"
+      expected_improvement: "Moderate concurrent load - latency vs throughput tradeoff"
 
-    # Stage 4: Concurrent processing with 8 workers
+    # Stage 4: Simulate 8 concurrent users
     - name: "concurrent-8-workers"
       description: "Process files with 8 concurrent requests"
       profile: "concurrent"
-      rate: 8  # 8 concurrent requests
+      rate: 8  # Maintain 8 concurrent users
       max_requests: 100
       result_filename_suffix: "concurrent-8"
-      expected_improvement: "Identify optimal concurrency level"
+      expected_improvement: "Heavy concurrent load - identify latency degradation point"
 
-    # Stage 5: Maximum throughput test
+    # ========================================================================
+    # CAPACITY TEST (Applies to both offline and online)
+    # ========================================================================
+    # Stage 5: Maximum throughput - send requests as fast as server can handle
+    # Use case: "What's the absolute maximum capacity of this deployment?"
+    # Metric: Maximum files/sec, maximum audio_seconds/sec
     - name: "max-throughput"
       description: "Find maximum processing capacity"
       profile: "throughput"

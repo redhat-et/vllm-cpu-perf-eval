@@ -9,21 +9,68 @@ This test suite provides automated benchmarking for:
 - **Audio Translation** - Speech translation to text
 - **Audio Chat** - Multimodal audio + text conversations
 
-### Key Question Answered
+### Key Questions Answered
 
-**"How long does it take to transcribe N audio files?"**
+This test suite covers **two distinct usage patterns**:
 
-Plus comprehensive coverage of latency, scalability, format impact, and sustained load behavior.
+**1. Offline Batch Processing:**
+- "I have N audio files on disk - how long to transcribe them all?"
+- Focus: Total completion time, maximum throughput
+- Use cases: Post-call transcription, media archive processing, batch ETL
+
+**2. Online Serving:**
+- "How many concurrent users can submit audio for real-time transcription?"
+- Focus: Per-request latency (P50, P95, P99), concurrent user experience
+- Use cases: Live transcription API, voice assistant backend, streaming services
+
+Plus comprehensive coverage of scalability, format impact, and sustained load behavior.
 
 ## Test Scenarios
 
-| Scenario | Primary Focus | Use Case |
-|----------|--------------|----------|
-| **[transcription-throughput](transcription-throughput.yaml)** | Total time to process N files | Batch processing, file queue processing |
-| **[transcription-latency](transcription-latency.yaml)** | Per-request latency under load | Real-time transcription, SLA validation |
-| **[audio-duration-scaling](audio-duration-scaling.yaml)** | Performance vs audio length | Capacity planning, workload optimization |
-| **[constant-rate-stress](constant-rate-stress.yaml)** | Sustained load stability | Production readiness, resource planning |
-| **[format-comparison](format-comparison.yaml)** | Audio format impact | Bandwidth optimization, quality tradeoffs |
+| Scenario | Primary Focus | Serving Pattern | Use Case |
+|----------|--------------|-----------------|----------|
+| **[transcription-throughput](transcription-throughput.yaml)** | Total time to process N files | **Both** (Offline + Online) | Batch processing + concurrent user simulation |
+| **[transcription-latency](transcription-latency.yaml)** | Per-request latency under load | **Online Serving** | Real-time transcription, SLA validation |
+| **[audio-duration-scaling](audio-duration-scaling.yaml)** | Performance vs audio length | **Offline Batch** | Capacity planning, workload optimization |
+| **[constant-rate-stress](constant-rate-stress.yaml)** | Sustained load stability | **Online Serving** | Production readiness, resource planning |
+| **[format-comparison](format-comparison.yaml)** | Audio format impact | **Offline Batch** | Bandwidth optimization, quality tradeoffs |
+
+### Understanding Test Profiles
+
+**GuideLLM Profiles Explained:**
+
+- **`synchronous`** - Sequential processing (one request at a time)
+  - **Serving pattern:** Offline batch baseline
+  - **Measures:** Total time for N files processed serially
+  - **Analogy:** Single-threaded batch job
+
+- **`concurrent` with `rate: N`** - Maintains N concurrent requests
+  - **Serving pattern:** Online serving simulation
+  - **Measures:** Latency under N concurrent users
+  - **Analogy:** N users simultaneously using a web API
+  - **Important:** This is NOT parallel batch processing - it simulates continuous concurrent load
+
+- **`throughput`** - Maximum request rate the server can sustain
+  - **Serving pattern:** Capacity test (applies to both)
+  - **Measures:** Maximum files/sec, maximum audio_seconds/sec
+  - **Analogy:** Stress test to find breaking point
+
+### Which Test Should I Run?
+
+**Use Case: "I have 1000 audio files from call recordings, need to transcribe them all overnight"**
+→ **Offline batch processing**
+→ Run: `transcription-throughput` (focus on sequential + max-throughput stages)
+→ Key metric: Total wall-clock time, files/second
+
+**Use Case: "Building a real-time transcription API for customer calls"**
+→ **Online serving**
+→ Run: `transcription-latency` + `constant-rate-stress`
+→ Key metrics: P95 latency, concurrent user capacity, sustained load stability
+
+**Use Case: "Need to support both batch exports and live API"**
+→ **Both patterns**
+→ Run: `transcription-throughput` (all stages) + `transcription-latency`
+→ Analyze offline (sequential, max-throughput) and online (concurrent-N) results separately
 
 ## Quick Start
 
@@ -75,7 +122,7 @@ ansible-playbook audio-benchmark.yml \
 
 ### Test Scenario: Transcription Throughput
 
-**Answers:** How long to transcribe 100 audio files sequentially vs concurrently?
+**Answers:** How long to transcribe 100 audio files? (Offline batch + Online serving patterns)
 
 ```bash
 ansible-playbook audio-benchmark.yml \
@@ -85,23 +132,42 @@ ansible-playbook audio-benchmark.yml \
   -e "requested_tensor_parallel=1"
 ```
 
-**What it measures:**
-- Sequential processing time (baseline)
-- Concurrent processing (2, 4, 8 workers)
-- Maximum throughput capacity
-- Real-time factor (can we process faster than real-time?)
+**What it measures (5 stages):**
+
+1. **Sequential** (`profile: synchronous`) - **OFFLINE BATCH BASELINE**
+   - Process 100 files one at a time, serially
+   - Answers: "How long if I process files one-by-one?"
+   - Metric focus: Total wall-clock time
+
+2. **Concurrent-2/4/8** (`profile: concurrent`, `rate: 2/4/8`) - **ONLINE SERVING**
+   - Simulate 2/4/8 concurrent users continuously submitting audio
+   - Answers: "What's the latency when N users are using the API simultaneously?"
+   - Metric focus: Per-request latency (P50, P95, P99), concurrent user experience
+   - **NOT** parallel batch processing - this maintains continuous concurrent load
+
+3. **Max-throughput** (`profile: throughput`) - **CAPACITY TEST**
+   - Send requests as fast as the server can handle
+   - Answers: "What's the maximum files/second this server can sustain?"
+   - Metric focus: Maximum files/sec, maximum audio_seconds/sec
+   - Use for: Capacity planning, finding server limits
+
+**Key Distinction:**
+- **Offline batch:** "I have 100 files on disk, transcribe them all ASAP" → Use sequential (baseline) and max-throughput results
+- **Online serving:** "How many users can use my transcription API concurrently?" → Use concurrent-N results
 
 **Results location:**
 ```
 results/audio-models/openai__whisper-small/transcription-throughput/
-├── sequential.json
-├── concurrent-2.json
-├── concurrent-4.json
-├── concurrent-8.json
-└── max-throughput.json
+├── sequential.json           # Offline batch baseline
+├── concurrent-2.json         # Online: 2 concurrent users
+├── concurrent-4.json         # Online: 4 concurrent users
+├── concurrent-8.json         # Online: 8 concurrent users
+└── max-throughput.json       # Maximum capacity test
 ```
 
 ### Test Scenario: Transcription Latency
+
+**Serving Pattern:** **ONLINE SERVING** (Real-time API use case)
 
 **Answers:** What is latency under different concurrent loads?
 
@@ -113,12 +179,16 @@ ansible-playbook audio-benchmark.yml \
 ```
 
 **What it measures:**
-- Baseline latency (single user)
-- Latency under light/medium/heavy load
+- Baseline latency (single user, no contention)
+- Latency under light/medium/heavy concurrent load (2/5/10 users)
 - P50/P95/P99 latency percentiles
-- Latency degradation vs load
+- Latency degradation vs concurrent user count
+
+**Use case:** SLA validation for real-time transcription APIs (e.g., "Can we guarantee <200ms P95 latency for up to 10 concurrent users?")
 
 ### Test Scenario: Audio Duration Scaling
+
+**Serving Pattern:** **OFFLINE BATCH** (Sequential processing)
 
 **Answers:** How does processing time scale with audio length?
 
@@ -134,9 +204,13 @@ ansible-playbook audio-benchmark.yml \
 - Medium (5-15s) clips
 - Long (15-30s) clips
 - Full-length (no truncation)
-- Linear vs non-linear scaling
+- Linear vs non-linear scaling (is it O(n) with audio duration?)
+
+**Use case:** Capacity planning - "If our average audio file is 30 seconds, how many can we process per hour?"
 
 ### Test Scenario: Constant Rate Stress
+
+**Serving Pattern:** **ONLINE SERVING** (Sustained production load)
 
 **Answers:** Can the system handle sustained load? Any memory leaks or degradation?
 
@@ -151,11 +225,15 @@ ansible-playbook audio-benchmark.yml \
 **What it measures:**
 - Sustained load at 2, 5, 10 req/s (5 min each)
 - Extended duration test (15 min)
-- Latency stability over time
-- Memory growth/leaks
-- Error rates
+- Latency stability over time (does P95 degrade after 10 minutes?)
+- Memory growth/leaks (resource exhaustion detection)
+- Error rates under sustained load
+
+**Use case:** Production readiness validation - "Can this deployment handle 10 req/s continuously for hours without degradation?"
 
 ### Test Scenario: Format Comparison
+
+**Serving Pattern:** **OFFLINE BATCH** (Sequential processing)
 
 **Answers:** Which audio format provides best performance/bandwidth tradeoff?
 
@@ -167,11 +245,13 @@ ansible-playbook audio-benchmark.yml \
 ```
 
 **What it measures:**
-- MP3 (64kbps, 128kbps)
-- WAV (uncompressed, 8kHz/16kHz/48kHz)
-- FLAC (lossless)
-- Stereo vs Mono
-- Compression overhead
+- MP3 (64kbps, 128kbps) - lossy compression
+- WAV (uncompressed, 8kHz/16kHz/48kHz) - raw audio
+- FLAC (lossless) - lossless compression
+- Stereo vs Mono channel impact
+- Decoding overhead vs network transfer time
+
+**Use case:** Bandwidth optimization - "Should we send 64kbps MP3 or 16kHz WAV? Does higher quality improve accuracy or just waste bandwidth?"
 
 ## Advanced Configuration
 
