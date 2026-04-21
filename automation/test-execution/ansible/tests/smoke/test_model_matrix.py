@@ -130,10 +130,33 @@ class TestModelMatrix:
             for workload_name in model.get("default_workloads", []):
                 if workload_name not in kv_cache_sizes:
                     errors.append(
-                        f"{model_name}: missing kv_cache_size for workload '{workload_name}'"
+                        f"{model_name}: missing kv_cache_size for "
+                        f"workload '{workload_name}'"
                     )
 
-        assert not errors, f"KV cache validation errors:\n" + "\n".join(errors)
+        msg = "KV cache validation errors:\n" + "\n".join(errors)
+        assert not errors, msg
+
+    def test_kv_cache_sizes_valid_format(self, llm_matrix):
+        """KV cache sizes must be valid format (e.g., '1GiB', '2GiB')."""
+        import re
+        errors = []
+        # Valid format: number + unit (GiB, MiB, etc.)
+        pattern = re.compile(r'^\d+(\.\d+)?(GiB|MiB|TiB|KiB)$')
+
+        for model in llm_matrix["matrix"]["llm_models"]:
+            model_name = model["name"]
+            kv_cache_sizes = model.get("kv_cache_sizes", {})
+
+            for workload, size in kv_cache_sizes.items():
+                if not pattern.match(size):
+                    errors.append(
+                        f"{model_name}/{workload}: invalid format "
+                        f"'{size}'. Expected: <num>GiB|MiB|TiB"
+                    )
+
+        msg = "KV cache format errors:\n" + "\n".join(errors)
+        assert not errors, msg
 
     def test_test_suites_are_valid(self, llm_matrix):
         """Models should reference valid test suites."""
