@@ -205,3 +205,87 @@ class TestModelMatrix:
         duplicates = [name for name in workload_names if workload_names.count(name) > 1]
 
         assert not duplicates, f"Duplicate workload names found: {set(duplicates)}"
+
+    def test_llm_model_count_reasonable(self, llm_matrix):
+        """Verify we have a reasonable number of LLM models."""
+        model_count = len(llm_matrix["matrix"]["llm_models"])
+        msg = f"Expected 1-20 LLM models, found {model_count}"
+        assert 1 <= model_count <= 20, msg
+
+    def test_opt_models_compatible_workloads(self, llm_matrix):
+        """OPT models must have compatible context lengths."""
+        workloads = llm_matrix["matrix"]["workloads"]
+        errors = []
+
+        for model in llm_matrix["matrix"]["llm_models"]:
+            model_name = model["name"]
+            # Only check OPT models if they exist
+            if not model_name.startswith("opt-"):
+                continue
+
+            model_context = model["context_length"]
+
+            # Check workloads for compatibility
+            for workload_name in model.get("default_workloads", []):
+                if workload_name not in workloads:
+                    continue
+
+                workload = workloads[workload_name]
+                if "max_model_len" in workload:
+                    max_len = workload["max_model_len"]
+                    if max_len > model_context:
+                        errors.append(
+                            f"{model_name}: workload '{workload_name}' "
+                            f"max_model_len={max_len} > "
+                            f"context_length={model_context}"
+                        )
+
+        # Only fails if OPT models exist AND have incompatible workloads
+        msg = "OPT model compatibility errors:\n" + "\n".join(errors)
+        assert not errors, msg
+
+    def test_architecture_specs_present(self, llm_matrix):
+        """All models should have architecture_specs."""
+        required_arch_fields = {
+            "hidden_size",
+            "num_attention_heads",
+            "num_hidden_layers",
+            "num_key_value_heads",
+        }
+
+        errors = []
+        for model in llm_matrix["matrix"]["llm_models"]:
+            model_name = model["name"]
+            arch_specs = model.get("architecture_specs", {})
+
+            missing = required_arch_fields - set(arch_specs.keys())
+            if missing:
+                errors.append(
+                    f"{model_name}: missing fields {missing}"
+                )
+
+        msg = "Architecture specs errors:\n" + "\n".join(errors)
+        assert not errors, msg
+
+    def test_embedding_models_count_reasonable(self, embedding_matrix):
+        """Verify we have a reasonable number of embedding models."""
+        model_count = len(embedding_matrix["matrix"]["embedding_models"])
+        msg = f"Expected 1-10 embedding models, found {model_count}"
+        assert 1 <= model_count <= 10, msg
+
+    def test_embedding_models_have_dimensions(self, embedding_matrix):
+        """All embedding models must have valid dimensions field."""
+        errors = []
+        for model in embedding_matrix["matrix"]["embedding_models"]:
+            model_name = model.get("name", "unknown")
+            dimensions = model.get("dimensions")
+
+            if dimensions is None:
+                errors.append(f"{model_name}: missing 'dimensions' field")
+            elif not isinstance(dimensions, int) or dimensions <= 0:
+                errors.append(
+                    f"{model_name}: invalid dimensions: {dimensions}"
+                )
+
+        msg = "Embedding dimensions errors:\n" + "\n".join(errors)
+        assert not errors, msg
