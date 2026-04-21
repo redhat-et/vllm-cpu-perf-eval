@@ -1,0 +1,129 @@
+---
+# vLLM Scale-Out Deployment Tasks
+
+- name: Display scale-out configuration
+  ansible.builtin.debug:
+    msg:
+      - "vLLM Scale-Out Deployment Configuration:"
+      - "  Instances: {{ scaleout_num_instances }}"
+      - "  Cores per instance: {{ scaleout_cores_per_instance }}"
+      - "  Start core: {{ scaleout_start_core }}"
+      - "  SMT enabled: {{ scaleout_enable_smt }}"
+      - "  Prefix caching: {{ scaleout_enable_prefix_caching }}"
+      - "  Nginx policy: {{ scaleout_nginx_policy }}"
+      - "  Nginx port: {{ scaleout_nginx_port }}"
+      - "  Model: {{ scaleout_model_name }}"
+
+- name: Calculate CPU sets for each instance
+  ansible.builtin.set_fact:
+    scaleout_instance_cpusets: >-
+      {{
+        scaleout_instance_cpusets | default([]) +
+        [
+          (
+            (scaleout_start_core + (item - 1) * scaleout_cores_per_instance) | string + '-' +
+            (scaleout_start_core + item * scaleout_cores_per_instance - 1) | string +
+            (
+              (',' + (scaleout_smt_offset + (item - 1) * scaleout_smt_cores_per_instance) | string + '-' +
+              (scaleout_smt_offset + item * scaleout_smt_cores_per_instance - 1) | string)
+              if scaleout_enable_smt else ''
+            )
+          )
+        ]
+      }}
+  loop: "{{ range(1, scaleout_num_instances + 1) | list }}"
+
+- name: Display calculated CPU sets
+  ansible.builtin.debug:
+    msg:
+      - "Calculated CPU sets:"
+      - "{{ scaleout_instance_cpusets }}"
+
+- name: Create scale-out configuration directory
+  ansible.builtin.file:
+    path: "{{ scaleout_config_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Generate nginx configuration
+  ansible.builtin.template:
+    src: nginx.conf.j2
+    dest: "{{ scaleout_config_dir }}/nginx.conf"
+    mode: "0644"
+
+- name: Generate docker-compose configuration
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ scaleout_config_dir }}/docker-compose.yml"
+    mode: "0644"
+
+- name: Display generated configuration paths
+  ansible.builtin.debug:
+    msg:
+      - "Configuration files generated:"
+      - "  docker-compose.yml: {{ scaleout_config_dir }}/docker-compose.yml"
+      - "  nginx.conf: {{ scaleout_config_dir }}/nginx.conf"
+
+- name: Create podman network for vLLM scale-out
+  containers.podman.podman_network:
+    name: "{{ scaleout_network_name }}"
+    state: present
+  when: vllm_server.container_runtime == 'podman'
+
+- name: Create volume for HuggingFace cache
+  containers.podman.podman_volume:
+    name: "{{ scaleout_volume_name }}"
+    state: present
+  when: vllm_server.container_runtime == 'podman'
+
+- name: Start vLLM scale-out deployment with docker-compose
+  ansible.builtin.shell:
+    cmd: "podman-compose -f {{ scaleout_config_dir }}/docker-compose.yml up -d"
+    chdir: "{{ scaleout_config_dir }}"
+  when: vllm_server.container_runtime == 'podman'
+  register: compose_up
+
+- name: Display compose output
+  ansible.builtin.debug:
+    var: compose_up.stdout_lines
+  when: compose_up.stdout_lines is defined
+
+- name: Wait for vLLM instances to initialize
+  ansible.builtin.pause:
+    seconds: "{{ scaleout_health_check_delay * 2 }}"
+    prompt: "Waiting for vLLM instances to initialize..."
+
+- name: Check health of each vLLM instance
+  ansible.builtin.uri:
+    url: "http://localhost:{{ scaleout_nginx_port }}/health"
+    method: GET
+    status_code: 200
+  register: health_check
+  retries: "{{ scaleout_health_check_retries }}"
+  delay: "{{ scaleout_health_check_delay }}"
+  until: health_check.status == 200
+
+- name: Display deployment summary
+  ansible.builtin.debug:
+    msg:
+      - "╔══════════════════════════════════════════════════════════════════╗"
+      - "║ vLLM Scale-Out Deployment Successful                             ║"
+      - "╚══════════════════════════════════════════════════════════════════╝"
+      - ""
+      - "Deployment Details:"
+      - "  • Number of instances: {{ scaleout_num_instances }}"
+      - "  • Cores per instance: {{ scaleout_cores_per_instance }}"
+      - "  • Load balancing: {{ scaleout_nginx_policy }}"
+      - "  • Prefix caching: {{ scaleout_enable_prefix_caching | ternary('Enabled', 'Disabled') }}"
+      - ""
+      - "Access Points:"
+      - "  • Load Balancer: http://{{ ansible_host }}:{{ scaleout_nginx_port }}"
+      - "  • Health Check: http://{{ ansible_host }}:{{ scaleout_nginx_port }}/health"
+      - "  • Models API: http://{{ ansible_host }}:{{ scaleout_nginx_port }}/v1/models"
+      - "  • Chat API: http://{{ ansible_host }}:{{ scaleout_nginx_port }}/v1/chat/completions"
+      - "  • Nginx Status: http://{{ ansible_host }}:{{ scaleout_nginx_port }}/nginx_status"
+      - ""
+      - "Management Commands:"
+      - "  • View logs: podman-compose -f {{ scaleout_config_dir }}/docker-compose.yml logs -f"
+      - "  • Stop deployment: podman-compose -f {{ scaleout_config_dir }}/docker-compose.yml down"
+      - "  • Restart: podman-compose -f {{ scaleout_config_dir }}/docker-compose.yml restart"
