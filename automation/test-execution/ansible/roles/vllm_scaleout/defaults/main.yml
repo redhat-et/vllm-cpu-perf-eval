@@ -1,0 +1,48 @@
+---
+# vLLM Scale-Out Role - Default Variables
+# These can be overridden in inventory or playbook
+
+# Deployment configuration
+scaleout_num_instances: 5
+scaleout_cores_per_instance: 32
+scaleout_start_core: 32
+scaleout_enable_smt: false
+scaleout_enable_prefix_caching: true
+
+# Nginx configuration
+scaleout_nginx_cores: "1-15"
+scaleout_nginx_port: 8080
+scaleout_nginx_policy: "least_conn"  # Options: round_robin, least_conn, ip_hash
+
+# Container configuration
+scaleout_vllm_image: "docker.io/vllm/vllm-openai-cpu:v0.18.0"
+scaleout_nginx_image: "nginx:alpine"
+scaleout_network_name: "vllm-network"
+scaleout_volume_name: "hf-cache"
+
+# Model configuration (override from inventory)
+scaleout_model_name: "{{ test_model | default('RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w8a8') }}"
+
+# HuggingFace token (optional, set in inventory/group_vars/all/credentials.yml)
+# scaleout_hf_token: ""
+
+# Health check settings
+scaleout_health_check_retries: 30
+scaleout_health_check_delay: 5
+
+# Directories
+scaleout_config_dir: "/tmp/vllm-scaleout"
+scaleout_model_cache_dir: "{{ model_cache_dir | default('/var/lib/vllm-models') }}"
+
+# Advanced vLLM options (optional)
+scaleout_vllm_extra_args: []
+# Example:
+# scaleout_vllm_extra_args:
+#   - "--max-model-len"
+#   - "2048"
+#   - "--dtype"
+#   - "bfloat16"
+
+# SMT core offset (system-specific, adjust based on topology)
+scaleout_smt_offset: 192
+scaleout_smt_cores_per_instance: 8

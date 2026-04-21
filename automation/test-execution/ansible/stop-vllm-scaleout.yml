@@ -1,0 +1,72 @@
+---
+# Stop vLLM Scale-Out Deployment
+# Stops and removes all vLLM instances and nginx load balancer
+#
+# Usage:
+#   ansible-playbook stop-vllm-scaleout.yml
+#   ansible-playbook stop-vllm-scaleout.yml -e "scaleout_cleanup_volumes=true"
+
+- name: "Stop vLLM Scale-Out Deployment"
+  hosts: dut
+  become: true
+  vars:
+    scaleout_config_dir: "/tmp/vllm-scaleout"
+    scaleout_network_name: "vllm-network"
+    scaleout_volume_name: "hf-cache"
+    scaleout_cleanup_volumes: false  # Set to true to remove volumes
+
+  tasks:
+    - name: Check if configuration directory exists
+      ansible.builtin.stat:
+        path: "{{ scaleout_config_dir }}/docker-compose.yml"
+      register: compose_file
+
+    - name: Stop and remove containers
+      ansible.builtin.shell:
+        cmd: "podman-compose -f {{ scaleout_config_dir }}/docker-compose.yml down"
+        chdir: "{{ scaleout_config_dir }}"
+      when:
+        - compose_file.stat.exists
+        - vllm_server.container_runtime == 'podman'
+      register: compose_down
+      ignore_errors: true
+
+    - name: Display compose down output
+      ansible.builtin.debug:
+        var: compose_down.stdout_lines
+      when: compose_down.stdout_lines is defined
+
+    - name: Remove podman network
+      containers.podman.podman_network:
+        name: "{{ scaleout_network_name }}"
+        state: absent
+      when: vllm_server.container_runtime == 'podman'
+      ignore_errors: true
+
+    - name: Remove volume (if cleanup requested)
+      containers.podman.podman_volume:
+        name: "{{ scaleout_volume_name }}"
+        state: absent
+      when:
+        - vllm_server.container_runtime == 'podman'
+        - scaleout_cleanup_volumes | bool
+      ignore_errors: true
+
+    - name: Remove configuration directory (if cleanup requested)
+      ansible.builtin.file:
+        path: "{{ scaleout_config_dir }}"
+        state: absent
+      when: scaleout_cleanup_volumes | bool
+
+    - name: Display cleanup summary
+      ansible.builtin.debug:
+        msg:
+          - "╔══════════════════════════════════════════════════════════════════╗"
+          - "║ vLLM Scale-Out Deployment Stopped                                ║"
+          - "╚══════════════════════════════════════════════════════════════════╝"
+          - ""
+          - "Cleanup Status:"
+          - "  • Containers: Stopped and removed"
+          - "  • Network: Removed"
+          - "  • Volumes: {{ scaleout_cleanup_volumes | ternary('Removed', 'Preserved (use -e scaleout_cleanup_volumes=true to remove)') }}"
+          - "  • Config files: {{ scaleout_cleanup_volumes | ternary('Removed', 'Preserved at ' + scaleout_config_dir) }}"
