@@ -448,13 +448,13 @@
 
     - name: Calculate test duration
       ansible.builtin.set_fact:
-        test_duration_seconds: "{{ (benchmark_end_time | int) - (hostvars['localhost']['benchmark_start_time'] | int) }}"
+        test_duration_seconds: "{{ (hostvars['localhost']['benchmark_end_time'] | int) - (hostvars['localhost']['benchmark_start_time'] | int) }}"
       delegate_to: localhost
       delegate_facts: true
 
     - name: Format test duration as human readable
       ansible.builtin.set_fact:
-        test_duration_string: "{{ ((test_duration_seconds | int) // 60) | string + 'm ' + ((test_duration_seconds | int) % 60) | string + 's' }}"
+        test_duration_string: "{{ ((hostvars['localhost']['test_duration_seconds'] | int) // 60) | string + 'm ' + ((hostvars['localhost']['test_duration_seconds'] | int) % 60) | string + 's' }}"
       delegate_to: localhost
       delegate_facts: true
 
