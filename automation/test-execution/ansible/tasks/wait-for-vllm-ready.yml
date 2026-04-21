@@ -1,0 +1,36 @@
+---
+# Common task file for waiting for vLLM server to be ready
+# Used by both LLM and audio benchmark playbooks
+#
+# Required variables:
+#   - vllm_host: vLLM server hostname
+#   - vllm_port: vLLM server port
+
+- name: Wait for vLLM health endpoint
+  ansible.builtin.uri:
+    url: "http://{{ vllm_host }}:{{ vllm_port }}/health"
+    method: GET
+    status_code: 200
+    validate_certs: false
+  register: health_check_result
+  retries: "{{ health_check_retries | default(60) }}"
+  delay: "{{ health_check_delay | default(5) }}"
+  until: health_check_result.status == 200
+
+- name: Display vLLM server status
+  ansible.builtin.debug:
+    msg:
+      - "✅ vLLM Server is READY!"
+      - "Health check: {{ health_check_result.json | default('OK') }}"
+
+- name: Verify vLLM /v1/models endpoint
+  ansible.builtin.uri:
+    url: "http://{{ vllm_host }}:{{ vllm_port }}/v1/models"
+    method: GET
+    status_code: 200
+    validate_certs: false
+  register: models_check
+
+- name: Display available models
+  ansible.builtin.debug:
+    msg: "Available models: {{ models_check.json.data | map(attribute='id') | list }}"

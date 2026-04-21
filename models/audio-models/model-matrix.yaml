@@ -1,0 +1,136 @@
+---
+# Audio Model Configuration Matrix
+# Maps audio models to test scenarios for vLLM CPU performance evaluation
+
+audio_models:
+  # Whisper Models (ASR - Automatic Speech Recognition)
+  - name: "whisper-tiny"
+    model_id: "openai/whisper-tiny"
+    task_type: "transcription"
+    description: "Fastest Whisper model, 39M parameters, good for quick transcription"
+    supported_endpoints:
+      - "/v1/audio/transcriptions"
+      - "/v1/audio/translations"
+    test_scenarios:
+      - "transcription-throughput"
+      - "transcription-latency"
+      - "transcription-sweep"
+      - "audio-duration-scaling"
+      - "concurrent-transcription"
+    recommended_settings:
+      dtype: "float16"
+      max_model_len: 448
+
+  - name: "whisper-small"
+    model_id: "openai/whisper-small"
+    task_type: "transcription"
+    description: "Small Whisper model, 244M parameters, balanced speed/quality"
+    supported_endpoints:
+      - "/v1/audio/transcriptions"
+      - "/v1/audio/translations"
+    test_scenarios:
+      - "transcription-throughput"
+      - "transcription-latency"
+      - "transcription-sweep"
+      - "audio-duration-scaling"
+      - "concurrent-transcription"
+    recommended_settings:
+      dtype: "float16"
+      max_model_len: 448
+
+  - name: "whisper-medium"
+    model_id: "openai/whisper-medium"
+    task_type: "transcription"
+    description: "Medium Whisper model, 769M parameters, high quality transcription"
+    supported_endpoints:
+      - "/v1/audio/transcriptions"
+      - "/v1/audio/translations"
+    test_scenarios:
+      - "transcription-throughput"
+      - "transcription-sweep"
+      - "audio-duration-scaling"
+    recommended_settings:
+      dtype: "bfloat16"
+      max_model_len: 448
+
+  # Audio Chat Models
+  - name: "ultravox-v0_5-llama-3_2-1b"
+    model_id: "fixie-ai/ultravox-v0_5-llama-3_2-1b"
+    task_type: "audio_chat"
+    description: "Multimodal audio chat model, processes audio + text"
+    supported_endpoints:
+      - "/v1/chat/completions"
+    test_scenarios:
+      - "audio-chat-throughput"
+      - "audio-chat-latency"
+    recommended_settings:
+      dtype: "bfloat16"
+      max_model_len: 2048
+
+# Common test datasets for audio benchmarking
+datasets:
+  - name: "librispeech_asr_clean"
+    dataset_id: "openslr/librispeech_asr"
+    config: "clean"
+    split: "test"
+    description: "Clean English speech, high quality, good for ASR baseline"
+    audio_column: "audio"
+    typical_duration: "5-15 seconds"
+    language: "en"
+
+  - name: "librispeech_asr_other"
+    dataset_id: "openslr/librispeech_asr"
+    config: "other"
+    split: "test"
+    description: "More challenging English speech with background noise"
+    audio_column: "audio"
+    typical_duration: "5-15 seconds"
+    language: "en"
+
+  - name: "common_voice_en"
+    dataset_id: "mozilla-foundation/common_voice_11_0"
+    config: "en"
+    split: "test"
+    description: "Diverse speakers and accents, real-world audio"
+    audio_column: "audio"
+    typical_duration: "3-10 seconds"
+    language: "en"
+
+# Audio preprocessing configurations
+preprocessing:
+  formats:
+    - name: "mp3_64k"
+      format: "mp3"
+      bitrate: "64k"
+      sample_rate: 16000
+      mono: true
+      description: "Compressed audio, bandwidth-efficient"
+
+    - name: "wav_16k"
+      format: "wav"
+      sample_rate: 16000
+      mono: true
+      description: "Uncompressed audio, high quality"
+
+    - name: "flac_16k"
+      format: "flac"
+      sample_rate: 16000
+      mono: true
+      description: "Lossless compression, balanced quality/size"
+
+  duration_buckets:
+    - name: "short"
+      max_duration: 5.0
+      description: "Short utterances (1-5 seconds)"
+
+    - name: "medium"
+      max_duration: 30.0
+      description: "Medium clips (5-30 seconds)"
+
+    - name: "long"
+      max_duration: 120.0
+      description: "Long recordings (30-120 seconds)"
+
+    - name: "unlimited"
+      max_duration: null
+      description: "Full audio, no truncation"

@@ -1,0 +1,186 @@
+---
+# Constant Rate Stress Test
+# Test system stability under sustained load
+
+test_scenario:
+  name: "constant-rate-stress"
+  type: "stress"
+  description: "Test system stability and consistency under sustained constant-rate audio transcription load"
+
+  # Test configuration
+  backend: "openai-audio"
+  endpoint: "/v1/audio/transcriptions"
+  request_type: "audio_transcriptions"
+
+  # Dataset configuration
+  dataset:
+    name: "openslr/librispeech_asr"
+    config: "clean"
+    split: "test"
+    audio_column: "audio"
+    num_samples: -1  # Use all available
+
+  # Audio preprocessing
+  audio_config:
+    format: "mp3"
+    bitrate: "64k"
+    sample_rate: 16000
+    mono: true
+    max_duration: null
+
+  # vLLM server configuration
+  server:
+    dtype: "float16"
+    env_vars:
+      VLLM_CPU_KVCACHE_SPACE: "2GiB"
+
+  # Test stages - Different sustained rates
+  # Note: Rates should be determined from baseline throughput tests
+  # These are example values - adjust based on your system capacity
+  stages:
+    # Stage 1: Low sustained rate (30% of max capacity)
+    - name: "low-rate-sustained"
+      description: "Sustained load at 2 req/s for 5 minutes"
+      profile: "constant"
+      rate: 2  # requests per second
+      max_seconds: 300  # 5 minutes
+      result_filename_suffix: "constant-2rps"
+      metrics_focus:
+        - "Latency stability over time"
+        - "Zero error rate"
+        - "Consistent throughput"
+
+    # Stage 2: Medium sustained rate (50% of max capacity)
+    - name: "medium-rate-sustained"
+      description: "Sustained load at 5 req/s for 5 minutes"
+      profile: "constant"
+      rate: 5  # requests per second
+      max_seconds: 300  # 5 minutes
+      result_filename_suffix: "constant-5rps"
+      metrics_focus:
+        - "Latency degradation over time"
+        - "Memory stability"
+        - "CPU utilization"
+
+    # Stage 3: High sustained rate (75% of max capacity)
+    - name: "high-rate-sustained"
+      description: "Sustained load at 10 req/s for 5 minutes"
+      profile: "constant"
+      rate: 10  # requests per second
+      max_seconds: 300  # 5 minutes
+      result_filename_suffix: "constant-10rps"
+      metrics_focus:
+        - "System stability under high load"
+        - "Queueing behavior"
+        - "Resource exhaustion indicators"
+
+    # Stage 4: Extended duration test
+    - name: "extended-duration"
+      description: "Extended test at medium rate for 15 minutes"
+      profile: "constant"
+      rate: 5  # requests per second
+      max_seconds: 900  # 15 minutes
+      result_filename_suffix: "constant-5rps-15min"
+      metrics_focus:
+        - "Memory leaks"
+        - "Performance degradation over time"
+        - "System stability"
+
+  # Key metrics
+  metrics:
+    primary:
+      # Throughput metrics
+      - "Achieved rate (req/s)"
+      - "Rate deviation from target (%)"
+
+      # Latency metrics over time
+      - "Mean latency (ms)"
+      - "P95 latency (ms)"
+      - "P99 latency (ms)"
+      - "Latency trend (slope over time)"
+
+      # Stability metrics
+      - "Error rate (%)"
+      - "Request completion rate (%)"
+      - "Latency coefficient of variation"
+
+    system_metrics:
+      - "CPU utilization (%)"
+      - "Memory usage (GB)"
+      - "Memory growth rate (MB/min)"
+
+    derived:
+      - "Latency drift = (final_latency - initial_latency) / initial_latency"
+      - "System stability score = 1 - (error_rate + latency_cv)"
+
+  # Analysis
+  analysis:
+    time_series:
+      - "Latency over time (detect degradation)"
+      - "Throughput over time (detect drops)"
+      - "Error rate over time"
+
+    questions:
+      - "Does latency remain stable over time?"
+      - "Are there any memory leaks?"
+      - "Does the system maintain target rate?"
+      - "How does queueing behave under load?"
+
+  # Success criteria
+  success_criteria:
+    - "Achieved rate within 5% of target rate"
+    - "Error rate < 0.1%"
+    - "Latency increase over time < 20%"
+    - "No memory leaks (stable memory usage)"
+    - "P99 latency < 5000ms"
+
+  results:
+    format: "json"
+    location: "results/audio-models/{model}/constant-rate-stress/"
+    graphs:
+      - type: "latency_timeseries"
+        title: "Latency Over Time by Rate"
+        x_axis: "Time (seconds)"
+        y_axis: "Latency (ms)"
+        series:
+          - "2 req/s"
+          - "5 req/s"
+          - "10 req/s"
+
+      - type: "throughput_consistency"
+        title: "Achieved vs Target Rate"
+        x_axis: "Target Rate (req/s)"
+        y_axis: "Achieved Rate (req/s)"
+        reference_line: "y=x (perfect tracking)"
+
+      - type: "resource_utilization"
+        title: "Resource Utilization Over Time"
+        x_axis: "Time (seconds)"
+        y_axis_left: "CPU %"
+        y_axis_right: "Memory GB"
+
+# GuideLLM command examples
+guidellm_commands:
+  low_rate:
+    cmd: |
+      guidellm benchmark \
+        --target "http://localhost:8000" \
+        --request-type audio_transcriptions \
+        --profile constant \
+        --rate 2 \
+        --max-seconds 300 \
+        --data openslr/librispeech_asr \
+        --data-args '{"name": "clean", "split": "test"}' \
+        --data-column-mapper '{"audio_column": "audio"}'
+
+  high_rate:
+    cmd: |
+      guidellm benchmark \
+        --target "http://localhost:8000" \
+        --request-type audio_transcriptions \
+        --profile constant \
+        --rate 10 \
+        --max-seconds 300 \
+        --data openslr/librispeech_asr \
+        --data-args '{"name": "clean", "split": "test"}' \
+        --data-column-mapper '{"audio_column": "audio"}'

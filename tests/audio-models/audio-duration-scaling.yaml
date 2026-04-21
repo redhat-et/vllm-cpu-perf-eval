@@ -1,0 +1,168 @@
+---
+# Audio Duration Scaling Test
+# How does performance scale with audio duration?
+
+test_scenario:
+  name: "audio-duration-scaling"
+  type: "scaling"
+  description: "Measure how transcription performance scales with audio clip duration"
+
+  # Test configuration
+  backend: "openai-audio"
+  endpoint: "/v1/audio/transcriptions"
+  request_type: "audio_transcriptions"
+
+  # Dataset configuration
+  dataset:
+    name: "openslr/librispeech_asr"
+    config: "clean"
+    split: "test"
+    audio_column: "audio"
+    num_samples: 100
+
+  # vLLM server configuration
+  server:
+    dtype: "float16"
+    env_vars:
+      VLLM_CPU_KVCACHE_SPACE: "2GiB"
+
+  # Test stages - Different audio duration buckets
+  stages:
+    # Stage 1: Short audio clips (1-5 seconds)
+    - name: "short-clips"
+      description: "Process short audio clips (1-5 seconds)"
+      profile: "synchronous"
+      max_requests: 100
+      audio_config:
+        format: "mp3"
+        bitrate: "64k"
+        sample_rate: 16000
+        mono: true
+        max_duration: 5.0  # Truncate to max 5 seconds
+      result_filename_suffix: "short-5sec"
+      expected_behavior: "Lowest latency, highest files/sec"
+
+    # Stage 2: Medium audio clips (5-15 seconds)
+    - name: "medium-clips"
+      description: "Process medium audio clips (5-15 seconds)"
+      profile: "synchronous"
+      max_requests: 100
+      audio_config:
+        format: "mp3"
+        bitrate: "64k"
+        sample_rate: 16000
+        mono: true
+        max_duration: 15.0  # Truncate to max 15 seconds
+      result_filename_suffix: "medium-15sec"
+      expected_behavior: "Moderate latency"
+
+    # Stage 3: Long audio clips (15-30 seconds)
+    - name: "long-clips"
+      description: "Process long audio clips (15-30 seconds)"
+      profile: "synchronous"
+      max_requests: 100
+      audio_config:
+        format: "mp3"
+        bitrate: "64k"
+        sample_rate: 16000
+        mono: true
+        max_duration: 30.0  # Truncate to max 30 seconds
+      result_filename_suffix: "long-30sec"
+      expected_behavior: "Higher latency, lower files/sec"
+
+    # Stage 4: Full-length clips (no truncation)
+    - name: "full-length"
+      description: "Process full-length audio (no truncation)"
+      profile: "synchronous"
+      max_requests: 100
+      audio_config:
+        format: "mp3"
+        bitrate: "64k"
+        sample_rate: 16000
+        mono: true
+        max_duration: null  # No truncation
+      result_filename_suffix: "full-length"
+      expected_behavior: "Highest latency, assess real audio distribution"
+
+  # Key metrics
+  metrics:
+    primary:
+      # Per-file metrics
+      - "Mean latency per file (ms)"
+      - "Throughput (files/sec)"
+
+      # Per-audio-second metrics (normalized)
+      - "Latency per audio second (ms/audio_sec)"
+      - "Processing rate (audio_seconds/wall_clock_sec)"
+
+      # Audio characteristics
+      - "Mean audio duration (seconds)"
+      - "Total audio seconds processed"
+
+    derived:
+      - "Real-time factor = processing_time / audio_duration"
+      - "Scalability factor = latency_ratio / duration_ratio"
+        # < 1.0 = sub-linear scaling (good)
+        # = 1.0 = linear scaling
+        # > 1.0 = super-linear scaling (bad)
+
+  # Analysis
+  analysis:
+    questions:
+      - "Is processing time linear with audio duration?"
+      - "What is the per-second processing cost?"
+      - "Does performance degrade for longer clips?"
+      - "What is the optimal audio chunk size for throughput?"
+
+  # Success criteria
+  success_criteria:
+    - "Linear or sub-linear scaling with audio duration"
+    - "Real-time factor < 1.0 for all durations"
+    - "Consistent per-audio-second processing rate"
+
+  results:
+    format: "json"
+    location: "results/audio-models/{model}/audio-duration-scaling/"
+    graphs:
+      - type: "latency_vs_duration"
+        title: "Latency vs Audio Duration"
+        x_axis: "Audio Duration (seconds)"
+        y_axis: "E2E Latency (ms)"
+        fit_line: "linear regression"
+
+      - type: "throughput_vs_duration"
+        title: "Throughput by Audio Duration Bucket"
+        x_axis: "Duration Bucket"
+        y_axis: "Audio Seconds per Second"
+
+      - type: "realtime_factor"
+        title: "Real-time Factor by Duration"
+        x_axis: "Audio Duration (seconds)"
+        y_axis: "Real-time Factor"
+        reference_line: 1.0  # Real-time processing line
+
+# GuideLLM command examples
+guidellm_commands:
+  short_clips:
+    cmd: |
+      guidellm benchmark \
+        --target "http://localhost:8000" \
+        --request-type audio_transcriptions \
+        --profile synchronous \
+        --max-requests 100 \
+        --data openslr/librispeech_asr \
+        --data-args '{"name": "clean", "split": "test"}' \
+        --data-column-mapper '{"audio_column": "audio"}' \
+        --request-formatter-kwargs '{"encode_kwargs": {"max_duration": 5.0, "audio_format": "mp3"}}'
+
+  long_clips:
+    cmd: |
+      guidellm benchmark \
+        --target "http://localhost:8000" \
+        --request-type audio_transcriptions \
+        --profile synchronous \
+        --max-requests 100 \
+        --data openslr/librispeech_asr \
+        --data-args '{"name": "clean", "split": "test"}' \
+        --data-column-mapper '{"audio_column": "audio"}' \
+        --request-formatter-kwargs '{"encode_kwargs": {"max_duration": 30.0, "audio_format": "mp3"}}'

@@ -1,0 +1,192 @@
+---
+# Audio Format Comparison Test
+# Compare performance across different audio formats and encodings
+
+test_scenario:
+  name: "format-comparison"
+  type: "comparison"
+  description: "Compare transcription performance across different audio formats, sample rates, and compression settings"
+
+  # Test configuration
+  backend: "openai-audio"
+  endpoint: "/v1/audio/transcriptions"
+  request_type: "audio_transcriptions"
+
+  # Dataset configuration
+  dataset:
+    name: "openslr/librispeech_asr"
+    config: "clean"
+    split: "test"
+    audio_column: "audio"
+    num_samples: 50
+
+  # vLLM server configuration
+  server:
+    dtype: "float16"
+    env_vars:
+      VLLM_CPU_KVCACHE_SPACE: "2GiB"
+
+  # Test stages - Different audio format configurations
+  stages:
+    # MP3 formats
+    - name: "mp3-64kbps"
+      description: "MP3 format at 64kbps (low bandwidth)"
+      profile: "synchronous"
+      max_requests: 50
+      audio_config:
+        format: "mp3"
+        bitrate: "64k"
+        sample_rate: 16000
+        mono: true
+      result_filename_suffix: "mp3-64k"
+
+    - name: "mp3-128kbps"
+      description: "MP3 format at 128kbps (higher quality)"
+      profile: "synchronous"
+      max_requests: 50
+      audio_config:
+        format: "mp3"
+        bitrate: "128k"
+        sample_rate: 16000
+        mono: true
+      result_filename_suffix: "mp3-128k"
+
+    # WAV format (uncompressed)
+    - name: "wav-16khz"
+      description: "WAV format at 16kHz (uncompressed, standard ASR)"
+      profile: "synchronous"
+      max_requests: 50
+      audio_config:
+        format: "wav"
+        sample_rate: 16000
+        mono: true
+      result_filename_suffix: "wav-16k"
+
+    # FLAC format (lossless compression)
+    - name: "flac-16khz"
+      description: "FLAC format at 16kHz (lossless compression)"
+      profile: "synchronous"
+      max_requests: 50
+      audio_config:
+        format: "flac"
+        sample_rate: 16000
+        mono: true
+      result_filename_suffix: "flac-16k"
+
+    # Different sample rates (WAV)
+    - name: "wav-8khz"
+      description: "WAV at 8kHz (telephone quality)"
+      profile: "synchronous"
+      max_requests: 50
+      audio_config:
+        format: "wav"
+        sample_rate: 8000
+        mono: true
+      result_filename_suffix: "wav-8k"
+
+    - name: "wav-48khz"
+      description: "WAV at 48kHz (high quality)"
+      profile: "synchronous"
+      max_requests: 50
+      audio_config:
+        format: "wav"
+        sample_rate: 48000
+        mono: true
+      result_filename_suffix: "wav-48k"
+
+    # Stereo vs Mono comparison
+    - name: "wav-stereo"
+      description: "WAV 16kHz stereo (vs mono)"
+      profile: "synchronous"
+      max_requests: 50
+      audio_config:
+        format: "wav"
+        sample_rate: 16000
+        mono: false
+      result_filename_suffix: "wav-16k-stereo"
+
+  # Key metrics
+  metrics:
+    primary:
+      # Performance metrics
+      - "Mean latency (ms)"
+      - "Throughput (req/s)"
+
+      # Size metrics
+      - "Mean audio bytes"
+      - "Bytes per audio second"
+
+      # Processing metrics
+      - "Latency per audio second (ms/sec)"
+      - "Processing overhead (ms)"
+
+    derived:
+      - "Format efficiency = throughput / bytes_per_second"
+      - "Size-performance tradeoff"
+      - "Compression overhead = (compressed_latency - uncompressed_latency) / uncompressed_latency"
+
+  # Analysis
+  analysis:
+    comparisons:
+      - name: "format_overhead"
+        description: "Does format/compression affect processing time?"
+        compare: ["mp3-64k", "wav-16k", "flac-16k"]
+        metric: "latency"
+
+      - name: "sample_rate_impact"
+        description: "How does sample rate affect performance?"
+        compare: ["wav-8k", "wav-16k", "wav-48k"]
+        metric: "latency"
+
+      - name: "bitrate_impact"
+        description: "Does MP3 bitrate affect performance?"
+        compare: ["mp3-64k", "mp3-128k"]
+        metric: "latency"
+
+      - name: "stereo_overhead"
+        description: "What is the overhead of stereo vs mono?"
+        compare: ["wav-16k", "wav-stereo"]
+        metric: "latency"
+
+    questions:
+      - "Which format provides best throughput?"
+      - "Is there overhead for compressed formats?"
+      - "What is the optimal sample rate?"
+      - "Does stereo double processing time?"
+      - "What is the size-performance tradeoff?"
+
+  # Success criteria
+  success_criteria:
+    - "Format choice does not significantly affect latency (< 10% variance)"
+    - "All formats process successfully"
+    - "16kHz provides best balance of quality and performance"
+
+  recommendations:
+    bandwidth_constrained: "Use MP3 64kbps for minimal bandwidth"
+    quality_focused: "Use WAV or FLAC 16kHz for best accuracy"
+    balanced: "Use MP3 128kbps or FLAC 16kHz"
+
+  results:
+    format: "json"
+    location: "results/audio-models/{model}/format-comparison/"
+    graphs:
+      - type: "latency_by_format"
+        title: "Latency by Audio Format"
+        x_axis: "Format"
+        y_axis: "Mean Latency (ms)"
+
+      - type: "throughput_by_format"
+        title: "Throughput by Audio Format"
+        x_axis: "Format"
+        y_axis: "Requests per Second"
+
+      - type: "size_vs_latency"
+        title: "Audio Size vs Processing Time"
+        x_axis: "Mean Audio Bytes"
+        y_axis: "Mean Latency (ms)"
+        annotations: "format labels"
+
+      - type: "sample_rate_scaling"
+        title: "Sample Rate Impact on Performance"
+        x_axis: "Sample Rate (kHz)"
+        y_axis: "Latency (ms)"
