@@ -1,0 +1,342 @@
+---
+# Run GuideLLM Benchmark for Audio Models
+# Supports audio transcription, translation, and audio chat
+# Follows the same container pattern as benchmark_guidellm role
+
+# ============================================================================
+# COMMON SETUP
+# ============================================================================
+
+- name: Get guidellm configuration
+  ansible.builtin.set_fact:
+    guidellm_cfg: "{{ benchmark_tool.guidellm }}"
+
+- name: Set GuideLLM execution mode
+  ansible.builtin.set_fact:
+    use_guidellm_container: "{{ guidellm_use_container | default(guidellm_cfg.use_container | default(true)) | bool }}"
+
+- name: Extract GuideLLM version from container image
+  ansible.builtin.set_fact:
+    guidellm_version: >-
+      {%- set image_no_digest = guidellm_cfg.container_image.split('@')[0] -%}
+      {%- set image_name = image_no_digest.rsplit('/', 1)[-1] -%}
+      {{ image_name.rsplit(':', 1)[1] if ':' in image_name else 'latest' }}
+
+- name: Save GuideLLM version to localhost for metadata
+  ansible.builtin.set_fact:
+    guidellm_version: "{{ guidellm_version }}"
+  delegate_to: localhost
+  delegate_facts: true
+
+- name: Create results directory for stage
+  ansible.builtin.file:
+    path: "{{ stage_results_path }}"
+    state: directory
+    mode: "0777"
+    recurse: true
+
+- name: Display GuideLLM configuration
+  ansible.builtin.debug:
+    msg:
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "GuideLLM Audio Benchmark Stage"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "Mode: {{ 'Container' if use_guidellm_container else 'Host' }}"
+      - "Image: {{ guidellm_cfg.container_image if use_guidellm_container else 'N/A (using host guidellm)' }}"
+      - "Target: http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}"
+      - "Stage: {{ stage.name }}"
+      - "Profile: {{ stage.profile }}"
+      - "Request Type: {{ scenario_request_type }}"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+# ============================================================================
+# BUILD COMMAND LINE
+# ============================================================================
+
+- name: Build audio encoding kwargs (from scenario default)
+  ansible.builtin.set_fact:
+    encode_kwargs: "{{ scenario_config.test_scenario.audio_config | default({}) }}"
+  when: stage.audio_config is not defined
+
+- name: Build audio encoding kwargs (from stage override)
+  ansible.builtin.set_fact:
+    encode_kwargs: "{{ stage.audio_config }}"
+  when: stage.audio_config is defined
+
+- name: Build dataset config args (for HuggingFace datasets)
+  ansible.builtin.set_fact:
+    dataset_config_name: "{{ scenario_dataset.config | default('clean') }}"
+    dataset_split: "{{ scenario_dataset.split | default('test') }}"
+
+- name: Build dataset args JSON
+  ansible.builtin.set_fact:
+    dataset_args_json: "{\"name\": \"{{ dataset_config_name }}\", \"split\": \"{{ dataset_split }}\"}"
+
+- name: Build data column mapper JSON
+  ansible.builtin.set_fact:
+    data_column_mapper_json: "{\"audio_column\": \"{{ scenario_dataset.audio_column }}\"}"
+
+- name: Build encode kwargs JSON (preprocessor format for v0.6.0 - needs 'audio' wrapper)
+  ansible.builtin.set_fact:
+    encode_kwargs_json: "{\"audio\": {{ encode_kwargs | to_json }}}"
+  when: encode_kwargs | length > 0
+
+- name: Build GuideLLM command arguments list (container mode)
+  ansible.builtin.set_fact:
+    guidellm_cmd_args:
+      - "benchmark"
+      - "run"
+      - "--target"
+      - "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}"
+      - "--request-format"
+      - "{{ scenario_request_type }}"
+      - "--profile"
+      - "{{ stage.profile }}"
+
+- name: Add rate for concurrent profile
+  ansible.builtin.set_fact:
+    guidellm_cmd_args: "{{ guidellm_cmd_args + ['--rate', stage.rate | string] }}"
+  when: stage.profile == 'concurrent' and stage.rate is defined
+
+- name: Add rate for constant profile
+  ansible.builtin.set_fact:
+    guidellm_cmd_args: "{{ guidellm_cmd_args + ['--rate', stage.rate | string] }}"
+  when: stage.profile == 'constant' and stage.rate is defined
+
+- name: Add max-requests
+  ansible.builtin.set_fact:
+    guidellm_cmd_args: "{{ guidellm_cmd_args + ['--max-requests', stage.max_requests | string] }}"
+  when: stage.max_requests is defined
+
+- name: Add max-seconds
+  ansible.builtin.set_fact:
+    guidellm_cmd_args: "{{ guidellm_cmd_args + ['--max-seconds', stage.max_seconds | string] }}"
+  when: stage.max_seconds is defined
+
+- name: Add dataset parameters
+  ansible.builtin.set_fact:
+    guidellm_cmd_args: "{{ guidellm_cmd_args + ['--data', scenario_dataset.name, '--data-args', dataset_args_json, '--data-column-mapper', data_column_mapper_json] }}"
+
+- name: Add audio encoding preprocessor
+  ansible.builtin.set_fact:
+    guidellm_cmd_args: "{{ guidellm_cmd_args + ['--data-preprocessors', 'encode_media', '--data-preprocessors-kwargs', encode_kwargs_json] }}"
+  when: encode_kwargs | length > 0
+
+- name: Add processor for chat completions
+  ansible.builtin.set_fact:
+    guidellm_cmd_args: "{{ guidellm_cmd_args + ['--processor', hostvars['localhost']['actual_model']] }}"
+  when: scenario_request_type == 'chat_completions'
+
+- name: Add output directory
+  ansible.builtin.set_fact:
+    guidellm_cmd_args: "{{ guidellm_cmd_args + ['--output-dir', '/results'] }}"
+
+- name: Build GuideLLM command line (host mode - with 'guidellm' prefix)
+  ansible.builtin.set_fact:
+    guidellm_cmd_host: >-
+      guidellm benchmark
+      --target "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}"
+      --request-format {{ scenario_request_type }}
+      --profile {{ stage.profile }}
+      {% if stage.profile == 'concurrent' and stage.rate is defined %}
+      --rate {{ stage.rate }}
+      {% endif %}
+      {% if stage.profile == 'constant' and stage.rate is defined %}
+      --rate {{ stage.rate }}
+      {% endif %}
+      {% if stage.max_requests is defined %}
+      --max-requests {{ stage.max_requests }}
+      {% endif %}
+      {% if stage.max_seconds is defined %}
+      --max-seconds {{ stage.max_seconds }}
+      {% endif %}
+      --data "{{ scenario_dataset.name }}"
+      --data-args '{{ dataset_args_json }}'
+      --data-column-mapper '{{ data_column_mapper_json }}'
+      {% if encode_kwargs | length > 0 %}
+      --data-preprocessors encode_media
+      --data-preprocessors-kwargs '{{ encode_kwargs_json }}'
+      {% endif %}
+      {% if scenario_request_type == 'chat_completions' %}
+      --processor "{{ hostvars['localhost']['actual_model'] }}"
+      {% endif %}
+      --output-dir {{ stage_results_path }}
+
+# ============================================================================
+# CONTAINERIZED EXECUTION PATH
+# ============================================================================
+
+- name: Pull GuideLLM container image
+  containers.podman.podman_image:
+    name: "{{ guidellm_cfg.container_image }}"
+    state: present
+  when: use_guidellm_container | bool
+
+- name: Create HuggingFace cache directory on host
+  ansible.builtin.file:
+    path: "{{ bench_config.cache_dir | default('/tmp') }}/guidellm-hf-cache"
+    state: directory
+    mode: "0777"
+    recurse: true
+  when: use_guidellm_container | bool
+
+- name: Start GuideLLM benchmark container
+  containers.podman.podman_container:
+    name: "guidellm-audio-{{ stage.name | replace(' ', '-') }}"
+    image: "{{ guidellm_cfg.container_image }}"
+    state: started
+    rm: false
+    detach: true
+    network: host
+    cpuset_cpus: "{{ omit if ansible_facts['system'] == 'Darwin' else guidellm_cfg.cpuset_cpus }}"
+    cpuset_mems: "{{ omit if ansible_facts['system'] == 'Darwin' else guidellm_cfg.cpuset_mems }}"
+    volumes:
+      - "{{ stage_results_path }}:/results:z"
+      - "{{ bench_config.cache_dir | default('/tmp') }}/guidellm-hf-cache:/home/guidellm/.cache/huggingface:z"
+    env:
+      HF_TOKEN: "{{ hf_token | default('') }}"
+    command: "{{ guidellm_cmd_args }}"
+    log_driver: journald
+    log_opt:
+      tag: "guidellm-audio-{{ stage.name | replace(' ', '-') }}"
+  register: guidellm_container
+  when: use_guidellm_container | bool
+  no_log: true
+
+- name: Display benchmark start info (containerized)
+  ansible.builtin.debug:
+    msg:
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "GuideLLM Audio Benchmark Started"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "Container: {{ guidellm_container.container.Id[:12] if (guidellm_container.container is defined and guidellm_container.container.Id is defined) else 'N/A' }}"
+      - "Stage: {{ stage.name }}"
+      - "Max Duration: {{ stage.max_seconds | default('N/A') }}s | Max Requests: {{ stage.max_requests | default('N/A') }}"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  when: use_guidellm_container | bool
+
+- name: Wait for GuideLLM benchmark to complete
+  ansible.builtin.command:
+    cmd: "podman wait guidellm-audio-{{ stage.name | replace(' ', '-') }}"
+  register: guidellm_exit_code_container
+  changed_when: false
+  failed_when: guidellm_exit_code_container.rc != 0
+  when: use_guidellm_container | bool
+
+- name: Get container exit details
+  ansible.builtin.shell:
+    cmd: "podman inspect guidellm-audio-{{ stage.name | replace(' ', '-') }} --format '{{ '{{' }} .State.ExitCode {{ '}}' }}' || echo 1"
+  args:
+    executable: /bin/bash
+  register: container_exit_code
+  changed_when: false
+  failed_when: false
+  when: use_guidellm_container | bool
+
+- name: Capture container logs on failure
+  ansible.builtin.shell:
+    cmd: "podman logs guidellm-audio-{{ stage.name | replace(' ', '-') }} 2>&1 | tail -100"
+  args:
+    executable: /bin/bash
+  register: guidellm_failure_logs
+  changed_when: false
+  failed_when: false
+  when:
+    - use_guidellm_container | bool
+    - container_exit_code.stdout is defined
+    - container_exit_code.stdout != '0'
+
+- name: Stream GuideLLM container logs to file
+  ansible.builtin.shell:
+    cmd: "podman logs guidellm-audio-{{ stage.name | replace(' ', '-') }} > /tmp/guidellm-audio-{{ stage.name | replace(' ', '-') }}.log 2>&1"
+  args:
+    executable: /bin/bash
+  changed_when: false
+  failed_when: false
+  when:
+    - use_guidellm_container | bool
+
+- name: Fetch GuideLLM logs to results directory
+  ansible.builtin.fetch:
+    src: "/tmp/guidellm-audio-{{ stage.name | replace(' ', '-') }}.log"
+    dest: "{{ stage_results_path }}/guidellm.log"
+    flat: true
+  when:
+    - use_guidellm_container | bool
+
+- name: Remove completed container
+  containers.podman.podman_container:
+    name: "guidellm-audio-{{ stage.name | replace(' ', '-') }}"
+    state: absent
+  when:
+    - use_guidellm_container | bool
+  no_log: true
+
+# ============================================================================
+# HOST EXECUTION PATH
+# ============================================================================
+
+- name: Display benchmark start info (host mode)
+  ansible.builtin.debug:
+    msg:
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "GuideLLM Audio Benchmark Started (Host Mode)"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "Command: {{ guidellm_cmd_host }}"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  when: not (use_guidellm_container | bool)
+
+- name: Run GuideLLM benchmark on host
+  ansible.builtin.shell: |
+    {{ guidellm_cmd_host }}
+  args:
+    executable: /bin/bash
+  environment:
+    PATH: "{{ ansible_env.PATH }}"
+    HF_TOKEN: "{{ hf_token | default('') }}"
+  register: guidellm_host_result
+  changed_when: false
+  failed_when: false
+  when: not (use_guidellm_container | bool)
+
+# ============================================================================
+# COMMON COMPLETION & ERROR HANDLING
+# ============================================================================
+
+- name: Set exit code (unified across modes)
+  ansible.builtin.set_fact:
+    guidellm_exit_code: "{{ (container_exit_code.stdout | default('1')) if use_guidellm_container else ((guidellm_host_result.rc | default(1)) | string) }}"
+
+- name: Display GuideLLM completion status
+  ansible.builtin.debug:
+    msg:
+      - "{{ '✓ Stage completed successfully' if guidellm_exit_code == '0' else '✗ Stage failed' }}"
+      - "Exit Code: {{ guidellm_exit_code }}"
+      - "Results: {{ stage_results_path }}"
+
+- name: Display failure logs (containerized)
+  ansible.builtin.debug:
+    msg: "{{ guidellm_failure_logs.stdout_lines | default([]) }}"
+  when:
+    - use_guidellm_container | bool
+    - guidellm_exit_code != '0'
+    - guidellm_failure_logs is defined
+
+- name: Display failure output (host mode)
+  ansible.builtin.debug:
+    msg:
+      - "STDOUT:"
+      - "{{ guidellm_host_result.stdout_lines | default([]) }}"
+      - "STDERR:"
+      - "{{ guidellm_host_result.stderr_lines | default([]) }}"
+  when:
+    - not (use_guidellm_container | bool)
+    - guidellm_exit_code != '0'
+    - guidellm_host_result is defined
+
+- name: Fail if GuideLLM encountered errors
+  ansible.builtin.fail:
+    msg: "GuideLLM benchmark failed with exit code {{ guidellm_exit_code }}. Check logs above for details."
+  when:
+    - guidellm_exit_code is defined
+    - guidellm_exit_code != '0'

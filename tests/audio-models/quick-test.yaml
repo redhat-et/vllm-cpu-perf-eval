@@ -1,0 +1,37 @@
+---
+# Quick test scenario for verifying audio benchmark setup and results format
+# Use this for rapid testing without waiting for full benchmark runs
+
+test_scenario:
+  name: "quick-test"
+  type: "validation"
+  description: "Quick test with 5 files to verify setup and check results format"
+
+  # Test configuration
+  backend: "openai-audio"
+  endpoint: "/v1/audio/transcriptions"
+  request_type: "audio_transcriptions"
+
+  # Dataset configuration
+  dataset:
+    name: "openslr/librispeech_asr"
+    config: "clean"
+    split: "test"
+    audio_column: "audio"
+    num_samples: 5  # Only 5 samples for quick test
+
+  # Audio encoding settings (MP3 64kbps, 16kHz)
+  audio_config:
+    format: "mp3"
+    bitrate: "64k"
+    sample_rate: 16000
+    mono: true
+    max_duration: null
+
+  # Test stages
+  stages:
+    - name: "quick-sequential"
+      description: "Process 5 files sequentially"
+      profile: "synchronous"
+      max_requests: 5
+      result_filename_suffix: "quick-test"

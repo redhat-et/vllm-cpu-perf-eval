@@ -1,0 +1,550 @@
+---
+# ============================================================================
+# Audio Model Benchmarking with GuideLLM
+# ============================================================================
+# Comprehensive audio benchmarking for ASR (transcription), translation, and
+# audio chat tasks with CPU-optimized vLLM configuration
+#
+# Modes:
+#   - managed: Starts vLLM server with specified CPU configuration
+#   - external: Tests against existing vLLM endpoint
+#
+# Usage Examples:
+#
+#   # Managed mode with auto CPU configuration
+#   # Note: With 32 cores, auto-calculates: TP=1, OMP=30 (reserves 2 for control plane)
+#   ansible-playbook audio-benchmark.yml \
+#     -e "test_model=openai/whisper-small" \
+#     -e "test_scenario=transcription-throughput" \
+#     -e "requested_cores=32"
+#
+#   # External endpoint mode
+#   ansible-playbook audio-benchmark.yml \
+#     -e "test_scenario=transcription-latency" \
+#     -e vllm_endpoint.mode=external \
+#     -e vllm_endpoint.external.url=http://remote-host:8000
+#
+#   # Advanced CPU configuration
+#   # With 64 cores: auto-calculates TP=2, OMP=31 (reserves 2 for control plane)
+#   ansible-playbook audio-benchmark.yml \
+#     -e "test_model=openai/whisper-medium" \
+#     -e "test_scenario=audio-duration-scaling" \
+#     -e "requested_cores=64" \
+#     -e "vllm_dtype=bfloat16"
+#
+#   # Manual override (if you want different control plane reservation)
+#   ansible-playbook audio-benchmark.yml \
+#     -e "test_model=openai/whisper-small" \
+#     -e "test_scenario=transcription-throughput" \
+#     -e "requested_cores=32" \
+#     -e "requested_tensor_parallel=1" \
+#     -e "omp_num_threads=28"  # Manually set (reserves 4 for control plane)
+#
+# Test Scenarios:
+#   - transcription-throughput: How long to transcribe N files
+#   - transcription-latency: Latency under different loads
+#   - audio-duration-scaling: Performance vs audio length
+#   - constant-rate-stress: Sustained load stability
+#   - format-comparison: Audio format performance
+#
+# ============================================================================
+
+- name: "Audio Benchmark - Setup and Validation"
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    # vLLM mode: managed (start server) or external (use existing endpoint)
+    vllm_mode: "{{ vllm_endpoint.mode | default('managed') }}"
+
+    # Audio-specific vLLM defaults (can be overridden via -e)
+    default_vllm_dtype: "float16"
+    default_vllm_max_model_len: 448  # Whisper default
+    default_vllm_kvcache_space: "2GiB"
+
+    # Effective values (use provided or default)
+    effective_vllm_dtype: "{{ vllm_dtype | default(default_vllm_dtype) }}"
+    effective_vllm_max_model_len: "{{ vllm_max_model_len | default(default_vllm_max_model_len) }}"
+    effective_vllm_kvcache_space: "{{ vllm_kvcache_space | default(default_vllm_kvcache_space) }}"
+
+    # CPU configuration defaults
+    # Reserve 2 cores for vLLM control plane (scheduler, KV cache manager, async operations)
+    # Formula: OMP threads = (requested_cores - 2) / tensor_parallel
+    vllm_control_plane_cores: 2
+    default_omp_num_threads: "{{ ((requested_cores | int - vllm_control_plane_cores) / (requested_tensor_parallel | default(1) | int)) | int if requested_cores is defined else omit }}"
+
+  tasks:
+    - name: Detect if running from AWX
+      ansible.builtin.set_fact:
+        is_awx_job: "{{ lookup('env', 'AWX_JOB_ID') | length > 0 }}"
+
+    # ========================================================================
+    # Input Validation
+    # ========================================================================
+
+    - name: Validate required parameters (managed mode)
+      ansible.builtin.assert:
+        that:
+          - test_model is defined
+          - test_model != '__AUTO_DETECT__'
+          - test_scenario is defined
+          - requested_cores is defined
+          - requested_cores | int > 0
+        fail_msg: |
+          Missing required variables for managed mode. Please provide:
+          -e "test_model=<openai/whisper-small|openai/whisper-medium|...>"
+          -e "test_scenario=<transcription-throughput|transcription-latency|...>"
+          -e "requested_cores=<8|16|32|64|...>"
+
+          Optional:
+          -e "requested_tensor_parallel=<1|2|4>"  # Auto-calculated if omitted
+          -e "omp_num_threads=<N>"                # Auto-calculated if omitted
+          -e "vllm_dtype=<float16|bfloat16>"      # Default: float16
+          -e "vllm_max_model_len=<448>"           # Default: 448 (Whisper)
+          -e "vllm_kvcache_space=<2GiB>"          # Default: 2GiB
+      when: vllm_mode == 'managed'
+
+    - name: Validate required parameters (external mode)
+      ansible.builtin.assert:
+        that:
+          - test_scenario is defined
+          - vllm_endpoint.external.url is defined
+        fail_msg: |
+          Missing required variables for external mode. Please provide:
+          -e "test_scenario=<transcription-throughput|transcription-latency|...>"
+          -e vllm_endpoint.external.url=http://your-vllm-host:8000
+
+          Optional:
+          -e "test_model=<model>"  # Will be auto-detected if omitted
+      when: vllm_mode == 'external'
+
+    - name: Validate test scenario is supported
+      ansible.builtin.assert:
+        that:
+          - test_scenario in ['transcription-throughput', 'transcription-latency', 'audio-duration-scaling', 'constant-rate-stress', 'format-comparison', 'translation-throughput', 'audio-chat', 'quick-test']
+        fail_msg: |
+          Unsupported test_scenario: {{ test_scenario }}
+          Supported scenarios:
+            - transcription-throughput (main: N files transcription time)
+            - transcription-latency (latency under load)
+            - audio-duration-scaling (performance vs audio length)
+            - constant-rate-stress (sustained load stability)
+            - format-comparison (audio format comparison)
+            - translation-throughput (audio translation)
+            - audio-chat (multimodal audio chat)
+            - quick-test (fast 5-file test for validation)
+
+    # ========================================================================
+    # Test Scenario Configuration Loading
+    # ========================================================================
+
+    - name: Load test scenario configuration
+      ansible.builtin.include_vars:
+        file: "../../../tests/audio-models/{{ test_scenario }}.yaml"
+        name: scenario_config
+
+    - name: Extract scenario details
+      ansible.builtin.set_fact:
+        scenario_name: "{{ scenario_config.test_scenario.name }}"
+        scenario_type: "{{ scenario_config.test_scenario.type }}"
+        scenario_description: "{{ scenario_config.test_scenario.description }}"
+        scenario_backend: "{{ scenario_config.test_scenario.backend }}"
+        scenario_endpoint: "{{ scenario_config.test_scenario.endpoint }}"
+        scenario_request_type: "{{ scenario_config.test_scenario.request_type }}"
+        scenario_dataset: "{{ scenario_config.test_scenario.dataset }}"
+        scenario_stages: "{{ scenario_config.test_scenario.stages }}"
+
+    # ========================================================================
+    # CPU Configuration
+    # ========================================================================
+
+    - name: Set CPU configuration for managed mode
+      when: vllm_mode == 'managed'
+      block:
+        - name: Auto-calculate tensor parallel if not specified (audio models favor TP=1 or TP=2)
+          ansible.builtin.set_fact:
+            # For audio models (especially Whisper), prefer TP=1 or TP=2
+            # Only use higher TP for very large models (>1B params)
+            # TP=2 for 64+ cores, TP=1 otherwise
+            requested_tensor_parallel: "{{ 2 if (requested_cores | int >= 64) else 1 }}"
+          when: requested_tensor_parallel is not defined
+
+        - name: Auto-calculate OMP threads if not specified
+          ansible.builtin.set_fact:
+            omp_num_threads: "{{ default_omp_num_threads }}"
+          when: omp_num_threads is not defined
+
+        - name: Display CPU configuration
+          ansible.builtin.debug:
+            msg:
+              - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              - "CPU Configuration (Managed Mode)"
+              - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              - "Container Cores: {{ requested_cores }} (cores 0-{{ (requested_cores | int) - 1 }})"
+              - "Control Plane Reserve: {{ vllm_control_plane_cores }} cores"
+              - "Worker Threads (OMP): {{ omp_num_threads }}"
+              - "Tensor Parallel: {{ requested_tensor_parallel }}"
+              - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+              - "vLLM Configuration:"
+              - "  Data Type: {{ effective_vllm_dtype }}"
+              - "  Max Model Length: {{ effective_vllm_max_model_len }}"
+              - "  KV Cache Space: {{ effective_vllm_kvcache_space }}"
+              - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+    - name: Override cores to 0 for external mode
+      ansible.builtin.set_fact:
+        requested_cores: 0
+      when: vllm_mode == 'external'
+
+    # ========================================================================
+    # Model Detection/Validation
+    # ========================================================================
+
+    - name: Handle external endpoint model detection
+      when: vllm_mode == 'external'
+      block:
+        - name: Get model from external endpoint
+          ansible.builtin.uri:
+            url: "{{ vllm_endpoint.external.url }}/v1/models"
+            method: GET
+            status_code: 200
+            validate_certs: false
+          register: external_models_response
+          delegate_to: localhost
+
+        - name: Extract model name from endpoint
+          ansible.builtin.set_fact:
+            endpoint_model: "{{ external_models_response.json.data[0].id }}"
+
+        - name: Use endpoint model if not specified
+          ansible.builtin.set_fact:
+            test_model: "{{ endpoint_model }}"
+            actual_model: "{{ endpoint_model }}"
+            cacheable: true
+          when: test_model is not defined or test_model == '__AUTO_DETECT__'
+
+        - name: Set actual_model if test_model was provided
+          ansible.builtin.set_fact:
+            actual_model: "{{ test_model }}"
+            cacheable: true
+          when: test_model is defined and test_model != '__AUTO_DETECT__'
+
+        - name: Display detected model
+          ansible.builtin.debug:
+            msg: "Detected model from external endpoint: {{ actual_model }}"
+
+    # ========================================================================
+    # Generate Test Run ID
+    # ========================================================================
+
+    - name: Generate test run ID if not provided
+      ansible.builtin.set_fact:
+        test_run_id: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
+        cacheable: true
+      when: test_run_id is not defined
+
+    - name: Set actual_model (managed mode)
+      ansible.builtin.set_fact:
+        actual_model: "{{ test_model }}"
+        cacheable: true
+      when: vllm_mode == 'managed'
+
+    - name: Cache effective vLLM settings for next plays
+      ansible.builtin.set_fact:
+        effective_vllm_dtype: "{{ vllm_dtype | default(default_vllm_dtype) }}"
+        effective_vllm_max_model_len: "{{ vllm_max_model_len | default(default_vllm_max_model_len) }}"
+        effective_vllm_kvcache_space: "{{ vllm_kvcache_space | default(default_vllm_kvcache_space) }}"
+        effective_omp_num_threads: "{{ omp_num_threads | default(default_omp_num_threads) }}"
+        effective_requested_tensor_parallel: "{{ requested_tensor_parallel | default(1) }}"
+        cacheable: true
+
+    # ========================================================================
+    # Display Configuration Summary
+    # ========================================================================
+
+    - name: Display audio benchmark configuration
+      ansible.builtin.debug:
+        msg:
+          - "╔══════════════════════════════════════════════════════════════╗"
+          - "║           Audio Model Benchmarking with GuideLLM            ║"
+          - "╠══════════════════════════════════════════════════════════════╣"
+          - "  vLLM Mode: {{ vllm_mode }}"
+          - "  Model: {{ actual_model }}"
+          - "  Test Scenario: {{ scenario_name }}"
+          - "  Description: {{ scenario_description }}"
+          - "  Test Run ID: {{ test_run_id }}"
+          - "  "
+          - "  Dataset: {{ scenario_dataset.name }}"
+          - "  Request Type: {{ scenario_request_type }}"
+          - "  Endpoint: {{ scenario_endpoint }}"
+          - "  Stages: {{ scenario_stages | length }}"
+          - "╚══════════════════════════════════════════════════════════════╝"
+
+# ============================================================================
+# Start vLLM Server (Managed Mode Only)
+# ============================================================================
+
+- name: "Start vLLM Audio Server"
+  hosts: dut
+  become: "{{ ansible_become | default(true) | bool }}"
+  vars:
+    vllm_mode: "{{ vllm_endpoint.mode | default('managed') }}"
+    # Pull variables from localhost facts
+    test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
+    test_model: "{{ hostvars['localhost']['test_model'] }}"
+    actual_model: "{{ hostvars['localhost']['actual_model'] }}"
+    requested_cores: "{{ hostvars['localhost']['requested_cores'] | default(0) }}"
+    effective_vllm_dtype: "{{ hostvars['localhost']['effective_vllm_dtype'] }}"
+    effective_vllm_max_model_len: "{{ hostvars['localhost']['effective_vllm_max_model_len'] }}"
+    effective_vllm_kvcache_space: "{{ hostvars['localhost']['effective_vllm_kvcache_space'] }}"
+    effective_omp_num_threads: "{{ hostvars['localhost']['effective_omp_num_threads'] }}"
+    effective_requested_tensor_parallel: "{{ hostvars['localhost']['effective_requested_tensor_parallel'] }}"
+    container_name: "vllm-audio-{{ hostvars['localhost']['test_run_id'] }}"
+
+  tasks:
+    - name: Start vLLM server (managed mode only)
+      when: vllm_mode == 'managed'
+      block:
+        - name: Create required directories
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: directory
+            mode: "0755"
+          loop:
+            - "{{ model_cache_dir }}"
+            - "{{ log_dir }}"
+
+        - name: Stop any existing vLLM audio containers
+          containers.podman.podman_container:
+            name: "{{ item }}"
+            state: absent
+          loop:
+            - "vllm-audio-server"
+            - "{{ container_name }}"
+          ignore_errors: true
+
+        - name: Determine NUMA node from core range
+          ansible.builtin.set_fact:
+            numa_node: "0"  # Default to node 0, can be enhanced with auto-detection
+
+        - name: Build vLLM command arguments
+          ansible.builtin.set_fact:
+            vllm_command: >-
+              --model {{ test_model }}
+              --host {{ vllm_server.host }}
+              --port {{ vllm_server.port }}
+              --dtype {{ effective_vllm_dtype }}
+              --max-model-len {{ effective_vllm_max_model_len }}
+              --tensor-parallel-size {{ effective_requested_tensor_parallel }}
+              --trust-remote-code
+
+        - name: Build environment variables
+          ansible.builtin.set_fact:
+            vllm_env_vars:
+              VLLM_CPU_KVCACHE_SPACE: "{{ effective_vllm_kvcache_space }}"
+              OMP_NUM_THREADS: "{{ effective_omp_num_threads | default(requested_cores) | string }}"
+              VLLM_CPU_OMP_THREADS_BIND: "{{ omp_threads_bind | default('') }}"
+
+        - name: Start vLLM audio server in container
+          containers.podman.podman_container:
+            name: "{{ container_name }}"
+            image: "{{ container_runtime.image }}"
+            state: started
+            restart_policy: "no"
+            detach: true
+            network: "{{ container_runtime.network_mode }}"
+            cpuset_cpus: "{{ '0-' + ((requested_cores | int) - 1) | string }}"
+            cpuset_mems: "{{ numa_node }}"
+            shm_size: "{{ container_runtime.shm_size }}"
+            security_opt: "{{ container_runtime.security_opts }}"
+            cap_add: "{{ container_runtime.capabilities }}"
+            volumes:
+              - "{{ model_cache_dir }}:/root/.cache/huggingface:rw"
+              - "{{ log_dir }}:/var/log/vllm:rw"
+            env: "{{ vllm_env_vars }}"
+            command: "{{ vllm_command }}"
+            log_driver: journald
+            log_opt:
+              tag: "vllm-audio-{{ actual_model | replace('/', '__') }}"
+          register: vllm_container
+
+        - name: Display vLLM container start info
+          ansible.builtin.debug:
+            msg:
+              - "✅ vLLM Audio Server Started"
+              - "   Container: {{ container_name }}"
+              - "   URL: http://{{ ansible_host }}:{{ vllm_server.port }}"
+              - "   Model: {{ actual_model }}"
+              - "   Cores: {{ requested_cores }} ({{ '0-' + ((requested_cores | int) - 1) | string }})"
+              - "   Tensor Parallel: {{ effective_requested_tensor_parallel }}"
+              - "   Logs: journalctl -t vllm-audio-{{ actual_model | replace('/', '__') }} -f"
+
+        - name: Wait for vLLM server to be ready
+          ansible.builtin.include_tasks: tasks/wait-for-vllm-ready.yml
+          vars:
+            vllm_host: "{{ ansible_host }}"
+            vllm_port: "{{ vllm_server.port }}"
+
+# ============================================================================
+# Run Audio Benchmark Stages
+# ============================================================================
+
+- name: "Execute Audio Benchmark Stages"
+  hosts: load_generator
+  become: "{{ ansible_become | default(true) | bool }}"
+  gather_facts: true
+
+  vars:
+    vllm_mode: "{{ vllm_endpoint.mode | default('managed') }}"
+    # Pull variables from localhost facts
+    test_model: "{{ hostvars['localhost']['test_model'] }}"
+    actual_model: "{{ hostvars['localhost']['actual_model'] }}"
+    test_scenario: "{{ hostvars['localhost']['test_scenario'] }}"
+    scenario_config: "{{ hostvars['localhost']['scenario_config'] }}"
+    scenario_stages: "{{ hostvars['localhost']['scenario_stages'] }}"
+    scenario_dataset: "{{ hostvars['localhost']['scenario_dataset'] }}"
+    scenario_request_type: "{{ hostvars['localhost']['scenario_request_type'] }}"
+    target_url: "{{ vllm_endpoint.external.url if vllm_mode == 'external' else 'http://' + bench_config.vllm_host + ':' + (vllm_server.port | string) }}"
+    results_base: "{{ playbook_dir }}/../../../results/audio-models/{{ actual_model | replace('/', '__') }}/{{ test_scenario }}"
+
+  pre_tasks:
+    - name: Record benchmark start time
+      ansible.builtin.set_fact:
+        benchmark_start_time: "{{ lookup('pipe', 'date +%s') }}"
+      delegate_to: localhost
+      delegate_facts: true
+
+    - name: Start vLLM metrics collection
+      ansible.builtin.include_tasks: tasks/start-vllm-metrics-collection.yml
+      vars:
+        results_path: "{{ results_base }}"
+        test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
+
+  tasks:
+    - name: Setup results directory
+      ansible.builtin.file:
+        path: "{{ results_base }}"
+        state: directory
+        mode: "0755"
+        recurse: true
+      delegate_to: localhost
+
+    - name: Run each benchmark stage
+      ansible.builtin.include_role:
+        name: benchmark_guidellm_audio
+      vars:
+        stage_results_path: "{{ results_base }}"
+      loop: "{{ scenario_stages }}"
+      loop_control:
+        loop_var: stage
+        index_var: stage_index
+
+  post_tasks:
+    - name: Record benchmark end time
+      ansible.builtin.set_fact:
+        benchmark_end_time: "{{ lookup('pipe', 'date +%s') }}"
+      delegate_to: localhost
+      delegate_facts: true
+
+    - name: Calculate test duration
+      ansible.builtin.set_fact:
+        test_duration_seconds: "{{ (benchmark_end_time | int) - (hostvars['localhost']['benchmark_start_time'] | int) }}"
+      delegate_to: localhost
+      delegate_facts: true
+
+    - name: Format test duration as human readable
+      ansible.builtin.set_fact:
+        test_duration_string: "{{ ((test_duration_seconds | int) // 60) | string + 'm ' + ((test_duration_seconds | int) % 60) | string + 's' }}"
+      delegate_to: localhost
+      delegate_facts: true
+
+    - name: Create test metadata JSON
+      ansible.builtin.copy:
+        content: |
+          {
+            "test_run_id": "{{ hostvars['localhost']['test_run_id'] }}",
+            "test_type": "audio_benchmark",
+            "scenario_name": "{{ test_scenario }}",
+            "scenario_type": "{{ hostvars['localhost']['scenario_type'] }}",
+            "scenario_description": "{{ hostvars['localhost']['scenario_description'] }}",
+            "core_count": {{ hostvars['localhost']['requested_cores'] | default(0) }},
+            "tensor_parallel": {{ hostvars['localhost']['effective_requested_tensor_parallel'] | default(1) }},
+            "omp_num_threads": {{ hostvars['localhost']['effective_omp_num_threads'] | default('null') }},
+            "model": "{{ actual_model }}",
+            "platform": "{{ hostvars['localhost']['dut_platform_name'] | default('unknown') }}",
+            "backend": "{{ hostvars['localhost']['vllm_backend'] | default('upstream') }}",
+            "vllm_version": "{{ hostvars['localhost']['vllm_version'] | default('unknown') }}",
+            "vllm_dtype": "{{ hostvars['localhost']['effective_vllm_dtype'] }}",
+            "vllm_kv_cache_size": "{{ hostvars['localhost']['effective_vllm_kvcache_space'] }}",
+            "vllm_max_model_len": {{ hostvars['localhost']['effective_vllm_max_model_len'] }},
+            "vllm_mode": "{{ vllm_mode }}",
+            "vllm_endpoint_url": "{{ vllm_endpoint.external.url if vllm_mode == 'external' else 'n/a' }}",
+            "guidellm_version": "{{ hostvars['localhost']['guidellm_version'] | default('unknown') }}",
+            "request_type": "{{ scenario_request_type }}",
+            "dataset_name": "{{ scenario_dataset.name }}",
+            "dataset_config": "{{ scenario_dataset.config | default('clean') }}",
+            "dataset_split": "{{ scenario_dataset.split | default('test') }}",
+            "audio_format": "{{ scenario_config.test_scenario.audio_config.format | default('mp3') }}",
+            "audio_bitrate": "{{ scenario_config.test_scenario.audio_config.bitrate | default('64k') }}",
+            "audio_sample_rate": {{ scenario_config.test_scenario.audio_config.sample_rate | default(16000) }},
+            "stages_completed": {{ scenario_stages | length }},
+            "timestamp": "{{ lookup('pipe', 'date -Iseconds') }}",
+            "test_duration": "{{ hostvars['localhost']['test_duration_string'] }}",
+            "test_duration_seconds": {{ hostvars['localhost']['test_duration_seconds'] }}
+          }
+        dest: "{{ results_base }}/test-metadata.json"
+      delegate_to: localhost
+
+    - name: Stop vLLM metrics collection
+      ansible.builtin.include_tasks: tasks/stop-vllm-metrics-collection.yml
+
+# ============================================================================
+# Cleanup (Managed Mode Only)
+# ============================================================================
+
+- name: "Cleanup vLLM Server"
+  hosts: dut
+  become: "{{ ansible_become | default(true) | bool }}"
+  vars:
+    vllm_mode: "{{ vllm_endpoint.mode | default('managed') }}"
+    test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
+    container_name: "vllm-audio-{{ hostvars['localhost']['test_run_id'] }}"
+
+  tasks:
+    - name: Stop vLLM audio server (managed mode only)
+      containers.podman.podman_container:
+        name: "{{ container_name }}"
+        state: stopped
+      when: vllm_mode == 'managed'
+      ignore_errors: true
+
+    - name: Remove vLLM audio container (managed mode only)
+      containers.podman.podman_container:
+        name: "{{ container_name }}"
+        state: absent
+      when: vllm_mode == 'managed'
+      ignore_errors: true
+
+# ============================================================================
+# Results Summary
+# ============================================================================
+
+- name: "Display Results Summary"
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    results_base: "{{ playbook_dir }}/../../../results/audio-models/{{ actual_model | replace('/', '__') }}/{{ test_scenario }}"
+
+  tasks:
+    - name: Display completion message
+      ansible.builtin.debug:
+        msg:
+          - "╔══════════════════════════════════════════════════════════════╗"
+          - "║              Audio Benchmark Complete                       ║"
+          - "╠══════════════════════════════════════════════════════════════╣"
+          - "  Test Scenario: {{ scenario_name }}"
+          - "  Model: {{ actual_model }}"
+          - "  Stages Completed: {{ scenario_stages | length }}"
+          - "  Results Directory: {{ results_base }}"
+          - "╚══════════════════════════════════════════════════════════════╝"

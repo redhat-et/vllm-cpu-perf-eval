@@ -82,6 +82,18 @@ Performance evaluation for embedding models on CPU.
 
 See [Embedding Models Test Suite](embedding-models/embedding-models.md) for detailed documentation.
 
+### Audio Models
+
+Performance evaluation for audio transcription, translation, and audio chat on CPU.
+
+- **Test types**: Throughput (N files), Latency (under load), Duration scaling, Format comparison, Stress testing
+- **Metrics focus**: Files/sec, Audio seconds/sec, Real-time factor, Latency distributions
+- **Goal**: Understand batch transcription performance and interactive latency
+- **Architecture**: Two-node (DUT + Load Generator)
+- **Key question**: *How long to transcribe N audio files?*
+
+See [Audio Models Test Suite](audio-models/README.md) for detailed documentation.
+
 ## Running Tests
 
 ### With Docker/Podman Compose
