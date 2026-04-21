@@ -25,7 +25,7 @@ class TestPlaybookSyntax:
             except yaml.YAMLError as e:
                 errors.append(f"{playbook.name}: {e}")
 
-        assert not errors, f"YAML validation errors:\n" + "\n".join(errors)
+        assert not errors, "YAML validation errors:\n" + "\n".join(errors)
 
     def test_ansible_syntax_check(self):
         """Run ansible-playbook --syntax-check on critical playbooks."""
@@ -57,7 +57,7 @@ class TestPlaybookSyntax:
                     f"{playbook}: syntax check failed\n{result.stderr}"
                 )
 
-        assert not errors, f"Syntax check errors:\n" + "\n".join(errors)
+        assert not errors, "Syntax check errors:\n" + "\n".join(errors)
 
     def test_inventory_files_valid_yaml(self):
         """All inventory files should be valid YAML."""
@@ -88,7 +88,7 @@ class TestPlaybookSyntax:
             except yaml.YAMLError as e:
                 errors.append(f"{inv_file.name}: {e}")
 
-        assert not errors, f"Inventory YAML validation errors:\n" + "\n".join(errors)
+        assert not errors, "Inventory YAML validation errors:\n" + "\n".join(errors)
 
     def test_role_defaults_valid_yaml(self):
         """All role defaults files should be valid YAML."""
@@ -107,7 +107,7 @@ class TestPlaybookSyntax:
             except yaml.YAMLError as e:
                 errors.append(f"{defaults_file.parent.parent.name}: {e}")
 
-        assert not errors, f"Role defaults YAML validation errors:\n" + "\n".join(errors)
+        assert not errors, "Role defaults YAML validation errors:\n" + "\n".join(errors)
 
 
 @pytest.mark.smoke
@@ -134,7 +134,7 @@ class TestRoleStructure:
                     f"{role.name}: missing tasks directory"
                 )
 
-        assert not errors, f"Role structure errors:\n" + "\n".join(errors)
+        assert not errors, "Role structure errors:\n" + "\n".join(errors)
 
 
 @pytest.mark.smoke
@@ -162,4 +162,4 @@ class TestFilterPlugins:
             except SyntaxError as e:
                 errors.append(f"{filter_file.name}: {e}")
 
-        assert not errors, f"Filter plugin syntax errors:\n" + "\n".join(errors)
+        assert not errors, "Filter plugin syntax errors:\n" + "\n".join(errors)
