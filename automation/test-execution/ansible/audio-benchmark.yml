@@ -204,9 +204,9 @@
               - "CPU Configuration (Managed Mode)"
               - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
               - "Container Cores: {{ requested_cores }} (cores 0-{{ (requested_cores | int) - 1 }})"
-              - "Control Plane Reserve: {{ vllm_control_plane_cores }} cores"
-              - "Worker Threads (OMP): {{ omp_num_threads }}"
+              - "Control Plane Reserve: {{ vllm_control_plane_cores }} cores (VLLM_CPU_NUM_OF_RESERVED_CPU={{ vllm_control_plane_cores }})"
               - "Tensor Parallel: {{ requested_tensor_parallel }}"
+              - "{% if requested_tensor_parallel | int > 1 %}Worker Threads (OMP): {{ omp_num_threads }}{% else %}Worker Threads: Auto (TP=1, no OMP override){% endif %}"
               - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
               - "vLLM Configuration:"
               - "  Data Type: {{ effective_vllm_dtype }}"
@@ -371,6 +371,7 @@
           ansible.builtin.set_fact:
             vllm_env_vars:
               VLLM_CPU_KVCACHE_SPACE: "{{ effective_vllm_kvcache_space | extract_size_value }}"
+              VLLM_CPU_NUM_OF_RESERVED_CPU: "{{ vllm_control_plane_cores | string }}"
               HF_TOKEN: "{{ hf_token | default('') }}"
 
         - name: Add OMP_NUM_THREADS if TP > 1
