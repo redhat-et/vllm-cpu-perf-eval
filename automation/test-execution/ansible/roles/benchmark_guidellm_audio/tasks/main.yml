@@ -122,7 +122,15 @@
 
 - name: Add dataset parameters
   ansible.builtin.set_fact:
+    # Limit dataset samples to 2x max_requests to avoid downloading entire dataset
+    # For max_requests=5, load 10 samples; for 100, load 200 samples
+    guidellm_cmd_args: "{{ guidellm_cmd_args + ['--data', scenario_dataset.name, '--data-args', dataset_args_json, '--data-column-mapper', data_column_mapper_json, '--data-samples', (stage.max_requests * 2) | string] }}"
+  when: stage.max_requests is defined
+
+- name: Add dataset parameters (no sample limit)
+  ansible.builtin.set_fact:
     guidellm_cmd_args: "{{ guidellm_cmd_args + ['--data', scenario_dataset.name, '--data-args', dataset_args_json, '--data-column-mapper', data_column_mapper_json] }}"
+  when: stage.max_requests is not defined
 
 - name: Add audio encoding preprocessor
   ansible.builtin.set_fact:
@@ -163,6 +171,9 @@
       --data "{{ scenario_dataset.name }}"
       --data-args '{{ dataset_args_json }}'
       --data-column-mapper '{{ data_column_mapper_json }}'
+      {% if stage.max_requests is defined %}
+      --data-samples {{ stage.max_requests * 2 }}
+      {% endif %}
       {% if encode_kwargs | length > 0 %}
       --data-preprocessors encode_media
       --data-preprocessors-kwargs '{{ encode_kwargs_json }}'
