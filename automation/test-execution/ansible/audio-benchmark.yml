@@ -323,6 +323,7 @@
     effective_vllm_kvcache_space: "{{ hostvars['localhost']['effective_vllm_kvcache_space'] }}"
     effective_omp_num_threads: "{{ hostvars['localhost']['effective_omp_num_threads'] }}"
     effective_requested_tensor_parallel: "{{ hostvars['localhost']['effective_requested_tensor_parallel'] }}"
+    vllm_control_plane_cores: 2  # Reserve 2 cores for control plane (defined here for vllm-server play)
     container_name: "vllm-audio-{{ hostvars['localhost']['test_run_id'] }}"
 
   tasks:
