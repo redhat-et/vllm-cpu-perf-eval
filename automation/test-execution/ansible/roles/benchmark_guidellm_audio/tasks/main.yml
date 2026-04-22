@@ -103,6 +103,11 @@
     guidellm_cmd_args: "{{ guidellm_cmd_args + ['--rate', stage.rate | string] }}"
   when: stage.profile == 'constant' and stage.rate is defined
 
+- name: Add rate for throughput profile
+  ansible.builtin.set_fact:
+    guidellm_cmd_args: "{{ guidellm_cmd_args + ['--rate', stage.rate | string] }}"
+  when: stage.profile == 'throughput' and stage.rate is defined
+
 - name: Add max-requests
   ansible.builtin.set_fact:
     guidellm_cmd_args: "{{ guidellm_cmd_args + ['--max-requests', stage.max_requests | string] }}"
@@ -142,6 +147,9 @@
       --rate {{ stage.rate }}
       {% endif %}
       {% if stage.profile == 'constant' and stage.rate is defined %}
+      --rate {{ stage.rate }}
+      {% endif %}
+      {% if stage.profile == 'throughput' and stage.rate is defined %}
       --rate {{ stage.rate }}
       {% endif %}
       {% if stage.max_requests is defined %}
