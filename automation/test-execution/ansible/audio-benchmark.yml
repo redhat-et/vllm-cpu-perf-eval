@@ -492,7 +492,7 @@
       ansible.builtin.include_role:
         name: benchmark_guidellm_audio
       vars:
-        stage_results_path: "{{ results_base }}"
+        stage_results_path: "{{ results_base }}/{{ stage.result_filename_suffix }}"
       loop: "{{ scenario_stages }}"
       loop_control:
         loop_var: stage
