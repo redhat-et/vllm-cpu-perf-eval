@@ -371,9 +371,18 @@
           ansible.builtin.set_fact:
             vllm_env_vars:
               VLLM_CPU_KVCACHE_SPACE: "{{ effective_vllm_kvcache_space | extract_size_value }}"
+              # VLLM_CPU_NUM_OF_RESERVED_CPU: Reserve cores for control plane (scheduler, KV cache, async ops)
+              # IMPORTANT: Only works when VLLM_CPU_OMP_THREADS_BIND=auto (default for TP=1)
+              # Default behavior without this: world_size==1 reserves 0 cores, world_size>1 reserves 1/rank
+              # We explicitly set 2 to prevent worker threads from starving control plane
               VLLM_CPU_NUM_OF_RESERVED_CPU: "{{ vllm_control_plane_cores | string }}"
               HF_TOKEN: "{{ hf_token | default('') }}"
 
+        # For TP=1: Leave VLLM_CPU_OMP_THREADS_BIND unset (defaults to 'auto')
+        # This allows VLLM_CPU_NUM_OF_RESERVED_CPU to work properly
+        # vLLM will auto-manage thread binding to NUMA nodes and respect reserved cores
+
+        # For TP>1: Set OMP variables explicitly for multi-rank configurations
         - name: Add OMP_NUM_THREADS if TP > 1
           ansible.builtin.set_fact:
             vllm_env_vars: "{{ vllm_env_vars | combine({'OMP_NUM_THREADS': effective_omp_num_threads | string}) }}"
@@ -388,6 +397,8 @@
             - effective_requested_tensor_parallel | int > 1
             - omp_threads_bind is defined
             - omp_threads_bind != ''
+          # NOTE: Setting VLLM_CPU_OMP_THREADS_BIND to explicit CPU list disables
+          # VLLM_CPU_NUM_OF_RESERVED_CPU. Only set for TP>1 where we manage binding manually.
 
         - name: Start vLLM audio server in container
           containers.podman.podman_container:
