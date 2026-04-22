@@ -264,6 +264,20 @@
   when:
     - use_guidellm_container | bool
 
+- name: Check benchmark result files on load generator
+  ansible.builtin.find:
+    paths: "{{ stage_results_path }}"
+    patterns: "benchmarks.*"
+  register: benchmark_files
+  when:
+    - use_guidellm_container | bool
+
+- name: Display found benchmark files
+  ansible.builtin.debug:
+    msg: "Found {{ benchmark_files.matched }} benchmark files: {{ benchmark_files.files | map(attribute='path') | list }}"
+  when:
+    - use_guidellm_container | bool
+
 - name: Fetch GuideLLM logs to results directory
   ansible.builtin.fetch:
     src: "/tmp/guidellm-audio-{{ stage.name | replace(' ', '-') }}.log"
@@ -271,6 +285,24 @@
     flat: true
   when:
     - use_guidellm_container | bool
+
+- name: Fetch benchmark results JSON to controller
+  ansible.builtin.fetch:
+    src: "{{ stage_results_path }}/benchmarks.json"
+    dest: "{{ stage_results_path }}/benchmarks.json"
+    flat: true
+  when:
+    - use_guidellm_container | bool
+  failed_when: false
+
+- name: Fetch benchmark results CSV to controller
+  ansible.builtin.fetch:
+    src: "{{ stage_results_path }}/benchmarks.csv"
+    dest: "{{ stage_results_path }}/benchmarks.csv"
+    flat: true
+  when:
+    - use_guidellm_container | bool
+  failed_when: false
 
 - name: Remove completed container
   containers.podman.podman_container:
@@ -306,6 +338,38 @@
   changed_when: false
   failed_when: false
   when: not (use_guidellm_container | bool)
+
+- name: Check benchmark result files on load generator (host mode)
+  ansible.builtin.find:
+    paths: "{{ stage_results_path }}"
+    patterns: "benchmarks.*"
+  register: benchmark_files_host
+  when:
+    - not (use_guidellm_container | bool)
+
+- name: Display found benchmark files (host mode)
+  ansible.builtin.debug:
+    msg: "Found {{ benchmark_files_host.matched }} benchmark files: {{ benchmark_files_host.files | map(attribute='path') | list }}"
+  when:
+    - not (use_guidellm_container | bool)
+
+- name: Fetch benchmark results JSON to controller (host mode)
+  ansible.builtin.fetch:
+    src: "{{ stage_results_path }}/benchmarks.json"
+    dest: "{{ stage_results_path }}/benchmarks.json"
+    flat: true
+  when:
+    - not (use_guidellm_container | bool)
+  failed_when: false
+
+- name: Fetch benchmark results CSV to controller (host mode)
+  ansible.builtin.fetch:
+    src: "{{ stage_results_path }}/benchmarks.csv"
+    dest: "{{ stage_results_path }}/benchmarks.csv"
+    flat: true
+  when:
+    - not (use_guidellm_container | bool)
+  failed_when: false
 
 # ============================================================================
 # COMMON COMPLETION & ERROR HANDLING
