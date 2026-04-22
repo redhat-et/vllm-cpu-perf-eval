@@ -464,7 +464,8 @@
     scenario_dataset: "{{ hostvars['localhost']['scenario_dataset'] }}"
     scenario_request_type: "{{ hostvars['localhost']['scenario_request_type'] }}"
     target_url: "{{ vllm_endpoint.external.url if vllm_mode == 'external' else 'http://' + bench_config.vllm_host + ':' + (vllm_server.port | string) }}"
-    results_base: "{{ playbook_dir }}/../../../results/audio-models/{{ actual_model | replace('/', '__') }}/{{ test_scenario }}"
+    test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
+    results_base: "{{ playbook_dir }}/../../../results/audio-models/{{ actual_model | replace('/', '__') }}/{{ test_scenario }}-{{ hostvars['localhost']['test_run_id'] }}"
 
   pre_tasks:
     - name: Record benchmark start time
@@ -593,7 +594,7 @@
   gather_facts: false
 
   vars:
-    results_base: "{{ playbook_dir }}/../../../results/audio-models/{{ actual_model | replace('/', '__') }}/{{ test_scenario }}"
+    results_base: "{{ playbook_dir }}/../../../results/audio-models/{{ actual_model | replace('/', '__') }}/{{ test_scenario }}-{{ test_run_id }}"
 
   tasks:
     - name: Display completion message
