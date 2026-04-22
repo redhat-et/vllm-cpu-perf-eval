@@ -362,12 +362,18 @@
               --tensor-parallel-size {{ effective_requested_tensor_parallel }}
               --trust-remote-code
 
+        - name: Setup HuggingFace token
+          ansible.builtin.include_role:
+            name: hf_token
+            tasks_from: setup-optional
+
         - name: Build environment variables
           ansible.builtin.set_fact:
             vllm_env_vars:
               VLLM_CPU_KVCACHE_SPACE: "{{ effective_vllm_kvcache_space }}"
               OMP_NUM_THREADS: "{{ effective_omp_num_threads | default(requested_cores) | string }}"
               VLLM_CPU_OMP_THREADS_BIND: "{{ omp_threads_bind | default('') }}"
+              HF_TOKEN: "{{ hf_token | default('') }}"
 
         - name: Start vLLM audio server in container
           containers.podman.podman_container:
@@ -383,8 +389,8 @@
             security_opt: "{{ container_runtime.security_opts }}"
             cap_add: "{{ container_runtime.capabilities }}"
             volumes:
-              - "{{ model_cache_dir }}:/root/.cache/huggingface:rw"
-              - "{{ log_dir }}:/var/log/vllm:rw"
+              - "{{ model_cache_dir }}:/root/.cache/huggingface:rw,z"
+              - "{{ log_dir }}:/var/log/vllm:rw,z"
             env: "{{ vllm_env_vars }}"
             command: "{{ vllm_command }}"
             log_driver: journald
