@@ -99,7 +99,7 @@ test_scenario:
     - name: "max-throughput"
       description: "Find maximum processing capacity"
       profile: "throughput"
-      rate: "inf"  # Send requests as fast as possible (infinite rate)
+      rate: 50  # Number of concurrent request streams (configurable via stage override)
       max_requests: 100
       result_filename_suffix: "max-throughput"
       metrics_focus:

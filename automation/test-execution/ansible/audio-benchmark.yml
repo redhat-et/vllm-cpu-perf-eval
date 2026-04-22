@@ -47,6 +47,9 @@
 #     -e "requested_cores=32" \
 #     -e "audio_num_files=10"  # Process only 10 files per stage
 #
+#   # Note: Throughput stage concurrency defaults to 50 concurrent streams
+#   # Edit scenario YAML to change rate per stage if needed for load balancer setups
+#
 # Test Scenarios:
 #   - transcription-throughput: How long to transcribe N files
 #   - transcription-latency: Latency under different loads

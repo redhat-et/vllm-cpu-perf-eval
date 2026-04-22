@@ -153,11 +153,12 @@ ansible-playbook audio-benchmark.yml \
    - Metric focus: Per-request latency (P50, P95, P99), concurrent user experience
    - **NOT** parallel batch processing - this maintains continuous concurrent load
 
-3. **Max-throughput** (`profile: throughput`) - **CAPACITY TEST**
-   - Send requests as fast as the server can handle
+3. **Max-throughput** (`profile: throughput`, `rate: 50`) - **CAPACITY TEST**
+   - Maintains 50 concurrent request streams to saturate server
    - Answers: "What's the maximum files/second this server can sustain?"
    - Metric focus: Maximum files/sec, maximum audio_seconds/sec
    - Use for: Capacity planning, finding server limits
+   - **Note:** `rate: 50` is configurable in scenario YAML - increase for load balancer/multi-instance setups
 
 **Key Distinction:**
 - **Offline batch:** "I have 100 files on disk, transcribe them all ASAP" → Use sequential (baseline) and max-throughput results
