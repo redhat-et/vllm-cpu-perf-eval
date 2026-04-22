@@ -367,13 +367,26 @@
             name: hf_token
             tasks_from: setup-optional
 
-        - name: Build environment variables
+        - name: Build base environment variables
           ansible.builtin.set_fact:
             vllm_env_vars:
               VLLM_CPU_KVCACHE_SPACE: "{{ effective_vllm_kvcache_space | extract_size_value }}"
-              OMP_NUM_THREADS: "{{ effective_omp_num_threads | default(requested_cores) | string }}"
-              VLLM_CPU_OMP_THREADS_BIND: "{{ omp_threads_bind | default('') }}"
               HF_TOKEN: "{{ hf_token | default('') }}"
+
+        - name: Add OMP_NUM_THREADS if TP > 1
+          ansible.builtin.set_fact:
+            vllm_env_vars: "{{ vllm_env_vars | combine({'OMP_NUM_THREADS': effective_omp_num_threads | string}) }}"
+          when:
+            - effective_requested_tensor_parallel | int > 1
+            - effective_omp_num_threads is defined
+
+        - name: Add VLLM_CPU_OMP_THREADS_BIND if TP > 1
+          ansible.builtin.set_fact:
+            vllm_env_vars: "{{ vllm_env_vars | combine({'VLLM_CPU_OMP_THREADS_BIND': omp_threads_bind}) }}"
+          when:
+            - effective_requested_tensor_parallel | int > 1
+            - omp_threads_bind is defined
+            - omp_threads_bind != ''
 
         - name: Start vLLM audio server in container
           containers.podman.podman_container:
