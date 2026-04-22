@@ -276,6 +276,19 @@ ansible-playbook -i inventory/hosts.yml audio-benchmark.yml \
   -e "audio_num_files=50"
 ```
 
+**Adjusting throughput concurrency for load balancer scenarios:**
+
+The `max-throughput` stage uses `rate: 50` (50 concurrent request streams) by default. For multi-instance deployments behind load balancers, you may want to increase this. Edit the scenario YAML file to adjust:
+
+```yaml
+# In tests/audio-models/transcription-throughput.yaml
+- name: "max-throughput"
+  profile: "throughput"
+  rate: 100  # Increase for load balancer setups with multiple vLLM instances
+```
+
+This is not exposed as a playbook parameter because it's deployment-specific and should be configured in the test scenario definition.
+
 ## See Also
 
 - **[Audio Test Scenarios](../../tests/audio-models/README.md)** - Detailed test documentation
