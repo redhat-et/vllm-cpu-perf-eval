@@ -76,9 +76,11 @@
   ansible.builtin.set_fact:
     data_column_mapper_json: "{\"audio_column\": \"{{ scenario_dataset.audio_column }}\"}"
 
-- name: Build encode kwargs JSON (preprocessor format for v0.6.0 - needs 'audio' wrapper)
+- name: Build encode kwargs JSON (preprocessor format for v0.6.0)
   ansible.builtin.set_fact:
-    encode_kwargs_json: "{\"audio\": {{ encode_kwargs | to_json }}}"
+    # For audio_transcriptions/translations: flat structure (no wrapper)
+    # For chat_completions: nested under "audio" key
+    encode_kwargs_json: "{{ '{\"audio\": ' ~ (encode_kwargs | to_json) ~ '}' if scenario_request_type == 'chat_completions' else (encode_kwargs | to_json) }}"
   when: encode_kwargs | length > 0
 
 - name: Build GuideLLM command arguments list (container mode)
