@@ -22,7 +22,7 @@ container_runtime:
   # ⚠️ CHANGE: Update to official vLLM image or your preferred version
   # This image includes CPU optimizations for performance testing
   # Can be overridden with environment variable: export VLLM_CONTAINER_IMAGE=...
-  image: "{{ lookup('env', 'VLLM_CONTAINER_IMAGE') | default('docker.io/vllm/vllm-openai-cpu:v0.18.0', true) }}"
+  image: "{{ lookup('env', 'VLLM_CONTAINER_IMAGE') | default('docker.io/vllm/vllm-openai-cpu:v0.19.0', true) }}"
   security_opts:
     - "seccomp=unconfined"
   capabilities:
