@@ -40,6 +40,13 @@
 #     -e "requested_tensor_parallel=1" \
 #     -e "omp_num_threads=28"  # Manually set (reserves 4 for control plane)
 #
+#   # Override number of audio files to process
+#   ansible-playbook audio-benchmark.yml \
+#     -e "test_model=openai/whisper-tiny" \
+#     -e "test_scenario=transcription-throughput" \
+#     -e "requested_cores=32" \
+#     -e "audio_num_files=10"  # Process only 10 files per stage
+#
 # Test Scenarios:
 #   - transcription-throughput: How long to transcribe N files
 #   - transcription-latency: Latency under different loads
@@ -58,7 +65,7 @@
     vllm_mode: "{{ vllm_endpoint.mode | default('managed') }}"
 
     # Audio-specific vLLM defaults (can be overridden via -e)
-    default_vllm_dtype: "float16"
+    default_vllm_dtype: "auto"  # Let vLLM choose optimal dtype for model
     default_vllm_max_model_len: 448  # Whisper default
     default_vllm_kvcache_space: "2GiB"
 
@@ -99,7 +106,7 @@
           Optional:
           -e "requested_tensor_parallel=<1|2|4>"  # Auto-calculated if omitted
           -e "omp_num_threads=<N>"                # Auto-calculated if omitted
-          -e "vllm_dtype=<float16|bfloat16>"      # Default: float16
+          -e "vllm_dtype=<auto|float16|bfloat16>" # Default: auto (vLLM chooses)
           -e "vllm_max_model_len=<448>"           # Default: 448 (Whisper)
           -e "vllm_kvcache_space=<2GiB>"          # Default: 2GiB
       when: vllm_mode == 'managed'
@@ -134,6 +141,14 @@
             - audio-chat (multimodal audio chat)
             - quick-test (fast 5-file test for validation)
 
+    - name: Validate audio_num_files if provided
+      ansible.builtin.assert:
+        that:
+          - audio_num_files | int > 0
+          - audio_num_files | int <= 10000
+        fail_msg: "audio_num_files must be between 1 and 10000, got: {{ audio_num_files }}"
+      when: audio_num_files is defined
+
     # ========================================================================
     # Test Scenario Configuration Loading
     # ========================================================================
@@ -153,6 +168,14 @@
         scenario_request_type: "{{ scenario_config.test_scenario.request_type }}"
         scenario_dataset: "{{ scenario_config.test_scenario.dataset }}"
         scenario_stages: "{{ scenario_config.test_scenario.stages }}"
+
+    - name: Override max_requests in all stages if audio_num_files is provided
+      ansible.builtin.set_fact:
+        scenario_stages: >-
+          {{
+            scenario_stages | map('combine', {'max_requests': audio_num_files | int}) | list
+          }}
+      when: audio_num_files is defined
 
     # ========================================================================
     # CPU Configuration
@@ -278,6 +301,7 @@
           - "  Request Type: {{ scenario_request_type }}"
           - "  Endpoint: {{ scenario_endpoint }}"
           - "  Stages: {{ scenario_stages | length }}"
+          - "  {% if audio_num_files is defined %}Audio Files per Stage: {{ audio_num_files }}{% endif %}"
           - "╚══════════════════════════════════════════════════════════════╝"
 
 # ============================================================================
@@ -309,7 +333,7 @@
           ansible.builtin.file:
             path: "{{ item }}"
             state: directory
-            mode: "0755"
+            mode: "0777"  # World-writable for container compatibility
           loop:
             - "{{ model_cache_dir }}"
             - "{{ log_dir }}"

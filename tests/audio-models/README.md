@@ -100,10 +100,17 @@ Plus comprehensive coverage of scalability, format impact, and sustained load be
 cd automation/test-execution/ansible
 
 # Transcription throughput test (answers: how long for N files?)
-ansible-playbook audio-benchmark.yml \
+ansible-playbook -i inventory/hosts.yml audio-benchmark.yml \
   -e "test_model=openai/whisper-small" \
   -e "test_scenario=transcription-throughput" \
   -e "requested_cores=32"
+
+# Quick test with custom file count
+ansible-playbook -i inventory/hosts.yml audio-benchmark.yml \
+  -e "test_model=openai/whisper-tiny" \
+  -e "test_scenario=transcription-throughput" \
+  -e "requested_cores=32" \
+  -e "audio_num_files=10"  # Override to 10 files per stage
 ```
 
 **Option 2: External Endpoint (vLLM already running)**
@@ -112,10 +119,11 @@ ansible-playbook audio-benchmark.yml \
 # Point to existing vLLM server
 export VLLM_ENDPOINT_URL=http://your-vllm-host:8000
 
-ansible-playbook audio-benchmark.yml \
+ansible-playbook -i inventory/hosts.yml audio-benchmark.yml \
   -e "test_scenario=transcription-throughput" \
   -e vllm_endpoint.mode=external \
-  -e vllm_endpoint.external.url=$VLLM_ENDPOINT_URL
+  -e vllm_endpoint.external.url=$VLLM_ENDPOINT_URL \
+  -e "audio_num_files=50"  # Optional: override file count
 ```
 
 ## Detailed Usage
@@ -280,14 +288,15 @@ ansible-playbook audio-benchmark.yml \
   -e "vllm_kvcache_space=4GiB"
 ```
 
-### CPU Parameters Explained
+### Parameters Explained
 
 | Parameter | Description | Default | Impact |
 |-----------|-------------|---------|--------|
 | `requested_cores` | Total CPU cores to allocate | Required | Higher = more throughput |
+| `audio_num_files` | Number of audio files per stage | From scenario YAML | Override file count for all stages |
 | `requested_tensor_parallel` | Tensor parallelism degree (1,2) | Auto (1 or 2) | Parallel model execution |
 | `omp_num_threads` | OpenMP threads per TP rank | Auto | CPU thread utilization |
-| `vllm_dtype` | Model precision | `float16` | Memory & speed tradeoff |
+| `vllm_dtype` | Model precision | `auto` (vLLM chooses) | Memory & speed tradeoff |
 | `vllm_max_model_len` | Max sequence length | `448` (Whisper) | Memory usage |
 | `vllm_kvcache_space` | KV cache memory | `2GiB` | Batch size capacity |
 

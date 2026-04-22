@@ -216,13 +216,65 @@ To add a new audio model:
 
 3. **Run baseline test**:
    ```bash
-   ansible-playbook audio-benchmark.yml \
+   ansible-playbook -i inventory/hosts.yml audio-benchmark.yml \
      -e "test_model=org/new-model" \
      -e "test_scenario=transcription-throughput" \
-     -e "requested_cores=32"
+     -e "requested_cores=32" \
+     -e "audio_num_files=10"  # Optional: override number of files (default from scenario YAML)
    ```
 
 4. **Document results** and update this file with performance expectations
+
+## Running Audio Benchmarks
+
+### Basic Usage
+
+```bash
+ansible-playbook -i inventory/hosts.yml audio-benchmark.yml \
+  -e "test_model=openai/whisper-tiny" \
+  -e "test_scenario=transcription-throughput" \
+  -e "requested_cores=32"
+```
+
+### Optional Parameters
+
+| Parameter | Description | Default | Example |
+|-----------|-------------|---------|---------|
+| `audio_num_files` | Override number of audio files to process per stage | From scenario YAML | `-e "audio_num_files=10"` |
+| `vllm_dtype` | Model precision | `auto` (vLLM chooses) | `-e "vllm_dtype=float16"` |
+| `vllm_max_model_len` | Max sequence length | `448` | `-e "vllm_max_model_len=512"` |
+| `vllm_kvcache_space` | KV cache allocation | `2GiB` | `-e "vllm_kvcache_space=4GiB"` |
+| `requested_tensor_parallel` | Tensor parallelism | Auto (1 or 2) | `-e "requested_tensor_parallel=2"` |
+| `omp_num_threads` | OpenMP threads | Auto | `-e "omp_num_threads=30"` |
+
+### Examples
+
+**Quick test with 10 files:**
+```bash
+ansible-playbook -i inventory/hosts.yml audio-benchmark.yml \
+  -e "test_model=openai/whisper-tiny" \
+  -e "test_scenario=transcription-throughput" \
+  -e "requested_cores=32" \
+  -e "audio_num_files=10"
+```
+
+**Production test with 100 files:**
+```bash
+ansible-playbook -i inventory/hosts.yml audio-benchmark.yml \
+  -e "test_model=openai/whisper-small" \
+  -e "test_scenario=transcription-throughput" \
+  -e "requested_cores=64" \
+  -e "audio_num_files=100"
+```
+
+**External vLLM endpoint:**
+```bash
+ansible-playbook -i inventory/hosts.yml audio-benchmark.yml \
+  -e "test_scenario=transcription-throughput" \
+  -e vllm_endpoint.mode=external \
+  -e vllm_endpoint.external.url=http://your-vllm-host:8000 \
+  -e "audio_num_files=50"
+```
 
 ## See Also
 
