@@ -1,0 +1,108 @@
+---
+# Audio Transcription Latency Test
+# Focus on per-request latency characteristics
+
+test_scenario:
+  name: "transcription-latency"
+  type: "latency"
+  description: "Measure latency characteristics for audio transcription requests"
+
+  # Test configuration
+  backend: "openai-audio"
+  endpoint: "/v1/audio/transcriptions"
+  request_type: "audio_transcriptions"
+
+  # Dataset configuration
+  dataset:
+    name: "openslr/librispeech_asr"
+    config: "clean"
+    split: "test"
+    audio_column: "audio"
+    num_samples: 50
+
+  # Audio preprocessing
+  audio_config:
+    format: "wav"
+    sample_rate: 16000
+    mono: true
+
+  # vLLM server configuration
+  server:
+    dtype: "float16"
+    env_vars:
+      VLLM_CPU_KVCACHE_SPACE: "2GiB"
+
+  # Test stages - Different load levels
+  stages:
+    # Stage 1: Single user (no contention)
+    - name: "single-user-latency"
+      description: "Measure baseline latency with no concurrency"
+      profile: "synchronous"
+      max_requests: 50
+      result_filename_suffix: "single-user"
+      metrics_focus:
+        - "Mean latency (E2E)"
+        - "P50/P95/P99 latency"
+        - "Consistency (latency variance)"
+
+    # Stage 2: Light load (2 concurrent users)
+    - name: "light-load-latency"
+      description: "Measure latency under light concurrent load"
+      profile: "concurrent"
+      rate: 2
+      max_requests: 50
+      result_filename_suffix: "light-load"
+
+    # Stage 3: Medium load (5 concurrent users)
+    - name: "medium-load-latency"
+      description: "Measure latency under medium concurrent load"
+      profile: "concurrent"
+      rate: 5
+      max_requests: 50
+      result_filename_suffix: "medium-load"
+
+    # Stage 4: Heavy load (10 concurrent users)
+    - name: "heavy-load-latency"
+      description: "Measure latency under heavy concurrent load"
+      profile: "concurrent"
+      rate: 10
+      max_requests: 50
+      result_filename_suffix: "heavy-load"
+
+  # Key metrics
+  metrics:
+    primary:
+      - "Mean E2E latency (ms)"
+      - "Median E2E latency (ms)"
+      - "P95 E2E latency (ms)"
+      - "P99 E2E latency (ms)"
+      - "Latency standard deviation"
+      - "Time to First Token (TTFT) - if available"
+
+    derived:
+      - "Latency degradation vs single-user (%)"
+      - "Queueing time estimate (latency increase under load)"
+
+  # Success criteria
+  success_criteria:
+    - "P99 latency < 2000ms under light load"
+    - "P99 latency < 5000ms under heavy load"
+    - "Latency degradation < 3x from single-user to heavy load"
+
+  results:
+    format: "json"
+    location: "results/audio-models/{model}/transcription-latency/"
+    graphs:
+      - type: "latency_percentiles"
+        title: "Latency Percentiles by Load Level"
+        x_axis: "Load Level"
+        y_axis: "Latency (ms)"
+        series:
+          - "P50"
+          - "P95"
+          - "P99"
+
+      - type: "latency_vs_audio_duration"
+        title: "Latency vs Audio Duration"
+        x_axis: "Audio Duration (seconds)"
+        y_axis: "E2E Latency (ms)"

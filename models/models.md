@@ -9,11 +9,12 @@ This directory contains centralized model definitions and selection documentatio
 
 ## Overview
 
-Models are organized by type (LLM and Embedding), with each type having its own model matrix defining test configurations and scenarios.
+Models are organized by type (LLM, Embedding, and Audio), with each type having its own model matrix defining test configurations and scenarios.
 
 **Key Resources:**
 - **[LLM Models](#llm-models)** - Large Language Models (decoder-only architectures)
 - **[Embedding Models](#embedding-models)** - Embedding models (encoder-only architectures)
+- **[Audio Models](#audio-models-speech-processing)** - Speech processing models (ASR, translation, audio chat)
 - **[Model Selection Strategy](#model-selection-strategy)** - Why these models were chosen
 - **[Adding Models](#adding-new-models)** - How to add new models
 
@@ -27,6 +28,9 @@ models/
 ├── embedding-models/
 │   ├── model-matrix.yaml        # Embedding model definitions
 │   └── embedding-models.md      # Embedding-specific extended documentation
+├── audio-models/
+│   ├── model-matrix.yaml        # Audio model definitions
+│   └── audio-models.md          # Audio-specific extended documentation
 └── models.md                    # This file (comprehensive documentation)
 ```
 
@@ -67,6 +71,17 @@ The following models provide baseline coverage across key architecture families:
 | MiniLM/BERT (English Dense) | granite-embedding-english-r2 | Encoder-Only (Fastest Baseline) | ~110M | Fast English-only embedding, baseline performance |
 | XLM-RoBERTa (Multilingual Dense) | granite-embedding-278m-multilingual | Encoder-Only (Multilingual) | ~278M | Multilingual support, broader language coverage |
 
+### Audio Models (Speech Processing)
+
+| Architecture Family | Representative Model | Key Application Focus | Parameters | Rationale |
+|---------------------|---------------------|----------------------|------------|-----------|
+| Whisper Encoder-Decoder | openai/whisper-tiny | ASR/Translation (Fastest) | 39M | Smallest Whisper, low latency baseline |
+| Whisper Encoder-Decoder | openai/whisper-small | ASR/Translation (Balanced) | 244M | Recommended baseline for CPU benchmarking |
+| Whisper Encoder-Decoder | openai/whisper-medium | ASR/Translation (High Quality) | 769M | Quality-focused transcription, larger scale testing |
+| Multimodal Audio+Text | ultravox-v0_5-llama-3_2-1b | Audio Chat | 1B | Audio-native conversational AI |
+
+**See [Audio Models Documentation](audio-models/audio-models.md) for detailed configuration and performance expectations.**
+
 ## Workload Coverage
 
 Each model is tested across workloads that stress different aspects of inference:
@@ -82,6 +97,13 @@ Each model is tested across workloads that stress different aspects of inference
 ### Embedding Workloads
 
 - **Embedding (512:1)**: Single-pass encoding, typical embedding generation
+
+### Audio Workloads
+
+- **Transcription (ASR)**: Audio → Text, speech-to-text conversion
+- **Translation**: Audio (any language) → Text (English), speech translation
+- **Audio Chat**: Audio + Text → Text, multimodal conversations
+- **Test dimensions**: Duration (1-300s), Format (MP3/WAV/FLAC), Load (sequential/concurrent/sustained)
 
 ## Model Reuse Across Test Suites
 

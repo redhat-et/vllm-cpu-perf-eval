@@ -1,0 +1,203 @@
+---
+# Audio Transcription Throughput Test
+# PRIMARY TEST: Answers "How long does it take to transcribe N audio files?"
+
+test_scenario:
+  name: "transcription-throughput"
+  type: "throughput"
+  description: "Measure total time and throughput for transcribing N audio files sequentially and concurrently"
+
+  # Test configuration
+  backend: "openai-audio"
+  endpoint: "/v1/audio/transcriptions"
+  request_type: "audio_transcriptions"
+
+  # Dataset configuration
+  dataset:
+    name: "openslr/librispeech_asr"
+    config: "clean"
+    split: "test"
+    audio_column: "audio"
+    num_samples: 100  # Start with 100 files, can increase to 500, 1000
+
+  # Audio preprocessing
+  audio_config:
+    format: "mp3"
+    bitrate: "64k"
+    sample_rate: 16000
+    mono: true
+    max_duration: null  # Use full audio length
+
+  # vLLM server configuration
+  server:
+    dtype: "float16"
+    env_vars:
+      VLLM_CPU_KVCACHE_SPACE: "2GiB"
+
+  # Test stages - Covers BOTH offline batch and online serving patterns
+  # See README.md "Understanding Test Profiles" section for details
+  stages:
+    # ========================================================================
+    # OFFLINE BATCH BASELINE
+    # ========================================================================
+    # Stage 1: Sequential processing (one file at a time, serially)
+    # Use case: "I have N files on disk, process them one-by-one"
+    # Metric: Total completion time
+    - name: "sequential-100-files"
+      description: "Process 100 files sequentially to establish baseline"
+      profile: "synchronous"
+      max_requests: 100
+      result_filename_suffix: "sequential"
+      metrics_focus:
+        - "Total wall-clock time"
+        - "Average time per file"
+        - "Total audio seconds processed"
+        - "Audio seconds per wall-clock second (throughput)"
+
+    # ========================================================================
+    # ONLINE SERVING SIMULATION
+    # ========================================================================
+    # Stage 2-4: Concurrent user simulation (NOT parallel batch processing)
+    # Use case: "N users simultaneously submitting audio to a live API"
+    # Metric: Per-request latency under concurrent load (P50, P95, P99)
+    # Important: This maintains N concurrent requests continuously, simulating
+    #            N active users, not batch parallel processing of N files
+
+    # Stage 2: Simulate 2 concurrent users
+    - name: "concurrent-2-workers"
+      description: "Process files with 2 concurrent requests"
+      profile: "concurrent"
+      rate: 2  # Maintain 2 concurrent users
+      max_requests: 100
+      result_filename_suffix: "concurrent-2"
+      expected_improvement: "Lower latency than sequential under light load"
+
+    # Stage 3: Simulate 4 concurrent users
+    - name: "concurrent-4-workers"
+      description: "Process files with 4 concurrent requests"
+      profile: "concurrent"
+      rate: 4  # Maintain 4 concurrent users
+      max_requests: 100
+      result_filename_suffix: "concurrent-4"
+      expected_improvement: "Moderate concurrent load - latency vs throughput tradeoff"
+
+    # Stage 4: Simulate 8 concurrent users
+    - name: "concurrent-8-workers"
+      description: "Process files with 8 concurrent requests"
+      profile: "concurrent"
+      rate: 8  # Maintain 8 concurrent users
+      max_requests: 100
+      result_filename_suffix: "concurrent-8"
+      expected_improvement: "Heavy concurrent load - identify latency degradation point"
+
+    # ========================================================================
+    # CAPACITY TEST (Applies to both offline and online)
+    # ========================================================================
+    # Stage 5: Maximum throughput - send requests as fast as server can handle
+    # Use case: "What's the absolute maximum capacity of this deployment?"
+    # Metric: Maximum files/sec, maximum audio_seconds/sec
+    - name: "max-throughput"
+      description: "Find maximum processing capacity"
+      profile: "throughput"
+      max_requests: 100
+      result_filename_suffix: "max-throughput"
+      metrics_focus:
+        - "Maximum files per second"
+        - "Maximum audio seconds per second"
+
+  # Key metrics to collect
+  metrics:
+    primary:
+      # Time metrics
+      - "Total test duration (wall-clock seconds)"
+      - "Mean request latency (ms)"
+      - "P50/P95/P99 request latency (ms)"
+
+      # Throughput metrics
+      - "Request throughput (requests/sec)"
+      - "Audio throughput (audio_seconds/sec)"
+      - "Audio throughput (audio_samples/sec)"
+
+      # Audio-specific metrics
+      - "Total audio seconds processed"
+      - "Total audio bytes processed"
+      - "Mean audio duration per file (seconds)"
+
+      # Output metrics
+      - "Total tokens generated (transcription text)"
+      - "Mean tokens per audio second"
+
+    derived:
+      - "Speedup factor vs sequential (concurrent tests)"
+      - "CPU efficiency (cores utilized effectively)"
+      - "Real-time factor (processing_time / audio_duration)"
+        # < 1.0 = faster than real-time
+        # = 1.0 = real-time processing
+        # > 1.0 = slower than real-time
+
+  # Success criteria
+  success_criteria:
+    - "All 100 files processed successfully"
+    - "Zero error rate"
+    - "Concurrent processing shows throughput improvement"
+    - "Real-time factor < 1.0 (faster than real-time)"
+
+  # Expected results
+  results:
+    format: "json"
+    location: "results/audio-models/{model}/transcription-throughput/"
+    key_questions_answered:
+      - "How long to transcribe 100 files sequentially?"
+      - "How much faster with concurrent processing?"
+      - "What is the optimal concurrency level?"
+      - "What is the maximum throughput (files/sec and audio_seconds/sec)?"
+      - "Can we process faster than real-time?"
+
+    graphs:
+      - type: "throughput_comparison"
+        title: "Throughput: Sequential vs Concurrent"
+        x_axis: "Concurrency Level"
+        y_axis: "Files per Second"
+
+      - type: "speedup_factor"
+        title: "Speedup vs Sequential Processing"
+        x_axis: "Concurrency Level"
+        y_axis: "Speedup Factor (x)"
+
+      - type: "latency_distribution"
+        title: "Request Latency Distribution by Concurrency"
+        x_axis: "Latency (ms)"
+        y_axis: "Frequency"
+        series:
+          - "Sequential"
+          - "Concurrent-2"
+          - "Concurrent-4"
+          - "Concurrent-8"
+
+# GuideLLM command examples
+guidellm_commands:
+  sequential:
+    cmd: |
+      guidellm benchmark \
+        --target "http://localhost:8000" \
+        --request-type audio_transcriptions \
+        --profile synchronous \
+        --max-requests 100 \
+        --data openslr/librispeech_asr \
+        --data-args '{"name": "clean", "split": "test"}' \
+        --data-column-mapper '{"audio_column": "audio"}' \
+        --request-formatter-kwargs '{"encode_kwargs": {"audio_format": "mp3", "bitrate": "64k"}}' \
+        --output results/audio-models/whisper-small/transcription-throughput/sequential.json
+
+  concurrent_4:
+    cmd: |
+      guidellm benchmark \
+        --target "http://localhost:8000" \
+        --request-type audio_transcriptions \
+        --profile concurrent \
+        --rate 4 \
+        --max-requests 100 \
+        --data openslr/librispeech_asr \
+        --data-args '{"name": "clean", "split": "test"}' \
+        --data-column-mapper '{"audio_column": "audio"}' \
+        --output results/audio-models/whisper-small/transcription-throughput/concurrent-4.json

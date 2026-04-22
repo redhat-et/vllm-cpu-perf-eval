@@ -1,0 +1,20 @@
+---
+# Common task file for stopping vLLM server metrics collection
+# Used by both LLM and audio benchmark playbooks
+#
+# Optional variables:
+#   - skip_metrics_collection: set to true to disable (default: false)
+
+- name: Stop vLLM metrics collection
+  when:
+    - hostvars['localhost']['vllm_metrics_url'] is defined
+    - not (skip_metrics_collection | default(false) | bool)
+  block:
+    - name: Stop metrics collector
+      ansible.builtin.include_role:
+        name: vllm_metrics_collector
+        tasks_from: stop
+      vars:
+        enable_vllm_metrics_collection: true
+  delegate_to: localhost
+  become: false

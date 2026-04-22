@@ -1,0 +1,24 @@
+---
+# Default variables for benchmark_guidellm_audio role
+
+# Results path (required - must be set by caller)
+stage_results_path: ""
+
+# Stage configuration (required - must be set by caller via loop_var)
+# stage:
+#   name: "Stage name"
+#   profile: "synchronous|concurrent|constant"
+#   rate: 4  # For concurrent/constant profiles
+#   max_requests: 100
+#   max_seconds: 300
+#   audio_config:  # Optional stage-level audio encoding override
+#     format: "mp3"
+#     bitrate: "64k"
+
+# Scenario configuration (required - must be inherited from playbook)
+# scenario_config: <loaded from test scenario YAML>
+# scenario_dataset: <dataset config from scenario>
+# scenario_request_type: "audio_transcriptions|audio_translations|chat_completions"
+
+# Benchmark tool configuration (inherited from group_vars)
+# benchmark_tool.guidellm: <loaded from group_vars/all/benchmark-tools.yml>

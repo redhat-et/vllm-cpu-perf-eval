@@ -1,0 +1,13 @@
+---
+# Common task file for setting up results directory structure
+# Used by both LLM and audio benchmark playbooks
+#
+# Required variables:
+#   - results_path: full path to results directory
+
+- name: Ensure results directory exists
+  ansible.builtin.file:
+    path: "{{ results_path }}"
+    state: directory
+    mode: "0755"
+    recurse: true
