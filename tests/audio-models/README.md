@@ -166,7 +166,7 @@ ansible-playbook audio-benchmark.yml \
 
 **Results location:**
 ```
-results/audio-models/openai__whisper-small/transcription-throughput/
+results/audio-models/openai__whisper-small/transcription-throughput-20260422-110932/
 ├── sequential/               # Offline batch baseline
 │   ├── benchmarks.json
 │   └── benchmarks.csv
@@ -179,10 +179,14 @@ results/audio-models/openai__whisper-small/transcription-throughput/
 ├── concurrent-8/             # Online: 8 concurrent users
 │   ├── benchmarks.json
 │   └── benchmarks.csv
-└── max-throughput/           # Maximum capacity test
-    ├── benchmarks.json
-    └── benchmarks.csv
+├── max-throughput/           # Maximum capacity test
+│   ├── benchmarks.json
+│   └── benchmarks.csv
+├── vllm-metrics.json
+└── test-metadata.json
 ```
+
+Results are organized by timestamp (`{scenario}-{YYYYMMDD-HHMMSS}`) to prevent overwriting on subsequent runs.
 
 ### Test Scenario: Transcription Latency
 
