@@ -289,16 +289,76 @@ def render_filters(df: pd.DataFrame) -> pd.DataFrame:
 
 def render_overview_metrics(df: pd.DataFrame):
     """Render overview metric cards."""
+    # Test Dataset Overview
+    st.markdown("### 📊 Test Dataset Overview")
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
+        total_files = df['successful_requests'].sum()
         st.metric(
-            "Avg Audio Throughput",
-            f"{df['audio_throughput'].mean():.2f}x",
-            help="Average audio seconds processed per wall-clock second (higher = faster)"
+            "Audio Files",
+            f"{int(total_files)}",
+            help="Total number of audio files processed across all tests"
         )
 
     with col2:
+        avg_duration = df['mean_audio_seconds'].mean()
+        st.metric(
+            "Avg Duration",
+            f"{avg_duration:.2f}s per file",
+            help="Average audio file duration"
+        )
+
+    with col3:
+        total_audio = df['total_audio_seconds'].sum()
+        if total_audio >= 3600:
+            display_audio = f"{total_audio/3600:.2f}h"
+        elif total_audio >= 60:
+            display_audio = f"{total_audio/60:.1f}min"
+        else:
+            display_audio = f"{total_audio:.1f}s"
+        st.metric(
+            "Total Audio",
+            display_audio,
+            help="Total audio content processed"
+        )
+
+    with col4:
+        # Get format from first row's metadata (if available)
+        # For now, show audio bytes as proxy
+        total_mb = df['total_audio_bytes'].sum() / (1024 * 1024)
+        st.metric(
+            "Total Data",
+            f"{total_mb:.1f} MB",
+            help="Total audio payload size"
+        )
+
+    st.markdown("---")
+
+    # Performance Overview
+    st.markdown("### 📈 Performance Overview")
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        # Convert audio_sec/wall_sec to hours/hour for clarity
+        avg_throughput = df['audio_throughput'].mean()
+        st.metric(
+            "Audio Hours/Hour",
+            f"{avg_throughput:.1f}h/h",
+            help=f"Processing {avg_throughput:.1f} hours of audio per hour ({avg_throughput:.1f}x real-time)"
+        )
+
+    with col2:
+        # Files/hour at maximum throughput
+        max_throughput_row = df.loc[df['requests_per_second'].idxmax()]
+        files_per_hour = max_throughput_row['requests_per_second'] * 3600
+        st.metric(
+            "Max Files/Hour",
+            f"{int(files_per_hour):,}",
+            help=f"Maximum capacity: {int(files_per_hour):,} files/hour at {max_throughput_row['stage']} stage"
+        )
+
+    with col3:
         avg_rtf = df['rtf_mean'].mean()
         st.metric(
             "Avg Real-Time Factor",
@@ -306,29 +366,105 @@ def render_overview_metrics(df: pd.DataFrame):
             help="Processing time / audio duration (< 1.0 = faster than real-time)"
         )
 
-    with col3:
+    with col4:
         st.metric(
             "Avg Success Rate",
             f"{df['success_rate'].mean():.1f}%",
             help="Percentage of successful requests"
         )
 
-    with col4:
-        st.metric(
-            "Total Audio Processed",
-            f"{df['total_audio_seconds'].sum():.1f}s",
-            help="Total seconds of audio processed across all tests"
-        )
+
+def plot_speedup_vs_sequential(df: pd.DataFrame):
+    """Plot speedup relative to sequential baseline."""
+    st.markdown("### 📈 Speedup vs Sequential Baseline")
+    st.markdown("""
+    **How much faster is concurrent processing vs sequential?**
+
+    Shows the speedup factor for each stage compared to sequential processing.
+    - 1.0x = Same speed as sequential (baseline)
+    - 2.6x = 2.6 times faster than sequential
+    - Higher = better
+
+    Example: If sequential takes 10 seconds and concurrent-8 takes 3.8 seconds, speedup = 2.6x
+    """)
+
+    # Calculate speedup for each model
+    speedup_data = []
+    for model in df['model_short'].unique():
+        model_df = df[df['model_short'] == model]
+
+        # Find sequential baseline (duration)
+        sequential_rows = model_df[model_df['stage'] == 'sequential']
+        if sequential_rows.empty:
+            continue
+
+        sequential_duration = sequential_rows['duration'].iloc[0]
+
+        # Calculate speedup for each stage
+        for _, row in model_df.iterrows():
+            speedup = sequential_duration / row['duration'] if row['duration'] > 0 else 0
+            speedup_data.append({
+                'model': model,
+                'stage': row['stage'],
+                'speedup': speedup,
+                'concurrency': row['concurrency']
+            })
+
+    if not speedup_data:
+        st.warning("No sequential baseline found for speedup calculation")
+        return
+
+    speedup_df = pd.DataFrame(speedup_data)
+
+    fig = px.bar(
+        speedup_df.sort_values('concurrency'),
+        x='stage',
+        y='speedup',
+        color='model',
+        barmode='group',
+        labels={
+            'speedup': 'Speedup (vs Sequential)',
+            'stage': 'Test Stage',
+            'model': 'Model'
+        },
+        title="Speedup Relative to Sequential Processing"
+    )
+
+    # Add reference line at 1.0x (sequential baseline)
+    fig.add_hline(
+        y=1.0,
+        line_dash="dash",
+        line_color="gray",
+        annotation_text="Sequential Baseline (1.0x)",
+        annotation_position="right"
+    )
+
+    fig.update_layout(height=500)
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Show speedup summary
+    st.markdown("#### Speedup Summary")
+    summary = speedup_df.groupby(['model', 'stage']).agg({'speedup': 'first', 'concurrency': 'first'}).reset_index()
+    summary = summary.rename(columns={
+        'model': 'Model',
+        'stage': 'Stage',
+        'speedup': 'Speedup (x)',
+        'concurrency': 'Concurrency'
+    })
+    summary['Speedup (x)'] = summary['Speedup (x)'].round(2)
+    st.dataframe(summary, use_container_width=True, hide_index=True)
 
 
 def plot_audio_throughput(df: pd.DataFrame):
     """Plot audio throughput vs concurrency/stage."""
-    st.markdown("### 🎵 Audio Throughput")
+    st.markdown("### 🎵 Audio Hours/Hour")
     st.markdown("""
-    **Audio seconds processed per wall-clock second** (higher = faster)
+    **Hours of audio processed per hour** (higher = faster)
 
-    This shows how many seconds of audio content are processed every wall-clock second.
-    Example: 10.0x means 10 seconds of audio are transcribed in 1 wall-clock second.
+    This shows how many hours of audio content are processed every wall-clock hour.
+    - **1.0 h/h** = Real-time processing (1 hour to process 1 hour of audio)
+    - **10.0 h/h** = 10x real-time (process 10 hours of audio in 1 hour)
+    - Higher = faster processing
     """)
 
     fig = px.bar(
@@ -338,11 +474,52 @@ def plot_audio_throughput(df: pd.DataFrame):
         color='model_short',
         barmode='group',
         labels={
-            'audio_throughput': 'Audio Throughput (audio_sec/wall_sec)',
+            'audio_throughput': 'Audio Hours/Hour',
             'stage': 'Test Stage',
             'model_short': 'Model'
         },
-        title="Audio Throughput by Stage and Model"
+        title="Audio Processing Throughput (Hours of Audio per Hour)"
+    )
+
+    # Add reference line at 1.0 (real-time)
+    fig.add_hline(
+        y=1.0,
+        line_dash="dash",
+        line_color="red",
+        annotation_text="Real-time (1.0 h/h)",
+        annotation_position="right"
+    )
+
+    fig.update_layout(height=500)
+    st.plotly_chart(fig, use_container_width=True)
+
+
+def plot_files_per_hour(df: pd.DataFrame):
+    """Plot files processed per hour."""
+    st.markdown("### 📁 Files per Hour")
+    st.markdown("""
+    **Audio files processed per hour** (higher = better)
+
+    This shows capacity for batch processing audio files.
+    Example: 15,840 files/hour means you can process almost 16K audio files per hour.
+    """)
+
+    # Calculate files/hour from requests/second
+    df_plot = df.copy()
+    df_plot['files_per_hour'] = df_plot['requests_per_second'] * 3600
+
+    fig = px.bar(
+        df_plot.sort_values('concurrency'),
+        x='stage',
+        y='files_per_hour',
+        color='model_short',
+        barmode='group',
+        labels={
+            'files_per_hour': 'Files/Hour',
+            'stage': 'Test Stage',
+            'model_short': 'Model'
+        },
+        title="Files Processed per Hour"
     )
 
     fig.update_layout(height=500)
@@ -562,11 +739,25 @@ def main():
         st.markdown("""
         ### Key Metrics Explained
 
-        #### 🎵 Audio Throughput (audio_seconds/wall_second)
-        - **What it measures:** How many seconds of audio are processed per wall-clock second
-        - **Example:** 10.0x means 10 seconds of audio processed every wall-clock second
-        - **Interpretation:** Higher = faster processing, better for batch jobs
+        #### 🎵 Audio Hours/Hour
+        - **What it measures:** How many hours of audio are processed per wall-clock hour
+        - **Example:** 10.0 h/h means 10 hours of audio processed every wall-clock hour (10x real-time)
+        - **1.0 h/h** = Real-time processing
+        - **> 1.0 h/h** = Faster than real-time ✅
+        - **< 1.0 h/h** = Slower than real-time ⚠️
         - **Use case:** "How long to transcribe 1000 hours of audio?"
+
+        #### 📁 Files/Hour
+        - **What it measures:** Number of audio files processed per hour
+        - **Example:** 15,840 files/hour = can process almost 16K files per hour
+        - **Interpretation:** Higher = more files processed per unit time
+        - **Use case:** "How many call recordings can we process overnight?"
+
+        #### 📈 Speedup vs Sequential
+        - **What it measures:** How much faster concurrent processing is vs sequential baseline
+        - **Example:** 2.6x means concurrent-8 is 2.6 times faster than sequential
+        - **Interpretation:** Higher = better benefit from concurrency
+        - **Use case:** "Is it worth running with 8 concurrent requests instead of sequential?"
 
         #### ⏱️ Real-Time Factor (RTF)
         - **Formula:** RTF = processing_time / audio_duration
@@ -670,19 +861,32 @@ def main():
 
     st.markdown("---")
 
-    # Charts
+    # Charts (ordered by user priority)
+    # 1. Total time - most important metric
     plot_total_time_comparison(filtered_df)
     st.markdown("---")
 
+    # 2. Speedup - shows benefit of concurrency
+    plot_speedup_vs_sequential(filtered_df)
+    st.markdown("---")
+
+    # 3. Files/hour - capacity planning
+    plot_files_per_hour(filtered_df)
+    st.markdown("---")
+
+    # 4. Audio hours/hour - clearer than sec/sec
     plot_audio_throughput(filtered_df)
     st.markdown("---")
 
+    # 5. RTF - real-time factor
     plot_rtf(filtered_df)
     st.markdown("---")
 
+    # 6. Latency vs duration - scaling analysis
     plot_latency_vs_audio_duration(filtered_df)
     st.markdown("---")
 
+    # 7. Efficiency - per-core utilization
     plot_efficiency(filtered_df)
     st.markdown("---")
 
