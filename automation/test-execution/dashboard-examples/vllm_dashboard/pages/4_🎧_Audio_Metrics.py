@@ -514,17 +514,20 @@ def main():
     # Load config
     config = DashboardConfig()
 
+    # Get default path - use audio-models instead of llm
+    default_results_dir = config.get_results_directory().replace('/llm', '/audio-models')
+
     # Sidebar: Results directory
     st.sidebar.markdown("## 📁 Data Source")
     results_dir = st.sidebar.text_input(
         "Results Directory",
-        value=config.results_dir,
+        value=default_results_dir,
         help="Path to audio-models results directory"
     )
 
-    # Update config if changed
-    if results_dir != config.results_dir:
-        config.update_results_dir(results_dir)
+    # Update config if changed (save the audio path)
+    if results_dir != default_results_dir:
+        config.set_results_directory(results_dir)
 
     # Load data
     with st.spinner("Loading audio benchmark data..."):
