@@ -95,7 +95,8 @@ def load_audio_data(results_dir: str) -> pd.DataFrame:
 
                 # Calculate audio-specific aggregates from successful requests
                 successful_requests = requests.get('successful', [])
-                audio_metrics = calculate_audio_aggregates(successful_requests)
+                benchmark_duration = bench['duration']  # Wall-clock time for the benchmark
+                audio_metrics = calculate_audio_aggregates(successful_requests, benchmark_duration)
 
                 # Skip if no audio metrics found (filters out LLM results)
                 if audio_metrics['total_audio_seconds'] == 0:
@@ -173,8 +174,13 @@ def load_audio_data(results_dir: str) -> pd.DataFrame:
     return df
 
 
-def calculate_audio_aggregates(successful_requests: list) -> dict:
-    """Calculate audio-specific aggregate metrics from request list."""
+def calculate_audio_aggregates(successful_requests: list, benchmark_duration: float) -> dict:
+    """Calculate audio-specific aggregate metrics from request list.
+
+    Args:
+        successful_requests: List of successful request objects
+        benchmark_duration: Wall-clock duration of the benchmark in seconds
+    """
     if not successful_requests:
         return {
             'total_audio_seconds': 0,
@@ -194,7 +200,6 @@ def calculate_audio_aggregates(successful_requests: list) -> dict:
     audio_bytes_list = []
     audio_tokens_list = []
     rtf_list = []
-    total_duration = 0
 
     for req in successful_requests:
         input_metrics = req.get('input_metrics', {})
@@ -218,16 +223,12 @@ def calculate_audio_aggregates(successful_requests: list) -> dict:
         if audio_tokens:
             audio_tokens_list.append(audio_tokens)
 
-        # Use max end time for throughput calculation
-        end_time = req.get('request_end_time', 0)
-        total_duration = max(total_duration, end_time)
-
     total_audio_seconds = sum(audio_seconds_list)
     mean_audio_seconds = np.mean(audio_seconds_list) if audio_seconds_list else 0
 
     # Audio throughput: total audio seconds processed per wall-clock second
-    # E.g., if we process 100 seconds of audio in 10 wall-clock seconds, throughput = 10
-    audio_throughput = total_audio_seconds / total_duration if total_duration > 0 else 0
+    # E.g., if we process 17.5 seconds of audio in 1.17 wall-clock seconds, throughput = 15.0
+    audio_throughput = total_audio_seconds / benchmark_duration if benchmark_duration > 0 else 0
 
     return {
         'total_audio_seconds': total_audio_seconds,
