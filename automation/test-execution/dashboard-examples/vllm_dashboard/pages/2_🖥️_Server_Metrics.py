@@ -100,6 +100,7 @@ def load_vllm_metrics(base_dir: str):
                         data['model'] = metadata.get('model', 'unknown')
                         data['workload'] = metadata.get('workload', 'unknown')
                         data['test_run_id'] = metadata.get('test_run_id', 'unknown')
+                        data['test_name'] = metadata.get('test_name', '')
                         data['cores'] = metadata.get('core_count', 'N/A')
                         data['backend'] = metadata.get('backend', 'unknown')
                         data['vllm_version'] = metadata.get('vllm_version', 'unknown')

@@ -97,6 +97,7 @@ def load_guidellm_data(results_dir: str) -> pd.DataFrame:
                 row = {
                     # Metadata
                     'test_run_id': metadata.get('test_run_id', 'unknown'),
+                    'test_name': metadata.get('test_name', ''),
                     'platform': metadata.get('platform', 'unknown'),
                     'model': metadata.get('model', 'unknown'),
                     'model_short': metadata.get('model', 'unknown').split('/')[-1],
@@ -236,6 +237,23 @@ def render_filters(df: pd.DataFrame, test_mode: str) -> pd.DataFrame:
                 key="guidellm_version_filter_managed"
             )
 
+        # Test name filter (separate row if any tests have custom names)
+        if df['test_name'].str.len().sum() > 0:
+            test_names = sorted([n for n in df['test_name'].unique() if n])
+            if test_names:
+                st.markdown("**Test Name Filter:**")
+                selected_test_names = st.multiselect(
+                    "Custom Test Names",
+                    test_names,
+                    default=test_names,
+                    key="test_name_filter_managed",
+                    help="Filter by custom test names (if provided during test run)"
+                )
+            else:
+                selected_test_names = []
+        else:
+            selected_test_names = []
+
         st.markdown('</div>', unsafe_allow_html=True)
 
         # Apply filters
@@ -247,6 +265,10 @@ def render_filters(df: pd.DataFrame, test_mode: str) -> pd.DataFrame:
             df['vllm_version'].isin(selected_versions) &
             df['guidellm_version'].isin(selected_guidellm_versions)
         ]
+
+        # Apply test name filter if any selected
+        if selected_test_names:
+            filtered_df = filtered_df[filtered_df['test_name'].isin(selected_test_names)]
 
     else:  # external mode
         # External mode filters - endpoint-based filtering
@@ -310,6 +332,23 @@ def render_filters(df: pd.DataFrame, test_mode: str) -> pd.DataFrame:
                 help="'auto-detected' = model discovered from endpoint, 'specified' = model explicitly provided"
             )
 
+        # Test name filter (separate row if any tests have custom names)
+        if df['test_name'].str.len().sum() > 0:
+            test_names = sorted([n for n in df['test_name'].unique() if n])
+            if test_names:
+                st.markdown("**Test Name Filter:**")
+                selected_test_names = st.multiselect(
+                    "Custom Test Names",
+                    test_names,
+                    default=test_names,
+                    key="test_name_filter_external",
+                    help="Filter by custom test names (if provided during test run)"
+                )
+            else:
+                selected_test_names = []
+        else:
+            selected_test_names = []
+
         st.markdown('</div>', unsafe_allow_html=True)
 
         # Apply filters
@@ -321,6 +360,10 @@ def render_filters(df: pd.DataFrame, test_mode: str) -> pd.DataFrame:
             df['guidellm_version'].isin(selected_guidellm_versions) &
             df['model_source'].isin(selected_sources)
         ]
+
+        # Apply test name filter if any selected
+        if selected_test_names:
+            filtered_df = filtered_df[filtered_df['test_name'].isin(selected_test_names)]
 
     return filtered_df
 
