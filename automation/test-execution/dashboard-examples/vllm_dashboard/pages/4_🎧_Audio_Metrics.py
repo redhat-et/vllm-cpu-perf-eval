@@ -97,6 +97,10 @@ def load_audio_data(results_dir: str) -> pd.DataFrame:
                 successful_requests = requests.get('successful', [])
                 audio_metrics = calculate_audio_aggregates(successful_requests)
 
+                # Skip if no audio metrics found (filters out LLM results)
+                if audio_metrics['total_audio_seconds'] == 0:
+                    continue
+
                 # Extract stage name from path (e.g., "sequential", "concurrent-2")
                 stage = json_file.parent.name
 
@@ -106,7 +110,7 @@ def load_audio_data(results_dir: str) -> pd.DataFrame:
                     'platform': metadata.get('platform', 'unknown'),
                     'model': metadata.get('model', 'unknown'),
                     'model_short': metadata.get('model', 'unknown').split('/')[-1],
-                    'scenario': metadata.get('scenario', 'unknown'),
+                    'scenario': metadata.get('scenario_name', metadata.get('scenario', 'unknown')),
                     'stage': stage,
                     'cores': metadata.get('core_count', 0),
                     'backend': metadata.get('backend', 'unknown'),
@@ -319,7 +323,12 @@ def render_overview_metrics(df: pd.DataFrame):
 def plot_audio_throughput(df: pd.DataFrame):
     """Plot audio throughput vs concurrency/stage."""
     st.markdown("### 🎵 Audio Throughput")
-    st.markdown("Audio seconds processed per wall-clock second (higher = faster)")
+    st.markdown("""
+    **Audio seconds processed per wall-clock second** (higher = faster)
+
+    This shows how many seconds of audio content are processed every wall-clock second.
+    Example: 10.0x means 10 seconds of audio are transcribed in 1 wall-clock second.
+    """)
 
     fig = px.bar(
         df.sort_values('concurrency'),
@@ -342,7 +351,15 @@ def plot_audio_throughput(df: pd.DataFrame):
 def plot_rtf(df: pd.DataFrame):
     """Plot Real-Time Factor (RTF) across stages."""
     st.markdown("### ⏱️ Real-Time Factor (RTF)")
-    st.markdown("Processing time / audio duration (< 1.0 = faster than real-time)")
+    st.markdown("""
+    **Processing time / audio duration** (lower = better)
+
+    - **RTF < 1.0** = ✅ Faster than real-time (e.g., RTF=0.1 is 10x faster)
+    - **RTF = 1.0** = Real-time processing (shown as red dashed line)
+    - **RTF > 1.0** = ⚠️ Slower than real-time
+
+    Example: RTF=0.2 means a 10-second audio clip takes 2 seconds to process.
+    """)
 
     # Prepare data for plotting percentiles
     plot_data = []
@@ -389,7 +406,13 @@ def plot_rtf(df: pd.DataFrame):
 def plot_latency_vs_audio_duration(df: pd.DataFrame):
     """Plot request latency vs audio duration."""
     st.markdown("### 📊 Latency vs Audio Duration")
-    st.markdown("How processing time scales with audio length")
+    st.markdown("""
+    **How processing time scales with audio length**
+
+    Points above the red dashed line (RTF=1.0) are slower than real-time.
+    Points below the line are faster than real-time.
+    Linear scaling means processing time grows proportionally with audio duration.
+    """)
 
     fig = px.scatter(
         df,
@@ -421,27 +444,55 @@ def plot_latency_vs_audio_duration(df: pd.DataFrame):
     st.plotly_chart(fig, use_container_width=True)
 
 
-def plot_requests_per_second(df: pd.DataFrame):
-    """Plot requests per second by stage."""
-    st.markdown("### 📈 Request Throughput")
-    st.markdown("Files processed per second")
+def plot_total_time_comparison(df: pd.DataFrame):
+    """Plot total time to process N files by stage."""
+    st.markdown("### ⏰ Total Time to Process N Files")
+    st.markdown("""
+    **Wall-clock time to transcribe all audio files** (lower = faster)
 
+    This answers: "How long does it take to transcribe N audio files?"
+    - Sequential: Files processed one-by-one (baseline)
+    - Concurrent-N: Files processed with N concurrent requests
+    - Max-throughput: Maximum concurrency for fastest total time
+
+    Lower bars = faster total processing time.
+    """)
+
+    # Show total duration (lower is better)
     fig = px.bar(
         df.sort_values('concurrency'),
         x='stage',
-        y='requests_per_second',
+        y='duration',
         color='model_short',
         barmode='group',
         labels={
-            'requests_per_second': 'Requests/Second',
+            'duration': 'Total Time (seconds)',
             'stage': 'Test Stage',
             'model_short': 'Model'
         },
-        title="Request Throughput by Stage"
+        title="Total Time to Process All Files (Lower = Faster)"
     )
 
     fig.update_layout(height=500)
     st.plotly_chart(fig, use_container_width=True)
+
+    # Also show the summary table
+    st.markdown("#### Summary: Files Processed and Total Time")
+    summary = df.groupby(['model_short', 'stage']).agg({
+        'successful_requests': 'first',
+        'duration': 'first',
+        'requests_per_second': 'first'
+    }).reset_index()
+    summary['files_per_hour'] = summary['requests_per_second'] * 3600
+    summary = summary.rename(columns={
+        'model_short': 'Model',
+        'stage': 'Stage',
+        'successful_requests': 'Files Processed',
+        'duration': 'Total Time (s)',
+        'requests_per_second': 'Files/Second',
+        'files_per_hour': 'Files/Hour'
+    })
+    st.dataframe(summary, use_container_width=True, hide_index=True)
 
 
 def plot_efficiency(df: pd.DataFrame):
@@ -503,13 +554,53 @@ def main():
     st.title("🎧 Audio Performance Metrics")
     st.markdown("""
     Audio-specific performance analysis for speech recognition, translation, and audio chat models.
-
-    **Key Metrics:**
-    - **Audio Throughput**: Audio seconds processed per wall-clock second (higher = faster)
-    - **Real-Time Factor (RTF)**: Processing time / audio duration (< 1.0 = faster than real-time)
-    - **Request Throughput**: Audio files processed per second
-    - **Efficiency**: Audio throughput per CPU core
     """)
+
+    # Metrics explanation in expandable section
+    with st.expander("📖 Understanding Audio Metrics", expanded=False):
+        st.markdown("""
+        ### Key Metrics Explained
+
+        #### 🎵 Audio Throughput (audio_seconds/wall_second)
+        - **What it measures:** How many seconds of audio are processed per wall-clock second
+        - **Example:** 10.0x means 10 seconds of audio processed every wall-clock second
+        - **Interpretation:** Higher = faster processing, better for batch jobs
+        - **Use case:** "How long to transcribe 1000 hours of audio?"
+
+        #### ⏱️ Real-Time Factor (RTF)
+        - **Formula:** RTF = processing_time / audio_duration
+        - **RTF < 1.0** = ✅ Faster than real-time (e.g., RTF=0.1 means 10x faster)
+        - **RTF = 1.0** = Real-time processing (processing keeps pace with audio playback)
+        - **RTF > 1.0** = ⚠️ Slower than real-time (processing can't keep up)
+        - **Example:** RTF=0.2 means a 10-second audio clip is processed in 2 seconds
+        - **Use case:** "Can we transcribe live phone calls in real-time?"
+
+        #### 📈 Request Throughput (files/second)
+        - **What it measures:** Number of audio files processed per second
+        - **Interpretation:** Higher = more files processed per unit time
+        - **Use case:** "How many audio files can we process per hour?"
+
+        #### ⚡ Efficiency (per core)
+        - **Formula:** Audio throughput / CPU cores
+        - **What it measures:** Audio processing throughput per CPU core
+        - **Interpretation:** Higher = better CPU utilization
+        - **Use case:** "Should we allocate 32 or 64 cores for best efficiency?"
+
+        #### 📊 Percentiles (P50, P95, P99)
+        - **P50 (Median):** 50% of requests were this fast or faster
+        - **P95:** 95% of requests were this fast or faster (tail latency)
+        - **P99:** 99% of requests were this fast or faster (worst-case tail)
+        - **For RTF:** Lower percentiles = better (more consistent performance)
+        - **Use case:** "What's our worst-case RTF for 99% of requests?"
+
+        ### Test Stages Explained
+
+        - **Sequential:** Process files one-by-one (offline batch baseline)
+        - **Concurrent-N:** Simulate N concurrent users (online serving)
+        - **Max-throughput:** Find maximum capacity with high concurrency
+        """)
+
+    st.markdown("---")
 
     # Load config
     config = DashboardConfig()
@@ -537,25 +628,30 @@ def main():
         st.warning(f"""
         No audio benchmark data found in: `{results_dir}`
 
+        **Note:** This dashboard only shows audio model results (ASR, translation, chat).
+        LLM text generation results are filtered out automatically.
+
         **Expected structure:**
         ```
         {results_dir}/
-        └── model-name/
-            └── scenario-timestamp/
-                ├── stage-1/
+        └── openai__whisper-small/
+            └── transcription-throughput-20260423-103307/
+                ├── sequential/
                 │   └── benchmarks.json
-                ├── stage-2/
+                ├── concurrent-2/
                 │   └── benchmarks.json
                 └── test-metadata.json
         ```
 
-        Run audio benchmarks first:
+        **Run audio benchmarks first:**
         ```bash
-        ansible-playbook audio-benchmark.yml \\
+        ansible-playbook -i inventory/hosts.yml audio-benchmark.yml \\
           -e "test_model=openai/whisper-small" \\
           -e "test_scenario=transcription-throughput" \\
           -e "requested_cores=32"
         ```
+
+        **Default path:** Results should be in `results/audio-models/`
         """)
         return
 
@@ -574,13 +670,13 @@ def main():
     st.markdown("---")
 
     # Charts
+    plot_total_time_comparison(filtered_df)
+    st.markdown("---")
+
     plot_audio_throughput(filtered_df)
     st.markdown("---")
 
     plot_rtf(filtered_df)
-    st.markdown("---")
-
-    plot_requests_per_second(filtered_df)
     st.markdown("---")
 
     plot_latency_vs_audio_duration(filtered_df)
