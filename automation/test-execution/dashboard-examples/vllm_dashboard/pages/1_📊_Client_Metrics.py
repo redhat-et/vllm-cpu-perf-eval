@@ -637,7 +637,7 @@ def render_performance_plots(df: pd.DataFrame):
     fig.update_layout(
         title=f"{selected_metric_family} vs {selected_x_axis}",
         xaxis_title=selected_x_axis,
-        yaxis_title=f"{selected_metric_family} ({metric_config['unit']})",
+        yaxis_title=selected_metric_family,
         height=600,
         hovermode='closest',
         legend=dict(
