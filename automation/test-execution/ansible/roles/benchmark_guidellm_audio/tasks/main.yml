@@ -50,6 +50,38 @@
       - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # ============================================================================
+# PRE-FLIGHT CHECKS
+# ============================================================================
+
+- name: Test audio endpoint accessibility from load generator
+  ansible.builtin.uri:
+    url: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/v1/{{ scenario_request_type.replace('_', '/') }}"
+    method: OPTIONS
+    status_code: [200, 405]  # 405 Method Not Allowed is OK (endpoint exists)
+    validate_certs: false
+    timeout: 10
+  register: audio_endpoint_check
+  retries: 3
+  delay: 2
+  failed_when: false
+
+- name: Display audio endpoint check
+  ansible.builtin.debug:
+    msg:
+      - "Audio Endpoint Pre-flight Check:"
+      - "  URL: http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/v1/{{ scenario_request_type.replace('_', '/') }}"
+      - "  Status: {{ audio_endpoint_check.status | default('TIMEOUT/ERROR') }}"
+      - "  Result: {{ 'PASS ✓' if audio_endpoint_check.status in [200, 405] else 'FAIL ✗' }}"
+
+- name: Warn if endpoint check failed
+  ansible.builtin.debug:
+    msg:
+      - "⚠️  WARNING: Could not verify audio endpoint accessibility"
+      - "GuideLLM backend validation may fail"
+      - "Verify vLLM server supports {{ scenario_request_type }}"
+  when: audio_endpoint_check.status not in [200, 405]
+
+# ============================================================================
 # BUILD COMMAND LINE
 # ============================================================================
 

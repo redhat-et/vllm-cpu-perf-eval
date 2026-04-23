@@ -342,13 +342,78 @@
             - "{{ model_cache_dir }}"
             - "{{ log_dir }}"
 
-        - name: Stop any existing vLLM audio containers
+        - name: Build vLLM image with audio support
+          block:
+            - name: Pull base vLLM image
+              containers.podman.podman_image:
+                name: "{{ container_runtime.image }}"
+                state: present
+
+            - name: Check if vLLM audio image already exists
+              ansible.builtin.command:
+                cmd: "podman images -q localhost/vllm-audio-cpu:{{ container_runtime.image.split(':')[1] }}"
+              register: audio_image_check
+              changed_when: false
+              failed_when: false
+
+            - name: Build vLLM audio image (if not exists)
+              when: audio_image_check.stdout == ""
+              block:
+                - name: Create Containerfile for audio support
+                  ansible.builtin.copy:
+                    dest: "{{ log_dir }}/Containerfile.audio"
+                    content: |
+                      FROM {{ container_runtime.image }}
+                      # Install audio dependencies (librosa, soundfile, ffmpeg-python)
+                      # Note: v0.19.0 predates vllm[audio] extras, so install manually
+                      RUN uv pip install --no-cache-dir librosa soundfile ffmpeg-python
+                    mode: "0644"
+
+                - name: Build vLLM image with audio dependencies
+                  ansible.builtin.command:
+                    cmd: >
+                      podman build
+                      -f {{ log_dir }}/Containerfile.audio
+                      -t localhost/vllm-audio-cpu:{{ container_runtime.image.split(':')[1] }}
+                      {{ log_dir }}
+                  register: image_build
+                  changed_when: true
+
+                - name: Verify audio dependencies in built image
+                  ansible.builtin.command:
+                    cmd: >
+                      podman run --rm --entrypoint python3
+                      localhost/vllm-audio-cpu:{{ container_runtime.image.split(':')[1] }}
+                      -c 'import librosa; import soundfile; print("✓ Audio deps verified")'
+                  register: verify_audio
+                  changed_when: false
+
+                - name: Display verification
+                  ansible.builtin.debug:
+                    msg: "{{ verify_audio.stdout }}"
+
+                - name: Remove Containerfile
+                  ansible.builtin.file:
+                    path: "{{ log_dir }}/Containerfile.audio"
+                    state: absent
+
+            - name: Set audio-enabled image name
+              ansible.builtin.set_fact:
+                vllm_audio_image: "localhost/vllm-audio-cpu:{{ container_runtime.image.split(':')[1] }}"
+
+        - name: Find all existing vLLM containers (audio and LLM)
+          ansible.builtin.command:
+            cmd: podman ps -a --filter "name=vllm-" --format "{{ '{{' }}.Names{{ '}}' }}"
+          register: existing_vllm_containers
+          changed_when: false
+          failed_when: false
+
+        - name: Stop and remove all existing vLLM containers
           containers.podman.podman_container:
             name: "{{ item }}"
             state: absent
-          loop:
-            - "vllm-audio-server"
-            - "{{ container_name }}"
+          loop: "{{ existing_vllm_containers.stdout_lines }}"
+          when: existing_vllm_containers.stdout_lines | length > 0
           ignore_errors: true
 
         - name: Determine NUMA node from core range
@@ -404,10 +469,10 @@
           # NOTE: Setting VLLM_CPU_OMP_THREADS_BIND to explicit CPU list disables
           # VLLM_CPU_NUM_OF_RESERVED_CPU. Only set for TP>1 where we manage binding manually.
 
-        - name: Start vLLM audio server in container
+        - name: Start vLLM audio server with audio-enabled image
           containers.podman.podman_container:
             name: "{{ container_name }}"
-            image: "{{ container_runtime.image }}"
+            image: "{{ vllm_audio_image }}"
             state: started
             restart_policy: "no"
             detach: true
@@ -432,6 +497,7 @@
             msg:
               - "✅ vLLM Audio Server Started"
               - "   Container: {{ container_name }}"
+              - "   Image: {{ vllm_audio_image }} (with audio support)"
               - "   URL: http://{{ ansible_host }}:{{ vllm_server.port }}"
               - "   Model: {{ actual_model }}"
               - "   Cores: {{ requested_cores }} ({{ '0-' + ((requested_cores | int) - 1) | string }})"
@@ -479,6 +545,39 @@
       vars:
         results_path: "{{ results_base }}"
         test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
+
+    - name: Verify load generator can reach vLLM server
+      ansible.builtin.uri:
+        url: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/health"
+        method: GET
+        status_code: 200
+        validate_certs: false
+        timeout: 10
+      register: loadgen_connectivity_check
+      retries: 3
+      delay: 2
+      until: loadgen_connectivity_check.status == 200
+      failed_when: false
+
+    - name: Display connectivity check result
+      ansible.builtin.debug:
+        msg:
+          - "Load Generator → vLLM Connectivity: {{ 'PASS ✓' if loadgen_connectivity_check.status == 200 else 'FAIL ✗' }}"
+          - "Target: http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/health"
+          - "Status: {{ loadgen_connectivity_check.status | default('No response') }}"
+
+    - name: Fail if load generator cannot reach vLLM
+      ansible.builtin.fail:
+        msg: |
+          Load generator cannot connect to vLLM server at http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}
+
+          Possible causes:
+          - DNS resolution failure (check /etc/hosts or DNS server)
+          - Firewall/security group blocking port {{ bench_config.vllm_port }}
+          - vLLM server not listening on external interface
+
+          Verify with: curl -v http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/health
+      when: loadgen_connectivity_check.status != 200
 
   tasks:
     - name: Setup results directory

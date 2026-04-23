@@ -1,52 +1,36 @@
 ---
 # Clean Restart of vLLM Container
 # Ensures fresh state between tests for accurate results
-# Can be included by any playbook that needs clean vLLM restart
-#
-# TODO: Add support for multiple vLLM instances running concurrently
-#       Currently assumes single container named {{ vllm_container_name }}
-#       Future: Support container name patterns or list of instances
+# Stops ALL vLLM containers (audio, LLM, embedding) to prevent conflicts
 
 - name: Verify container runtime is podman
   ansible.builtin.fail:
     msg: "Clean restart is only supported for Podman. Current engine: {{ container_runtime.engine }}"
   when: container_runtime.engine != 'podman'
 
-- name: Check if vLLM container exists
-  ansible.builtin.shell:
-    cmd: "{{ container_runtime.engine }} ps -a --filter name={{ vllm_container_name }} --format '{{'{{'}}.Names{{'}}'}}'"
-  register: existing_container
+- name: Find all existing vLLM containers (any type)
+  ansible.builtin.command:
+    cmd: podman ps -a --filter "name=vllm-" --format "{{ '{{' }}.Names{{ '}}' }}"
+  register: existing_vllm_containers
   changed_when: false
-  ignore_errors: true
+  failed_when: false
 
-- name: Stop existing vLLM container
+- name: Stop and remove all existing vLLM containers
   containers.podman.podman_container:
-    name: "{{ vllm_container_name }}"
-    state: stopped
-  when:
-    - container_runtime.engine == 'podman'
-    - existing_container.stdout | length > 0
-  register: stop_result
-
-- name: Remove existing vLLM container
-  containers.podman.podman_container:
-    name: "{{ vllm_container_name }}"
+    name: "{{ item }}"
     state: absent
-  when:
-    - container_runtime.engine == 'podman'
-    - existing_container.stdout | length > 0
-  register: remove_result
+  loop: "{{ existing_vllm_containers.stdout_lines }}"
+  when: existing_vllm_containers.stdout_lines | length > 0
+  ignore_errors: true
+  register: cleanup_result
 
 - name: Wait for cleanup to complete
   ansible.builtin.pause:
     seconds: 5
     prompt: "Waiting for vLLM cleanup..."
-  when: existing_container.stdout | length > 0
+  when: existing_vllm_containers.stdout_lines | length > 0
 
 - name: Display cleanup status
   ansible.builtin.debug:
-    msg: "✓ vLLM container {{ vllm_container_name }} cleaned and ready for fresh start"
-  when:
-    - existing_container.stdout | length > 0
-    - stop_result is succeeded
-    - remove_result is succeeded
+    msg: "✓ Cleaned {{ existing_vllm_containers.stdout_lines | length }} vLLM container(s): {{ existing_vllm_containers.stdout_lines | join(', ') }}"
+  when: existing_vllm_containers.stdout_lines | length > 0
