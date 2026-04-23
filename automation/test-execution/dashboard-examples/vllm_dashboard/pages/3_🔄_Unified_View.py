@@ -74,6 +74,7 @@ def load_guidellm_data(results_dir: str) -> pd.DataFrame:
 
                 row = {
                     'test_run_id': metadata.get('test_run_id', 'unknown'),
+                    'test_name': metadata.get('test_name', ''),
                     'platform': metadata.get('platform', 'unknown'),
                     'model': metadata.get('model', 'unknown'),
                     'model_short': metadata.get('model', 'unknown').split('/')[-1],
@@ -126,6 +127,7 @@ def load_vllm_metrics(results_dir: str) -> pd.DataFrame:
             for sample in data.get('samples', []):
                 row = {
                     'test_run_id': metadata.get('test_run_id', 'unknown'),
+                    'test_name': metadata.get('test_name', ''),
                     'platform': metadata.get('platform', 'unknown'),
                     'model': metadata.get('model', 'unknown'),
                     'model_short': metadata.get('model', 'unknown').split('/')[-1],
