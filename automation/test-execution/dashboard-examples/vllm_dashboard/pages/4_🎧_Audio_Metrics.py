@@ -119,6 +119,13 @@ def load_audio_data(results_dir: str) -> pd.DataFrame:
                     'guidellm_version': metadata.get('guidellm_version', 'unknown'),
                     'tensor_parallel': metadata.get('tensor_parallel', 1),
 
+                    # Audio file format metadata
+                    'audio_format': metadata.get('audio_format', 'unknown'),
+                    'audio_sample_rate': metadata.get('audio_sample_rate', 0),
+                    'audio_bitrate': metadata.get('audio_bitrate', 'unknown'),
+                    'dataset_name': metadata.get('dataset_name', 'unknown'),
+                    'dataset_config': metadata.get('dataset_config', 'unknown'),
+
                     # Load characteristics
                     'concurrency': concurrency,
                     'request_rate': req_rate,
@@ -291,6 +298,8 @@ def render_overview_metrics(df: pd.DataFrame):
     """Render overview metric cards."""
     # Test Dataset Overview
     st.markdown("### 📊 Test Dataset Overview")
+
+    # First row: File statistics
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
@@ -324,13 +333,55 @@ def render_overview_metrics(df: pd.DataFrame):
         )
 
     with col4:
-        # Get format from first row's metadata (if available)
-        # For now, show audio bytes as proxy
         total_mb = df['total_audio_bytes'].sum() / (1024 * 1024)
         st.metric(
             "Total Data",
             f"{total_mb:.1f} MB",
             help="Total audio payload size"
+        )
+
+    # Second row: Audio format details
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        # Get audio format from first row
+        audio_format = df['audio_format'].iloc[0] if len(df) > 0 else 'unknown'
+        st.metric(
+            "Audio Format",
+            audio_format.upper(),
+            help="Audio file format (MP3, WAV, FLAC, etc.)"
+        )
+
+    with col2:
+        # Get sample rate
+        sample_rate = df['audio_sample_rate'].iloc[0] if len(df) > 0 else 0
+        if sample_rate >= 1000:
+            display_rate = f"{int(sample_rate/1000)}kHz"
+        else:
+            display_rate = f"{int(sample_rate)}Hz"
+        st.metric(
+            "Sample Rate",
+            display_rate,
+            help="Audio sampling frequency"
+        )
+
+    with col3:
+        # Get bitrate
+        bitrate = df['audio_bitrate'].iloc[0] if len(df) > 0 else 'unknown'
+        st.metric(
+            "Bitrate",
+            bitrate.upper() if isinstance(bitrate, str) else str(bitrate),
+            help="Audio encoding bitrate"
+        )
+
+    with col4:
+        # Get dataset
+        dataset = df['dataset_name'].iloc[0] if len(df) > 0 else 'unknown'
+        dataset_short = dataset.split('/')[-1] if '/' in dataset else dataset
+        st.metric(
+            "Dataset",
+            dataset_short,
+            help=f"Source dataset: {dataset}"
         )
 
     st.markdown("---")
@@ -539,14 +590,32 @@ def plot_rtf(df: pd.DataFrame):
     Example: RTF=0.2 means a 10-second audio clip takes 2 seconds to process.
     """)
 
-    # Prepare data for plotting percentiles
+    # Percentile selector (checkboxes like LLM dashboard)
+    percentile_labels = {"mean": "Mean", "p50": "P50", "p95": "P95", "p99": "P99"}
+    available_percentiles = ["mean", "p50", "p95", "p99"]
+
+    st.markdown("**Show percentiles:**")
+    cols = st.columns(len(available_percentiles))
+    selected_percentiles = []
+    for idx, percentile in enumerate(available_percentiles):
+        with cols[idx]:
+            # Default to P95 and P99 like LLM dashboard
+            default_checked = percentile in ["p95", "p99"]
+            if st.checkbox(percentile_labels[percentile], value=default_checked, key=f"rtf_percentile_{percentile}"):
+                selected_percentiles.append(percentile)
+
+    if not selected_percentiles:
+        st.warning("⚠️ Select at least one percentile to display")
+        return
+
+    # Prepare data for plotting selected percentiles only
     plot_data = []
     for _, row in df.iterrows():
-        for percentile in ['mean', 'p50', 'p95', 'p99']:
+        for percentile in selected_percentiles:
             plot_data.append({
                 'stage': row['stage'],
                 'model': row['model_short'],
-                'percentile': percentile.upper(),
+                'percentile': percentile_labels[percentile],
                 'rtf': row[f'rtf_{percentile}']
             })
 
@@ -565,7 +634,7 @@ def plot_rtf(df: pd.DataFrame):
             'model': 'Model',
             'percentile': 'Percentile'
         },
-        title="Real-Time Factor by Stage (Lower = Better)"
+        title=f"Real-Time Factor - {selected_percentiles} (Lower = Better)"
     )
 
     # Add reference line at RTF=1.0 (real-time processing)
