@@ -52,6 +52,7 @@ vLLM CPU benchmark results:
 🖥️ **Server-Side Metrics** - Internal server (vLLM metrics - LLM models)
 📊 **Embedding Metrics** - Embedding model performance (vLLM bench serve)
 📦 **Offline Batch** - Batch processing performance (vLLM bench throughput)
+🎧 **Audio Metrics** - Audio-specific performance for ASR models
 
 **👈 Use the sidebar to navigate between dashboards**
 """)
@@ -62,7 +63,7 @@ st.markdown("---")
 col1, col2 = st.columns(2)
 
 with col1:
-    st.markdown("### 📊 Client-Side")
+    st.markdown("### 📊 Client-Side (LLM)")
     st.info("""
     **What**: GuideLLM benchmark results (LLM models)
 
@@ -80,6 +81,26 @@ with col1:
     """)
 
 with col2:
+    st.markdown("### 🎧 Audio Metrics")
+    st.info("""
+    **What**: Audio-specific performance (ASR/translation/chat)
+
+    **Metrics**:
+    - Audio throughput (audio_sec/wall_sec)
+    - Real-Time Factor (RTF)
+    - Request throughput (files/sec)
+    - Efficiency (per core)
+
+    **Features**:
+    - RTF percentile analysis
+    - Audio duration scaling
+    - Model comparison
+    - CSV export
+    """)
+
+col3, col4 = st.columns(2)
+
+with col3:
     st.markdown("### 🖥️ Server-Side")
     st.info("""
     **What**: vLLM server metrics (LLM models - Prometheus)
@@ -96,9 +117,9 @@ with col2:
     - Summary statistics
     """)
 
-col3, col4 = st.columns(2)
+col5, col6 = st.columns(2)
 
-with col3:
+with col5:
     st.markdown("### 📊 Embedding")
     st.info("""
     **What**: vLLM bench serve results (Embedding models)
@@ -144,7 +165,7 @@ with tab1:
     st.markdown("""
     #### Running Benchmarks
 
-    **Managed Mode (Default)** - vLLM runs on DUT:
+    **LLM Models** - Text generation:
     ```bash
     # Single test
     ansible-playbook llm-benchmark-auto.yml \\
@@ -159,6 +180,22 @@ with tab1:
       -e "requested_cores_list=[8,16,32,64]"
     ```
 
+    **Audio Models** - ASR, translation, audio chat:
+    ```bash
+    # Quick test (5 files, ~2 minutes)
+    ansible-playbook audio-benchmark.yml \\
+      -e "test_model=openai/whisper-tiny" \\
+      -e "test_scenario=transcription-throughput" \\
+      -e "requested_cores=32" \\
+      -e "audio_num_files=5"
+
+    # Production test (100 files per stage)
+    ansible-playbook audio-benchmark.yml \\
+      -e "test_model=openai/whisper-small" \\
+      -e "test_scenario=transcription-throughput" \\
+      -e "requested_cores=32"
+    ```
+
     **External Endpoint Mode** - Test existing vLLM deployment:
     ```bash
     export VLLM_ENDPOINT_MODE=external
@@ -170,7 +207,9 @@ with tab1:
       -e "requested_cores=16"
     ```
 
-    **Results are automatically saved to:** `results/llm/`
+    **Results locations:**
+    - LLM models: `results/llm/`
+    - Audio models: `results/audio-models/`
 
     **Embedding Model Tests:**
     ```bash
@@ -222,9 +261,14 @@ with tab2:
     3. **Apply filters** to focus on specific tests
     4. **Analyze performance** using charts and metrics
 
-    **Default Results Path**: `../../../results/llm`
+    **Default Results Paths**:
+    - LLM models: `../../../results/llm`
+    - Audio models: `../../../results/audio-models`
 
-    You can change this path in each dashboard's sidebar configuration.
+    You can change the path in each dashboard's sidebar configuration.
+
+    **For audio results**: Go to 🎧 Audio Metrics page and update the results
+    directory to `../../../results/audio-models`
     """)
 
 with tab3:
