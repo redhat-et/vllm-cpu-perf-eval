@@ -21,8 +21,10 @@ vllm-cpu-perf-eval/
 │   ├── llm-models/                     # LLM model configurations
 │   │   ├── model-matrix.yaml          # LLM model test mappings
 │   │   └── llm-models.md              # Redirects to models.md
-│   └── embedding-models/               # Embedding model configurations
-│       └── model-matrix.yaml          # Embedding model test mappings
+│   ├── embedding-models/               # Embedding model configurations
+│   │   └── model-matrix.yaml          # Embedding model test mappings
+│   └── audio-models/                   # Audio model configurations
+│       └── model-matrix.yaml          # Audio model test mappings
 │
 ├── tests/                              # Test suites and scenarios
 │   ├── tests.md                        # Test suite overview
@@ -35,10 +37,15 @@ vllm-cpu-perf-eval/
 │   ├── resource-contention/            # Test Suite 3: Resource contention
 │   │   ├── resource-contention.md     # Suite documentation
 │   │   └── *.yaml                     # Test scenario definitions (planned)
-│   └── embedding-models/               # Embedding model test scenarios
-│       ├── embedding-models.md        # Embedding test documentation
-│       ├── baseline-sweep.yaml        # Baseline performance tests
-│       └── latency-concurrent.yaml    # Latency tests
+│   ├── embedding-models/               # Embedding model test scenarios
+│   │   ├── embedding-models.md        # Embedding test documentation
+│   │   ├── baseline-sweep.yaml        # Baseline performance tests
+│   │   └── latency-concurrent.yaml    # Latency tests
+│   └── audio-models/                   # Audio model test scenarios
+│       ├── README.md                  # Audio test documentation
+│       ├── transcription-throughput.yaml
+│       ├── transcription-latency.yaml
+│       └── *.yaml                     # Additional audio scenarios
 │
 ├── automation/                         # Automation framework
 │   ├── test-execution/                 # Test orchestration
@@ -66,6 +73,7 @@ vllm-cpu-perf-eval/
 │
 ├── results/                            # Test results (gitignored)
 │   ├── llm/                           # LLM test results
+│   ├── audio-models/                  # Audio model test results
 │   └── results.md                     # Results documentation
 │
 ├── utils/                              # Utility scripts and tools
@@ -116,8 +124,9 @@ See individual directory markdown files for detailed information.
 
 ### Multiple Test Suites
 
-- **Concurrent Load**: Concurrent load testing
-- **Scalability**: Scalability and sweep testing
+- **Concurrent Load**: Concurrent load testing (LLM models)
+- **Scalability**: Scalability and sweep testing (LLM models)
+- **Audio Models**: Audio transcription, translation, and chat benchmarking
 - **Resource Contention**: Resource contention testing (planned)
 
 ### Enhanced Concurrent Load Testing
@@ -134,6 +143,7 @@ See [3-Phase Testing Strategy](docs/methodology/testing-phases.md) for details.
 ## Documentation
 
 - **[Ansible Testing](automation/test-execution/ansible/ansible.md)** - Complete Ansible usage guide
+- **[Audio Benchmarking](docs/audio-benchmarking.md)** - Audio model benchmarking guide with troubleshooting
 - **[Methodology](docs/methodology/overview.md)** - Testing methodology and metrics
 - **[Platform Setup](docs/platform-setup/x86/intel/deterministic-benchmarking.md)** - Intel platform configuration
 - **[Models](models/models.md)** - Model definitions and selection
@@ -202,6 +212,46 @@ Characterizes maximum throughput and performance curves.
 
 Multi-tenant and resource sharing scenarios.
 
+### Test Suite: Audio Models
+
+**✅ SUPPORTED** - Fully validated and ready for use.
+
+Tests audio transcription, translation, and chat models.
+
+**Quick Start:**
+```bash
+cd automation/test-execution/ansible
+
+# Quick test (5 files, ~2 minutes)
+ansible-playbook -i inventory/hosts.yml audio-benchmark.yml \
+  -e "test_model=openai/whisper-tiny" \
+  -e "test_scenario=transcription-throughput" \
+  -e "requested_cores=32" \
+  -e "audio_num_files=5"
+```
+
+**Key Scenarios:**
+- **transcription-throughput** - Batch processing & concurrent user testing
+- **transcription-latency** - SLA validation under load
+- **audio-duration-scaling** - Performance vs audio length
+- **constant-rate-stress** - Production readiness testing
+- **format-comparison** - Audio format optimization
+
+**Models Supported:**
+- Whisper (tiny, small, medium) - ASR transcription
+- Ultravox - Audio chat
+
+**Documentation:**
+- **[Audio Benchmarking Guide](docs/audio-benchmarking.md)** - Comprehensive guide with troubleshooting
+- **[Audio Test Suite README](tests/audio-models/README.md)** - Detailed scenario documentation
+
+**Key Features:**
+- Automatic audio dependency management (librosa, soundfile, ffmpeg-python)
+- Network connectivity pre-flight checks
+- Auto-cleanup of previous containers
+- Dataset sample limiting to avoid full downloads
+- Organized results by timestamp and stage
+
 ## Models
 
 Current model coverage:
@@ -221,6 +271,13 @@ Current model coverage:
 
 - granite-embedding-english-r2
 - granite-embedding-278m-multilingual
+
+**Audio Models:**
+
+**✅ SUPPORTED** - Fully validated and ready for use.
+
+- **Whisper (tiny, small, medium)** - Speech-to-text transcription
+- **Ultravox** - Multimodal audio chat
 
 See [models/models.md](models/models.md) for complete model definitions,
 selection rationale, and how to add new models.
