@@ -15,7 +15,8 @@
   gather_facts: false
   any_errors_fatal: true
   vars:
-    test_run_id: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
+    _test_timestamp: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
+    test_run_id: "{{ (test_name ~ '-' ~ _test_timestamp) if (test_name is defined and test_name | length > 0) else _test_timestamp }}"
 
   tasks:
     - name: Detect if running from AWX

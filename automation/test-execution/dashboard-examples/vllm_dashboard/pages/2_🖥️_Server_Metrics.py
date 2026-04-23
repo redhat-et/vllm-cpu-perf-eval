@@ -100,6 +100,7 @@ def load_vllm_metrics(base_dir: str):
                         data['model'] = metadata.get('model', 'unknown')
                         data['workload'] = metadata.get('workload', 'unknown')
                         data['test_run_id'] = metadata.get('test_run_id', 'unknown')
+                        data['test_name'] = metadata.get('test_name', '')
                         data['cores'] = metadata.get('core_count', 'N/A')
                         data['backend'] = metadata.get('backend', 'unknown')
                         data['vllm_version'] = metadata.get('vllm_version', 'unknown')
@@ -1011,6 +1012,13 @@ elif current_section == "⚖️ Compare Configurations":
             compare_endpoint_short = compare_endpoint_short.split('//', 1)[-1].rsplit('@', 1)[-1].split('/', 1)[0]
         baseline_label = f"Baseline: {baseline_endpoint_short} | vLLM {baseline_result.get('vllm_version', 'unknown')} | GuideLLM {baseline_result.get('guidellm_version', 'unknown')} | {baseline_result.get('workload', 'unknown')}"
         compare_label = f"Compare: {compare_endpoint_short} | vLLM {compare_result.get('vllm_version', 'unknown')} | GuideLLM {compare_result.get('guidellm_version', 'unknown')} | {compare_result.get('workload', 'unknown')}"
+
+    # Add test names if present
+    if baseline_result.get('test_name') and baseline_result['test_name'].strip():
+        baseline_label = f"[{baseline_result['test_name']}] {baseline_label}"
+    if compare_result.get('test_name') and compare_result['test_name'].strip():
+        compare_label = f"[{compare_result['test_name']}] {compare_label}"
+
     labels = [baseline_label, compare_label]
 
     for idx, result in enumerate(comparison_results):

@@ -593,6 +593,50 @@ ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
 
 Defaults are defined in [inventory/group_vars/all/benchmark-tools.yml](inventory/group_vars/all/benchmark-tools.yml).
 
+### Custom Test Naming
+
+Assign custom names to benchmark tests for easier identification and filtering in Streamlit dashboards.
+
+**Usage:**
+
+```bash
+# Single test with custom name
+ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
+  -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
+  -e "workload_type=chat" \
+  -e "requested_cores=16" \
+  -e "test_name=baseline-v1"
+```
+
+**Result:** Test run ID becomes `baseline-v1-20260423-143022` (name + timestamp)
+
+**Core sweep with custom name:**
+
+```bash
+ansible-playbook -i inventory/hosts.yml llm-core-sweep-auto.yml \
+  -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
+  -e "workload_type=chat" \
+  -e "requested_cores_list=[8,16,32,64]" \
+  -e "test_name=perf-optimization-test"
+```
+
+All tests in the sweep share the custom name.
+
+**Dashboard filtering:**
+
+When tests have custom names, Streamlit dashboards automatically display a "Custom Test Names" filter, allowing you to:
+- Filter results by test name
+- Compare specific test runs
+- Track iterations (e.g., baseline-v1, baseline-v2, optimized-v1)
+
+**Best practices:**
+- Keep names under 30 characters
+- Use alphanumeric characters and hyphens only
+- Examples: `baseline-v1`, `cache-enabled`, `production-candidate`, `bug-123-repro`
+- Avoid spaces (use hyphens instead)
+
+**Backward compatibility:** Tests without `test_name` work as before (timestamp-only IDs).
+
 ## Troubleshooting
 
 ### Connection Issues

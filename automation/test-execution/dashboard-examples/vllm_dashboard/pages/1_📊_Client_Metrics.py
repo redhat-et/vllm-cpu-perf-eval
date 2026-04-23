@@ -97,6 +97,7 @@ def load_guidellm_data(results_dir: str) -> pd.DataFrame:
                 row = {
                     # Metadata
                     'test_run_id': metadata.get('test_run_id', 'unknown'),
+                    'test_name': metadata.get('test_name', ''),
                     'platform': metadata.get('platform', 'unknown'),
                     'model': metadata.get('model', 'unknown'),
                     'model_short': metadata.get('model', 'unknown').split('/')[-1],
@@ -236,6 +237,23 @@ def render_filters(df: pd.DataFrame, test_mode: str) -> pd.DataFrame:
                 key="guidellm_version_filter_managed"
             )
 
+        # Test name filter (separate row if any tests have custom names)
+        if df['test_name'].str.len().sum() > 0:
+            test_names = sorted([n for n in df['test_name'].unique() if n])
+            if test_names:
+                st.markdown("**Test Name Filter:**")
+                selected_test_names = st.multiselect(
+                    "Custom Test Names",
+                    test_names,
+                    default=test_names,
+                    key="test_name_filter_managed",
+                    help="Filter by custom test names (if provided during test run)"
+                )
+            else:
+                selected_test_names = []
+        else:
+            selected_test_names = []
+
         st.markdown('</div>', unsafe_allow_html=True)
 
         # Apply filters
@@ -247,6 +265,10 @@ def render_filters(df: pd.DataFrame, test_mode: str) -> pd.DataFrame:
             df['vllm_version'].isin(selected_versions) &
             df['guidellm_version'].isin(selected_guidellm_versions)
         ]
+
+        # Apply test name filter if any selected
+        if selected_test_names:
+            filtered_df = filtered_df[filtered_df['test_name'].isin(selected_test_names)]
 
     else:  # external mode
         # External mode filters - endpoint-based filtering
@@ -310,6 +332,23 @@ def render_filters(df: pd.DataFrame, test_mode: str) -> pd.DataFrame:
                 help="'auto-detected' = model discovered from endpoint, 'specified' = model explicitly provided"
             )
 
+        # Test name filter (separate row if any tests have custom names)
+        if df['test_name'].str.len().sum() > 0:
+            test_names = sorted([n for n in df['test_name'].unique() if n])
+            if test_names:
+                st.markdown("**Test Name Filter:**")
+                selected_test_names = st.multiselect(
+                    "Custom Test Names",
+                    test_names,
+                    default=test_names,
+                    key="test_name_filter_external",
+                    help="Filter by custom test names (if provided during test run)"
+                )
+            else:
+                selected_test_names = []
+        else:
+            selected_test_names = []
+
         st.markdown('</div>', unsafe_allow_html=True)
 
         # Apply filters
@@ -321,6 +360,10 @@ def render_filters(df: pd.DataFrame, test_mode: str) -> pd.DataFrame:
             df['guidellm_version'].isin(selected_guidellm_versions) &
             df['model_source'].isin(selected_sources)
         ]
+
+        # Apply test name filter if any selected
+        if selected_test_names:
+            filtered_df = filtered_df[filtered_df['test_name'].isin(selected_test_names)]
 
     return filtered_df
 
@@ -516,10 +559,10 @@ def render_performance_plots(df: pd.DataFrame):
         # For metrics without percentiles, use the base column
         selected_percentiles = [None]
 
-    # Group by test configuration
+    # Group by test configuration (include test_name to separate named tests)
     grouped = df.groupby([
         'platform', 'model_short', 'workload', 'vllm_version',
-        'cores', 'tensor_parallel', 'test_run_id'
+        'cores', 'tensor_parallel', 'test_name', 'test_run_id'
     ])
 
     # Create plot
@@ -536,7 +579,7 @@ def render_performance_plots(df: pd.DataFrame):
 
     color_idx = 0
 
-    for (platform, model, workload, vllm_version, cores, tp, test_id), group_df in grouped:
+    for (platform, model, workload, vllm_version, cores, tp, test_name, test_id), group_df in grouped:
         # Sort by selected x-axis
         group_df = group_df.sort_values(x_col)
 
@@ -552,6 +595,10 @@ def render_performance_plots(df: pd.DataFrame):
             endpoint_url = group_df['vllm_endpoint_url'].iloc[0]
             endpoint_short = endpoint_url.split('//', 1)[-1].rsplit('@', 1)[-1].split('/', 1)[0]
             base_label = f"{endpoint_short} | {full_model} | {vllm_version} | TP={tp} | {workload}"
+
+        # Add test_name to label if it exists
+        if test_name and test_name.strip():
+            base_label = f"[{test_name}] {base_label}"
 
         # Plot each selected percentile
         for percentile in selected_percentiles:
@@ -590,7 +637,7 @@ def render_performance_plots(df: pd.DataFrame):
     fig.update_layout(
         title=f"{selected_metric_family} vs {selected_x_axis}",
         xaxis_title=selected_x_axis,
-        yaxis_title=f"{selected_metric_family} ({metric_config['unit']})",
+        yaxis_title=selected_metric_family,
         height=600,
         hovermode='closest',
         legend=dict(
@@ -621,7 +668,7 @@ def render_performance_plots(df: pd.DataFrame):
 
         for (
             platform, model, workload,
-            vllm_version, cores, tp, test_id
+            vllm_version, cores, tp, test_name, test_id
         ), group_df in grouped:
             backend = group_df['backend'].iloc[0]
             vllm_mode = group_df['vllm_mode'].iloc[0]
@@ -633,6 +680,10 @@ def render_performance_plots(df: pd.DataFrame):
                 'TP': tp,
                 'Backend': backend,
             }
+
+            # Add test name if it exists
+            if test_name and test_name.strip():
+                row['Test Name'] = test_name
 
             # Add platform/cores for managed, endpoint for external
             if vllm_mode == 'managed':
@@ -938,6 +989,12 @@ def render_compare_versions(df: pd.DataFrame):
         compare_endpoint_short = compare_endpoint.split('//', 1)[-1].rsplit('@', 1)[-1].split('/', 1)[0]
         baseline_label = f"Baseline: {baseline_endpoint_short} | {baseline_run_info['vllm_version']} | {baseline_run_info['workload']}"
         compare_label = f"Compare: {compare_endpoint_short} | {compare_run_info['vllm_version']} | {compare_run_info['workload']}"
+
+    # Add test names to labels if they exist
+    if baseline_run_info.get('test_name') and baseline_run_info['test_name'].strip():
+        baseline_label = f"[{baseline_run_info['test_name']}] {baseline_label}"
+    if compare_run_info.get('test_name') and compare_run_info['test_name'].strip():
+        compare_label = f"[{compare_run_info['test_name']}] {compare_label}"
 
     # Throughput
     for data, name, color in [

@@ -74,6 +74,7 @@ def load_guidellm_data(results_dir: str) -> pd.DataFrame:
 
                 row = {
                     'test_run_id': metadata.get('test_run_id', 'unknown'),
+                    'test_name': metadata.get('test_name', ''),
                     'platform': metadata.get('platform', 'unknown'),
                     'model': metadata.get('model', 'unknown'),
                     'model_short': metadata.get('model', 'unknown').split('/')[-1],
@@ -126,6 +127,7 @@ def load_vllm_metrics(results_dir: str) -> pd.DataFrame:
             for sample in data.get('samples', []):
                 row = {
                     'test_run_id': metadata.get('test_run_id', 'unknown'),
+                    'test_name': metadata.get('test_name', ''),
                     'platform': metadata.get('platform', 'unknown'),
                     'model': metadata.get('model', 'unknown'),
                     'model_short': metadata.get('model', 'unknown').split('/')[-1],
@@ -334,10 +336,10 @@ with tab1:
 
         grouped = filtered_client.groupby([
             'platform', 'model_short', 'workload', 'vllm_version',
-            'cores', 'tensor_parallel', 'test_run_id'
+            'cores', 'tensor_parallel', 'test_name', 'test_run_id'
         ])
 
-        for (platform, model, workload, vllm_version, cores, tp, test_id), group_df in grouped:
+        for (platform, model, workload, vllm_version, cores, tp, test_name, test_id), group_df in grouped:
             group_df = group_df.sort_values(x_col)
 
             # Get full model name from the first row
@@ -345,6 +347,10 @@ with tab1:
 
             # Format label: platform | model | release | core_count | TP | workload
             label = f"{platform} | {full_model} | {vllm_version} | {cores}c | TP={tp} | {workload}"
+
+            # Add test name if present
+            if test_name and test_name.strip():
+                label = f"[{test_name}] {label}"
 
             fig.add_trace(go.Scatter(
                 x=group_df[x_col],
@@ -408,12 +414,12 @@ with tab2:
         # Group by test configuration
         grouped = filtered_server.groupby([
             'platform', 'model_short', 'workload', 'vllm_version',
-            'cores', 'tensor_parallel', 'test_run_id'
+            'cores', 'tensor_parallel', 'test_name', 'test_run_id'
         ])
         colors = px.colors.qualitative.Set2
         color_idx = 0
 
-        for (platform, model, workload, vllm_version, cores, tp, test_id), group_df in grouped:
+        for (platform, model, workload, vllm_version, cores, tp, test_name, test_id), group_df in grouped:
             group_df = group_df.sort_values('elapsed_seconds')
 
             # Get full model name
@@ -421,6 +427,10 @@ with tab2:
 
             # Format label: platform | model | release | core_count | TP | workload
             label = f"{platform} | {full_model} | {vllm_version} | {cores}c | TP={tp} | {workload}"
+
+            # Add test name if present
+            if test_name and test_name.strip():
+                label = f"[{test_name}] {label}"
             color = colors[color_idx % len(colors)]
 
             # Queue depth (stacked)
