@@ -559,10 +559,10 @@ def render_performance_plots(df: pd.DataFrame):
         # For metrics without percentiles, use the base column
         selected_percentiles = [None]
 
-    # Group by test configuration
+    # Group by test configuration (include test_name to separate named tests)
     grouped = df.groupby([
         'platform', 'model_short', 'workload', 'vllm_version',
-        'cores', 'tensor_parallel', 'test_run_id'
+        'cores', 'tensor_parallel', 'test_name', 'test_run_id'
     ])
 
     # Create plot
@@ -579,7 +579,7 @@ def render_performance_plots(df: pd.DataFrame):
 
     color_idx = 0
 
-    for (platform, model, workload, vllm_version, cores, tp, test_id), group_df in grouped:
+    for (platform, model, workload, vllm_version, cores, tp, test_name, test_id), group_df in grouped:
         # Sort by selected x-axis
         group_df = group_df.sort_values(x_col)
 
@@ -595,6 +595,10 @@ def render_performance_plots(df: pd.DataFrame):
             endpoint_url = group_df['vllm_endpoint_url'].iloc[0]
             endpoint_short = endpoint_url.split('//', 1)[-1].rsplit('@', 1)[-1].split('/', 1)[0]
             base_label = f"{endpoint_short} | {full_model} | {vllm_version} | TP={tp} | {workload}"
+
+        # Add test_name to label if it exists
+        if test_name and test_name.strip():
+            base_label = f"[{test_name}] {base_label}"
 
         # Plot each selected percentile
         for percentile in selected_percentiles:
@@ -664,7 +668,7 @@ def render_performance_plots(df: pd.DataFrame):
 
         for (
             platform, model, workload,
-            vllm_version, cores, tp, test_id
+            vllm_version, cores, tp, test_name, test_id
         ), group_df in grouped:
             backend = group_df['backend'].iloc[0]
             vllm_mode = group_df['vllm_mode'].iloc[0]
@@ -676,6 +680,10 @@ def render_performance_plots(df: pd.DataFrame):
                 'TP': tp,
                 'Backend': backend,
             }
+
+            # Add test name if it exists
+            if test_name and test_name.strip():
+                row['Test Name'] = test_name
 
             # Add platform/cores for managed, endpoint for external
             if vllm_mode == 'managed':
@@ -981,6 +989,12 @@ def render_compare_versions(df: pd.DataFrame):
         compare_endpoint_short = compare_endpoint.split('//', 1)[-1].rsplit('@', 1)[-1].split('/', 1)[0]
         baseline_label = f"Baseline: {baseline_endpoint_short} | {baseline_run_info['vllm_version']} | {baseline_run_info['workload']}"
         compare_label = f"Compare: {compare_endpoint_short} | {compare_run_info['vllm_version']} | {compare_run_info['workload']}"
+
+    # Add test names to labels if they exist
+    if baseline_run_info.get('test_name') and baseline_run_info['test_name'].strip():
+        baseline_label = f"[{baseline_run_info['test_name']}] {baseline_label}"
+    if compare_run_info.get('test_name') and compare_run_info['test_name'].strip():
+        compare_label = f"[{compare_run_info['test_name']}] {compare_label}"
 
     # Throughput
     for data, name, color in [
