@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Integration tests for container operations."""
+import os
 import pytest
 import time
+import uuid
 from .helpers.container_helper import (
     run_container,
     get_container_status,
@@ -19,10 +21,11 @@ class TestContainerLifecycle:
     def test_container_start_and_stop(self, container_runtime, cleanup_containers):
         """Test starting and stopping a simple container."""
         # Start a simple container
+        container_name = f"test-busybox-{uuid.uuid4().hex[:8]}"
         result = run_container(
             runtime=container_runtime,
             image="busybox:latest",
-            name="test-busybox",
+            name=container_name,
             command=["sleep", "60"],
         )
 
@@ -48,10 +51,11 @@ class TestContainerLifecycle:
         self, container_runtime, cleanup_containers, skip_if_no_cpuset
     ):
         """Test container with CPU affinity settings."""
+        container_name = f"test-cpu-affinity-{uuid.uuid4().hex[:8]}"
         result = run_container(
             runtime=container_runtime,
             image="busybox:latest",
-            name="test-cpu-affinity",
+            name=container_name,
             cpuset_cpus="0-3",
             command=["sleep", "30"],
         )
@@ -63,7 +67,10 @@ class TestContainerLifecycle:
         status = get_container_status(container_runtime, container_id)
         assert status == "running"
 
-    @pytest.mark.skipif(True, reason="NUMA affinity test requires multi-NUMA system")
+    @pytest.mark.skipif(
+        os.getenv("RUN_NUMA_TESTS") != "1",
+        reason="NUMA affinity test requires multi-NUMA system (set RUN_NUMA_TESTS=1 to enable)"
+    )
     def test_container_with_numa_affinity(
         self,
         container_runtime,
@@ -72,10 +79,11 @@ class TestContainerLifecycle:
         skip_if_single_numa,
     ):
         """Test container with NUMA memory affinity."""
+        container_name = f"test-numa-affinity-{uuid.uuid4().hex[:8]}"
         result = run_container(
             runtime=container_runtime,
             image="busybox:latest",
-            name="test-numa-affinity",
+            name=container_name,
             cpuset_cpus="0-3",
             cpuset_mems="0",
             command=["sleep", "30"],
@@ -90,10 +98,11 @@ class TestContainerLifecycle:
 
     def test_container_environment_variables(self, container_runtime, cleanup_containers):
         """Test container with environment variables."""
+        container_name = f"test-env-{uuid.uuid4().hex[:8]}"
         result = run_container(
             runtime=container_runtime,
             image="busybox:latest",
-            name="test-env",
+            name=container_name,
             env={"TEST_VAR": "test_value", "FOO": "bar"},
             command=["sh", "-c", "echo $TEST_VAR && sleep 5"],
         )
@@ -127,10 +136,11 @@ class TestVllmContainer:
     ):
         """Test vLLM container starts and responds to health checks."""
         # Start vLLM container
+        container_name = f"test-vllm-server-{uuid.uuid4().hex[:8]}"
         result = run_container(
             runtime=container_runtime,
             image="vllm/vllm-openai:latest",
-            name="test-vllm-server",
+            name=container_name,
             ports={8000: 8000},
             env={
                 "MODEL": minimal_vllm_config["model"],
@@ -162,14 +172,17 @@ class TestContainerCleanup:
     def test_force_remove_running_container(self, container_runtime):
         """Test force removal of running container."""
         # Start container
+        container_name = f"test-cleanup-{uuid.uuid4().hex[:8]}"
         result = run_container(
             runtime=container_runtime,
             image="busybox:latest",
-            name="test-cleanup",
+            name=container_name,
             command=["sleep", "60"],
         )
 
+        assert result.returncode == 0, f"Container start failed: {result.stderr}"
         container_id = result.stdout.strip()
+        assert container_id, "No container ID returned"
 
         # Force remove without stopping
         removed = remove_container(container_runtime, container_id, force=True)

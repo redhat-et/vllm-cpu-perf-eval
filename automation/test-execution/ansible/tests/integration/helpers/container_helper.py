@@ -143,12 +143,12 @@ def stop_container(runtime: str, container_id: str, timeout: int = 10) -> bool:
         True if stopped successfully
     """
     try:
-        subprocess.run(
+        result = subprocess.run(
             [runtime, "stop", "-t", str(timeout), container_id],
             capture_output=True,
             timeout=timeout + 5,
         )
-        return True
+        return result.returncode == 0
     except Exception:
         return False
 

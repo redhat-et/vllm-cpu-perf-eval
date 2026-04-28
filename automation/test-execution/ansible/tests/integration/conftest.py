@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """Shared fixtures for integration tests."""
+import logging
 import pytest
 import subprocess
 import shutil
-import tempfile
+import sys
 import time
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================================
@@ -82,8 +85,11 @@ def cleanup_containers(container_runtime):
                 capture_output=True,
                 timeout=5,
             )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(
+                f"Failed to cleanup container {container_id}: {e}",
+                exc_info=True
+            )
 
 
 # ============================================================================
@@ -93,11 +99,11 @@ def cleanup_containers(container_runtime):
 @pytest.fixture
 def ansible_inventory(ansible_dir, tmp_path):
     """Provide minimal test inventory."""
-    inventory_content = """[benchmark_hosts]
+    inventory_content = f"""[benchmark_hosts]
 localhost ansible_connection=local
 
 [benchmark_hosts:vars]
-ansible_python_interpreter=/usr/bin/python3
+ansible_python_interpreter={sys.executable}
 """
     inventory_file = tmp_path / "inventory.ini"
     inventory_file.write_text(inventory_content)
@@ -290,14 +296,17 @@ def wait_for_port():
         import socket
         start = time.time()
         while time.time() - start < timeout:
+            sock = None
             try:
                 sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 sock.settimeout(1)
                 sock.connect((host, port))
-                sock.close()
                 return True
             except (socket.error, ConnectionRefusedError):
                 time.sleep(0.5)
+            finally:
+                if sock:
+                    sock.close()
         return False
 
     return _wait
