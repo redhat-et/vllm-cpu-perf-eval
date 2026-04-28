@@ -184,9 +184,19 @@ class TestContainerCleanup:
         container_id = result.stdout.strip()
         assert container_id, "No container ID returned"
 
+        # Wait briefly for container to fully start
+        time.sleep(1)
+
         # Force remove without stopping
         removed = remove_container(container_runtime, container_id, force=True)
-        assert removed, "Failed to force remove container"
+        if not removed:
+            # Get more info for debugging
+            status = get_container_status(container_runtime, container_id)
+            logs = get_container_logs(container_runtime, container_id, tail=50)
+            assert False, (
+                f"Failed to force remove container {container_id}\n"
+                f"Status: {status}\nLogs: {logs}"
+            )
 
         # Verify removed
         status = get_container_status(container_runtime, container_id)

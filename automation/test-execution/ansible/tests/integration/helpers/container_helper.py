@@ -166,11 +166,12 @@ def remove_container(runtime: str, container_id: str, force: bool = True) -> boo
         True if removed successfully
     """
     try:
-        cmd = [runtime, "rm", container_id]
+        cmd = [runtime, "rm"]
         if force:
-            cmd.insert(2, "-f")
+            cmd.append("-f")
+        cmd.append(container_id)
 
-        result = subprocess.run(cmd, capture_output=True, timeout=10)
+        result = subprocess.run(cmd, capture_output=True, timeout=10, text=True)
         return result.returncode == 0
     except Exception:
         return False
