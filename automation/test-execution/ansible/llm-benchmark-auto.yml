@@ -152,10 +152,20 @@
         fail_msg: "guidellm_numa_node must be a non-negative integer, got: {{ guidellm_numa_node }}"
       when: guidellm_numa_node is defined
 
-    - name: Generate test run ID if not provided
+    - name: Generate test run ID (with custom name)
       ansible.builtin.set_fact:
-        test_run_id: "{{ (test_name is defined and test_name | length > 0) | ternary((lookup('pipe', 'date +%Y%m%d-%H%M%S') ~ '-' ~ test_name), lookup('pipe', 'date +%Y%m%d-%H%M%S')) }}"
-      when: test_run_id is not defined
+        test_run_id: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}-{{ test_name }}"
+      when:
+        - test_run_id is not defined
+        - test_name is defined
+        - test_name | length > 0
+
+    - name: Generate test run ID (timestamp only)
+      ansible.builtin.set_fact:
+        test_run_id: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
+      when:
+        - test_run_id is not defined
+        - test_name is not defined or test_name | length == 0
 
     - name: Handle external endpoint model detection/validation
       when: vllm_mode == 'external'
