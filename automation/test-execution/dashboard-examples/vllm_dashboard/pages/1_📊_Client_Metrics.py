@@ -600,9 +600,10 @@ def render_performance_plots(df: pd.DataFrame):
             endpoint_short = endpoint_url.split('//', 1)[-1].rsplit('@', 1)[-1].split('/', 1)[0]
             base_label = f"{endpoint_short} | {full_model} | {vllm_version} | TP={tp} | {workload}"
 
-        # Add test_name to label if it exists
+        # Add test_name to label if it exists (with run ID for disambiguation)
         if test_name and test_name.strip():
-            base_label = f"[{test_name}] {base_label}"
+            run_id_short = test_id[:8] if len(test_id) >= 8 else test_id
+            base_label = f"[{test_name}] {base_label} (run {run_id_short})"
 
         # Plot each selected percentile
         for percentile in selected_percentiles:
@@ -685,9 +686,10 @@ def render_performance_plots(df: pd.DataFrame):
                 'Backend': backend,
             }
 
-            # Add test name if it exists
+            # Add test name if it exists (with run ID for disambiguation)
             if test_name and test_name.strip():
-                row['Test Name'] = test_name
+                run_id_short = test_id[:8] if len(test_id) >= 8 else test_id
+                row['Test Name'] = f"{test_name} (run {run_id_short})"
 
             # Add platform/cores for managed, endpoint for external
             if vllm_mode == 'managed':
@@ -994,11 +996,13 @@ def render_compare_versions(df: pd.DataFrame):
         baseline_label = f"Baseline: {baseline_endpoint_short} | {baseline_run_info['vllm_version']} | {baseline_run_info['workload']}"
         compare_label = f"Compare: {compare_endpoint_short} | {compare_run_info['vllm_version']} | {compare_run_info['workload']}"
 
-    # Add test names to labels if they exist
+    # Add test names to labels if they exist (with run ID for disambiguation)
     if baseline_run_info.get('test_name') and baseline_run_info['test_name'].strip():
-        baseline_label = f"[{baseline_run_info['test_name']}] {baseline_label}"
+        baseline_run_id_short = baseline_run_info['test_run_id'][:8] if len(baseline_run_info['test_run_id']) >= 8 else baseline_run_info['test_run_id']
+        baseline_label = f"[{baseline_run_info['test_name']}] {baseline_label} (run {baseline_run_id_short})"
     if compare_run_info.get('test_name') and compare_run_info['test_name'].strip():
-        compare_label = f"[{compare_run_info['test_name']}] {compare_label}"
+        compare_run_id_short = compare_run_info['test_run_id'][:8] if len(compare_run_info['test_run_id']) >= 8 else compare_run_info['test_run_id']
+        compare_label = f"[{compare_run_info['test_name']}] {compare_label} (run {compare_run_id_short})"
 
     # Throughput
     for data, name, color in [
