@@ -111,25 +111,21 @@
         fail_msg: "guidellm_max_requests must be a positive integer, got: {{ guidellm_max_requests }}"
       when: guidellm_max_requests is defined
 
-    - name: Generate timestamp component for test run ID
-      ansible.builtin.set_fact:
-        _test_timestamp: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
-      when: test_run_id is not defined
-
-    - name: Generate test run ID with custom name if provided
-      ansible.builtin.set_fact:
-        test_run_id: "{{ test_name }}-{{ _test_timestamp }}"
+    - name: Validate test_name format if provided
+      ansible.builtin.assert:
+        that:
+          - test_name | length >= 1
+          - test_name | length <= 30
+          - test_name is match('^[A-Za-z0-9-]+$')
+        fail_msg: "test_name must be 1-30 chars, alphanumeric or hyphens only, got: '{{ test_name }}'"
       when:
-        - test_run_id is not defined
         - test_name is defined
         - test_name | length > 0
 
-    - name: Generate test run ID without custom name (default)
+    - name: Generate test run ID
       ansible.builtin.set_fact:
-        test_run_id: "{{ _test_timestamp }}"
-      when:
-        - test_run_id is not defined
-        - (test_name is not defined or test_name | length == 0)
+        test_run_id: "{{ (test_name is defined and test_name | length > 0) | ternary((lookup('pipe', 'date +%Y%m%d-%H%M%S') ~ '-' ~ test_name), lookup('pipe', 'date +%Y%m%d-%H%M%S')) }}"
+      when: test_run_id is not defined
 
     - name: Handle external endpoint model detection/validation
       when: vllm_mode == 'external'
@@ -536,7 +532,7 @@
         content: |
           {
             "test_run_id": "{{ test_run_id }}",
-            "test_name": "{{ hostvars['localhost']['test_name'] | default('') }}",
+            "test_name": "{{ test_name | default('') }}",
             "config_type": "auto",
             "core_config_name": "{{ core_configuration.name }}",
             "core_count": {{ core_configuration.cores }},

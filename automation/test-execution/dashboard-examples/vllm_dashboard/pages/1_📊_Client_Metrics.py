@@ -238,7 +238,7 @@ def render_filters(df: pd.DataFrame, test_mode: str) -> pd.DataFrame:
             )
 
         # Test name filter (separate row if any tests have custom names)
-        if df['test_name'].str.len().sum() > 0:
+        if df['test_name'].astype(str).ne('').any():
             test_names = sorted([n for n in df['test_name'].unique() if n])
             if test_names:
                 st.markdown("**Test Name Filter:**")
@@ -251,8 +251,10 @@ def render_filters(df: pd.DataFrame, test_mode: str) -> pd.DataFrame:
                 )
             else:
                 selected_test_names = []
+            all_test_names = test_names
         else:
             selected_test_names = []
+            all_test_names = []
 
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -266,8 +268,8 @@ def render_filters(df: pd.DataFrame, test_mode: str) -> pd.DataFrame:
             df['guidellm_version'].isin(selected_guidellm_versions)
         ]
 
-        # Apply test name filter if any selected
-        if selected_test_names:
+        # Apply test name filter only if user has deselected some names
+        if selected_test_names and selected_test_names != all_test_names:
             filtered_df = filtered_df[filtered_df['test_name'].isin(selected_test_names)]
 
     else:  # external mode
@@ -333,7 +335,7 @@ def render_filters(df: pd.DataFrame, test_mode: str) -> pd.DataFrame:
             )
 
         # Test name filter (separate row if any tests have custom names)
-        if df['test_name'].str.len().sum() > 0:
+        if df['test_name'].astype(str).ne('').any():
             test_names = sorted([n for n in df['test_name'].unique() if n])
             if test_names:
                 st.markdown("**Test Name Filter:**")
@@ -346,8 +348,10 @@ def render_filters(df: pd.DataFrame, test_mode: str) -> pd.DataFrame:
                 )
             else:
                 selected_test_names = []
+            all_test_names = test_names
         else:
             selected_test_names = []
+            all_test_names = []
 
         st.markdown('</div>', unsafe_allow_html=True)
 
@@ -361,8 +365,8 @@ def render_filters(df: pd.DataFrame, test_mode: str) -> pd.DataFrame:
             df['model_source'].isin(selected_sources)
         ]
 
-        # Apply test name filter if any selected
-        if selected_test_names:
+        # Apply test name filter only if user has deselected some names
+        if selected_test_names and selected_test_names != all_test_names:
             filtered_df = filtered_df[filtered_df['test_name'].isin(selected_test_names)]
 
     return filtered_df

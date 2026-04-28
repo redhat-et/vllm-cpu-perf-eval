@@ -16,9 +16,20 @@
   any_errors_fatal: true
   vars:
     _test_timestamp: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
-    test_run_id: "{{ (test_name ~ '-' ~ _test_timestamp) if (test_name is defined and test_name | length > 0) else _test_timestamp }}"
+    test_run_id: "{{ (_test_timestamp ~ '-' ~ test_name) if (test_name is defined and test_name | length > 0) else _test_timestamp }}"
 
   tasks:
+    - name: Validate test_name format if provided
+      ansible.builtin.assert:
+        that:
+          - test_name | length >= 1
+          - test_name | length <= 30
+          - test_name is match('^[A-Za-z0-9-]+$')
+        fail_msg: "test_name must be 1-30 chars, alphanumeric or hyphens only, got: '{{ test_name }}'"
+      when:
+        - test_name is defined
+        - test_name | length > 0
+
     - name: Detect if running from AWX
       ansible.builtin.set_fact:
         awx_job_id: "{{ lookup('env', 'AWX_JOB_ID') }}"
