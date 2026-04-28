@@ -612,7 +612,7 @@ ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
   -e "test_name=baseline-v1"
 ```
 
-**Result:** Test run ID becomes `baseline-v1-20260423-143022` (name + timestamp)
+**Result:** Test run ID becomes `20260423-143022-baseline-v1` (timestamp + name)
 
 **Core sweep with custom name:**
 
