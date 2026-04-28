@@ -250,10 +250,10 @@ def render_filters(df: pd.DataFrame, test_mode: str) -> pd.DataFrame:
                     help="Filter by custom test names (if provided during test run)"
                 )
             else:
-                selected_test_names = []
+                selected_test_names = None
             all_test_names = test_names
         else:
-            selected_test_names = []
+            selected_test_names = None
             all_test_names = []
 
         st.markdown('</div>', unsafe_allow_html=True)
@@ -268,8 +268,8 @@ def render_filters(df: pd.DataFrame, test_mode: str) -> pd.DataFrame:
             df['guidellm_version'].isin(selected_guidellm_versions)
         ]
 
-        # Apply test name filter only if user has deselected some names
-        if selected_test_names and selected_test_names != all_test_names:
+        # Apply test name filter if available (None means no filter, empty list means no results)
+        if selected_test_names is not None:
             filtered_df = filtered_df[filtered_df['test_name'].isin(selected_test_names)]
 
     else:  # external mode
@@ -347,10 +347,10 @@ def render_filters(df: pd.DataFrame, test_mode: str) -> pd.DataFrame:
                     help="Filter by custom test names (if provided during test run)"
                 )
             else:
-                selected_test_names = []
+                selected_test_names = None
             all_test_names = test_names
         else:
-            selected_test_names = []
+            selected_test_names = None
             all_test_names = []
 
         st.markdown('</div>', unsafe_allow_html=True)
@@ -365,8 +365,8 @@ def render_filters(df: pd.DataFrame, test_mode: str) -> pd.DataFrame:
             df['model_source'].isin(selected_sources)
         ]
 
-        # Apply test name filter only if user has deselected some names
-        if selected_test_names and selected_test_names != all_test_names:
+        # Apply test name filter if available (None means no filter, empty list means no results)
+        if selected_test_names is not None:
             filtered_df = filtered_df[filtered_df['test_name'].isin(selected_test_names)]
 
     return filtered_df
@@ -602,7 +602,7 @@ def render_performance_plots(df: pd.DataFrame):
 
         # Add test_name to label if it exists (with run ID for disambiguation)
         if test_name and test_name.strip():
-            run_id_short = test_id[:8] if len(test_id) >= 8 else test_id
+            run_id_short = test_id[-12:] if len(test_id) >= 12 else test_id
             base_label = f"[{test_name}] {base_label} (run {run_id_short})"
 
         # Plot each selected percentile
@@ -688,7 +688,7 @@ def render_performance_plots(df: pd.DataFrame):
 
             # Add test name if it exists (with run ID for disambiguation)
             if test_name and test_name.strip():
-                run_id_short = test_id[:8] if len(test_id) >= 8 else test_id
+                run_id_short = test_id[-12:] if len(test_id) >= 12 else test_id
                 row['Test Name'] = f"{test_name} (run {run_id_short})"
 
             # Add platform/cores for managed, endpoint for external
@@ -787,7 +787,7 @@ def render_compare_versions(df: pd.DataFrame):
         # Get available test runs for this configuration
         baseline_test_runs = baseline_df[['test_run_id', 'vllm_version', 'workload', 'tensor_parallel']].drop_duplicates()
         baseline_test_run_options = {
-            f"{row['test_run_id'][:8]} | {row['vllm_version']} | {row['workload']} | TP={row['tensor_parallel']}": row['test_run_id']
+            f"{row['test_run_id'][-12:] if len(row['test_run_id']) >= 12 else row['test_run_id']} | {row['vllm_version']} | {row['workload']} | TP={row['tensor_parallel']}": row['test_run_id']
             for _, row in baseline_test_runs.iterrows()
         }
 
@@ -832,7 +832,7 @@ def render_compare_versions(df: pd.DataFrame):
         # Get available test runs for this configuration
         compare_test_runs = compare_df[['test_run_id', 'vllm_version', 'workload', 'tensor_parallel']].drop_duplicates()
         compare_test_run_options = {
-            f"{row['test_run_id'][:8]} | {row['vllm_version']} | {row['workload']} | TP={row['tensor_parallel']}": row['test_run_id']
+            f"{row['test_run_id'][-12:] if len(row['test_run_id']) >= 12 else row['test_run_id']} | {row['vllm_version']} | {row['workload']} | TP={row['tensor_parallel']}": row['test_run_id']
             for _, row in compare_test_runs.iterrows()
         }
 
@@ -998,10 +998,10 @@ def render_compare_versions(df: pd.DataFrame):
 
     # Add test names to labels if they exist (with run ID for disambiguation)
     if baseline_run_info.get('test_name') and baseline_run_info['test_name'].strip():
-        baseline_run_id_short = baseline_run_info['test_run_id'][:8] if len(baseline_run_info['test_run_id']) >= 8 else baseline_run_info['test_run_id']
+        baseline_run_id_short = baseline_run_info['test_run_id'][-12:] if len(baseline_run_info['test_run_id']) >= 12 else baseline_run_info['test_run_id']
         baseline_label = f"[{baseline_run_info['test_name']}] {baseline_label} (run {baseline_run_id_short})"
     if compare_run_info.get('test_name') and compare_run_info['test_name'].strip():
-        compare_run_id_short = compare_run_info['test_run_id'][:8] if len(compare_run_info['test_run_id']) >= 8 else compare_run_info['test_run_id']
+        compare_run_id_short = compare_run_info['test_run_id'][-12:] if len(compare_run_info['test_run_id']) >= 12 else compare_run_info['test_run_id']
         compare_label = f"[{compare_run_info['test_name']}] {compare_label} (run {compare_run_id_short})"
 
     # Throughput

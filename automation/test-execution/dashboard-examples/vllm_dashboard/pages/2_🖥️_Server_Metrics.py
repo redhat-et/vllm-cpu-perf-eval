@@ -275,7 +275,7 @@ if current_section == "📈 Performance Plots":
                 help="Filter by custom test names (if provided during test run)"
             )
         else:
-            selected_test_names = []
+            selected_test_names = None
 
         # Filter results (before test run selection)
         filtered_pre = [
@@ -288,8 +288,8 @@ if current_section == "📈 Performance Plots":
             and r.get('guidellm_version') in selected_guidellm_versions
         ]
 
-        # Apply test name filter if user has deselected some names
-        if test_names and selected_test_names != test_names:
+        # Apply test name filter if available (None means no filter, empty list means no results)
+        if selected_test_names is not None:
             filtered_pre = [r for r in filtered_pre if r.get('test_name', '') in selected_test_names]
 
     else:  # external mode
@@ -374,8 +374,8 @@ if current_section == "📈 Performance Plots":
             and r.get('model_source', 'specified') in selected_sources
         ]
 
-        # Apply test name filter if user has deselected some names
-        if test_names and selected_test_names != test_names:
+        # Apply test name filter if available (None means no filter, empty list means no results)
+        if selected_test_names is not None:
             filtered_pre = [r for r in filtered_pre if r.get('test_name', '') in selected_test_names]
 
     if not filtered_pre:
@@ -410,7 +410,7 @@ if current_section == "📈 Performance Plots":
         cols[3].metric("Cores", test_data.get('cores', 'N/A'))
         cols[4].metric("Backend", test_data.get('backend', 'N/A'))
         cols[5].metric("GuideLLM", test_data.get('guidellm_version', 'N/A'))
-        cols[6].metric("Test Run ID", test_data.get('test_run_id', 'N/A')[:8])
+        cols[6].metric("Test Run ID", test_data.get('test_run_id', 'N/A')[-12:] if len(test_data.get('test_run_id', 'N/A')) >= 12 else test_data.get('test_run_id', 'N/A'))
     else:  # external mode
         cols = st.columns(6)
         endpoint_url = test_data.get('vllm_endpoint_url', 'N/A')
@@ -421,7 +421,7 @@ if current_section == "📈 Performance Plots":
         cols[2].metric("Workload", test_data.get('workload', 'N/A'))
         cols[3].metric("Backend", test_data.get('backend', 'N/A'))
         cols[4].metric("GuideLLM", test_data.get('guidellm_version', 'N/A'))
-        cols[5].metric("Test Run ID", test_data.get('test_run_id', 'N/A')[:8])
+        cols[5].metric("Test Run ID", test_data.get('test_run_id', 'N/A')[-12:] if len(test_data.get('test_run_id', 'N/A')) >= 12 else test_data.get('test_run_id', 'N/A'))
 
     # Collection info
     collection_info = test_data.get('collection_info', {})
@@ -921,7 +921,7 @@ elif current_section == "⚖️ Compare Configurations":
         # Get available test runs for this configuration
         if baseline_filtered:
             baseline_test_run_options = {
-                f"{r.get('test_run_id', 'unknown')[:8]} | {r.get('backend', 'unknown')}": r
+                f"{r.get('test_run_id', 'unknown')[-12:] if len(r.get('test_run_id', 'unknown')) >= 12 else r.get('test_run_id', 'unknown')} | {r.get('backend', 'unknown')}": r
                 for r in baseline_filtered
             }
 
@@ -1221,7 +1221,7 @@ elif current_section == "⚖️ Compare Configurations":
         row = {
             'Backend': result.get('backend', 'unknown'),
             'Version': result.get('vllm_version', 'unknown'),
-            'Test Run ID': result.get('test_run_id', 'unknown')[:8],
+            'Test Run ID': result.get('test_run_id', 'unknown')[-12:] if len(result.get('test_run_id', 'unknown')) >= 12 else result.get('test_run_id', 'unknown'),
             'Avg Cache %': f"{cache_avg:.1f}",
             'Avg Running': f"{running_avg:.2f}",
             'Avg Waiting': f"{waiting_avg:.2f}"
