@@ -283,9 +283,9 @@
   gather_facts: false
   vars:
     requested_cores: "{{ hostvars['localhost']['requested_cores'] }}"
-    requested_tensor_parallel: "{{ hostvars['localhost']['requested_tensor_parallel'] | default(None) }}"
-    requested_omp_threads: "{{ hostvars['localhost']['requested_omp_threads'] | default(None) }}"
-    requested_omp_bind: "{{ hostvars['localhost']['requested_omp_bind'] | default(None) }}"
+    requested_tensor_parallel: "{{ hostvars['localhost']['requested_tensor_parallel'] | default(omit) }}"
+    requested_omp_threads: "{{ hostvars['localhost']['requested_omp_threads'] | default(omit) }}"
+    requested_omp_bind: "{{ hostvars['localhost']['requested_omp_bind'] | default(omit) }}"
 
   pre_tasks:
     - name: End play if in external mode
