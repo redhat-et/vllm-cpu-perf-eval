@@ -118,8 +118,10 @@ pre-commit run --all-files
 | methodology/metrics.md | ✅ Complete | 2024-02-08 |
 | methodology/reporting.md | ✅ Complete | 2024-02-08 |
 | platform-setup/x86/intel/deterministic-benchmarking.md | ✅ Complete | (current) |
+| ansible/test-execution.md | ✅ Complete | 2026-04-28 |
 | containers/* | 📝 Planned | - |
-| ansible/* | 📝 Planned | - |
+| ansible/distributed-testing.md | 📝 Planned | - |
+| ansible/playbook-reference.md | 📝 Planned | - |
 | getting-started/* | 📝 Planned | - |
 | reference/* | 📝 Planned | - |
 

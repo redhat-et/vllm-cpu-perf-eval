@@ -436,7 +436,7 @@ def extract_size_value(size_str):
 # Valid tensor parallelism values (powers of 2, capped at 8)
 VALID_TP_VALUES = [1, 2, 4, 8]
 
-def allocate_cores_multi_numa(numa_topology, requested_cores, requested_tp=None):
+def allocate_cores_multi_numa(numa_topology, requested_cores, requested_tp=None, cpu_start=None, numa_node_override=None):
     """
     Multi-NUMA core allocation with automatic tensor parallelism calculation.
 
@@ -444,10 +444,15 @@ def allocate_cores_multi_numa(numa_topology, requested_cores, requested_tp=None)
     single-node capacity. Auto-calculates optimal TP value (powers of 2, max 8)
     or validates user-provided TP.
 
+    Socket pinning support: Use cpu_start and numa_node_override to pin vLLM
+    to a specific socket (e.g., socket 1 with cpu_start=64, numa_node=1).
+
     Args:
         numa_topology: Topology dict with nodes inventory and allocation policy
         requested_cores: Total physical cores to allocate
         requested_tp: Optional user override for tensor parallelism (must be valid)
+        cpu_start: Optional CPU offset to start allocation from (for socket pinning)
+        numa_node_override: Optional NUMA node to allocate from (for socket pinning)
 
     Returns:
         dict: Allocation configuration with:
@@ -465,6 +470,7 @@ def allocate_cores_multi_numa(numa_topology, requested_cores, requested_tp=None)
     Examples:
         64 cores on 3-node system → TP=2, 32 cores from 2 nodes
         96 cores on 6-node system → TP=4, 24 cores from 4 nodes
+        Pin to socket 1: cpu_start=64, numa_node_override=1
     """
     # Validate input
     if not isinstance(numa_topology, dict):
@@ -473,7 +479,7 @@ def allocate_cores_multi_numa(numa_topology, requested_cores, requested_tp=None)
     if not isinstance(requested_cores, int) or requested_cores <= 0:
         raise AnsibleFilterError(f"requested_cores must be positive integer, got {requested_cores}")
 
-    # Validate requested_tp if provided
+    # Normalize requested_tp
     if requested_tp is not None:
         # Handle Ansible's omit type - treat as None for auto-calculation
         if str(type(requested_tp).__name__) == '_OmitType':
@@ -493,6 +499,30 @@ def allocate_cores_multi_numa(numa_topology, requested_cores, requested_tp=None)
                 raise AnsibleFilterError(
                     f"Invalid tensor_parallel: {requested_tp}. Valid values: {VALID_TP_VALUES}"
                 )
+
+    # Normalize cpu_start (for socket pinning)
+    if cpu_start is not None:
+        if str(type(cpu_start).__name__) == '_OmitType' or cpu_start == '' or cpu_start == 'None':
+            cpu_start = None
+        else:
+            try:
+                cpu_start = int(cpu_start)
+                if cpu_start < 0:
+                    raise AnsibleFilterError(f"cpu_start must be non-negative, got {cpu_start}")
+            except (ValueError, TypeError) as e:
+                raise AnsibleFilterError(f"Invalid cpu_start: {cpu_start}. Expected integer. Error: {e}")
+
+    # Normalize numa_node_override (for socket pinning)
+    if numa_node_override is not None:
+        if str(type(numa_node_override).__name__) == '_OmitType' or numa_node_override == '' or numa_node_override == 'None':
+            numa_node_override = None
+        else:
+            try:
+                numa_node_override = int(numa_node_override)
+                if numa_node_override < 0:
+                    raise AnsibleFilterError(f"numa_node_override must be non-negative, got {numa_node_override}")
+            except (ValueError, TypeError) as e:
+                raise AnsibleFilterError(f"Invalid numa_node_override: {numa_node_override}. Expected integer. Error: {e}")
 
     # Extract nodes and policy
     nodes = numa_topology.get('nodes', [])
@@ -524,16 +554,74 @@ def allocate_cores_multi_numa(numa_topology, requested_cores, requested_tp=None)
     if not available_nodes:
         raise AnsibleFilterError("No available NUMA nodes for workload allocation")
 
-    # If user provided TP, use it; otherwise auto-calculate
-    if requested_tp is not None:
-        result = allocate_with_fixed_tp(available_nodes, requested_cores, requested_tp)
+    # Handle socket pinning mode
+    if numa_node_override is not None:
+        # Socket pinning: allocate from specific NUMA node
+        result = allocate_with_socket_pinning(
+            normalized_nodes,
+            requested_cores,
+            numa_node_override,
+            cpu_start,
+            requested_tp
+        )
     else:
-        result = allocate_with_auto_tp(available_nodes, requested_cores)
+        # Normal multi-NUMA allocation
+        if requested_tp is not None:
+            result = allocate_with_fixed_tp(available_nodes, requested_cores, requested_tp, cpu_start)
+        else:
+            result = allocate_with_auto_tp(available_nodes, requested_cores, cpu_start)
 
     return result
 
 
-def allocate_with_auto_tp(available_nodes, requested_cores):
+def allocate_with_socket_pinning(all_nodes, requested_cores, numa_node, cpu_start, requested_tp):
+    """
+    Allocate cores from a specific NUMA node (socket pinning).
+
+    Args:
+        all_nodes: List of all NUMA node dicts
+        requested_cores: Total cores to allocate
+        numa_node: NUMA node to allocate from
+        cpu_start: CPU offset to start allocation from (optional)
+        requested_tp: Tensor parallelism (must be 1 for single-node allocation)
+
+    Returns:
+        dict: Allocation configuration
+
+    Raises:
+        AnsibleFilterError: If allocation not possible on specified node
+    """
+    # Find the target NUMA node
+    target_node = None
+    for node in all_nodes:
+        if int(node['id']) == numa_node:
+            target_node = node
+            break
+
+    if target_node is None:
+        available_node_ids = [int(n['id']) for n in all_nodes]
+        raise AnsibleFilterError(
+            f"NUMA node {numa_node} not found. Available nodes: {available_node_ids}"
+        )
+
+    # Validate TP for single-node allocation
+    if requested_tp is not None and requested_tp != 1:
+        raise AnsibleFilterError(
+            f"Socket pinning to single NUMA node requires TP=1, got TP={requested_tp}"
+        )
+
+    # Check if node has enough cores
+    node_capacity = int(target_node['physical_cores'])
+    if requested_cores > node_capacity:
+        raise AnsibleFilterError(
+            f"NUMA node {numa_node} has only {node_capacity} cores, cannot allocate {requested_cores}"
+        )
+
+    # Build allocation using the specified node
+    return build_allocation([target_node], requested_cores, 1, cpu_start)
+
+
+def allocate_with_auto_tp(available_nodes, requested_cores, cpu_start=None):
     """
     Auto-calculate optimal TP and allocate cores across NUMA nodes.
 
@@ -543,6 +631,7 @@ def allocate_with_auto_tp(available_nodes, requested_cores):
     Args:
         available_nodes: List of available NUMA node dicts
         requested_cores: Total cores to allocate
+        cpu_start: Optional CPU offset to start allocation from
 
     Returns:
         dict: Allocation configuration
@@ -575,7 +664,7 @@ def allocate_with_auto_tp(available_nodes, requested_cores):
             selected_nodes = sorted_nodes[:tp]
             # Verify each selected node has sufficient capacity
             if all(n['physical_cores'] >= cores_per_node for n in selected_nodes):
-                return build_allocation(selected_nodes, cores_per_node, tp)
+                return build_allocation(selected_nodes, cores_per_node, tp, cpu_start)
 
     # No valid allocation found - generate helpful error
     valid_allocations = calculate_valid_allocations(available_nodes)
@@ -588,7 +677,7 @@ def allocate_with_auto_tp(available_nodes, requested_cores):
     )
 
 
-def allocate_with_fixed_tp(available_nodes, requested_cores, tp):
+def allocate_with_fixed_tp(available_nodes, requested_cores, tp, cpu_start=None):
     """
     Allocate cores with user-specified TP value.
 
@@ -596,6 +685,7 @@ def allocate_with_fixed_tp(available_nodes, requested_cores, tp):
         available_nodes: List of available NUMA node dicts
         requested_cores: Total cores to allocate
         tp: User-specified tensor parallelism
+        cpu_start: Optional CPU offset to start allocation from
 
     Returns:
         dict: Allocation configuration
@@ -639,10 +729,10 @@ def allocate_with_fixed_tp(available_nodes, requested_cores, tp):
 
     # Build allocation from eligible nodes
     selected_nodes = eligible_nodes[:tp]
-    return build_allocation(selected_nodes, cores_per_node, tp)
+    return build_allocation(selected_nodes, cores_per_node, tp, cpu_start)
 
 
-def build_allocation(selected_nodes, cores_per_node, tp):
+def build_allocation(selected_nodes, cores_per_node, tp, cpu_start=None):
     """
     Build final allocation configuration with CPU pinning and OMP binding.
 
@@ -650,6 +740,7 @@ def build_allocation(selected_nodes, cores_per_node, tp):
         selected_nodes: List of NUMA node dicts to use
         cores_per_node: Cores to allocate from each node
         tp: Tensor parallelism value
+        cpu_start: Optional CPU offset to start allocation from (for socket pinning)
 
     Returns:
         dict: Complete allocation configuration
@@ -666,6 +757,16 @@ def build_allocation(selected_nodes, cores_per_node, tp):
 
         # Expand CPU range string to list of CPU IDs
         all_physical_cpus = expand_cpu_range(physical_cpus_str)
+
+        # Apply CPU offset if specified (for socket pinning)
+        if cpu_start is not None:
+            # Filter CPUs >= cpu_start from this node
+            all_physical_cpus = [cpu for cpu in all_physical_cpus if cpu >= cpu_start]
+            if len(all_physical_cpus) < cores_per_node:
+                raise AnsibleFilterError(
+                    f"Not enough CPUs >= {cpu_start} on NUMA node {node['id']}: "
+                    f"need {cores_per_node}, found {len(all_physical_cpus)}"
+                )
 
         # Take first N physical cores
         allocated_cpus = all_physical_cpus[:cores_per_node]

@@ -252,6 +252,78 @@ results/llm/
 > in this environment. See [GuideLLM issue #627](https://github.com/vllm-project/guidellm/issues/627).
 > JSON and CSV formats are fully functional.
 
+## Advanced Features
+
+### Socket Pinning (NUMA Affinity)
+
+Socket pinning allows you to isolate vLLM server and GuideLLM load generator to different CPU sockets/NUMA nodes. This is useful for:
+- Minimizing performance interference between server and load generator
+- Testing cross-NUMA bandwidth impact
+- Running on dedicated sockets in multi-tenant systems
+
+#### Socket Pinning Configuration
+
+Socket pinning is controlled by four optional parameters:
+
+**vLLM Server Socket Pinning:**
+- `vllm_cpu_start`: CPU ID to start allocation from (e.g., 64 for socket 1)
+- `vllm_numa_node`: NUMA node to allocate from (e.g., 1 for socket 1)
+
+**GuideLLM Load Generator Socket Pinning:**
+- `guidellm_cpus`: CPU range for load generator (e.g., "0-31")
+- `guidellm_numa_node`: NUMA node for load generator memory (e.g., 0)
+
+#### Example: vLLM on Socket 1, GuideLLM on Socket 0
+
+Assume a 2-socket system:
+- Socket 0: Cores 0-31 (NUMA node 0)
+- Socket 1: Cores 64-95 (NUMA node 1)
+
+```bash
+# Single test with socket separation
+ansible-playbook llm-benchmark-auto.yml \
+  -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
+  -e "workload_type=chat" \
+  -e "requested_cores=32" \
+  -e "vllm_cpu_start=64" \
+  -e "vllm_numa_node=1" \
+  -e "guidellm_cpus=0-31" \
+  -e "guidellm_numa_node=0"
+```
+
+```bash
+# Concurrent load test with socket separation
+ansible-playbook llm-benchmark-concurrent-load.yml \
+  -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
+  -e "base_workload=chat" \
+  -e "requested_cores=32" \
+  -e "vllm_cpu_start=64" \
+  -e "vllm_numa_node=1" \
+  -e "guidellm_cpus=0-31" \
+  -e "guidellm_numa_node=0"
+```
+
+#### Determining Your System's Socket Layout
+
+```bash
+# Show NUMA topology
+lscpu | grep NUMA
+
+# Show cores per NUMA node
+numactl --hardware
+
+# Example output:
+# node 0 cpus: 0 1 2 ... 31
+# node 1 cpus: 64 65 66 ... 95
+```
+
+#### Notes
+
+- Socket pinning requires `vllm_numa_node` to be set; `vllm_cpu_start` is optional
+- When using socket pinning with single NUMA node, `tensor_parallel` must equal 1
+- The automation will validate that requested cores fit within the specified socket
+- Without socket pinning parameters, the automation uses default multi-NUMA allocation
+
 ## Design Decisions
 
 ### Why Bash Orchestration Instead of Pure Ansible?
@@ -277,8 +349,9 @@ To extend for embedding tests:
 
 ## Recent Improvements
 
-1. **Localhost Configuration** - Fixed sudo password errors on delegated tasks
-2. **Log Collection** - GuideLLM logs now copied to final results
-3. **Duration Extraction** - Test duration added to metadata (HH:MM:SS and seconds)
-4. **Per-Benchmark Timings** - Detailed timing data for each benchmark iteration
-5. **Core Sweep Orchestration** - Bash wrapper for reliable multi-configuration testing
+1. **Socket Pinning** - Support for pinning vLLM and GuideLLM to separate NUMA nodes/sockets
+2. **Localhost Configuration** - Fixed sudo password errors on delegated tasks
+3. **Log Collection** - GuideLLM logs now copied to final results
+4. **Duration Extraction** - Test duration added to metadata (HH:MM:SS and seconds)
+5. **Per-Benchmark Timings** - Detailed timing data for each benchmark iteration
+6. **Core Sweep Orchestration** - Bash wrapper for reliable multi-configuration testing

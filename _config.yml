@@ -16,6 +16,8 @@ nav_links:
     url: /
   - title: Getting Started
     url: /docs/getting-started
+  - title: Ansible Automation
+    url: /docs/ansible/test-execution
   - title: Methodology
     url: /docs/methodology/overview
   - title: Test Suites

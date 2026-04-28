@@ -21,8 +21,10 @@ benchmark_tool:
 
     # CPU allocation (only applies to containerized mode)
     # Load generator CPU allocation
-    cpuset_cpus: "16-31"
-    cpuset_mems: "0"
+    # Can be overridden with -e "guidellm_cpus=0-31" and -e "guidellm_numa_node=0"
+    # For socket separation: set guidellm_cpus and guidellm_numa_node to different socket
+    cpuset_cpus: "{{ guidellm_cpus | default('16-31') }}"
+    cpuset_mems: "{{ guidellm_numa_node | default('0') }}"
 
     # ========================================================================
     # Benchmark Profile Configuration

@@ -36,6 +36,18 @@
 #     -e "skip_phase_2=true" \
 #     -e "skip_phase_3=true"
 #
+# Socket Pinning (optional):
+#   # Pin vLLM to socket 1 (cores 64-95, NUMA node 1)
+#   # Pin GuideLLM to socket 0 (cores 0-31, NUMA node 0)
+#   ansible-playbook llm-benchmark-concurrent-load.yml \
+#     -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
+#     -e "base_workload=chat" \
+#     -e "requested_cores=32" \
+#     -e "vllm_cpu_start=64" \
+#     -e "vllm_numa_node=1" \
+#     -e "guidellm_cpus=0-31" \
+#     -e "guidellm_numa_node=0"
+#
 # ============================================================================
 
 - name: Concurrent Load Testing - Configuration
@@ -95,6 +107,27 @@
         requested_cores: 0
       when:
         - vllm_mode == 'external'
+
+    - name: Validate vllm_cpu_start if provided
+      ansible.builtin.assert:
+        that:
+          - vllm_cpu_start | int >= 0
+        fail_msg: "vllm_cpu_start must be a non-negative integer, got: {{ vllm_cpu_start }}"
+      when: vllm_cpu_start is defined
+
+    - name: Validate vllm_numa_node if provided
+      ansible.builtin.assert:
+        that:
+          - vllm_numa_node | int >= 0
+        fail_msg: "vllm_numa_node must be a non-negative integer, got: {{ vllm_numa_node }}"
+      when: vllm_numa_node is defined
+
+    - name: Validate guidellm_numa_node if provided
+      ansible.builtin.assert:
+        that:
+          - guidellm_numa_node | int >= 0
+        fail_msg: "guidellm_numa_node must be a non-negative integer, got: {{ guidellm_numa_node }}"
+      when: guidellm_numa_node is defined
 
     - name: Normalize core configuration input
       ansible.builtin.set_fact:
@@ -163,6 +196,10 @@
     workload_type: "{{ base_workload }}"
     vllm_caching_mode: "baseline"
     requested_cores: "{{ effective_requested_cores }}"
+    vllm_cpu_start: "{{ vllm_cpu_start | default(omit) }}"
+    vllm_numa_node: "{{ vllm_numa_node | default(omit) }}"
+    guidellm_cpus: "{{ guidellm_cpus | default(omit) }}"
+    guidellm_numa_node: "{{ guidellm_numa_node | default(omit) }}"
   when: not (skip_phase_1 | default(false) | bool)
 
 - name: Phase 1 Complete
@@ -187,6 +224,10 @@
     workload_type: "{{ base_workload }}_var"
     vllm_caching_mode: "baseline"
     requested_cores: "{{ effective_requested_cores }}"
+    vllm_cpu_start: "{{ vllm_cpu_start | default(omit) }}"
+    vllm_numa_node: "{{ vllm_numa_node | default(omit) }}"
+    guidellm_cpus: "{{ guidellm_cpus | default(omit) }}"
+    guidellm_numa_node: "{{ guidellm_numa_node | default(omit) }}"
   when:
     - not (skip_phase_2 | default(false) | bool)
     - (base_workload + '_var') in ['chat_var', 'code_var', 'summarization_var']
@@ -226,6 +267,10 @@
     workload_type: "{{ base_workload }}_var"
     vllm_caching_mode: "production"
     requested_cores: "{{ effective_requested_cores }}"
+    vllm_cpu_start: "{{ vllm_cpu_start | default(omit) }}"
+    vllm_numa_node: "{{ vllm_numa_node | default(omit) }}"
+    guidellm_cpus: "{{ guidellm_cpus | default(omit) }}"
+    guidellm_numa_node: "{{ guidellm_numa_node | default(omit) }}"
   when:
     - not (skip_phase_3 | default(false) | bool)
     - (base_workload + '_var') in ['chat_var', 'code_var', 'summarization_var']

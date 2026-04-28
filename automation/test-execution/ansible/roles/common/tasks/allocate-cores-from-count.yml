@@ -15,6 +15,26 @@
       - numa_topology.nodes is defined
     fail_msg: "Missing required variables: requested_cores and numa_topology must be set"
 
+- name: Validate vllm_cpu_start if provided
+  ansible.builtin.assert:
+    that:
+      - vllm_cpu_start | int >= 0
+    fail_msg: "vllm_cpu_start must be non-negative, got: {{ vllm_cpu_start }}"
+  when:
+    - vllm_cpu_start is defined
+    - vllm_cpu_start != None
+    - vllm_cpu_start != omit
+
+- name: Validate vllm_numa_node if provided
+  ansible.builtin.assert:
+    that:
+      - vllm_numa_node | int >= 0
+    fail_msg: "vllm_numa_node must be non-negative, got: {{ vllm_numa_node }}"
+  when:
+    - vllm_numa_node is defined
+    - vllm_numa_node != None
+    - vllm_numa_node != omit
+
 - name: Validate requested_tensor_parallel if provided
   ansible.builtin.assert:
     that:
@@ -30,9 +50,14 @@
   ansible.builtin.set_fact:
     _tensor_parallel_value: "{{ requested_tensor_parallel if (requested_tensor_parallel is defined and requested_tensor_parallel != omit and requested_tensor_parallel != None and requested_tensor_parallel != '') else None }}"
 
+- name: Set socket pinning values for allocation
+  ansible.builtin.set_fact:
+    _vllm_cpu_start_value: "{{ vllm_cpu_start if (vllm_cpu_start is defined and vllm_cpu_start != omit and vllm_cpu_start != None and vllm_cpu_start != '') else None }}"
+    _vllm_numa_node_value: "{{ vllm_numa_node if (vllm_numa_node is defined and vllm_numa_node != omit and vllm_numa_node != None and vllm_numa_node != '') else None }}"
+
 - name: Allocate cores using multi-NUMA algorithm
   ansible.builtin.set_fact:
-    core_allocation_result: "{{ numa_topology | allocate_cores_multi_numa(requested_cores | int, _tensor_parallel_value) }}"
+    core_allocation_result: "{{ numa_topology | allocate_cores_multi_numa(requested_cores | int, _tensor_parallel_value, _vllm_cpu_start_value, _vllm_numa_node_value) }}"
 
 - name: Build auto-allocated core configuration
   ansible.builtin.set_fact:

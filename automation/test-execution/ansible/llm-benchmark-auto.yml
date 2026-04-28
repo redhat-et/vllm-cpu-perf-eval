@@ -10,6 +10,15 @@
 #     -e "workload_type=summarization" \
 #     -e "requested_cores=16"
 #     -e "requested_tensor_parallel=2"  # optional, auto-calculated if not specified (valid: 1, 2, 4, 8)
+#
+# Socket Pinning (optional):
+#   # Pin vLLM to socket 1 (cores 64-95, NUMA node 1)
+#   -e "vllm_cpu_start=64" \
+#   -e "vllm_numa_node=1" \
+#
+#   # Pin GuideLLM to socket 0 (cores 0-31, NUMA node 0)
+#   -e "guidellm_cpus=0-31" \
+#   -e "guidellm_numa_node=0"
 
 - name: "Auto-Configured LLM Test - Setup"
   hosts: localhost
@@ -122,7 +131,28 @@
         - test_name is defined
         - test_name | length > 0
 
-    - name: Generate test run ID
+    - name: Validate vllm_cpu_start if provided
+      ansible.builtin.assert:
+        that:
+          - vllm_cpu_start | int >= 0
+        fail_msg: "vllm_cpu_start must be a non-negative integer, got: {{ vllm_cpu_start }}"
+      when: vllm_cpu_start is defined
+
+    - name: Validate vllm_numa_node if provided
+      ansible.builtin.assert:
+        that:
+          - vllm_numa_node | int >= 0
+        fail_msg: "vllm_numa_node must be a non-negative integer, got: {{ vllm_numa_node }}"
+      when: vllm_numa_node is defined
+
+    - name: Validate guidellm_numa_node if provided
+      ansible.builtin.assert:
+        that:
+          - guidellm_numa_node | int >= 0
+        fail_msg: "guidellm_numa_node must be a non-negative integer, got: {{ guidellm_numa_node }}"
+      when: guidellm_numa_node is defined
+
+    - name: Generate test run ID if not provided
       ansible.builtin.set_fact:
         test_run_id: "{{ (test_name is defined and test_name | length > 0) | ternary((lookup('pipe', 'date +%Y%m%d-%H%M%S') ~ '-' ~ test_name), lookup('pipe', 'date +%Y%m%d-%H%M%S')) }}"
       when: test_run_id is not defined
@@ -297,6 +327,8 @@
     requested_tensor_parallel: "{{ hostvars['localhost']['requested_tensor_parallel'] | default(omit) }}"
     requested_omp_threads: "{{ hostvars['localhost']['requested_omp_threads'] | default(omit) }}"
     requested_omp_bind: "{{ hostvars['localhost']['requested_omp_bind'] | default(omit) }}"
+    vllm_cpu_start: "{{ hostvars['localhost']['vllm_cpu_start'] | default(None) }}"
+    vllm_numa_node: "{{ hostvars['localhost']['vllm_numa_node'] | default(None) }}"
 
   pre_tasks:
     - name: End play if in external mode

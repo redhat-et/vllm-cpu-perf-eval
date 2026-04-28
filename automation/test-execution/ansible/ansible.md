@@ -641,6 +641,91 @@ When tests have custom names, Streamlit dashboards automatically display a "Cust
 
 **Backward compatibility:** Tests without `test_name` work as before (timestamp-only IDs).
 
+### Socket Pinning (NUMA Affinity)
+
+Socket pinning allows you to isolate vLLM server and GuideLLM load generator to different CPU sockets/NUMA nodes, minimizing performance interference.
+
+**Supported Playbooks:**
+- ✅ `llm-benchmark-auto.yml`
+- ✅ `llm-benchmark-concurrent-load.yml`
+
+**Parameters:**
+
+| Parameter | Description | Example |
+|-----------|-------------|---------|
+| `vllm_cpu_start` | CPU ID to start vLLM allocation from | `64` (for socket 1) |
+| `vllm_numa_node` | NUMA node for vLLM (required for socket pinning) | `1` |
+| `guidellm_cpus` | CPU range for load generator | `"0-31"` |
+| `guidellm_numa_node` | NUMA node for load generator | `0` |
+
+**Determine Your System's Socket Layout:**
+
+```bash
+# Show NUMA topology
+lscpu | grep NUMA
+
+# Show cores per NUMA node
+numactl --hardware
+
+# Example output:
+# node 0 cpus: 0 1 2 ... 31
+# node 1 cpus: 64 65 66 ... 95
+```
+
+**Example: vLLM on Socket 1, GuideLLM on Socket 0**
+
+Assuming a 2-socket system:
+- Socket 0: Cores 0-31 (NUMA node 0)
+- Socket 1: Cores 64-95 (NUMA node 1)
+
+```bash
+# Single test with socket separation
+ansible-playbook llm-benchmark-auto.yml \
+  -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
+  -e "workload_type=chat" \
+  -e "requested_cores=32" \
+  -e "vllm_cpu_start=64" \
+  -e "vllm_numa_node=1" \
+  -e "guidellm_cpus=0-31" \
+  -e "guidellm_numa_node=0"
+```
+
+```bash
+# Concurrent load test with socket separation
+ansible-playbook llm-benchmark-concurrent-load.yml \
+  -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
+  -e "base_workload=chat" \
+  -e "requested_cores=32" \
+  -e "vllm_cpu_start=64" \
+  -e "vllm_numa_node=1" \
+  -e "guidellm_cpus=0-31" \
+  -e "guidellm_numa_node=0"
+```
+
+**Validation:**
+
+```bash
+# Verify vLLM container pinning
+podman ps | grep vllm
+podman inspect <container-id> | grep -A 2 cpuset
+# Expected: "CpusetCpus": "64-95", "CpusetMems": "1"
+
+# Verify GuideLLM container pinning
+podman ps | grep guidellm
+podman inspect <container-id> | grep -A 2 cpuset
+# Expected: "CpusetCpus": "0-31", "CpusetMems": "0"
+```
+
+**Use Cases:**
+- **Minimize Interference**: Eliminate CPU contention between server and load generator
+- **Test Cross-NUMA Performance**: Measure impact of cross-socket memory access
+- **Multi-Tenant Systems**: Isolate benchmarks from other workloads
+
+**Notes:**
+- Socket pinning requires `vllm_numa_node` to be set
+- When pinning to single NUMA node, `tensor_parallel` must equal 1
+- The automation validates requested cores fit within specified socket
+
 ## Troubleshooting
 
 ### Connection Issues
