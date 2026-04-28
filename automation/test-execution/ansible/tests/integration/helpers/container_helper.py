@@ -117,9 +117,10 @@ def get_container_logs(
     Returns:
         Container logs as string
     """
-    cmd = [runtime, "logs", container_id]
+    cmd = [runtime, "logs"]
     if tail:
         cmd.extend(["--tail", str(tail)])
+    cmd.append(container_id)
 
     result = subprocess.run(
         cmd,
@@ -171,9 +172,15 @@ def remove_container(runtime: str, container_id: str, force: bool = True) -> boo
             cmd.append("-f")
         cmd.append(container_id)
 
-        result = subprocess.run(cmd, capture_output=True, timeout=10, text=True)
+        result = subprocess.run(cmd, capture_output=True, timeout=30, text=True)
+        if result.returncode != 0:
+            # Log error for debugging
+            import sys
+            print(f"Container removal failed: {result.stderr}", file=sys.stderr)
         return result.returncode == 0
-    except Exception:
+    except Exception as e:
+        import sys
+        print(f"Exception during container removal: {e}", file=sys.stderr)
         return False
 
 

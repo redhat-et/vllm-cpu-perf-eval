@@ -189,6 +189,16 @@ class TestContainerCleanup:
 
         # Force remove without stopping
         removed = remove_container(container_runtime, container_id, force=True)
+
+        # Wait for removal to complete (it may take a moment)
+        max_wait = 10
+        for _ in range(max_wait):
+            status = get_container_status(container_runtime, container_id)
+            if status is None:
+                removed = True
+                break
+            time.sleep(1)
+
         if not removed:
             # Get more info for debugging
             status = get_container_status(container_runtime, container_id)
@@ -200,4 +210,4 @@ class TestContainerCleanup:
 
         # Verify removed
         status = get_container_status(container_runtime, container_id)
-        assert status is None, "Container still exists after removal"
+        assert status is None, f"Container still exists with status: {status}"
