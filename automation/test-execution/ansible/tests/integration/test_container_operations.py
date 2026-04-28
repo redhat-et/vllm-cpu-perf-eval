@@ -44,7 +44,9 @@ class TestContainerLifecycle:
         status = get_container_status(container_runtime, container_id)
         assert status in ["exited", "stopped"], f"Container still running: {status}"
 
-    def test_container_with_cpu_affinity(self, container_runtime, cleanup_containers):
+    def test_container_with_cpu_affinity(
+        self, container_runtime, cleanup_containers, skip_if_no_cpuset
+    ):
         """Test container with CPU affinity settings."""
         result = run_container(
             runtime=container_runtime,

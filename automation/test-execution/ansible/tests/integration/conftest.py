@@ -244,6 +244,30 @@ def skip_if_single_numa(numa_topology):
         pytest.skip("Test requires multi-NUMA system")
 
 
+@pytest.fixture(scope="session")
+def cpuset_available():
+    """Check if cpuset cgroup controller is available."""
+    try:
+        # Check if cpuset controller is mounted
+        cgroup_paths = [
+            "/sys/fs/cgroup/cpuset",  # cgroup v1
+            "/sys/fs/cgroup/cpuset.cpus",  # cgroup v2
+        ]
+        for path in cgroup_paths:
+            if Path(path).exists():
+                return True
+        return False
+    except Exception:
+        return False
+
+
+@pytest.fixture
+def skip_if_no_cpuset(cpuset_available):
+    """Skip test if cpuset cgroup controller is not available."""
+    if not cpuset_available:
+        pytest.skip("Test requires cpuset cgroup controller")
+
+
 # ============================================================================
 # Utility Fixtures
 # ============================================================================

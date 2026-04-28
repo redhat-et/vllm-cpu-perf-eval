@@ -170,8 +170,8 @@ def remove_container(runtime: str, container_id: str, force: bool = True) -> boo
         if force:
             cmd.insert(2, "-f")
 
-        subprocess.run(cmd, capture_output=True, timeout=10)
-        return True
+        result = subprocess.run(cmd, capture_output=True, timeout=10)
+        return result.returncode == 0
     except Exception:
         return False
 
