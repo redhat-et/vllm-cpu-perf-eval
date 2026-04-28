@@ -181,7 +181,7 @@ Full documentation index: [docs/docs.md](docs/docs.md)
 Tests model performance under various concurrent request loads.
 
 - Concurrency levels: 1, 2, 4, 8, 16, 32
-- 6 LLM models + 2 embedding models
+- 7 LLM models + 2 embedding models
 - Focus: P95 latency, TTFT, throughput scaling
 
 ### Test Suite: Scalability
@@ -206,7 +206,7 @@ Multi-tenant and resource sharing scenarios.
 
 Current model coverage:
 
-**LLM Models (6 total):**
+**LLM Models (7 total):**
 
 - Llama-3.2 (1B, 3B) - Prefill-heavy
 - TinyLlama-1.1B - Balanced small-scale

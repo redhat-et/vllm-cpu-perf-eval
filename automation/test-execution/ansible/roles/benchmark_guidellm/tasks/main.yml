@@ -297,10 +297,10 @@
 
 - name: Wait for GuideLLM benchmark to complete and capture exit code (containerized)
   ansible.builtin.command:
-    cmd: "podman wait {{ guidellm_container_name }}"
+    cmd: "timeout {{ guidellm_wait_timeout_seconds }} podman wait {{ guidellm_container_name }}"
   register: guidellm_exit_code_container
   changed_when: false
-  failed_when: guidellm_exit_code_container.rc != 0
+  failed_when: false
   when: use_guidellm_container | bool
 
 - name: Announce benchmark completion (containerized)
@@ -331,9 +331,18 @@
     - container_exit_code.stdout is defined
     - container_exit_code.stdout != '0'
 
+- name: Create temporary file for GuideLLM logs
+  ansible.builtin.tempfile:
+    state: file
+    suffix: .log
+  register: guidellm_log_file
+  when:
+    - use_guidellm_container | bool
+    - container_exit_code.stdout is defined
+
 - name: Stream GuideLLM container logs directly to file
   ansible.builtin.shell:
-    cmd: "podman logs {{ ('guidellm-' ~ workload_type ~ '-' ~ core_cfg.name) | quote }} > {{ ('/tmp/guidellm-' ~ workload_type ~ '-' ~ core_cfg.name ~ '-' ~ test_run_id ~ '.log') | quote }} 2>&1"
+    cmd: "podman logs {{ ('guidellm-' ~ workload_type ~ '-' ~ core_cfg.name) | quote }} > {{ guidellm_log_file.path | quote }} 2>&1"
   args:
     executable: /bin/bash
   changed_when: false
@@ -344,10 +353,19 @@
 
 - name: Fetch GuideLLM logs to controller
   ansible.builtin.fetch:
-    src: "{{ '/tmp/guidellm-' ~ workload_type ~ '-' ~ core_cfg.name ~ '-' ~ test_run_id ~ '.log' }}"
+    src: "{{ guidellm_log_file.path }}"
     dest: "{{ results_path }}/guidellm.log"
     flat: true
   when: use_guidellm_container | bool
+
+- name: Remove temporary log file
+  ansible.builtin.file:
+    path: "{{ guidellm_log_file.path }}"
+    state: absent
+  when:
+    - use_guidellm_container | bool
+    - guidellm_log_file.path is defined
+  failed_when: false
 
 
 - name: Remove completed container
@@ -358,6 +376,14 @@
     - use_guidellm_container | bool
     - container_exit_code.stdout is defined
   no_log: true
+
+- name: Check benchmark exit code after diagnostics (containerized)
+  ansible.builtin.fail:
+    msg: "GuideLLM benchmark failed with exit code {{ guidellm_exit_code_container.rc }}"
+  when:
+    - use_guidellm_container | bool
+    - guidellm_exit_code_container.rc is defined
+    - guidellm_exit_code_container.rc != 0
 
 # ============================================================================
 # HOST EXECUTION PATH

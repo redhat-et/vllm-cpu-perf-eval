@@ -125,7 +125,7 @@ To maintain the focus on establishing stable, predictable baselines for core arc
 
 This section covers Large Language Model (LLM) selection and testing across all test suites.
 
-## Current LLM Models (9 total)
+## Current LLM Models (7 total)
 
 | Architecture | Model | Parameters | Primary Focus | Context Length |
 |--------------|-------|------------|---------------|----------------|
