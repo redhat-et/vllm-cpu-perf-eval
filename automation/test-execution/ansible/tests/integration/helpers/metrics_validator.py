@@ -214,16 +214,26 @@ def compare_metrics(
         if baseline_val is None or current_val is None:
             continue
 
-        deviation_pct = abs((current_val - baseline_val) / baseline_val * 100)
+        # Handle division by zero
+        if baseline_val == 0:
+            if current_val == 0:
+                deviation_pct = 0.0
+                passed = True
+            else:
+                deviation_pct = float('inf')
+                passed = False
+        else:
+            deviation_pct = abs((current_val - baseline_val) / baseline_val * 100)
+            passed = deviation_pct <= tolerance_pct
 
         comparison["metrics"][metric_name] = {
             "baseline": baseline_val,
             "current": current_val,
             "deviation_pct": deviation_pct,
-            "passed": deviation_pct <= tolerance_pct,
+            "passed": passed,
         }
 
-        if deviation_pct > tolerance_pct:
+        if not passed:
             comparison["failures"].append(
                 f"{metric_name}: {deviation_pct:.1f}% deviation "
                 f"(baseline={baseline_val}, current={current_val})"

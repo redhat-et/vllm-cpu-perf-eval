@@ -307,8 +307,17 @@ def expand_cpu_range(cpu_range_str: str) -> List[int]:
         if '-' in part:
             try:
                 start, end = part.split('-', 1)
-                all_cpus.extend(range(int(start), int(end) + 1))
+                start_int = int(start)
+                end_int = int(end)
+                if start_int > end_int:
+                    raise AnsibleFilterError(
+                        f"Invalid CPU range '{part}': descending range "
+                        f"(start {start_int} > end {end_int})"
+                    )
+                all_cpus.extend(range(start_int, end_int + 1))
             except ValueError as e:
+                if "Invalid CPU range" in str(e):
+                    raise
                 raise AnsibleFilterError(
                     f"Invalid CPU range format: '{part}' - {e}"
                 )
@@ -319,6 +328,14 @@ def expand_cpu_range(cpu_range_str: str) -> List[int]:
                 raise AnsibleFilterError(
                     f"Invalid CPU number: '{part}' - {e}"
                 )
+
+    # Check for duplicates
+    if len(all_cpus) != len(set(all_cpus)):
+        duplicates = [cpu for cpu in set(all_cpus) if all_cpus.count(cpu) > 1]
+        raise AnsibleFilterError(
+            f"Duplicate CPU IDs in range '{cpu_range_str}': {sorted(duplicates)}"
+        )
+
     return all_cpus
 
 def merge_cpu_ranges(range_list: List[str]) -> str:
