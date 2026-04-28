@@ -214,66 +214,169 @@ if current_section == "📈 Performance Plots":
         col1, col2, col3 = st.columns(3)
 
         with col1:
-            selected_platform = st.selectbox("Platform", platforms)
+            selected_platforms = st.multiselect(
+                "Platform",
+                platforms,
+                default=platforms,
+                key="platform_filter_server"
+            )
 
         with col2:
-            selected_model = st.selectbox("Model", models)
+            selected_models = st.multiselect(
+                "Model",
+                models,
+                default=models,
+                key="model_filter_server"
+            )
 
         with col3:
-            selected_workload = st.selectbox("Workload", workloads)
+            selected_workloads = st.multiselect(
+                "Workload",
+                workloads,
+                default=workloads,
+                key="workload_filter_server"
+            )
 
         col4, col5, col6 = st.columns(3)
 
         with col4:
-            selected_cores = st.selectbox("Cores", cores)
+            selected_cores_list = st.multiselect(
+                "Core Count",
+                cores,
+                default=cores,
+                key="cores_filter_server"
+            )
 
         with col5:
-            selected_version = st.selectbox("vLLM Version", versions)
+            selected_versions = st.multiselect(
+                "vLLM Version",
+                versions,
+                default=versions,
+                key="version_filter_server"
+            )
 
         with col6:
-            selected_guidellm_version = st.selectbox("GuideLLM Version", guidellm_versions)
+            selected_guidellm_versions = st.multiselect(
+                "GuideLLM Version",
+                guidellm_versions,
+                default=guidellm_versions,
+                key="guidellm_version_filter_server"
+            )
+
+        # Test name filter (separate row if any tests have custom names)
+        test_names = sorted(set(r.get('test_name', '') for r in results if r.get('test_name', '').strip()))
+        if test_names:
+            st.markdown("**Test Name Filter:**")
+            selected_test_names = st.multiselect(
+                "Custom Test Names",
+                test_names,
+                default=test_names,
+                key="test_name_filter_server_managed",
+                help="Filter by custom test names (if provided during test run)"
+            )
+        else:
+            selected_test_names = []
 
         # Filter results (before test run selection)
         filtered_pre = [
             r for r in results
-            if r.get('platform') == selected_platform
-            and r.get('model') == selected_model
-            and r.get('workload') == selected_workload
-            and r.get('cores') == selected_cores
-            and r.get('vllm_version') == selected_version
-            and r.get('guidellm_version') == selected_guidellm_version
+            if r.get('platform') in selected_platforms
+            and r.get('model') in selected_models
+            and r.get('workload') in selected_workloads
+            and r.get('cores') in selected_cores_list
+            and r.get('vllm_version') in selected_versions
+            and r.get('guidellm_version') in selected_guidellm_versions
         ]
+
+        # Apply test name filter if user has deselected some names
+        if test_names and selected_test_names != test_names:
+            filtered_pre = [r for r in filtered_pre if r.get('test_name', '') in selected_test_names]
 
     else:  # external mode
         # External mode filters
         col1, col2, col3 = st.columns(3)
 
         with col1:
-            selected_endpoint = st.selectbox("Endpoint URL", endpoints)
+            selected_endpoints = st.multiselect(
+                "Endpoint URL",
+                endpoints,
+                default=endpoints,
+                key="endpoint_filter_server"
+            )
 
         with col2:
-            selected_model = st.selectbox("Model", models)
+            selected_models = st.multiselect(
+                "Model",
+                models,
+                default=models,
+                key="model_filter_server_ext"
+            )
 
         with col3:
-            selected_workload = st.selectbox("Workload", workloads)
+            selected_workloads = st.multiselect(
+                "Workload",
+                workloads,
+                default=workloads,
+                key="workload_filter_server_ext"
+            )
 
         col4, col5, col6 = st.columns(3)
 
         with col4:
-            selected_version = st.selectbox("vLLM Version", versions)
+            selected_versions = st.multiselect(
+                "vLLM Version",
+                versions,
+                default=versions,
+                key="version_filter_server_ext"
+            )
 
         with col5:
-            selected_guidellm_version = st.selectbox("GuideLLM Version", guidellm_versions)
+            selected_guidellm_versions = st.multiselect(
+                "GuideLLM Version",
+                guidellm_versions,
+                default=guidellm_versions,
+                key="guidellm_version_filter_server_ext"
+            )
+
+        with col6:
+            # Model source (auto-detected vs specified)
+            sources = sorted(set(r.get('model_source', 'specified') for r in results))
+            selected_sources = st.multiselect(
+                "Model Source",
+                sources,
+                default=sources,
+                key="source_filter_server_ext",
+                help="'auto-detected' = model discovered from endpoint, 'specified' = model explicitly provided"
+            )
+
+        # Test name filter (separate row if any tests have custom names)
+        test_names = sorted(set(r.get('test_name', '') for r in results if r.get('test_name', '').strip()))
+        if test_names:
+            st.markdown("**Test Name Filter:**")
+            selected_test_names = st.multiselect(
+                "Custom Test Names",
+                test_names,
+                default=test_names,
+                key="test_name_filter_server_external",
+                help="Filter by custom test names (if provided during test run)"
+            )
+        else:
+            selected_test_names = []
 
         # Filter results (before test run selection)
         filtered_pre = [
             r for r in results
-            if r.get('vllm_endpoint_url') == selected_endpoint
-            and r.get('model') == selected_model
-            and r.get('workload') == selected_workload
-            and r.get('vllm_version') == selected_version
-            and r.get('guidellm_version') == selected_guidellm_version
+            if r.get('vllm_endpoint_url') in selected_endpoints
+            and r.get('model') in selected_models
+            and r.get('workload') in selected_workloads
+            and r.get('vllm_version') in selected_versions
+            and r.get('guidellm_version') in selected_guidellm_versions
+            and r.get('model_source', 'specified') in selected_sources
         ]
+
+        # Apply test name filter if user has deselected some names
+        if test_names and selected_test_names != test_names:
+            filtered_pre = [r for r in filtered_pre if r.get('test_name', '') in selected_test_names]
 
     if not filtered_pre:
         st.warning("No results match the selected filters")
@@ -772,47 +875,47 @@ elif current_section == "⚖️ Compare Configurations":
 
         if test_mode == 'managed':
             # Managed mode filters
-            baseline_platform = st.selectbox("Platform", platforms, key="baseline_platform")
+            baseline_platform = st.selectbox("Platform", platforms, key="baseline_platform_cmp")
             baseline_filtered = [r for r in results if r.get('platform') == baseline_platform]
 
             baseline_models = sorted(set(r.get('model', 'unknown') for r in baseline_filtered))
-            baseline_model = st.selectbox("Model", baseline_models, key="baseline_model")
+            baseline_model = st.selectbox("Model", baseline_models, key="baseline_model_cmp")
             baseline_filtered = [r for r in baseline_filtered if r.get('model') == baseline_model]
 
             baseline_workloads = sorted(set(r.get('workload', 'unknown') for r in baseline_filtered))
-            baseline_workload = st.selectbox("Workload", baseline_workloads, key="baseline_workload")
+            baseline_workload = st.selectbox("Workload", baseline_workloads, key="baseline_workload_cmp")
             baseline_filtered = [r for r in baseline_filtered if r.get('workload') == baseline_workload]
 
             baseline_cores_list = sorted(set(r.get('cores', 'N/A') for r in baseline_filtered), key=lambda x: (isinstance(x, str), x))
-            baseline_cores_sel = st.selectbox("Cores", baseline_cores_list, key="baseline_cores")
+            baseline_cores_sel = st.selectbox("Cores", baseline_cores_list, key="baseline_cores_cmp")
             baseline_filtered = [r for r in baseline_filtered if r.get('cores') == baseline_cores_sel]
 
             baseline_versions = sorted(set(r.get('vllm_version', 'unknown') for r in baseline_filtered))
-            baseline_version = st.selectbox("vLLM Version", baseline_versions, key="baseline_version")
+            baseline_version = st.selectbox("vLLM Version", baseline_versions, key="baseline_version_cmp")
             baseline_filtered = [r for r in baseline_filtered if r.get('vllm_version') == baseline_version]
 
             baseline_guidellm_versions = sorted(set(r.get('guidellm_version', 'unknown') for r in baseline_filtered))
-            baseline_guidellm_version = st.selectbox("GuideLLM Version", baseline_guidellm_versions, key="baseline_guidellm_version")
+            baseline_guidellm_version = st.selectbox("GuideLLM Version", baseline_guidellm_versions, key="baseline_guidellm_version_cmp")
             baseline_filtered = [r for r in baseline_filtered if r.get('guidellm_version') == baseline_guidellm_version]
         else:  # external mode
             # External mode filters
-            baseline_endpoint = st.selectbox("Endpoint URL", endpoints, key="baseline_endpoint")
+            baseline_endpoint = st.selectbox("Endpoint URL", endpoints, key="baseline_endpoint_cmp")
             baseline_filtered = [r for r in results if r.get('vllm_endpoint_url') == baseline_endpoint]
 
             baseline_models = sorted(set(r.get('model', 'unknown') for r in baseline_filtered))
-            baseline_model = st.selectbox("Model", baseline_models, key="baseline_model")
+            baseline_model = st.selectbox("Model", baseline_models, key="baseline_model_cmp")
             baseline_filtered = [r for r in baseline_filtered if r.get('model') == baseline_model]
 
             baseline_workloads = sorted(set(r.get('workload', 'unknown') for r in baseline_filtered))
-            baseline_workload = st.selectbox("Workload", baseline_workloads, key="baseline_workload")
+            baseline_workload = st.selectbox("Workload", baseline_workloads, key="baseline_workload_cmp")
             baseline_filtered = [r for r in baseline_filtered if r.get('workload') == baseline_workload]
 
             baseline_versions = sorted(set(r.get('vllm_version', 'unknown') for r in baseline_filtered))
-            baseline_version = st.selectbox("vLLM Version", baseline_versions, key="baseline_version")
+            baseline_version = st.selectbox("vLLM Version", baseline_versions, key="baseline_version_cmp")
             baseline_filtered = [r for r in baseline_filtered if r.get('vllm_version') == baseline_version]
 
             baseline_guidellm_versions = sorted(set(r.get('guidellm_version', 'unknown') for r in baseline_filtered))
-            baseline_guidellm_version = st.selectbox("GuideLLM Version", baseline_guidellm_versions, key="baseline_guidellm_version_ext")
+            baseline_guidellm_version = st.selectbox("GuideLLM Version", baseline_guidellm_versions, key="baseline_guidellm_version_ext_cmp")
             baseline_filtered = [r for r in baseline_filtered if r.get('guidellm_version') == baseline_guidellm_version]
 
         # Get available test runs for this configuration
@@ -837,47 +940,47 @@ elif current_section == "⚖️ Compare Configurations":
 
         if test_mode == 'managed':
             # Managed mode filters
-            compare_platform = st.selectbox("Platform", platforms, key="compare_platform")
+            compare_platform = st.selectbox("Platform", platforms, key="compare_platform_cmp")
             compare_filtered = [r for r in results if r.get('platform') == compare_platform]
 
             compare_models = sorted(set(r.get('model', 'unknown') for r in compare_filtered))
-            compare_model = st.selectbox("Model", compare_models, key="compare_model")
+            compare_model = st.selectbox("Model", compare_models, key="compare_model_cmp")
             compare_filtered = [r for r in compare_filtered if r.get('model') == compare_model]
 
             compare_workloads = sorted(set(r.get('workload', 'unknown') for r in compare_filtered))
-            compare_workload = st.selectbox("Workload", compare_workloads, key="compare_workload")
+            compare_workload = st.selectbox("Workload", compare_workloads, key="compare_workload_cmp")
             compare_filtered = [r for r in compare_filtered if r.get('workload') == compare_workload]
 
             compare_cores_list = sorted(set(r.get('cores', 'N/A') for r in compare_filtered), key=lambda x: (isinstance(x, str), x))
-            compare_cores_sel = st.selectbox("Cores", compare_cores_list, key="compare_cores")
+            compare_cores_sel = st.selectbox("Cores", compare_cores_list, key="compare_cores_cmp")
             compare_filtered = [r for r in compare_filtered if r.get('cores') == compare_cores_sel]
 
             compare_versions = sorted(set(r.get('vllm_version', 'unknown') for r in compare_filtered))
-            compare_version = st.selectbox("vLLM Version", compare_versions, key="compare_version")
+            compare_version = st.selectbox("vLLM Version", compare_versions, key="compare_version_cmp")
             compare_filtered = [r for r in compare_filtered if r.get('vllm_version') == compare_version]
 
             compare_guidellm_versions = sorted(set(r.get('guidellm_version', 'unknown') for r in compare_filtered))
-            compare_guidellm_version = st.selectbox("GuideLLM Version", compare_guidellm_versions, key="compare_guidellm_version")
+            compare_guidellm_version = st.selectbox("GuideLLM Version", compare_guidellm_versions, key="compare_guidellm_version_cmp")
             compare_filtered = [r for r in compare_filtered if r.get('guidellm_version') == compare_guidellm_version]
         else:  # external mode
             # External mode filters
-            compare_endpoint = st.selectbox("Endpoint URL", endpoints, key="compare_endpoint")
+            compare_endpoint = st.selectbox("Endpoint URL", endpoints, key="compare_endpoint_cmp")
             compare_filtered = [r for r in results if r.get('vllm_endpoint_url') == compare_endpoint]
 
             compare_models = sorted(set(r.get('model', 'unknown') for r in compare_filtered))
-            compare_model = st.selectbox("Model", compare_models, key="compare_model")
+            compare_model = st.selectbox("Model", compare_models, key="compare_model_cmp")
             compare_filtered = [r for r in compare_filtered if r.get('model') == compare_model]
 
             compare_workloads = sorted(set(r.get('workload', 'unknown') for r in compare_filtered))
-            compare_workload = st.selectbox("Workload", compare_workloads, key="compare_workload")
+            compare_workload = st.selectbox("Workload", compare_workloads, key="compare_workload_cmp")
             compare_filtered = [r for r in compare_filtered if r.get('workload') == compare_workload]
 
             compare_versions = sorted(set(r.get('vllm_version', 'unknown') for r in compare_filtered))
-            compare_version = st.selectbox("vLLM Version", compare_versions, key="compare_version")
+            compare_version = st.selectbox("vLLM Version", compare_versions, key="compare_version_cmp")
             compare_filtered = [r for r in compare_filtered if r.get('vllm_version') == compare_version]
 
             compare_guidellm_versions = sorted(set(r.get('guidellm_version', 'unknown') for r in compare_filtered))
-            compare_guidellm_version = st.selectbox("GuideLLM Version", compare_guidellm_versions, key="compare_guidellm_version_ext")
+            compare_guidellm_version = st.selectbox("GuideLLM Version", compare_guidellm_versions, key="compare_guidellm_version_ext_cmp")
             compare_filtered = [r for r in compare_filtered if r.get('guidellm_version') == compare_guidellm_version]
 
         # Get available test runs for this configuration
