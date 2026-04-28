@@ -284,6 +284,43 @@ def extract_numa_nodes(lscpu_data):
     except LscpuParseError as e:
         raise AnsibleFilterError(f"Failed to parse lscpu data: {e}")
 
+
+def expand_cpu_range(cpu_range_str: str) -> List[int]:
+    """
+    Expand a CPU range string to a list of CPU IDs.
+    Args:
+        cpu_range_str: CPU range string (e.g., "0-3,8-11,16" or "32-63")
+    Returns:
+        List of CPU IDs
+    Example:
+        "0-3,8" -> [0, 1, 2, 3, 8]
+        "32-63" -> [32, 33, ..., 63]
+    """
+    if not cpu_range_str:
+        return []
+
+    all_cpus = []
+    for part in cpu_range_str.split(','):
+        part = part.strip()
+        if not part:
+            continue
+        if '-' in part:
+            try:
+                start, end = part.split('-', 1)
+                all_cpus.extend(range(int(start), int(end) + 1))
+            except ValueError as e:
+                raise AnsibleFilterError(
+                    f"Invalid CPU range format: '{part}' - {e}"
+                )
+        else:
+            try:
+                all_cpus.append(int(part))
+            except ValueError as e:
+                raise AnsibleFilterError(
+                    f"Invalid CPU number: '{part}' - {e}"
+                )
+    return all_cpus
+
 def merge_cpu_ranges(range_list: List[str]) -> str:
     """
     Merge multiple CPU range strings into one.
@@ -610,10 +647,11 @@ def build_allocation(selected_nodes, cores_per_node, tp):
         if not physical_cpus_str:
             physical_cpus_str = node.get('physical_cpus', '')
 
-        physical_cpus_list = physical_cpus_str.split(',')
+        # Expand CPU range string to list of CPU IDs
+        all_physical_cpus = expand_cpu_range(physical_cpus_str)
 
         # Take first N physical cores
-        allocated_cpus = [int(cpu.strip()) for cpu in physical_cpus_list[:cores_per_node]]
+        allocated_cpus = all_physical_cpus[:cores_per_node]
 
         # Validate allocation produced requested number of CPUs
         if len(allocated_cpus) != cores_per_node:
