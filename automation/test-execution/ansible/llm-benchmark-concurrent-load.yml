@@ -171,6 +171,27 @@
       ansible.builtin.set_fact:
         passthrough_test_model: "{{ test_model | default('__AUTO_DETECT__') }}"
 
+    # Set passthrough variables for socket pinning parameters to avoid recursive template references
+    - name: Set passthrough vllm_cpu_start if defined
+      ansible.builtin.set_fact:
+        passthrough_vllm_cpu_start: "{{ vllm_cpu_start }}"
+      when: vllm_cpu_start is defined
+
+    - name: Set passthrough vllm_numa_node if defined
+      ansible.builtin.set_fact:
+        passthrough_vllm_numa_node: "{{ vllm_numa_node }}"
+      when: vllm_numa_node is defined
+
+    - name: Set passthrough guidellm_cpus if defined
+      ansible.builtin.set_fact:
+        passthrough_guidellm_cpus: "{{ guidellm_cpus }}"
+      when: guidellm_cpus is defined
+
+    - name: Set passthrough guidellm_numa_node if defined
+      ansible.builtin.set_fact:
+        passthrough_guidellm_numa_node: "{{ guidellm_numa_node }}"
+      when: guidellm_numa_node is defined
+
     - name: Display test suite configuration
       ansible.builtin.debug:
         msg:
@@ -196,10 +217,10 @@
     workload_type: "{{ base_workload }}"
     vllm_caching_mode: "baseline"
     requested_cores: "{{ effective_requested_cores }}"
-    vllm_cpu_start: "{{ vllm_cpu_start | default(omit) }}"
-    vllm_numa_node: "{{ vllm_numa_node | default(omit) }}"
-    guidellm_cpus: "{{ guidellm_cpus | default(omit) }}"
-    guidellm_numa_node: "{{ guidellm_numa_node | default(omit) }}"
+    vllm_cpu_start: "{{ hostvars['localhost']['passthrough_vllm_cpu_start'] | default(omit) }}"
+    vllm_numa_node: "{{ hostvars['localhost']['passthrough_vllm_numa_node'] | default(omit) }}"
+    guidellm_cpus: "{{ hostvars['localhost']['passthrough_guidellm_cpus'] | default(omit) }}"
+    guidellm_numa_node: "{{ hostvars['localhost']['passthrough_guidellm_numa_node'] | default(omit) }}"
   when: not (skip_phase_1 | default(false) | bool)
 
 - name: Phase 1 Complete
@@ -224,10 +245,10 @@
     workload_type: "{{ base_workload }}_var"
     vllm_caching_mode: "baseline"
     requested_cores: "{{ effective_requested_cores }}"
-    vllm_cpu_start: "{{ vllm_cpu_start | default(omit) }}"
-    vllm_numa_node: "{{ vllm_numa_node | default(omit) }}"
-    guidellm_cpus: "{{ guidellm_cpus | default(omit) }}"
-    guidellm_numa_node: "{{ guidellm_numa_node | default(omit) }}"
+    vllm_cpu_start: "{{ hostvars['localhost']['passthrough_vllm_cpu_start'] | default(omit) }}"
+    vllm_numa_node: "{{ hostvars['localhost']['passthrough_vllm_numa_node'] | default(omit) }}"
+    guidellm_cpus: "{{ hostvars['localhost']['passthrough_guidellm_cpus'] | default(omit) }}"
+    guidellm_numa_node: "{{ hostvars['localhost']['passthrough_guidellm_numa_node'] | default(omit) }}"
   when:
     - not (skip_phase_2 | default(false) | bool)
     - (base_workload + '_var') in ['chat_var', 'code_var', 'summarization_var']
@@ -267,10 +288,10 @@
     workload_type: "{{ base_workload }}_var"
     vllm_caching_mode: "production"
     requested_cores: "{{ effective_requested_cores }}"
-    vllm_cpu_start: "{{ vllm_cpu_start | default(omit) }}"
-    vllm_numa_node: "{{ vllm_numa_node | default(omit) }}"
-    guidellm_cpus: "{{ guidellm_cpus | default(omit) }}"
-    guidellm_numa_node: "{{ guidellm_numa_node | default(omit) }}"
+    vllm_cpu_start: "{{ hostvars['localhost']['passthrough_vllm_cpu_start'] | default(omit) }}"
+    vllm_numa_node: "{{ hostvars['localhost']['passthrough_vllm_numa_node'] | default(omit) }}"
+    guidellm_cpus: "{{ hostvars['localhost']['passthrough_guidellm_cpus'] | default(omit) }}"
+    guidellm_numa_node: "{{ hostvars['localhost']['passthrough_guidellm_numa_node'] | default(omit) }}"
   when:
     - not (skip_phase_3 | default(false) | bool)
     - (base_workload + '_var') in ['chat_var', 'code_var', 'summarization_var']
