@@ -478,6 +478,29 @@ ansible-playbook llm-benchmark-auto.yml \
 - **NUMA-aware execution**: Leverages AMD EPYC multi-die architecture
 - **AVX-512 & AVX2**: CPU instruction set optimizations
 
+**NUMA Socket Pinning with AMD ZenDNN:**
+
+AMD ZenDNN containers require special configuration for NUMA pinning. The automation automatically detects AMD ZenDNN containers and applies:
+
+- **CPU Pinning**: Applied via `cpuset_cpus` (e.g., `96-127` for NUMA node 1)  
+- **Thread Affinity**: `VLLM_CPU_OMP_THREADS_BIND` env var set to match cpuset (required for ZenDNN)  
+- **Memory Binding**: Skipped (ZenDNN libnuma requires visibility to all NUMA nodes)  
+- **Memory Affinity**: Achieved naturally via CPU locality
+
+You can use socket pinning parameters normally - the automation handles AMD-specific requirements:
+
+```bash
+-e "vllm_cpu_start=96" \
+-e "vllm_numa_node=1" \
+-e "guidellm_cpus=0-31" \
+-e "guidellm_numa_node=0"
+```
+
+**Why this configuration:**
+- AMD ZenDNN's internal thread affinity requires `VLLM_CPU_OMP_THREADS_BIND` matching the container's CPU set
+- Without this env var, vLLM fails with `sched_setaffinity errno 22`
+- ZenDNN's libnuma needs to see all NUMA nodes, so `cpuset_mems` is omitted
+
 **Verifying ZenDNN is active:**
 
 Check the vLLM server logs for ZenDNN initialization messages:

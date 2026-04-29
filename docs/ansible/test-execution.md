@@ -254,6 +254,16 @@ ansible-playbook llm-benchmark-auto.yml \
 - NUMA-aware execution for AMD EPYC multi-die architecture
 - AVX-512 & AVX2 CPU instruction optimizations
 
+**NUMA Pinning:**
+
+AMD ZenDNN containers use CPU pinning with special thread affinity configuration:
+- CPU pinning via `cpuset_cpus`
+- Thread affinity via `VLLM_CPU_OMP_THREADS_BIND` environment variable
+- Memory binding skipped (ZenDNN libnuma requires access to all nodes)
+
+Socket pinning parameters work normally - the automation detects AMD containers
+and applies the correct configuration automatically.
+
 **Verify ZenDNN is active:**
 
 ```bash
