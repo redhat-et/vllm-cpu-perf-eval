@@ -173,9 +173,14 @@
     - vllm_api_key | length > 0
   no_log: true
 
+- name: Build GuideLLM container name with actual NUMA configuration
+  ansible.builtin.set_fact:
+    guidellm_container_name: "guidellm-{{ workload_type }}-vllm-numa{{ core_cfg.cpuset_mems }}-loadgen-numa{{ guidellm_cfg.cpuset_mems }}"
+  when: use_guidellm_container | bool
+
 - name: Start GuideLLM benchmark container
   containers.podman.podman_container:
-    name: "guidellm-{{ workload_type }}-{{ core_cfg.name }}"
+    name: "{{ guidellm_container_name }}"
     image: "{{ guidellm_cfg.container_image }}"
     state: started
     rm: false  # Don't auto-remove so we can check exit code
@@ -188,14 +193,14 @@
     env: "{{ guidellm_env }}"
     log_driver: journald
     log_opt:
-      tag: "guidellm-{{ workload_type }}-{{ core_cfg.name }}"
+      tag: "{{ guidellm_container_name }}"
   register: guidellm_container
   when: use_guidellm_container | bool
   no_log: true  # Prevent HF_TOKEN from appearing in logs
 
 - name: Set monitoring command based on connection type
   ansible.builtin.set_fact:
-    monitor_cmd: "{{ 'sudo podman logs -f guidellm-' + workload_type + '-' + core_cfg.name if ansible_connection == 'local' else 'ssh ' + ansible_user + '@' + ansible_host + ' sudo podman logs -f guidellm-' + workload_type + '-' + core_cfg.name }}"
+    monitor_cmd: "{{ 'sudo podman logs -f ' + guidellm_container_name if ansible_connection == 'local' else 'ssh ' + ansible_user + '@' + ansible_host + ' sudo podman logs -f ' + guidellm_container_name }}"
   when: use_guidellm_container | bool
 
 - name: Calculate wait timeout based on profile and number of benchmarks
@@ -225,7 +230,6 @@
     guidellm_expected_seconds: "{{ guidellm_max_seconds | default(guidellm_cfg.max_seconds | default(600)) | int }}"
     guidellm_poll_seconds: 30
     guidellm_last_progress_message: ""
-    guidellm_container_name: "guidellm-{{ workload_type }}-{{ core_cfg.name }}"
   when: use_guidellm_container | bool
 
 - name: Set controller-side benchmark progress log directory (containerized)
@@ -236,7 +240,7 @@
 - name: Set controller-side benchmark progress log file (containerized)
   ansible.builtin.set_fact:
     guidellm_progress_log_file: >-
-      {{ guidellm_progress_log_dir }}/{{ test_model | replace('/', '__') }}-{{ workload_type }}-{{ core_cfg.name }}-progress.log
+      {{ guidellm_progress_log_dir }}/{{ test_model | replace('/', '__') }}-{{ workload_type }}-{{ guidellm_container_name }}-progress.log
   when: use_guidellm_container | bool
 
 - name: Ensure controller-side benchmark progress log directory exists
@@ -310,7 +314,7 @@
 
 - name: Get container exit details
   ansible.builtin.shell:
-    cmd: "podman inspect {{ ('guidellm-' ~ workload_type ~ '-' ~ core_cfg.name) | quote }} --format '{''{ .State.ExitCode }''}' || echo 1"
+    cmd: "podman inspect {{ guidellm_container_name | quote }} --format '{''{ .State.ExitCode }''}' || echo 1"
   args:
     executable: /bin/bash
   register: container_exit_code
@@ -320,7 +324,7 @@
 
 - name: Capture container logs on failure
   ansible.builtin.shell:
-    cmd: "podman logs {{ ('guidellm-' ~ workload_type ~ '-' ~ core_cfg.name) | quote }} 2>&1 | tail -100"
+    cmd: "podman logs {{ guidellm_container_name | quote }} 2>&1 | tail -100"
   args:
     executable: /bin/bash
   register: guidellm_failure_logs
@@ -342,7 +346,7 @@
 
 - name: Stream GuideLLM container logs directly to file
   ansible.builtin.shell:
-    cmd: "podman logs {{ ('guidellm-' ~ workload_type ~ '-' ~ core_cfg.name) | quote }} > {{ guidellm_log_file.path | quote }} 2>&1"
+    cmd: "podman logs {{ guidellm_container_name | quote }} > {{ guidellm_log_file.path | quote }} 2>&1"
   args:
     executable: /bin/bash
   changed_when: false
@@ -370,7 +374,7 @@
 
 - name: Remove completed container
   containers.podman.podman_container:
-    name: "guidellm-{{ workload_type }}-{{ core_cfg.name }}"
+    name: "{{ guidellm_container_name }}"
     state: absent
   when:
     - use_guidellm_container | bool
