@@ -178,6 +178,18 @@
     - core_cfg.omp_threads_bind is not none
   no_log: true  # Prevent HF_TOKEN from appearing in logs
 
+- name: Detect AMD ZenDNN container for OMP binding
+  ansible.builtin.set_fact:
+    is_zendnn_container_early: "{{ 'zendnn' in (container_cfg.image | lower) or 'zentorch' in (container_cfg.image | lower) }}"
+
+- name: Add VLLM_CPU_OMP_THREADS_BIND for AMD ZenDNN containers (required for thread affinity)
+  ansible.builtin.set_fact:
+    vllm_env_vars: "{{ vllm_env_vars | combine({'VLLM_CPU_OMP_THREADS_BIND': core_cfg.cpuset_cpus}) }}"
+  when:
+    - is_zendnn_container_early
+    - core_cfg.cpuset_cpus is defined
+  no_log: true  # Prevent HF_TOKEN from appearing in logs
+
 - name: Build base vLLM arguments from workload
   ansible.builtin.set_fact:
     vllm_base_args: "{{ workload_cfg.vllm_args | default([]) }}"
@@ -267,6 +279,22 @@
       - "  Max Model Len: {{ effective_max_model_len }} (required min: {{ required_min_len }})"
       - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
+- name: Detect AMD ZenDNN container
+  ansible.builtin.set_fact:
+    is_zendnn_container: "{{ 'zendnn' in (container_cfg.image | lower) or 'zentorch' in (container_cfg.image | lower) }}"
+
+- name: Display AMD ZenDNN configuration
+  ansible.builtin.debug:
+    msg:
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "AMD ZenDNN Container Detected"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "CPU Pinning: {{ core_cfg.cpuset_cpus }}"
+      - "NUMA Memory Binding: Disabled (ZenDNN requires access to all nodes)"
+      - "Thread Affinity: VLLM_CPU_OMP_THREADS_BIND={{ core_cfg.cpuset_cpus }}"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+  when: is_zendnn_container
+
 - name: Start vLLM LLM server
   containers.podman.podman_container:
     name: "{{ vllm_container_name }}"
@@ -280,7 +308,7 @@
     security_opt: "{{ container_cfg.security_opts | default([]) }}"
     cap_add: "{{ container_cfg.capabilities | default([]) }}"
     cpuset_cpus: "{{ core_cfg.cpuset_cpus }}"
-    cpuset_mems: "{{ core_cfg.cpuset_mems }}"
+    cpuset_mems: "{{ omit if is_zendnn_container else core_cfg.cpuset_mems }}"
     volumes: "{{ [model_cache_dir + ':/root/.cache/huggingface:rw', log_dir + ':/var/log/vllm:rw'] if (use_persistent_cache | default(false) | bool) else [] }}"
     env: "{{ vllm_env_vars }}"
     entrypoint: "{{ container_cfg.entrypoint if (container_cfg.entrypoint is defined and container_cfg.entrypoint | length > 0) else omit }}"
