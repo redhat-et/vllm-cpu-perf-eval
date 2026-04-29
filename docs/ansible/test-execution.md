@@ -233,6 +233,7 @@ vLLM executable is not in the default PATH.
 # AMD ZenDNN optimized container
 export VLLM_CONTAINER_IMAGE=docker.io/amdih/zendnn_zentorch:vllm_v0.18.0_zentorch_v5.2.1_rhel9.5_r5.2.1
 export VLLM_CONTAINER_ENTRYPOINT='["vllm", "serve"]'
+export VLLM_HEALTH_TIMEOUT=1200  # Longer startup time for ZenDNN
 
 # Run benchmark
 ansible-playbook llm-benchmark-auto.yml \

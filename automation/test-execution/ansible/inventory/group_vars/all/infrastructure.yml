@@ -36,7 +36,9 @@ container_runtime:
 
 # Health check configuration
 health_check:
-  timeout: 300                  # Total timeout in seconds
+  # Total timeout in seconds (can be overridden with VLLM_HEALTH_TIMEOUT env var)
+  # AMD ZenDNN containers may need longer startup time (900-1200s recommended)
+  timeout: "{{ lookup('env', 'VLLM_HEALTH_TIMEOUT') | default('600', true) | int }}"
   interval: 5                   # Check interval in seconds
 
 # Test execution options

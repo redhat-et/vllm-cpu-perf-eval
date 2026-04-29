@@ -113,10 +113,14 @@ export HF_TOKEN=hf_xxxxx  # If using gated models like Llama
 export VLLM_CONTAINER_IMAGE=docker.io/vllm/vllm-openai-cpu:v0.18.0
 export GUIDELLM_CONTAINER_IMAGE=ghcr.io/vllm-project/guidellm:v0.6.0
 
+# Health check timeout (optional - default: 600s)
+export VLLM_HEALTH_TIMEOUT=600
+
 # Custom entrypoint (optional - only needed for containers without vLLM in default path)
 # Example for AMD ZenDNN containers:
 export VLLM_CONTAINER_IMAGE=docker.io/amdih/zendnn_zentorch:vllm_v0.18.0_zentorch_v5.2.1_rhel9.5_r5.2.1
 export VLLM_CONTAINER_ENTRYPOINT='["vllm", "serve"]'
+export VLLM_HEALTH_TIMEOUT=1200  # AMD ZenDNN needs longer startup time
 ```
 
 The inventory automatically uses these variables with sensible defaults.
@@ -433,6 +437,10 @@ Set these environment variables before running your playbooks:
 # AMD ZenDNN optimized vLLM container
 export VLLM_CONTAINER_IMAGE=docker.io/amdih/zendnn_zentorch:vllm_v0.18.0_zentorch_v5.2.1_rhel9.5_r5.2.1
 export VLLM_CONTAINER_ENTRYPOINT='["vllm", "serve"]'
+
+# AMD ZenDNN containers have longer initialization time
+# Increase health check timeout (default: 600s, AMD recommended: 900-1200s)
+export VLLM_HEALTH_TIMEOUT=1200
 ```
 
 **Available AMD ZenDNN Container Versions:**
@@ -448,6 +456,7 @@ Check [AMD Infinity Hub](https://www.amd.com/en/developer/resources/infinity-hub
 # 1. Configure AMD container
 export VLLM_CONTAINER_IMAGE=docker.io/amdih/zendnn_zentorch:vllm_v0.18.0_zentorch_v5.2.1_rhel9.5_r5.2.1
 export VLLM_CONTAINER_ENTRYPOINT='["vllm", "serve"]'
+export VLLM_HEALTH_TIMEOUT=1200  # AMD ZenDNN needs longer startup time
 
 # 2. Set your infrastructure
 export DUT_HOSTNAME=amd-epyc-server.example.com
