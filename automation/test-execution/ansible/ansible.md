@@ -112,6 +112,11 @@ export HF_TOKEN=hf_xxxxx  # If using gated models like Llama
 # Container images (optional - defaults are provided)
 export VLLM_CONTAINER_IMAGE=docker.io/vllm/vllm-openai-cpu:v0.18.0
 export GUIDELLM_CONTAINER_IMAGE=ghcr.io/vllm-project/guidellm:v0.6.0
+
+# Custom entrypoint (optional - only needed for containers without vLLM in default path)
+# Example for AMD ZenDNN containers:
+export VLLM_CONTAINER_IMAGE=docker.io/amdih/zendnn_zentorch:vllm_v0.18.0_zentorch_v5.2.1_rhel9.5_r5.2.1
+export VLLM_CONTAINER_ENTRYPOINT='["vllm", "serve"]'
 ```
 
 The inventory automatically uses these variables with sensible defaults.
@@ -409,6 +414,84 @@ Results include:
 
 See [Results Documentation](../../../results/results.md) for more details on
 result organization and analysis.
+
+## Platform-Specific Configurations
+
+### Testing vLLM-CPU on AMD Platforms (ZenDNN)
+
+AMD provides optimized vLLM containers with ZenDNN (Zen Deep Neural Network) and ZenTorch acceleration for improved performance on AMD EPYC processors. These containers require a custom entrypoint configuration.
+
+**Why a custom entrypoint is needed:**
+
+The AMD ZenDNN containers package vLLM differently than the standard vLLM containers. Instead of having vLLM in the default PATH, you need to explicitly specify `vllm serve` as the entrypoint. Without this, the container will exit with code 127 ("command not found").
+
+**Configuration:**
+
+Set these environment variables before running your playbooks:
+
+```bash
+# AMD ZenDNN optimized vLLM container
+export VLLM_CONTAINER_IMAGE=docker.io/amdih/zendnn_zentorch:vllm_v0.18.0_zentorch_v5.2.1_rhel9.5_r5.2.1
+export VLLM_CONTAINER_ENTRYPOINT='["vllm", "serve"]'
+```
+
+**Available AMD ZenDNN Container Versions:**
+
+- `docker.io/amdih/zendnn_zentorch:vllm_v0.18.0_zentorch_v5.2.1_rhel9.5_r5.2.1` (RHEL 9.5)
+- `docker.io/amdih/zendnn_zentorch:vllm_v0.18.0_zentorch_v5.2.1_ubuntu22.04_r5.2.1` (Ubuntu 22.04)
+
+Check [AMD Infinity Hub](https://www.amd.com/en/developer/resources/infinity-hub.html) for the latest versions.
+
+**Complete Example - AMD Platform Test:**
+
+```bash
+# 1. Configure AMD container
+export VLLM_CONTAINER_IMAGE=docker.io/amdih/zendnn_zentorch:vllm_v0.18.0_zentorch_v5.2.1_rhel9.5_r5.2.1
+export VLLM_CONTAINER_ENTRYPOINT='["vllm", "serve"]'
+
+# 2. Set your infrastructure
+export DUT_HOSTNAME=amd-epyc-server.example.com
+export LOADGEN_HOSTNAME=loadgen-server.example.com
+export HF_TOKEN=hf_xxxxx  # If using gated models
+
+# 3. Run benchmark
+cd automation/test-execution/ansible
+ansible-playbook llm-benchmark-auto.yml \
+  -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
+  -e "workload_type=chat" \
+  -e "requested_cores=64"
+```
+
+**What gets optimized:**
+
+- **ZenDNN**: AMD's optimized deep learning library for EPYC processors
+- **ZenTorch**: PyTorch integration with ZenDNN for transparent acceleration
+- **NUMA-aware execution**: Leverages AMD EPYC multi-die architecture
+- **AVX-512 & AVX2**: CPU instruction set optimizations
+
+**Verifying ZenDNN is active:**
+
+Check the vLLM server logs for ZenDNN initialization messages:
+
+```bash
+# View logs from the DUT after starting a test
+ssh ${DUT_HOSTNAME} "podman logs vllm-server 2>&1 | grep -i zendnn"
+```
+
+You should see messages indicating ZenDNN/ZenTorch are loaded.
+
+**Switching back to standard vLLM:**
+
+To use the standard vLLM container, simply unset the environment variables or set them to the default:
+
+```bash
+export VLLM_CONTAINER_IMAGE=docker.io/vllm/vllm-openai-cpu:v0.18.0
+unset VLLM_CONTAINER_ENTRYPOINT
+```
+
+**Technical Details:**
+
+The entrypoint configuration is set in [inventory/group_vars/all/infrastructure.yml](inventory/group_vars/all/infrastructure.yml) and read from the `VLLM_CONTAINER_ENTRYPOINT` environment variable. The framework automatically applies it when starting the container via the [vllm_server role](roles/vllm_server/tasks/start-llm.yml).
 
 ## Directory Structure
 

@@ -215,6 +215,62 @@ ansible-playbook llm-benchmark-concurrent-load.yml \
   -e "skip_phase_3=true"
 ```
 
+## Platform-Specific Configurations
+
+### AMD EPYC with ZenDNN
+
+AMD provides optimized vLLM containers with ZenDNN (Zen Deep Neural Network) and
+ZenTorch for improved performance on AMD EPYC processors.
+
+**Why custom configuration is needed:**
+
+AMD ZenDNN containers require an explicit entrypoint (`vllm serve`) because the
+vLLM executable is not in the default PATH.
+
+**Setup:**
+
+```bash
+# AMD ZenDNN optimized container
+export VLLM_CONTAINER_IMAGE=docker.io/amdih/zendnn_zentorch:vllm_v0.18.0_zentorch_v5.2.1_rhel9.5_r5.2.1
+export VLLM_CONTAINER_ENTRYPOINT='["vllm", "serve"]'
+
+# Run benchmark
+ansible-playbook llm-benchmark-auto.yml \
+  -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
+  -e "workload_type=chat" \
+  -e "requested_cores=64"
+```
+
+**Available versions:**
+
+- RHEL 9.5: `docker.io/amdih/zendnn_zentorch:vllm_v0.18.0_zentorch_v5.2.1_rhel9.5_r5.2.1`
+- Ubuntu 22.04: `docker.io/amdih/zendnn_zentorch:vllm_v0.18.0_zentorch_v5.2.1_ubuntu22.04_r5.2.1`
+
+**What gets optimized:**
+
+- ZenDNN: AMD's optimized deep learning library
+- ZenTorch: PyTorch integration with ZenDNN
+- NUMA-aware execution for AMD EPYC multi-die architecture
+- AVX-512 & AVX2 CPU instruction optimizations
+
+**Verify ZenDNN is active:**
+
+```bash
+# Check logs for ZenDNN initialization
+ssh <dut-hostname> "podman logs vllm-server 2>&1 | grep -i zendnn"
+```
+
+**Switch back to standard vLLM:**
+
+```bash
+export VLLM_CONTAINER_IMAGE=docker.io/vllm/vllm-openai-cpu:v0.18.0
+unset VLLM_CONTAINER_ENTRYPOINT
+```
+
+For complete details, see the [AMD ZenDNN
+section](https://github.com/redhat-et/vllm-cpu-perf-eval/blob/main/automation/test-execution/ansible/ansible.md#testing-vllm-cpu-on-amd-platforms-zendnn)
+in the full Ansible guide.
+
 ## Results
 
 Test results are saved to `results/llm/<model>/<test-run-id>/`:
