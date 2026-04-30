@@ -311,7 +311,7 @@
     cpuset_mems: "{{ omit if is_zendnn_container else core_cfg.cpuset_mems }}"
     volumes: "{{ [model_cache_dir + ':/root/.cache/huggingface:rw', log_dir + ':/var/log/vllm:rw'] if (use_persistent_cache | default(false) | bool) else [] }}"
     env: "{{ vllm_env_vars }}"
-    entrypoint: "{{ container_cfg.entrypoint if (container_cfg.entrypoint is defined and container_cfg.entrypoint | length > 0) else omit }}"
+    entrypoint: "{{ container_cfg.entrypoint | trim if (container_cfg.entrypoint is defined and container_cfg.entrypoint | trim | length > 0) else omit }}"
     command: "{{ vllm_cmd }}"
     log_driver: journald
     log_opt:

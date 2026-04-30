@@ -175,7 +175,7 @@
 
 - name: Build GuideLLM container name with actual NUMA configuration
   ansible.builtin.set_fact:
-    guidellm_container_name: "guidellm-{{ workload_type }}-vllm-numa{{ core_cfg.cpuset_mems }}-loadgen-numa{{ guidellm_cfg.cpuset_mems }}"
+    guidellm_container_name: "guidellm-{{ workload_type }}-{{ core_cfg.name | default(core_cfg.cpuset_cpus | default('auto')) }}-vllm-numa{{ core_cfg.cpuset_mems }}-loadgen-numa{{ guidellm_cfg.cpuset_mems }}"
   when: use_guidellm_container | bool
 
 - name: Start GuideLLM benchmark container
