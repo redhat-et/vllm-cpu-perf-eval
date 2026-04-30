@@ -482,9 +482,9 @@ ansible-playbook llm-benchmark-auto.yml \
 
 AMD ZenDNN containers require special configuration for NUMA pinning. The automation automatically detects AMD ZenDNN containers and applies:
 
-- **CPU Pinning**: Applied via `cpuset_cpus` (e.g., `96-127` for NUMA node 1)  
-- **Thread Affinity**: `VLLM_CPU_OMP_THREADS_BIND` env var set to match cpuset (required for ZenDNN)  
-- **Memory Binding**: Skipped (ZenDNN libnuma requires visibility to all NUMA nodes)  
+- **CPU Pinning**: Applied via `cpuset_cpus` (e.g., `96-127` for NUMA node 1)
+- **Thread Affinity**: `VLLM_CPU_OMP_THREADS_BIND` env var set to match cpuset (required for ZenDNN)
+- **Memory Binding**: Skipped (ZenDNN libnuma requires visibility to all NUMA nodes)
 - **Memory Affinity**: Achieved naturally via CPU locality
 
 You can use socket pinning parameters normally - the automation handles AMD-specific requirements:
