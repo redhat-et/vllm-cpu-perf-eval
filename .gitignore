@@ -39,10 +39,12 @@ env/
 .DS_Store
 Thumbs.db
 
-# Results directory - ignore ALL test results
-# Only keep the README that documents the directory structure
-results/*
+# Results directory - ignore test result data but keep scripts and docs
+results/llm
+results/*.csv
 !results/README.md
+!results/README-cpu-results-psap-conversion.md
+!results/scripts/
 
 # Model cache and weights
 *.bin
