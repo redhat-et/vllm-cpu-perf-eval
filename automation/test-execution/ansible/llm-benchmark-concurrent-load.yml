@@ -217,10 +217,10 @@
     workload_type: "{{ base_workload }}"
     vllm_caching_mode: "baseline"
     requested_cores: "{{ effective_requested_cores }}"
-    vllm_cpu_start: "{{ hostvars['localhost']['passthrough_vllm_cpu_start'] | default(omit) }}"
-    vllm_numa_node: "{{ hostvars['localhost']['passthrough_vllm_numa_node'] | default(omit) }}"
-    guidellm_cpus: "{{ hostvars['localhost']['passthrough_guidellm_cpus'] | default(omit) }}"
-    guidellm_numa_node: "{{ hostvars['localhost']['passthrough_guidellm_numa_node'] | default(omit) }}"
+    vllm_cpu_start: "{{ hostvars['localhost']['passthrough_vllm_cpu_start'] | default(None) }}"
+    vllm_numa_node: "{{ hostvars['localhost']['passthrough_vllm_numa_node'] | default(None) }}"
+    guidellm_cpus: "{{ hostvars['localhost']['passthrough_guidellm_cpus'] | default(None) }}"
+    guidellm_numa_node: "{{ hostvars['localhost']['passthrough_guidellm_numa_node'] | default(None) }}"
   when: not (skip_phase_1 | default(false) | bool)
 
 - name: Phase 1 Complete
@@ -245,10 +245,10 @@
     workload_type: "{{ base_workload }}_var"
     vllm_caching_mode: "baseline"
     requested_cores: "{{ effective_requested_cores }}"
-    vllm_cpu_start: "{{ hostvars['localhost']['passthrough_vllm_cpu_start'] | default(omit) }}"
-    vllm_numa_node: "{{ hostvars['localhost']['passthrough_vllm_numa_node'] | default(omit) }}"
-    guidellm_cpus: "{{ hostvars['localhost']['passthrough_guidellm_cpus'] | default(omit) }}"
-    guidellm_numa_node: "{{ hostvars['localhost']['passthrough_guidellm_numa_node'] | default(omit) }}"
+    vllm_cpu_start: "{{ hostvars['localhost']['passthrough_vllm_cpu_start'] | default(None) }}"
+    vllm_numa_node: "{{ hostvars['localhost']['passthrough_vllm_numa_node'] | default(None) }}"
+    guidellm_cpus: "{{ hostvars['localhost']['passthrough_guidellm_cpus'] | default(None) }}"
+    guidellm_numa_node: "{{ hostvars['localhost']['passthrough_guidellm_numa_node'] | default(None) }}"
   when:
     - not (skip_phase_2 | default(false) | bool)
     - (base_workload + '_var') in ['chat_var', 'code_var', 'summarization_var']
@@ -288,10 +288,10 @@
     workload_type: "{{ base_workload }}_var"
     vllm_caching_mode: "production"
     requested_cores: "{{ effective_requested_cores }}"
-    vllm_cpu_start: "{{ hostvars['localhost']['passthrough_vllm_cpu_start'] | default(omit) }}"
-    vllm_numa_node: "{{ hostvars['localhost']['passthrough_vllm_numa_node'] | default(omit) }}"
-    guidellm_cpus: "{{ hostvars['localhost']['passthrough_guidellm_cpus'] | default(omit) }}"
-    guidellm_numa_node: "{{ hostvars['localhost']['passthrough_guidellm_numa_node'] | default(omit) }}"
+    vllm_cpu_start: "{{ hostvars['localhost']['passthrough_vllm_cpu_start'] | default(None) }}"
+    vllm_numa_node: "{{ hostvars['localhost']['passthrough_vllm_numa_node'] | default(None) }}"
+    guidellm_cpus: "{{ hostvars['localhost']['passthrough_guidellm_cpus'] | default(None) }}"
+    guidellm_numa_node: "{{ hostvars['localhost']['passthrough_guidellm_numa_node'] | default(None) }}"
   when:
     - not (skip_phase_3 | default(false) | bool)
     - (base_workload + '_var') in ['chat_var', 'code_var', 'summarization_var']

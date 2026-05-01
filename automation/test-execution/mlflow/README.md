@@ -55,6 +55,6 @@ cd ../ansible/scripts
 
 ## Quick Links
 
-- MLflow UI: http://localhost:5000
-- Documentation: https://redhat-et.github.io/vllm-cpu-perf-eval/docs/mlflow
-- MLflow Official Docs: https://mlflow.org/docs/latest/
+- MLflow UI: <http://localhost:5000>
+- Documentation: <https://redhat-et.github.io/vllm-cpu-perf-eval/docs/mlflow>
+- MLflow Official Docs: <https://mlflow.org/docs/latest/>

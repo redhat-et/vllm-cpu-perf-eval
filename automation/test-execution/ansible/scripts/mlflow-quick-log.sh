@@ -137,7 +137,14 @@ cd "$PLAYBOOK_DIR"
 case $MODE in
     latest)
         echo -e "\n${YELLOW}Finding latest test result...${NC}"
-        LATEST_BENCH=$(find "$RESULTS_BASE" -name "benchmarks.json" -type f -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2)
+        # Portable find command for Linux and macOS
+        if [[ "$(uname)" == "Darwin" ]]; then
+            # macOS: use stat -f
+            LATEST_BENCH=$(find "$RESULTS_BASE" -name "benchmarks.json" -type f -print0 2>/dev/null | xargs -0 stat -f '%m %N' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
+        else
+            # Linux: use stat -c
+            LATEST_BENCH=$(find "$RESULTS_BASE" -name "benchmarks.json" -type f -print0 2>/dev/null | xargs -0 stat -c '%Y %n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
+        fi
 
         if [ -z "$LATEST_BENCH" ]; then
             echo -e "${RED}No benchmark results found in $RESULTS_BASE${NC}"
@@ -181,7 +188,7 @@ case $MODE in
         while IFS= read -r bench; do
             meta="${bench%/*}/test-metadata.json"
             if [ -f "$meta" ]; then
-                echo -e "Logging: ${GREEN}$(basename $(dirname "$bench"))${NC}"
+                echo -e "Logging: ${GREEN}$(basename "$(dirname "$bench")")${NC}"
                 ansible-playbook log-to-mlflow.yml \
                     -e "benchmarks_file=${bench}" \
                     -e "metadata_file=${meta}" \

@@ -469,10 +469,10 @@ def log_to_mlflow(
         if not existing_runs.empty:
             existing_run_id = existing_runs.iloc[0]['run_id']
             existing_run_name = existing_runs.iloc[0]['tags.mlflow.runName']
-            print(f"⚠️  Test already logged to MLflow")
+            print("⚠️  Test already logged to MLflow")
             print(f"  Existing Run ID: {existing_run_id}")
             print(f"  Existing Run Name: {existing_run_name}")
-            print(f"  Skipping to avoid duplicate...")
+            print("  Skipping to avoid duplicate...")
             return True  # Already logged, skip
 
         # Start MLflow run
@@ -537,7 +537,7 @@ def log_to_mlflow(
                         load_metrics = extract_metrics_from_benchmark(bench, prefix)
                         mlflow.log_metrics(load_metrics, step=i)
 
-                print(f"✓ Successfully logged experiment to MLflow")
+                print("✓ Successfully logged experiment to MLflow")
                 print(f"  Run ID: {run.info.run_id}")
                 print(f"  Experiment: {experiment_name}")
                 print(f"  Run Name: {run_name}")

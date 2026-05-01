@@ -1,12 +1,12 @@
-version: '3.8'
+version: "3.8"
 
 services:
   mlflow:
-    image: ghcr.io/mlflow/mlflow:latest
+    image: ghcr.io/mlflow/mlflow:v3.11.1
     container_name: mlflow-tracking-server
     ports:
       - "5000:5000"
-    user: "0:0"  # Run as root to avoid permission issues
+    user: "1000:1000"  # Run as non-root user
     volumes:
       - mlflow-data:/mlflow:rw
       - ./artifacts:/mlflow/artifacts:z  # z flag for Podman SELinux shared mount

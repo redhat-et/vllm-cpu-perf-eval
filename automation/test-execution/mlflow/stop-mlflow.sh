@@ -36,7 +36,10 @@ else
 fi
 
 # Stop by container name (compose)
-cd "$SCRIPT_DIR"
+cd "$SCRIPT_DIR" || {
+    echo -e "${RED}Error: Failed to change to directory $SCRIPT_DIR${NC}"
+    exit 1
+}
 
 if [ -f docker-compose.yml ] && [ -n "$COMPOSE_CMD" ]; then
     echo "Stopping MLflow server (${COMPOSE_CMD})..."

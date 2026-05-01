@@ -27,7 +27,7 @@ This script automatically:
 - ✅ Installs MLflow package
 - ✅ Starts MLflow tracking server container
 - ✅ Sets `MLFLOW_TRACKING_URI` environment variable
-- ✅ Opens browser to http://localhost:5000
+- ✅ Opens browser to <http://localhost:5000>
 
 ### Step 2: Import Your Benchmark Results
 
@@ -49,7 +49,7 @@ cd automation/test-execution/ansible/scripts
 
 ### Step 3: View Results
 
-Open http://localhost:5000 to:
+Open <http://localhost:5000> to:
 - Browse experiments organized by model and workload
 - Compare runs side-by-side
 - Search and filter by parameters or metrics
@@ -274,7 +274,7 @@ python3 log_to_mlflow.py \
    ./mlflow-quick-log.sh --latest
    ```
 
-3. **View results**: http://localhost:5000
+3. **View results**: <http://localhost:5000>
 
 ### Batch Import Strategy
 
@@ -406,7 +406,7 @@ For production use with multiple concurrent users, enable PostgreSQL in `docker-
 2. Update MLflow service environment:
    ```yaml
    environment:
-     - MLFLOW_BACKEND_STORE_URI=postgresql://mlflow:mlflow@postgres:5432/mlflow
+     - MLFLOW_BACKEND_STORE_URI=postgresql://mlflow:mlflow@postgres:5432/mlflow  # pragma: allowlist secret
    ```
 3. Restart: `./stop-mlflow.sh && ./launch-mlflow.sh`
 
