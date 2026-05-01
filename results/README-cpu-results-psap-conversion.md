@@ -49,7 +49,7 @@ The `import_manual_runs_json_cpu.py` script is a CPU-specific adaptation of the 
 
 ## Key Differences from GPU Version
 
-### What's Changed
+### What's Changed:
 - **Accelerator → CPU Type**: The `--accelerator` field now accepts CPU types (e.g., "Xeon", "EPYC")
 - **Metadata Auto-Detection**: Can read from `test-metadata.json` to auto-populate fields
 - **CPU-Specific Fields**: Added columns for:
@@ -59,7 +59,7 @@ The `import_manual_runs_json_cpu.py` script is a CPU-specific adaptation of the 
   - `omp_num_threads`: OpenMP thread count
   - `tpot_mean`: Mean time per output token
 
-### What's Preserved
+### What's Preserved:
 - All performance metrics (throughput, latency percentiles, token counts)
 - UUID tracking for individual benchmark runs
 - CSV column structure for dashboard compatibility
@@ -136,11 +136,11 @@ python results/scripts/import_manual_runs_json_cpu.py \
 
 ## Command-Line Arguments
 
-### Required (if no --metadata-file)
+### Required (if no --metadata-file):
 - `--model`: Model name (e.g., "RedHatAI/gemma-3-4b-it-quantized.w8a8")
 - `--version`: Framework version (e.g., "vLLM-0.18.0")
 
-### Optional (auto-detected from metadata or defaults)
+### Optional (auto-detected from metadata or defaults):
 - `--metadata-file`: Path to test-metadata.json (highly recommended)
 - `--cpu-type`: CPU platform type (default: from metadata "platform" or "test_name")
 - `--core-count`: Number of CPU cores used (default: from metadata)
