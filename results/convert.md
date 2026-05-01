@@ -56,7 +56,7 @@ This separation allows the dashboard team to import single-instance results for 
 
 ## Key Differences from GPU Version
 
-### What's Changed
+### What's Changed:
 - **Accelerator → CPU Type**: The `--accelerator` field now accepts CPU types (e.g., "Xeon", "EPYC")
 - **Metadata Auto-Detection**: Can read from `test-metadata.json` to auto-populate fields
 - **CPU-Specific Fields**: Added columns for:
@@ -71,7 +71,7 @@ This separation allows the dashboard team to import single-instance results for 
   - `config_type`: auto or manual configuration
 - **Server-Side Metrics**: 21 metrics from vllm-metrics.json (resource usage, cache stats, server latencies)
 
-### What's Preserved
+### What's Preserved:
 - All performance metrics (throughput, latency percentiles, token counts)
 - UUID tracking for individual benchmark runs
 - CSV column structure for dashboard compatibility
@@ -150,11 +150,11 @@ python results/scripts/convert_single.py \
 
 ## Command-Line Arguments
 
-### Required (if no --metadata-file)
+### Required (if no --metadata-file):
 - `--model`: Model name (e.g., "RedHatAI/gemma-3-4b-it-quantized.w8a8")
 - `--version`: Framework version (e.g., "vLLM-0.18.0")
 
-### Optional (auto-detected from metadata or defaults)
+### Optional (auto-detected from metadata or defaults):
 - `--metadata-file`: Path to test-metadata.json (highly recommended)
 - `--cpu-type`: CPU platform type (default: from metadata "platform" or "test_name")
 - `--core-count`: Number of CPU cores used (default: from metadata)
