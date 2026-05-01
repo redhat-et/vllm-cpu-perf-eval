@@ -73,3 +73,9 @@ vendor/
 
 # Streamlit dashboard config
 automation/test-execution/dashboard-examples/vllm_dashboard/.dashboard_config.ini
+
+# MLflow tracking data and artifacts
+mlruns/
+mlflow.db
+*.db-journal
+automation/test-execution/mlflow/artifacts/

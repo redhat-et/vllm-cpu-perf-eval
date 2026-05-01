@@ -18,6 +18,8 @@ nav_links:
     url: /docs/getting-started
   - title: Ansible Automation
     url: /docs/ansible/test-execution
+  - title: MLflow Tracking
+    url: /docs/mlflow
   - title: Methodology
     url: /docs/methodology/overview
   - title: Test Suites
