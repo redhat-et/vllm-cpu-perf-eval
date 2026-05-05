@@ -107,7 +107,7 @@ for i in {1..3}; do
     -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
     -e "workload_type=chat" \
     -e "requested_cores=16"
-  
+
   # Optional: add small delay between runs
   sleep 60
 done
