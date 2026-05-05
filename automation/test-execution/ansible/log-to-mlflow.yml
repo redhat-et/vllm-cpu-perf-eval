@@ -106,7 +106,7 @@
           {% if experiment_name is defined %}-e "{{ experiment_name }}"{% endif %}
           {% if run_name is defined %}-r "{{ run_name }}"{% endif %}
           {% if mlflow_tracking_uri is defined %}-u "{{ mlflow_tracking_uri }}"{% endif %}
-          {% if log_per_load_point | default(false) %}--log-per-load-point{% endif %}
+          {% if log_per_load_point | default(true) %}--log-per-load-point{% endif %}
       environment:
         MLFLOW_TRACKING_URI: "{{ mlflow_tracking_uri }}"
       register: mlflow_log_result
@@ -181,7 +181,7 @@
           {{ item }}
           {{ item | dirname }}/test-metadata.json
           {% if mlflow_tracking_uri is defined %}-u "{{ mlflow_tracking_uri }}"{% endif %}
-          {% if log_per_load_point | default(false) %}--log-per-load-point{% endif %}
+          {% if log_per_load_point | default(true) %}--log-per-load-point{% endif %}
       environment:
         MLFLOW_TRACKING_URI: "{{ mlflow_tracking_uri }}"
       register: batch_log_results

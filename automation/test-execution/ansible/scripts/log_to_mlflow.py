@@ -15,9 +15,11 @@ from typing import Any, Dict, Optional
 
 try:
     import mlflow
-    from mlflow.entities import RunStatus
 except ImportError:
-    print("Error: MLflow is not installed. Install with: pip install mlflow", file=sys.stderr)
+    print(
+        "Error: MLflow is not installed. Install with: pip install mlflow",
+        file=sys.stderr
+    )
     sys.exit(1)
 
 
@@ -27,7 +29,9 @@ def load_json_file(file_path: Path) -> Dict[str, Any]:
         return json.load(f)
 
 
-def extract_parameters(metadata: Dict[str, Any], benchmarks: Dict[str, Any]) -> Dict[str, Any]:
+def extract_parameters(
+    metadata: Dict[str, Any], benchmarks: Dict[str, Any]
+) -> Dict[str, Any]:
     """Extract experiment parameters from metadata and benchmark data."""
     params = {
         # Model and workload configuration
@@ -85,18 +89,22 @@ def extract_parameters(metadata: Dict[str, Any], benchmarks: Dict[str, Any]) -> 
 
     # Add load sweep rates if present
     if benchmarks.get('args', {}).get('rate'):
-        params['load_sweep_rates'] = ','.join(map(str, benchmarks['args']['rate']))
+        rates_str = ','.join(map(str, benchmarks['args']['rate']))
+        params['load_sweep_rates'] = rates_str
 
     return params
 
 
-def extract_metrics_from_benchmark(benchmark: Dict[str, Any], prefix: str = "") -> Dict[str, float]:
+def extract_metrics_from_benchmark(
+    benchmark: Dict[str, Any], prefix: str = ""
+) -> Dict[str, float]:
     """Extract metrics from a single benchmark."""
     metrics_data = benchmark.get('metrics', {})
     extracted = {}
 
     # Throughput metrics
-    throughput = metrics_data.get('tokens_per_second', {}).get('successful', {})
+    tps_data = metrics_data.get('tokens_per_second', {})
+    throughput = tps_data.get('successful', {})
     if throughput:
         extracted[f'{prefix}throughput_mean'] = throughput.get('mean', 0)
         extracted[f'{prefix}throughput_std'] = throughput.get('std', 0)
@@ -106,7 +114,8 @@ def extract_metrics_from_benchmark(benchmark: Dict[str, Any], prefix: str = "") 
                 extracted[f'{prefix}throughput_{p}'] = percentiles[p]
 
     # TTFT metrics (ms)
-    ttft = metrics_data.get('time_to_first_token_ms', {}).get('successful', {})
+    ttft_data = metrics_data.get('time_to_first_token_ms', {})
+    ttft = ttft_data.get('successful', {})
     if ttft:
         extracted[f'{prefix}ttft_mean'] = ttft.get('mean', 0)
         extracted[f'{prefix}ttft_std'] = ttft.get('std', 0)
@@ -116,7 +125,8 @@ def extract_metrics_from_benchmark(benchmark: Dict[str, Any], prefix: str = "") 
                 extracted[f'{prefix}ttft_{p}'] = percentiles[p]
 
     # ITL metrics (ms)
-    itl = metrics_data.get('inter_token_latency_ms', {}).get('successful', {})
+    itl_data = metrics_data.get('inter_token_latency_ms', {})
+    itl = itl_data.get('successful', {})
     if itl:
         extracted[f'{prefix}itl_mean'] = itl.get('mean', 0)
         extracted[f'{prefix}itl_std'] = itl.get('std', 0)
@@ -126,7 +136,8 @@ def extract_metrics_from_benchmark(benchmark: Dict[str, Any], prefix: str = "") 
                 extracted[f'{prefix}itl_{p}'] = percentiles[p]
 
     # E2E latency metrics (s)
-    e2e = metrics_data.get('request_latency', {}).get('successful', {})
+    e2e_data = metrics_data.get('request_latency', {})
+    e2e = e2e_data.get('successful', {})
     if e2e:
         extracted[f'{prefix}e2e_latency_mean'] = e2e.get('mean', 0)
         extracted[f'{prefix}e2e_latency_std'] = e2e.get('std', 0)
@@ -146,14 +157,17 @@ def extract_metrics_from_benchmark(benchmark: Dict[str, Any], prefix: str = "") 
             extracted[f'{prefix}success_rate'] = (successful / total) * 100
 
     # RPS metrics
-    rps = metrics_data.get('requests_per_second', {}).get('successful', {})
+    rps_data = metrics_data.get('requests_per_second', {})
+    rps = rps_data.get('successful', {})
     if rps:
         extracted[f'{prefix}rps_mean'] = rps.get('mean', 0)
 
     return extracted
 
 
-def extract_aggregate_metrics(benchmarks: Dict[str, Any], metadata: Dict[str, Any]) -> Dict[str, float]:
+def extract_aggregate_metrics(
+    benchmarks: Dict[str, Any], metadata: Dict[str, Any]
+) -> Dict[str, float]:
     """Extract aggregate metrics across all benchmarks (load points)."""
     all_benchmarks = benchmarks.get('benchmarks', [])
 
@@ -184,15 +198,19 @@ def extract_aggregate_metrics(benchmarks: Dict[str, Any], metadata: Dict[str, An
         metrics = bench.get('metrics', {})
 
         # Track peak throughput
-        throughput = metrics.get('tokens_per_second', {}).get('successful', {}).get('mean', 0)
+        tps = metrics.get('tokens_per_second', {})
+        throughput = tps.get('successful', {}).get('mean', 0)
         if throughput > peak_throughput:
             peak_throughput = throughput
             peak_throughput_load = rate
 
         # Track best latencies
-        ttft = metrics.get('time_to_first_token_ms', {}).get('successful', {}).get('percentiles', {})
-        itl = metrics.get('inter_token_latency_ms', {}).get('successful', {}).get('percentiles', {})
-        e2e = metrics.get('request_latency', {}).get('successful', {}).get('percentiles', {})
+        ttft_m = metrics.get('time_to_first_token_ms', {})
+        ttft = ttft_m.get('successful', {}).get('percentiles', {})
+        itl_m = metrics.get('inter_token_latency_ms', {})
+        itl = itl_m.get('successful', {}).get('percentiles', {})
+        e2e_m = metrics.get('request_latency', {})
+        e2e = e2e_m.get('successful', {}).get('percentiles', {})
 
         if 'p95' in ttft and ttft['p95'] < best_ttft_p95:
             best_ttft_p95 = ttft['p95']
@@ -218,8 +236,11 @@ def extract_aggregate_metrics(benchmarks: Dict[str, Any], metadata: Dict[str, An
         aggregate['test_duration_seconds'] = metadata['test_duration_seconds']
 
     # Calculate efficiency (tokens/sec/core) for managed mode
-    if metadata.get('vllm_mode') == 'managed' and metadata.get('core_count', 0) > 0:
-        aggregate['peak_efficiency'] = peak_throughput / metadata['core_count']
+    if (metadata.get('vllm_mode') == 'managed' and
+            metadata.get('core_count', 0) > 0):
+        aggregate['peak_efficiency'] = (
+            peak_throughput / metadata['core_count']
+        )
 
     # Add best latencies if they were found
     if best_ttft_p95 != float('inf'):
@@ -269,59 +290,97 @@ def extract_server_metrics(vllm_metrics_file: Path) -> Dict[str, float]:
         # KV Cache utilization (%)
         kv_cache = metrics_data.get('vllm:kv_cache_usage_perc', [])
         if kv_cache:
-            server_metrics['server_kv_cache_usage_pct'] = get_value(kv_cache)
+            server_metrics['server_kv_cache_usage_pct'] = (
+                get_value(kv_cache)
+            )
 
         # Total tokens processed
-        prompt_tokens = get_value(metrics_data.get('vllm:prompt_tokens_total', []))
-        generation_tokens = get_value(metrics_data.get('vllm:generation_tokens_total', []))
+        prompt_tokens = get_value(
+            metrics_data.get('vllm:prompt_tokens_total', [])
+        )
+        generation_tokens = get_value(
+            metrics_data.get('vllm:generation_tokens_total', [])
+        )
         if prompt_tokens > 0:
             server_metrics['server_prompt_tokens_total'] = prompt_tokens
         if generation_tokens > 0:
             server_metrics['server_generation_tokens_total'] = generation_tokens
         if prompt_tokens > 0 and generation_tokens > 0:
-            server_metrics['server_total_tokens'] = prompt_tokens + generation_tokens
+            server_metrics['server_total_tokens'] = (
+                prompt_tokens + generation_tokens
+            )
 
         # Cache hit rates
-        prefix_hits = get_value(metrics_data.get('vllm:prefix_cache_hits_total', []))
-        prefix_queries = get_value(metrics_data.get('vllm:prefix_cache_queries_total', []))
+        prefix_hits = get_value(
+            metrics_data.get('vllm:prefix_cache_hits_total', [])
+        )
+        prefix_queries = get_value(
+            metrics_data.get('vllm:prefix_cache_queries_total', [])
+        )
         if prefix_queries > 0:
-            server_metrics['server_prefix_cache_hit_rate'] = (prefix_hits / prefix_queries) * 100
+            server_metrics['server_prefix_cache_hit_rate'] = (
+                (prefix_hits / prefix_queries) * 100
+            )
 
         # Request success rate
-        success_total = get_value(metrics_data.get('vllm:request_success_total', []))
+        success_total = get_value(
+            metrics_data.get('vllm:request_success_total', [])
+        )
         # Get total requests from histogram count
-        e2e_count = get_value(metrics_data.get('vllm:e2e_request_latency_seconds_count', []))
+        e2e_count = get_value(
+            metrics_data.get('vllm:e2e_request_latency_seconds_count', [])
+        )
         if e2e_count > 0:
             server_metrics['server_requests_total'] = e2e_count
-            server_metrics['server_request_success_rate'] = (success_total / e2e_count) * 100
+            server_metrics['server_request_success_rate'] = (
+                (success_total / e2e_count) * 100
+            )
 
         # Average latencies from histogram sums and counts
         # TTFT
-        ttft_sum = get_value(metrics_data.get('vllm:time_to_first_token_seconds_sum', []))
-        ttft_count = get_value(metrics_data.get('vllm:time_to_first_token_seconds_count', []))
+        ttft_sum = get_value(
+            metrics_data.get('vllm:time_to_first_token_seconds_sum', [])
+        )
+        ttft_count = get_value(
+            metrics_data.get('vllm:time_to_first_token_seconds_count', [])
+        )
         if ttft_count > 0:
             server_metrics['server_ttft_avg_ms'] = (ttft_sum / ttft_count) * 1000
 
         # E2E latency
-        e2e_sum = get_value(metrics_data.get('vllm:e2e_request_latency_seconds_sum', []))
+        e2e_sum = get_value(
+            metrics_data.get('vllm:e2e_request_latency_seconds_sum', [])
+        )
         if e2e_count > 0:
             server_metrics['server_e2e_latency_avg_s'] = e2e_sum / e2e_count
 
         # Prefill time
-        prefill_sum = get_value(metrics_data.get('vllm:request_prefill_time_seconds_sum', []))
-        prefill_count = get_value(metrics_data.get('vllm:request_prefill_time_seconds_count', []))
+        prefill_sum = get_value(
+            metrics_data.get('vllm:request_prefill_time_seconds_sum', [])
+        )
+        prefill_count = get_value(
+            metrics_data.get('vllm:request_prefill_time_seconds_count', [])
+        )
         if prefill_count > 0:
             server_metrics['server_prefill_time_avg_ms'] = (prefill_sum / prefill_count) * 1000
 
         # Decode time
-        decode_sum = get_value(metrics_data.get('vllm:request_decode_time_seconds_sum', []))
-        decode_count = get_value(metrics_data.get('vllm:request_decode_time_seconds_count', []))
+        decode_sum = get_value(
+            metrics_data.get('vllm:request_decode_time_seconds_sum', [])
+        )
+        decode_count = get_value(
+            metrics_data.get('vllm:request_decode_time_seconds_count', [])
+        )
         if decode_count > 0:
             server_metrics['server_decode_time_avg_ms'] = (decode_sum / decode_count) * 1000
 
         # Queue time
-        queue_sum = get_value(metrics_data.get('vllm:request_queue_time_seconds_sum', []))
-        queue_count = get_value(metrics_data.get('vllm:request_queue_time_seconds_count', []))
+        queue_sum = get_value(
+            metrics_data.get('vllm:request_queue_time_seconds_sum', [])
+        )
+        queue_count = get_value(
+            metrics_data.get('vllm:request_queue_time_seconds_count', [])
+        )
         if queue_count > 0:
             server_metrics['server_queue_time_avg_ms'] = (queue_sum / queue_count) * 1000
 
@@ -341,20 +400,35 @@ def extract_server_metrics(vllm_metrics_file: Path) -> Dict[str, float]:
             server_metrics['server_num_preemptions'] = preemptions
 
         # Average tokens per request
-        gen_tokens_sum = get_value(metrics_data.get('vllm:request_generation_tokens_sum', []))
-        gen_tokens_count = get_value(metrics_data.get('vllm:request_generation_tokens_count', []))
+        gen_tokens_sum = get_value(
+            metrics_data.get('vllm:request_generation_tokens_sum', [])
+        )
+        gen_tokens_count = get_value(
+            metrics_data.get('vllm:request_generation_tokens_count', [])
+        )
         if gen_tokens_count > 0:
-            server_metrics['server_avg_output_tokens_per_req'] = gen_tokens_sum / gen_tokens_count
+            server_metrics['server_avg_output_tokens_per_req'] = (
+                gen_tokens_sum / gen_tokens_count
+            )
 
-        prompt_tokens_sum = get_value(metrics_data.get('vllm:request_prompt_tokens_sum', []))
-        prompt_tokens_count = get_value(metrics_data.get('vllm:request_prompt_tokens_count', []))
+        prompt_tokens_sum = get_value(
+            metrics_data.get('vllm:request_prompt_tokens_sum', [])
+        )
+        prompt_tokens_count = get_value(
+            metrics_data.get('vllm:request_prompt_tokens_count', [])
+        )
         if prompt_tokens_count > 0:
-            server_metrics['server_avg_prompt_tokens_per_req'] = prompt_tokens_sum / prompt_tokens_count
+            server_metrics['server_avg_prompt_tokens_per_req'] = (
+                prompt_tokens_sum / prompt_tokens_count
+            )
 
         return server_metrics
 
     except Exception as e:
-        print(f"Warning: Could not parse vLLM server metrics: {e}", file=sys.stderr)
+        print(
+            f"Warning: Could not parse vLLM server metrics: {e}",
+            file=sys.stderr
+        )
         return {}
 
 
@@ -427,14 +501,23 @@ def log_to_mlflow(
         except mlflow.exceptions.MlflowException as e:
             if "deleted experiment" in str(e).lower():
                 # Experiment was deleted, try to restore it
-                print(f"⚠️  Experiment '{experiment_name}' was deleted. Restoring...")
+                print(
+                    f"⚠️  Experiment '{experiment_name}' was deleted. "
+                    "Restoring..."
+                )
                 # Get experiment by name (even if deleted)
                 from mlflow.tracking import MlflowClient
                 client = MlflowClient()
 
                 # Search for deleted experiment
-                all_experiments = client.search_experiments(view_type=mlflow.entities.ViewType.DELETED_ONLY)
-                deleted_exp = next((exp for exp in all_experiments if exp.name == experiment_name), None)
+                all_experiments = client.search_experiments(
+                    view_type=mlflow.entities.ViewType.DELETED_ONLY
+                )
+                deleted_exp = next(
+                    (exp for exp in all_experiments
+                     if exp.name == experiment_name),
+                    None
+                )
 
                 if deleted_exp:
                     # Restore it
@@ -460,9 +543,10 @@ def log_to_mlflow(
                 run_name = f"{metadata['test_name']}_{run_name}"
 
         # Check if this test_run_id was already logged (deduplication)
+        test_run_id = metadata.get('test_run_id', 'unknown')
         existing_runs = mlflow.search_runs(
             experiment_ids=[experiment.experiment_id],
-            filter_string=f"params.test_run_id = '{metadata.get('test_run_id', 'unknown')}'",
+            filter_string=f"params.test_run_id = '{test_run_id}'",
             max_results=1
         )
 
@@ -475,8 +559,8 @@ def log_to_mlflow(
             print("  Skipping to avoid duplicate...")
             return True  # Already logged, skip
 
-        # Start MLflow run
-        with mlflow.start_run(run_name=run_name) as run:
+        # Start parent MLflow run
+        with mlflow.start_run(run_name=run_name) as parent_run:
             try:
                 # Log artifacts first (even if other steps fail, we want the logs)
                 result_dir = benchmarks_file.parent
@@ -518,6 +602,37 @@ def log_to_mlflow(
                 tags = create_tags(metadata)
                 mlflow.set_tags(tags)
 
+                # Create run description
+                platform = metadata.get('platform', 'unknown')
+                cores = metadata.get('core_count', 0)
+                backend = metadata.get('backend', 'unknown')
+                vllm_ver = metadata.get('vllm_version', 'unknown')
+
+                description_lines = [
+                    f"Load Sweep Benchmark: "
+                    f"{metadata.get('model', 'unknown')}",
+                    f"Workload: {metadata.get('workload', 'unknown')}",
+                    f"Platform: {platform} ({cores} cores)",
+                    f"Backend: {backend} (vLLM {vllm_ver})",
+                ]
+                if metadata.get('test_name'):
+                    description_lines.insert(0, f"Test: {metadata['test_name']}")
+
+                num_load_points = len(benchmarks.get('benchmarks', []))
+                if num_load_points > 0:
+                    description_lines.append(
+                        f"\nLoad Points: {num_load_points}"
+                    )
+                    rates = benchmarks.get('args', {}).get('rate', [])
+                    if rates:
+                        rate_range = (
+                            f"Rate Range: {min(rates):.1f} - "
+                            f"{max(rates):.1f} req/s"
+                        )
+                        description_lines.append(rate_range)
+
+                mlflow.set_tag("mlflow.note.content", "\n".join(description_lines))
+
                 # Log aggregate client-side metrics (from GuideLLM)
                 aggregate_metrics = extract_aggregate_metrics(benchmarks, metadata)
                 mlflow.log_metrics(aggregate_metrics)
@@ -528,19 +643,51 @@ def log_to_mlflow(
                     if server_metrics:
                         mlflow.log_metrics(server_metrics)
 
-                # Log per-load-point metrics if requested
+                # Log per-load-point metrics as child runs if requested
                 if log_per_load_point:
                     rates = benchmarks.get('args', {}).get('rate', [])
-                    for i, bench in enumerate(benchmarks.get('benchmarks', [])):
-                        rate = rates[i] if i < len(rates) else i
-                        prefix = f"load_{rate:.2f}_"
-                        load_metrics = extract_metrics_from_benchmark(bench, prefix)
-                        mlflow.log_metrics(load_metrics, step=i)
+                    all_benchmarks = benchmarks.get('benchmarks', [])
+
+                    for i, bench in enumerate(all_benchmarks):
+                        # Get the load rate/concurrency for this point
+                        config = bench.get('config', {})
+                        strategy = config.get('strategy', {})
+                        concurrency = strategy.get('max_concurrency', 0)
+                        rate = rates[i] if i < len(rates) else concurrency
+
+                        # Create child run name
+                        child_run_name = f"Load Point {rate:.2f} req/s"
+
+                        # Start nested run for this load point
+                        with mlflow.start_run(
+                            run_name=child_run_name, nested=True
+                        ) as child_run:
+                            # Log load point specific parameters
+                            child_params = {
+                                'load_rate': rate,
+                                'load_point_index': i,
+                            }
+                            if concurrency > 0:
+                                child_params['max_concurrency'] = concurrency
+
+                            mlflow.log_params(child_params)
+
+                            # Extract and log all metrics for load point
+                            load_metrics = extract_metrics_from_benchmark(
+                                bench, prefix=""
+                            )
+                            mlflow.log_metrics(load_metrics)
+
+                            # Add tags
+                            mlflow.set_tag("load_point", f"{rate:.2f}")
+                            mlflow.set_tag("load_point_index", str(i))
 
                 print("✓ Successfully logged experiment to MLflow")
-                print(f"  Run ID: {run.info.run_id}")
+                print(f"  Parent Run ID: {parent_run.info.run_id}")
                 print(f"  Experiment: {experiment_name}")
                 print(f"  Run Name: {run_name}")
+                if log_per_load_point:
+                    print(f"  Child Runs: {len(benchmarks.get('benchmarks', []))} load points")
                 print(f"  Tracking URI: {mlflow.get_tracking_uri()}")
 
                 return True
