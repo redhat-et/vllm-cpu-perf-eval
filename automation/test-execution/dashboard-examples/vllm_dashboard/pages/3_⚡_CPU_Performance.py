@@ -213,6 +213,23 @@ def render_cpu_performance_plots(df: pd.DataFrame):
         st.warning("No data available for selected filters.")
         return
 
+    # Interactive toggles
+    st.markdown("### Chart Options")
+    col_opt1, col_opt2, col_opt3 = st.columns(3)
+
+    with col_opt1:
+        log_scale = st.checkbox("Log Scale", value=False, key="cpu_perf_log_scale")
+
+    with col_opt2:
+        optimal_only = st.checkbox("Optimal Only", value=False, key="cpu_perf_optimal_only",
+                                   help="Show only Pareto-optimal points (best throughput for each latency level)")
+
+    with col_opt3:
+        show_concurrency = st.checkbox("Show Concurrency Labels", value=False, key="cpu_perf_show_conc",
+                                      help="Display concurrency values on each point")
+
+    st.markdown("---")
+
     # Group by test configuration
     grouped = df.groupby([
         'platform', 'model_short', 'workload', 'vllm_version',
@@ -240,41 +257,70 @@ def render_cpu_performance_plots(df: pd.DataFrame):
             # Sort by latency
             group_df = group_df.sort_values('e2e_latency_ms')
 
+            # Filter to optimal points only if requested
+            if optimal_only:
+                # Keep only pareto-optimal points (best throughput for each latency level or better)
+                optimal_points = []
+                max_throughput_seen = 0
+                for idx, row in group_df.iterrows():
+                    if row['throughput_per_core'] >= max_throughput_seen:
+                        optimal_points.append(idx)
+                        max_throughput_seen = row['throughput_per_core']
+                group_df = group_df.loc[optimal_points]
+
             # Get full model name
             full_model = group_df['model'].iloc[0]
 
-            # Format label
-            base_label = f"{platform} | {full_model} | {vllm_version} | {cores}c | TP={tp} | {workload}"
+            # Simplified legend label - just platform and cores
+            simple_label = f"{platform} | {cores}c"
+            if tp > 1:
+                simple_label += f" (TP={tp})"
 
-            # Add test_name if exists
+            # Detailed label for hover
+            detail_label = f"{platform} | {full_model} | {vllm_version} | {cores}c | TP={tp} | {workload}"
             if test_name and test_name.strip():
                 run_id_short = test_id[-12:] if len(test_id) >= 12 else test_id
-                base_label = f"[{test_name}] {base_label} (run {run_id_short})"
+                detail_label = f"[{test_name}] {detail_label} (run {run_id_short})"
+
+            # Prepare text labels if requested
+            text_labels = None
+            if show_concurrency:
+                text_labels = [f"{int(c)}" for c in group_df['concurrency']]
 
             fig.add_trace(go.Scatter(
                 x=group_df['e2e_latency_ms'],
                 y=group_df['throughput_per_core'],
-                name=base_label,
-                mode='lines+markers',
+                name=simple_label,
+                mode='lines+markers+text' if show_concurrency else 'lines+markers',
+                text=text_labels,
+                textposition='top center',
+                textfont=dict(size=9),
                 line=dict(
                     color=colors[color_idx % len(colors)],
                     width=3
                 ),
                 marker=dict(size=10),
                 hovertemplate=(
-                    f"<b>{base_label}</b><br>" +
+                    f"<b>{detail_label}</b><br>" +
+                    "Concurrency: %{customdata}<br>" +
                     "E2E Latency: %{x:.2f} ms<br>" +
                     "Throughput/Core: %{y:.2f} tok/s.core<br>" +
                     "<extra></extra>"
-                )
+                ),
+                customdata=group_df['concurrency']
             ))
 
             color_idx += 1
 
+        # Apply log scale if requested
+        yaxis_config = dict(title="Total Token Throughput per Core (tok/s.core)")
+        if log_scale:
+            yaxis_config['type'] = 'log'
+
         fig.update_layout(
             title="Token Throughput per Core vs. End-to-end Latency",
             xaxis_title="End-to-end Latency (ms)",
-            yaxis_title="Total Token Throughput per Core (tok/s.core)",
+            yaxis=yaxis_config,
             height=600,
             hovermode='closest',
             legend=dict(
@@ -286,9 +332,10 @@ def render_cpu_performance_plots(df: pd.DataFrame):
                 bgcolor="white",
                 bordercolor="rgba(0, 0, 0, 0.3)",
                 borderwidth=1,
-                font=dict(size=9, color="rgb(0, 0, 0)")
+                font=dict(size=10, color="rgb(0, 0, 0)"),
+                title=dict(text="Platform | Cores", font=dict(size=11))
             ),
-            margin=dict(r=400)
+            margin=dict(r=250)
         )
 
         st.plotly_chart(fig, use_container_width=True)
@@ -345,41 +392,70 @@ def render_cpu_performance_plots(df: pd.DataFrame):
             # Sort by interactivity
             group_df = group_df.sort_values('interactivity')
 
+            # Filter to optimal points only if requested
+            if optimal_only:
+                # Keep only pareto-optimal points (best throughput for each interactivity level or better)
+                optimal_points = []
+                max_throughput_seen = 0
+                for idx, row in group_df.iterrows():
+                    if row['throughput_per_core'] >= max_throughput_seen:
+                        optimal_points.append(idx)
+                        max_throughput_seen = row['throughput_per_core']
+                group_df = group_df.loc[optimal_points]
+
             # Get full model name
             full_model = group_df['model'].iloc[0]
 
-            # Format label
-            base_label = f"{platform} | {full_model} | {vllm_version} | {cores}c | TP={tp} | {workload}"
+            # Simplified legend label - just platform and cores
+            simple_label = f"{platform} | {cores}c"
+            if tp > 1:
+                simple_label += f" (TP={tp})"
 
-            # Add test_name if exists
+            # Detailed label for hover
+            detail_label = f"{platform} | {full_model} | {vllm_version} | {cores}c | TP={tp} | {workload}"
             if test_name and test_name.strip():
                 run_id_short = test_id[-12:] if len(test_id) >= 12 else test_id
-                base_label = f"[{test_name}] {base_label} (run {run_id_short})"
+                detail_label = f"[{test_name}] {detail_label} (run {run_id_short})"
+
+            # Prepare text labels if requested
+            text_labels = None
+            if show_concurrency:
+                text_labels = [f"{int(c)}" for c in group_df['concurrency']]
 
             fig.add_trace(go.Scatter(
                 x=group_df['interactivity'],
                 y=group_df['throughput_per_core'],
-                name=base_label,
-                mode='lines+markers',
+                name=simple_label,
+                mode='lines+markers+text' if show_concurrency else 'lines+markers',
+                text=text_labels,
+                textposition='top center',
+                textfont=dict(size=9),
                 line=dict(
                     color=colors[color_idx % len(colors)],
                     width=3
                 ),
                 marker=dict(size=10),
                 hovertemplate=(
-                    f"<b>{base_label}</b><br>" +
+                    f"<b>{detail_label}</b><br>" +
+                    "Concurrency: %{customdata}<br>" +
                     "Interactivity: %{x:.2f} tok/s/user<br>" +
                     "Throughput/Core: %{y:.2f} tok/s.core<br>" +
                     "<extra></extra>"
-                )
+                ),
+                customdata=group_df['concurrency']
             ))
 
             color_idx += 1
 
+        # Apply log scale if requested
+        yaxis_config = dict(title="Total Token Throughput per Core (tok/s.core)")
+        if log_scale:
+            yaxis_config['type'] = 'log'
+
         fig.update_layout(
             title="Token Throughput per Core vs. Interactivity",
             xaxis_title="Interactivity (tok/s/user)",
-            yaxis_title="Total Token Throughput per Core (tok/s.core)",
+            yaxis=yaxis_config,
             height=600,
             hovermode='closest',
             legend=dict(
@@ -391,9 +467,10 @@ def render_cpu_performance_plots(df: pd.DataFrame):
                 bgcolor="white",
                 bordercolor="rgba(0, 0, 0, 0.3)",
                 borderwidth=1,
-                font=dict(size=9, color="rgb(0, 0, 0)")
+                font=dict(size=10, color="rgb(0, 0, 0)"),
+                title=dict(text="Platform | Cores", font=dict(size=11))
             ),
-            margin=dict(r=400)
+            margin=dict(r=250)
         )
 
         st.plotly_chart(fig, use_container_width=True)
