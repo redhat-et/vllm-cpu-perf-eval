@@ -88,6 +88,8 @@ def load_guidellm_data(results_dir: str) -> pd.DataFrame:
                     'core_config': metadata.get('core_config_name', 'unknown'),
                     'tensor_parallel': metadata.get('tensor_parallel', 1),
                     'vllm_mode': metadata.get('vllm_mode', 'managed'),
+                    'vllm_endpoint_url': metadata.get('vllm_endpoint_url', 'n/a'),
+                    'model_source': metadata.get('model_source', 'specified'),
 
                     # Load characteristics
                     'concurrency': concurrency,
@@ -119,6 +121,13 @@ def load_guidellm_data(results_dir: str) -> pd.DataFrame:
     cores = pd.to_numeric(df['cores'], errors='coerce')
     df['throughput_per_core'] = np.where(cores > 0, df['throughput_mean'] / cores, np.nan)
 
+    # For external tests without core info, use raw throughput as a fallback
+    df['throughput_display'] = np.where(
+        pd.isna(df['throughput_per_core']),
+        df['throughput_mean'],
+        df['throughput_per_core']
+    )
+
     # Calculate interactivity (throughput per concurrent user)
     concurrency = pd.to_numeric(df['concurrency'], errors='coerce')
     df['interactivity'] = np.where(concurrency > 0, df['throughput_mean'] / concurrency, np.nan)
@@ -132,6 +141,23 @@ def load_guidellm_data(results_dir: str) -> pd.DataFrame:
 def render_filters(df: pd.DataFrame) -> pd.DataFrame:
     """Render filter UI and return filtered DataFrame."""
     st.markdown("### 🔍 Filter your data")
+
+    # Detect test mode
+    has_managed = 'managed' in df['vllm_mode'].unique() if 'vllm_mode' in df.columns else False
+    has_external = 'external' in df['vllm_mode'].unique() if 'vllm_mode' in df.columns else False
+
+    # Show mode selector if both types exist
+    if has_managed and has_external:
+        test_mode = st.radio(
+            "Test Mode",
+            ["All", "Managed (DUT)", "External Endpoints"],
+            horizontal=True,
+            key="cpu_perf_mode_filter"
+        )
+        if test_mode == "Managed (DUT)":
+            df = df[df['vllm_mode'] == 'managed']
+        elif test_mode == "External Endpoints":
+            df = df[df['vllm_mode'] == 'external']
 
     col1, col2, col3 = st.columns(3)
 
@@ -165,11 +191,14 @@ def render_filters(df: pd.DataFrame) -> pd.DataFrame:
     col4, col5, col6 = st.columns(3)
 
     with col4:
-        cores = sorted(df['cores'].unique())
+        # Filter cores - exclude 0 for cleaner display unless that's all we have
+        cores_list = sorted([c for c in df['cores'].unique() if c != 0])
+        if not cores_list:
+            cores_list = sorted(df['cores'].unique())
         selected_cores = st.multiselect(
             "Core Count",
-            cores,
-            default=cores,
+            cores_list,
+            default=cores_list,
             key="cores_filter_cpu"
         )
 
@@ -191,15 +220,25 @@ def render_filters(df: pd.DataFrame) -> pd.DataFrame:
             key="guidellm_version_filter_cpu"
         )
 
-    # Apply filters
-    filtered_df = df[
-        df['platform'].isin(selected_platforms) &
-        df['model_short'].isin(selected_models) &
-        df['workload'].isin(selected_workloads) &
-        df['cores'].isin(selected_cores) &
-        df['vllm_version'].isin(selected_versions) &
-        df['guidellm_version'].isin(selected_guidellm_versions)
-    ]
+    # Apply filters - handle cores=0 for external tests
+    if selected_cores:
+        filtered_df = df[
+            df['platform'].isin(selected_platforms) &
+            df['model_short'].isin(selected_models) &
+            df['workload'].isin(selected_workloads) &
+            df['cores'].isin(selected_cores) &
+            df['vllm_version'].isin(selected_versions) &
+            df['guidellm_version'].isin(selected_guidellm_versions)
+        ]
+    else:
+        # If no cores selected, include all (including 0 for external tests)
+        filtered_df = df[
+            df['platform'].isin(selected_platforms) &
+            df['model_short'].isin(selected_models) &
+            df['workload'].isin(selected_workloads) &
+            df['vllm_version'].isin(selected_versions) &
+            df['guidellm_version'].isin(selected_guidellm_versions)
+        ]
 
     return filtered_df
 
@@ -246,8 +285,19 @@ def render_cpu_performance_plots(df: pd.DataFrame):
     ])
 
     with tab1:
-        st.markdown("### Token Throughput per Core vs. End-to-end Latency")
-        st.caption("Note: Throughput is Total Tokens per second per core (prompt + output tokens combined)")
+        # Detect if we have core count data
+        has_core_data = (df['cores'] > 0).any()
+
+        if has_core_data:
+            st.markdown("### Token Throughput per Core vs. End-to-end Latency")
+            st.caption("Note: Throughput is Total Tokens per second per core (prompt + output tokens combined)")
+            y_metric = 'throughput_per_core'
+            y_label = "Total Token Throughput per Core (tok/s.core)"
+        else:
+            st.markdown("### Token Throughput vs. End-to-end Latency")
+            st.caption("Note: Throughput is Total Tokens per second (prompt + output tokens combined)")
+            y_metric = 'throughput_mean'
+            y_label = "Total Token Throughput (tok/s)"
 
         # Create plot
         fig = go.Figure()
@@ -257,27 +307,41 @@ def render_cpu_performance_plots(df: pd.DataFrame):
             # Sort by latency
             group_df = group_df.sort_values('e2e_latency_ms')
 
+            # Skip if no valid throughput data
+            if group_df[y_metric].isna().all():
+                continue
+
             # Filter to optimal points only if requested
             if optimal_only:
                 # Keep only pareto-optimal points (best throughput for each latency level or better)
                 optimal_points = []
                 max_throughput_seen = 0
                 for idx, row in group_df.iterrows():
-                    if row['throughput_per_core'] >= max_throughput_seen:
+                    if row[y_metric] >= max_throughput_seen:
                         optimal_points.append(idx)
-                        max_throughput_seen = row['throughput_per_core']
+                        max_throughput_seen = row[y_metric]
                 group_df = group_df.loc[optimal_points]
 
             # Get full model name
             full_model = group_df['model'].iloc[0]
 
-            # Simplified legend label - just platform and cores
-            simple_label = f"{platform} | {cores}c"
-            if tp > 1:
-                simple_label += f" (TP={tp})"
+            # Simplified legend label
+            if has_core_data and cores > 0:
+                simple_label = f"{platform} | {cores}c"
+                if tp > 1:
+                    simple_label += f" (TP={tp})"
+            else:
+                # External mode or no core data
+                simple_label = f"{platform}"
+                if tp > 1:
+                    simple_label += f" (TP={tp})"
 
             # Detailed label for hover
-            detail_label = f"{platform} | {full_model} | {vllm_version} | {cores}c | TP={tp} | {workload}"
+            if has_core_data and cores > 0:
+                detail_label = f"{platform} | {full_model} | {vllm_version} | {cores}c | TP={tp} | {workload}"
+            else:
+                detail_label = f"{platform} | {full_model} | {vllm_version} | TP={tp} | {workload}"
+
             if test_name and test_name.strip():
                 run_id_short = test_id[-12:] if len(test_id) >= 12 else test_id
                 detail_label = f"[{test_name}] {detail_label} (run {run_id_short})"
@@ -287,9 +351,15 @@ def render_cpu_performance_plots(df: pd.DataFrame):
             if show_concurrency:
                 text_labels = [f"{int(c)}" for c in group_df['concurrency']]
 
+            # Build hover template based on metric type
+            if has_core_data:
+                hover_metric = "Throughput/Core: %{y:.2f} tok/s.core"
+            else:
+                hover_metric = "Throughput: %{y:.2f} tok/s"
+
             fig.add_trace(go.Scatter(
                 x=group_df['e2e_latency_ms'],
-                y=group_df['throughput_per_core'],
+                y=group_df[y_metric],
                 name=simple_label,
                 mode='lines+markers+text' if show_concurrency else 'lines+markers',
                 text=text_labels,
@@ -304,7 +374,7 @@ def render_cpu_performance_plots(df: pd.DataFrame):
                     f"<b>{detail_label}</b><br>" +
                     "Concurrency: %{customdata}<br>" +
                     "E2E Latency: %{x:.2f} ms<br>" +
-                    "Throughput/Core: %{y:.2f} tok/s.core<br>" +
+                    hover_metric + "<br>" +
                     "<extra></extra>"
                 ),
                 customdata=group_df['concurrency']
@@ -313,12 +383,16 @@ def render_cpu_performance_plots(df: pd.DataFrame):
             color_idx += 1
 
         # Apply log scale if requested
-        yaxis_config = dict(title="Total Token Throughput per Core (tok/s.core)")
+        yaxis_config = dict(title=y_label)
         if log_scale:
             yaxis_config['type'] = 'log'
 
+        # Set title and legend based on whether we have core data
+        chart_title = "Token Throughput per Core vs. End-to-end Latency" if has_core_data else "Token Throughput vs. End-to-end Latency"
+        legend_title = "Platform | Cores" if has_core_data else "Platform"
+
         fig.update_layout(
-            title="Token Throughput per Core vs. End-to-end Latency",
+            title=chart_title,
             xaxis_title="End-to-end Latency (ms)",
             yaxis=yaxis_config,
             height=600,
@@ -333,7 +407,7 @@ def render_cpu_performance_plots(df: pd.DataFrame):
                 bordercolor="rgba(0, 0, 0, 0.3)",
                 borderwidth=1,
                 font=dict(size=10, color="rgb(0, 0, 0)"),
-                title=dict(text="Platform | Cores", font=dict(size=11))
+                title=dict(text=legend_title, font=dict(size=11))
             ),
             margin=dict(r=250)
         )
@@ -380,8 +454,20 @@ def render_cpu_performance_plots(df: pd.DataFrame):
             st.dataframe(summary_df, use_container_width=True)
 
     with tab2:
-        st.markdown("### Token Throughput per Core vs. Interactivity")
-        st.caption("Note: Throughput is Total Tokens per second per core (prompt + output tokens combined)")
+        # Detect if we have core count data
+        has_core_data_tab2 = (df['cores'] > 0).any()
+
+        if has_core_data_tab2:
+            st.markdown("### Token Throughput per Core vs. Interactivity")
+            st.caption("Note: Throughput is Total Tokens per second per core (prompt + output tokens combined)")
+            y_metric_tab2 = 'throughput_per_core'
+            y_label_tab2 = "Total Token Throughput per Core (tok/s.core)"
+        else:
+            st.markdown("### Token Throughput vs. Interactivity")
+            st.caption("Note: Throughput is Total Tokens per second (prompt + output tokens combined)")
+            y_metric_tab2 = 'throughput_mean'
+            y_label_tab2 = "Total Token Throughput (tok/s)"
+
         st.caption("Interactivity = tok/s/user (total throughput divided by concurrent users)")
 
         # Create plot
@@ -392,27 +478,40 @@ def render_cpu_performance_plots(df: pd.DataFrame):
             # Sort by interactivity
             group_df = group_df.sort_values('interactivity')
 
+            # Skip if no valid throughput or interactivity data
+            if group_df[y_metric_tab2].isna().all() or group_df['interactivity'].isna().all():
+                continue
+
             # Filter to optimal points only if requested
             if optimal_only:
                 # Keep only pareto-optimal points (best throughput for each interactivity level or better)
                 optimal_points = []
                 max_throughput_seen = 0
                 for idx, row in group_df.iterrows():
-                    if row['throughput_per_core'] >= max_throughput_seen:
+                    if row[y_metric_tab2] >= max_throughput_seen:
                         optimal_points.append(idx)
-                        max_throughput_seen = row['throughput_per_core']
+                        max_throughput_seen = row[y_metric_tab2]
                 group_df = group_df.loc[optimal_points]
 
             # Get full model name
             full_model = group_df['model'].iloc[0]
 
-            # Simplified legend label - just platform and cores
-            simple_label = f"{platform} | {cores}c"
-            if tp > 1:
-                simple_label += f" (TP={tp})"
+            # Simplified legend label
+            if has_core_data_tab2 and cores > 0:
+                simple_label = f"{platform} | {cores}c"
+                if tp > 1:
+                    simple_label += f" (TP={tp})"
+            else:
+                simple_label = f"{platform}"
+                if tp > 1:
+                    simple_label += f" (TP={tp})"
 
             # Detailed label for hover
-            detail_label = f"{platform} | {full_model} | {vllm_version} | {cores}c | TP={tp} | {workload}"
+            if has_core_data_tab2 and cores > 0:
+                detail_label = f"{platform} | {full_model} | {vllm_version} | {cores}c | TP={tp} | {workload}"
+            else:
+                detail_label = f"{platform} | {full_model} | {vllm_version} | TP={tp} | {workload}"
+
             if test_name and test_name.strip():
                 run_id_short = test_id[-12:] if len(test_id) >= 12 else test_id
                 detail_label = f"[{test_name}] {detail_label} (run {run_id_short})"
@@ -422,9 +521,15 @@ def render_cpu_performance_plots(df: pd.DataFrame):
             if show_concurrency:
                 text_labels = [f"{int(c)}" for c in group_df['concurrency']]
 
+            # Build hover template based on metric type
+            if has_core_data_tab2:
+                hover_metric_tab2 = "Throughput/Core: %{y:.2f} tok/s.core"
+            else:
+                hover_metric_tab2 = "Throughput: %{y:.2f} tok/s"
+
             fig.add_trace(go.Scatter(
                 x=group_df['interactivity'],
-                y=group_df['throughput_per_core'],
+                y=group_df[y_metric_tab2],
                 name=simple_label,
                 mode='lines+markers+text' if show_concurrency else 'lines+markers',
                 text=text_labels,
@@ -439,7 +544,7 @@ def render_cpu_performance_plots(df: pd.DataFrame):
                     f"<b>{detail_label}</b><br>" +
                     "Concurrency: %{customdata}<br>" +
                     "Interactivity: %{x:.2f} tok/s/user<br>" +
-                    "Throughput/Core: %{y:.2f} tok/s.core<br>" +
+                    hover_metric_tab2 + "<br>" +
                     "<extra></extra>"
                 ),
                 customdata=group_df['concurrency']
@@ -448,14 +553,18 @@ def render_cpu_performance_plots(df: pd.DataFrame):
             color_idx += 1
 
         # Apply log scale if requested
-        yaxis_config = dict(title="Total Token Throughput per Core (tok/s.core)")
+        yaxis_config_tab2 = dict(title=y_label_tab2)
         if log_scale:
-            yaxis_config['type'] = 'log'
+            yaxis_config_tab2['type'] = 'log'
+
+        # Set title and legend based on whether we have core data
+        chart_title_tab2 = "Token Throughput per Core vs. Interactivity" if has_core_data_tab2 else "Token Throughput vs. Interactivity"
+        legend_title_tab2 = "Platform | Cores" if has_core_data_tab2 else "Platform"
 
         fig.update_layout(
-            title="Token Throughput per Core vs. Interactivity",
+            title=chart_title_tab2,
             xaxis_title="Interactivity (tok/s/user)",
-            yaxis=yaxis_config,
+            yaxis=yaxis_config_tab2,
             height=600,
             hovermode='closest',
             legend=dict(
@@ -468,7 +577,7 @@ def render_cpu_performance_plots(df: pd.DataFrame):
                 bordercolor="rgba(0, 0, 0, 0.3)",
                 borderwidth=1,
                 font=dict(size=10, color="rgb(0, 0, 0)"),
-                title=dict(text="Platform | Cores", font=dict(size=11))
+                title=dict(text=legend_title_tab2, font=dict(size=11))
             ),
             margin=dict(r=250)
         )
@@ -560,13 +669,8 @@ def render_dashboard():
         st.info("Make sure benchmark results exist in the specified directory.")
         return
 
-    # Filter to managed mode only (CPU tests)
-    if 'vllm_mode' in df.columns:
-        df = df[df['vllm_mode'] == 'managed']
-
-    if df.empty:
-        st.warning("No managed (CPU) test results found. This dashboard is for CPU-based tests only.")
-        return
+    # Note: This dashboard supports both managed and external mode tests
+    # All tests with concurrency data will show interactivity metrics
 
     # Global filters
     filtered_df = render_filters(df)
