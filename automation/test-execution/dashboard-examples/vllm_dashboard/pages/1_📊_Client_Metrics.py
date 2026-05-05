@@ -22,6 +22,11 @@ from plotly.subplots import make_subplots
 # Add parent directory to path for config_manager import
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from config_manager import DashboardConfig
+from repeatability_utils import (
+    calculate_repeatability_metrics,
+    get_repeatability_grade,
+    format_metric_with_cv,
+)
 
 # Set global Plotly template
 if "plotly_white_light" not in pio.templates:
@@ -660,6 +665,53 @@ def render_performance_plots(df: pd.DataFrame):
     )
 
     st.plotly_chart(fig, use_container_width=True)
+
+    # Calculate repeatability metrics if we have multiple runs
+    cv_metrics = calculate_repeatability_metrics(
+        df,
+        group_cols=['platform', 'model', 'workload', 'cores',
+                   'tensor_parallel', 'vllm_version', 'concurrency'],
+        metric_cols=['throughput_mean', 'ttft_mean', 'tpot_mean']
+    )
+
+    # Show repeatability info if available
+    if not cv_metrics.empty:
+        with st.expander("📈 Repeatability Metrics (Coefficient of Variation)"):
+            st.markdown("""
+            **Repeatability shows how consistent your results are across runs.**
+            Lower CV% = better repeatability.
+            """)
+
+            # Create display table
+            cv_display = cv_metrics.copy()
+
+            # Format CV columns
+            for col in cv_display.columns:
+                if col.endswith('_cv'):
+                    metric_name = col.replace('_cv', '').replace('_', ' ').title()
+                    cv_display[f'{metric_name} CV'] = cv_display[col].apply(
+                        lambda x: f"{x:.2f}%" if not np.isnan(x) else 'N/A'
+                    )
+                if col.endswith('_grade'):
+                    metric_name = col.replace('_grade', '').replace('_', ' ').title()
+                    cv_display[f'{metric_name} Grade'] = cv_display[col]
+
+            # Select columns to display
+            display_cols = ['platform', 'cores', 'concurrency']
+            display_cols.extend([c for c in cv_display.columns
+                               if c.endswith(' CV') or c.endswith(' Grade')])
+            display_cols = [c for c in display_cols if c in cv_display.columns]
+
+            st.dataframe(
+                cv_display[display_cols],
+                use_container_width=True,
+                height=300
+            )
+
+            st.caption(
+                "Grade: Excellent (<1% CV) | Good (1-3%) | "
+                "Acceptable (3-5%) | Poor (>5%)"
+            )
 
     # Show load sweep details
     with st.expander("📊 View Detailed Load Sweep Data"):
