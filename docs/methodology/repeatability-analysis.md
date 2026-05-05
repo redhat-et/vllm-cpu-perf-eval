@@ -1,4 +1,9 @@
-# Benchmark Repeatability Analysis
+---
+layout: default
+title: Repeatability Analysis
+---
+
+## Benchmark Repeatability Analysis
 
 ## Overview
 
