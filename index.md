@@ -23,6 +23,12 @@ This site provides complete testing methodology, automation tools, and platform 
   </div>
 
   <div class="link-card">
+    <h3>⚖️ vLLM Scale-Out</h3>
+    <p>Deploy multiple vLLM instances with nginx load balancing</p>
+    <a href="docs/vllm-scaleout">Scale-Out Guide →</a>
+  </div>
+
+  <div class="link-card">
     <h3>🧪 Test Suites</h3>
     <p>Explore concurrent load, scalability, and embedding model tests</p>
     <a href="tests/tests">Test Suites Overview →</a>

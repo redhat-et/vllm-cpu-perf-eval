@@ -223,6 +223,15 @@ Done! See sections below for advanced usage and additional playbooks.
 | [collect-logs.yml](collect-logs.yml) | Collect logs from DUT | After tests |
 | [health-check.yml](health-check.yml) | Check vLLM server health | Standalone or imported |
 
+### Scale-Out Deployment
+
+| Playbook | Purpose | Usage |
+|----------|---------|-------|
+| [start-vllm-scaleout.yml](start-vllm-scaleout.yml) | Deploy N vLLM instances with nginx load balancing | `-e "scaleout_num_instances=5 scaleout_cores_per_instance=32"` |
+| [stop-vllm-scaleout.yml](stop-vllm-scaleout.yml) | Stop and cleanup scale-out deployment | `-e "scaleout_cleanup_volumes=true"` (optional) |
+
+**See the [vLLM Scale-Out Guide](../../docs/vllm-scaleout.md) for complete documentation.**
+
 ## Workload Types
 
 Pre-configured in [inventory/group_vars/all/test-workloads.yml](inventory/group_vars/all/test-workloads.yml):

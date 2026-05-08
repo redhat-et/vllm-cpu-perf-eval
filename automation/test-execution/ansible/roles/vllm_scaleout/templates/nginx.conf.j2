@@ -1,0 +1,81 @@
+events {
+    worker_connections 4096;
+}
+
+http {
+    # Upstream configuration for vLLM instances
+    upstream vllm_backend {
+{% if scaleout_nginx_policy == 'least_conn' %}
+        least_conn;
+{% elif scaleout_nginx_policy == 'ip_hash' %}
+        ip_hash;
+{% endif %}
+{# round_robin is default, no directive needed #}
+
+{% for i in range(1, scaleout_num_instances + 1) %}
+        server vllm-{{ i }}:8000 max_fails=3 fail_timeout=30s;
+{% endfor %}
+    }
+
+    # Logging
+    access_log /var/log/nginx/access.log;
+    error_log /var/log/nginx/error.log warn;
+
+    # Server configuration
+    server {
+        listen 80;
+        server_name _;
+
+        # Increase timeouts for long-running inference requests
+        proxy_connect_timeout 300s;
+        proxy_send_timeout 300s;
+        proxy_read_timeout 300s;
+        send_timeout 300s;
+
+        # Increase buffer sizes for streaming responses
+        proxy_buffer_size 128k;
+        proxy_buffers 8 256k;
+        proxy_busy_buffers_size 512k;
+
+        # Health check endpoint
+        location /health {
+            proxy_pass http://vllm_backend/health;
+            proxy_http_version 1.1;
+            proxy_set_header Connection "";
+
+            # Retry on next upstream if one fails
+            proxy_next_upstream error timeout http_502 http_503 http_504;
+            proxy_next_upstream_tries {{ scaleout_num_instances }};
+        }
+
+        # Main API endpoints
+        location / {
+            proxy_pass http://vllm_backend;
+            proxy_http_version 1.1;
+
+            # Headers
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header Connection "";
+
+            # Enable streaming for SSE (Server-Sent Events)
+            proxy_buffering off;
+            proxy_cache off;
+
+            # Retry on next upstream if one fails
+            proxy_next_upstream error timeout http_502 http_503 http_504;
+            proxy_next_upstream_tries {{ scaleout_num_instances }};
+
+            # Client settings
+            client_max_body_size 50M;
+        }
+
+        # Nginx status endpoint
+        location /nginx_status {
+            stub_status on;
+            access_log off;
+        }
+    }
+}
