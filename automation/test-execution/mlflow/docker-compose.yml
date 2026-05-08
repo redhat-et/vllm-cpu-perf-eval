@@ -1,0 +1,50 @@
+version: "3.8"
+
+services:
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v3.11.1
+    container_name: mlflow-tracking-server
+    ports:
+      - "5000:5000"
+    user: "1000:1000"  # Run as non-root user
+    volumes:
+      - mlflow-data:/mlflow:rw
+      - ./artifacts:/mlflow/artifacts:z  # z flag for Podman SELinux shared mount
+    environment:
+      - MLFLOW_BACKEND_STORE_URI=sqlite:///mlflow/mlflow.db
+      - MLFLOW_ARTIFACT_ROOT=/mlflow/artifacts
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --port 5000
+      --backend-store-uri sqlite:///mlflow/mlflow.db
+      --default-artifact-root mlflow-artifacts:/
+      --artifacts-destination /mlflow/artifacts
+    restart: unless-stopped
+    networks:
+      - mlflow-network
+
+  # Optional: PostgreSQL backend for production use
+  # Uncomment this section and update mlflow service config to use PostgreSQL
+  # postgres:
+  #   image: postgres:15
+  #   container_name: mlflow-postgres
+  #   environment:
+  #     - POSTGRES_USER=mlflow
+  #     - POSTGRES_PASSWORD=mlflow
+  #     - POSTGRES_DB=mlflow
+  #   volumes:
+  #     - postgres-data:/var/lib/postgresql/data
+  #   networks:
+  #     - mlflow-network
+  #   restart: unless-stopped
+
+volumes:
+  mlflow-data:
+    driver: local
+  # postgres-data:
+  #   driver: local
+
+networks:
+  mlflow-network:
+    driver: bridge

@@ -136,21 +136,21 @@
         that:
           - vllm_cpu_start | int >= 0
         fail_msg: "vllm_cpu_start must be a non-negative integer, got: {{ vllm_cpu_start }}"
-      when: vllm_cpu_start is defined
+      when: vllm_cpu_start is not none
 
     - name: Validate vllm_numa_node if provided
       ansible.builtin.assert:
         that:
           - vllm_numa_node | int >= 0
         fail_msg: "vllm_numa_node must be a non-negative integer, got: {{ vllm_numa_node }}"
-      when: vllm_numa_node is defined
+      when: vllm_numa_node is not none
 
     - name: Validate guidellm_numa_node if provided
       ansible.builtin.assert:
         that:
           - guidellm_numa_node | int >= 0
         fail_msg: "guidellm_numa_node must be a non-negative integer, got: {{ guidellm_numa_node }}"
-      when: guidellm_numa_node is defined
+      when: guidellm_numa_node is not none
 
     - name: Generate test run ID (with custom name)
       ansible.builtin.set_fact:

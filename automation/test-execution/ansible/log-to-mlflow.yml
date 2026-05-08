@@ -1,0 +1,222 @@
+---
+# Log benchmark results to MLflow
+# This playbook can log a single test result or batch import multiple results
+
+- name: "MLflow Logging - Setup"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    # Default MLflow tracking URI
+    mlflow_tracking_uri: "{{ lookup('env', 'MLFLOW_TRACKING_URI') | default('http://localhost:5000', true) }}"
+
+  tasks:
+    - name: Validate MLflow configuration
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "MLflow Logging Configuration"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Tracking URI: {{ mlflow_tracking_uri }}"
+          - "Mode: {{ 'Single Test' if (benchmarks_file is defined and metadata_file is defined) else 'Batch Import' }}"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+    - name: Check if mlflow is installed
+      ansible.builtin.command:
+        cmd: python3 -c "import mlflow"
+      register: mlflow_check
+      changed_when: false
+      failed_when: false
+
+    - name: Fail if mlflow is not installed
+      ansible.builtin.fail:
+        msg: |
+          MLflow is not installed. Please install it with:
+          pip install mlflow
+      when: mlflow_check.rc != 0
+
+    - name: Test MLflow server connectivity
+      ansible.builtin.uri:
+        url: "{{ mlflow_tracking_uri }}/health"
+        method: GET
+        status_code: 200
+      register: mlflow_health
+      failed_when: false
+      when: mlflow_tracking_uri.startswith('http')
+
+    - name: Warn if MLflow server is not accessible
+      ansible.builtin.debug:
+        msg: "⚠️  Warning: MLflow server at {{ mlflow_tracking_uri }} is not accessible. Using local file storage."
+      when:
+        - mlflow_tracking_uri.startswith('http')
+        - mlflow_health.status | default(0) != 200
+
+# ==============================================================================
+# MODE 1: Log Single Test Result
+# ==============================================================================
+
+- name: "Log Single Test to MLflow"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    mlflow_tracking_uri: "{{ lookup('env', 'MLFLOW_TRACKING_URI') | default('http://localhost:5000', true) }}"
+
+  tasks:
+    - name: Validate single test parameters
+      ansible.builtin.assert:
+        that:
+          - benchmarks_file is defined
+          - metadata_file is defined
+          - benchmarks_file | length > 0
+          - metadata_file | length > 0
+        fail_msg: |
+          For single test logging, provide:
+          -e "benchmarks_file=/path/to/benchmarks.json"
+          -e "metadata_file=/path/to/test-metadata.json"
+        quiet: true
+      when: batch_import is not defined or not (batch_import | bool)
+
+    - name: Check if benchmark files exist
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      register: file_check
+      loop:
+        - "{{ benchmarks_file }}"
+        - "{{ metadata_file }}"
+      when:
+        - batch_import is not defined or not (batch_import | bool)
+        - benchmarks_file is defined
+        - metadata_file is defined
+
+    - name: Fail if files don't exist
+      ansible.builtin.fail:
+        msg: "File not found: {{ item.item }}"
+      when:
+        - batch_import is not defined or not (batch_import | bool)
+        - benchmarks_file is defined
+        - item.stat is defined
+        - not item.stat.exists
+      loop: "{{ file_check.results | default([]) }}"
+
+    - name: Log test to MLflow
+      ansible.builtin.command:
+        cmd: >-
+          python3 {{ playbook_dir }}/scripts/log_to_mlflow.py
+          {{ benchmarks_file }}
+          {{ metadata_file }}
+          {% if experiment_name is defined %}-e "{{ experiment_name }}"{% endif %}
+          {% if run_name is defined %}-r "{{ run_name }}"{% endif %}
+          {% if mlflow_tracking_uri is defined %}-u "{{ mlflow_tracking_uri }}"{% endif %}
+          {% if log_per_load_point | default(true) %}--log-per-load-point{% endif %}
+      environment:
+        MLFLOW_TRACKING_URI: "{{ mlflow_tracking_uri }}"
+      register: mlflow_log_result
+      changed_when: false
+      when:
+        - batch_import is not defined or not (batch_import | bool)
+        - benchmarks_file is defined
+        - metadata_file is defined
+
+    - name: Display MLflow logging result
+      ansible.builtin.debug:
+        msg: "{{ mlflow_log_result.stdout_lines }}"
+      when:
+        - batch_import is not defined or not (batch_import | bool)
+        - mlflow_log_result is defined
+        - mlflow_log_result.stdout_lines is defined
+
+# ==============================================================================
+# MODE 2: Batch Import Multiple Results
+# ==============================================================================
+
+- name: "Batch Import Tests to MLflow"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    mlflow_tracking_uri: "{{ lookup('env', 'MLFLOW_TRACKING_URI') | default('http://localhost:5000', true) }}"
+    results_base: "{{ results_directory | default(playbook_dir ~ '/../../../results/llm') }}"
+
+  tasks:
+    - name: Validate batch import parameters
+      ansible.builtin.debug:
+        msg:
+          - "Batch Import Mode"
+          - "Results directory: {{ results_base }}"
+          - "Filters:"
+          - "  - Model: {{ model_filter | default('*') }}"
+          - "  - Workload: {{ workload_filter | default('*') }}"
+          - "  - Since: {{ since_date | default('all time') }}"
+      when: batch_import | default(false) | bool
+
+    - name: Find all benchmark result files
+      ansible.builtin.find:
+        paths: "{{ results_base }}"
+        patterns: "benchmarks.json"
+        recurse: true
+      register: benchmark_files
+      when: batch_import | default(false) | bool
+
+    - name: Filter benchmark files
+      ansible.builtin.set_fact:
+        filtered_benchmarks: >-
+          {{
+            benchmark_files.files
+            | map(attribute='path')
+            | select('match', '.*' ~ (model_filter | default('') | regex_escape) ~ '.*')
+            | select('match', '.*' ~ (workload_filter | default('') | regex_escape) ~ '.*')
+            | list
+          }}
+      when: batch_import | default(false) | bool
+
+    - name: Display import plan
+      ansible.builtin.debug:
+        msg:
+          - "Found {{ filtered_benchmarks | length }} test results to import"
+          - "{% if filtered_benchmarks | length == 0 %}No results match the filters{% endif %}"
+      when: batch_import | default(false) | bool
+
+    - name: Log each test to MLflow
+      ansible.builtin.command:
+        cmd: >-
+          python3 {{ playbook_dir }}/scripts/log_to_mlflow.py
+          {{ item }}
+          {{ item | dirname }}/test-metadata.json
+          {% if mlflow_tracking_uri is defined %}-u "{{ mlflow_tracking_uri }}"{% endif %}
+          {% if log_per_load_point | default(true) %}--log-per-load-point{% endif %}
+      environment:
+        MLFLOW_TRACKING_URI: "{{ mlflow_tracking_uri }}"
+      register: batch_log_results
+      changed_when: false
+      failed_when: false
+      loop: "{{ filtered_benchmarks | default([]) }}"
+      when:
+        - batch_import | default(false) | bool
+        - filtered_benchmarks | default([]) | length > 0
+
+    - name: Summarize batch import results
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Batch Import Complete"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Total processed: {{ batch_log_results.results | length }}"
+          - "Successful: {{ batch_log_results.results | selectattr('rc', 'equalto', 0) | list | length }}"
+          - "Failed: {{ batch_log_results.results | rejectattr('rc', 'equalto', 0) | list | length }}"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "View results at: {{ mlflow_tracking_uri }}"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      when:
+        - batch_import | default(false) | bool
+        - batch_log_results is defined
+
+    - name: Show failed imports
+      ansible.builtin.debug:
+        msg:
+          - "Failed to import: {{ item.item }}"
+          - "Error: {{ item.stderr_lines | default(['Unknown error']) | join(' ') }}"
+      loop: "{{ batch_log_results.results | default([]) }}"
+      when:
+        - batch_import | default(false) | bool
+        - item.rc != 0
+        - batch_log_results is defined
+      loop_control:
+        label: "{{ item.item | basename }}"
