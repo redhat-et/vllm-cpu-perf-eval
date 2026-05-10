@@ -45,11 +45,12 @@ st.markdown("---")
 st.markdown("""
 ### Welcome!
 
-This dashboard suite provides two complementary views of your
+This dashboard suite provides three complementary views of your
 vLLM CPU benchmark results:
 
 📊 **Client-Side Metrics** - End-user performance (GuideLLM)
 🖥️ **Server-Side Metrics** - Internal server (vLLM metrics)
+⚡ **CPU Performance** - Performance tradeoff analysis
 
 **👈 Use the sidebar to navigate between dashboards**
 """)
@@ -57,7 +58,7 @@ vLLM CPU benchmark results:
 st.markdown("---")
 
 # Dashboard overview cards
-col1, col2 = st.columns(2)
+col1, col2, col3 = st.columns(3)
 
 with col1:
     st.markdown("### 📊 Client-Side")
@@ -94,6 +95,23 @@ with col2:
     - Multi-test comparison
     - Summary statistics
     - Raw data inspection
+    """)
+
+with col3:
+    st.markdown("### ⚡ CPU Performance")
+    st.info("""
+    **What**: CPU performance tradeoffs
+
+    **Metrics**:
+    - Throughput vs Latency
+    - Throughput vs Interactivity
+    - Per-core efficiency
+
+    **Features**:
+    - GPU-style tradeoff charts
+    - Platform comparison
+    - Performance sweet spots
+    - Load point analysis
     """)
 
 st.markdown("---")
