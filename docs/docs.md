@@ -23,6 +23,7 @@ docs/
 │   ├── overview.md          # Performance evaluation overview
 │   ├── metrics.md           # Metrics definitions
 │   ├── reporting.md         # Test report structure
+│   ├── repeatability-analysis.md # Benchmark repeatability using CV
 │   └── (manual-sweep.md)    # Manual sweep testing guide
 │
 ├── platform-setup/          # Platform configuration
@@ -85,6 +86,8 @@ docs/
 2. [Reporting Guide](methodology/reporting.md) - Report structure and formats
 3. [Performance Evaluation Overview](methodology/overview.md) - Testing
    methodology
+4. [Repeatability Analysis](methodology/repeatability-analysis.md) - Analyzing
+   benchmark consistency with CV
 
 ### Reference Documentation
 
@@ -117,6 +120,7 @@ pre-commit run --all-files
 | methodology/overview.md | ✅ Complete | 2024-02-08 |
 | methodology/metrics.md | ✅ Complete | 2024-02-08 |
 | methodology/reporting.md | ✅ Complete | 2024-02-08 |
+| methodology/repeatability-analysis.md | ✅ Complete | 2026-05-05 |
 | platform-setup/x86/intel/deterministic-benchmarking.md | ✅ Complete | (current) |
 | ansible/test-execution.md | ✅ Complete | 2026-04-28 |
 | containers/* | 📝 Planned | - |

@@ -45,11 +45,12 @@ st.markdown("---")
 st.markdown("""
 ### Welcome!
 
-This dashboard suite provides two complementary views of your
+This dashboard suite provides three complementary views of your
 vLLM CPU benchmark results:
 
 📊 **Client-Side Metrics** - End-user performance (GuideLLM)
 🖥️ **Server-Side Metrics** - Internal server (vLLM metrics)
+📈 **Repeatability** - Analyze test consistency with CV metrics
 
 **👈 Use the sidebar to navigate between dashboards**
 """)
@@ -57,7 +58,7 @@ vLLM CPU benchmark results:
 st.markdown("---")
 
 # Dashboard overview cards
-col1, col2 = st.columns(2)
+col1, col2, col3 = st.columns(3)
 
 with col1:
     st.markdown("### 📊 Client-Side")
@@ -96,6 +97,22 @@ with col2:
     - Raw data inspection
     """)
 
+with col3:
+    st.markdown("### 📈 Repeatability")
+    st.info("""
+    **What**: Benchmark consistency analysis
+
+    **Metrics**:
+    - Coefficient of Variation (CV)
+    - Repeatability grades
+    - Configuration stability
+    - Multi-run analysis
+
+    **Use for**:
+    - Validating test environment
+    - Regression testing setup
+    - Configuration comparison
+    """)
 st.markdown("---")
 
 # Quick start
@@ -137,8 +154,9 @@ with tab1:
 
     Each dashboard loads from this directory - just run a test and refresh!
 
-    **Note**: External endpoint runs always show client metrics. Server-side metrics are
-    available when the external endpoint exposes `/metrics`.
+    **Note**: External endpoint runs always show client metrics.
+    Server-side metrics are available when the external endpoint exposes
+    `/metrics`.
     """)
 
 with tab2:
@@ -178,10 +196,11 @@ with tab3:
     - 📊 Summary statistics
     - 🔍 Raw data tab
 
-    **Analysis Workflow:**
-    - Start with Client Metrics to understand user experience
-    - Switch to Server Metrics to identify bottlenecks
-    - Compare metrics between dashboards for root cause analysis
+    **Repeatability Dashboard provides:**
+    - 📊 CV metrics for all configurations
+    - 🎯 Grade-based filtering (Excellent/Good/Acceptable/Poor)
+    - 📈 Metric-by-metric repeatability
+    - 💾 Exportable repeatability reports
     """)
 
 st.markdown("---")
