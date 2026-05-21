@@ -101,9 +101,9 @@
   ansible.builtin.debug:
     msg:
       - "Maximum RPS achieved: {{ max_rps }}"
-      - "25% rate: {{ (max_rps * 0.25) | round(2) }}"
-      - "50% rate: {{ (max_rps * 0.50) | round(2) }}"
-      - "75% rate: {{ (max_rps * 0.75) | round(2) }}"
+      - "25% rate: {{ ((max_rps | float) * 0.25) | round(2) }}"
+      - "50% rate: {{ ((max_rps | float) * 0.50) | round(2) }}"
+      - "75% rate: {{ ((max_rps | float) * 0.75) | round(2) }}"
 
 - name: "Baseline Test - 25% Load - Containerized"
   ansible.builtin.command:
@@ -119,7 +119,7 @@
       --dataset-name random
       --random-input-len 512
       --num-prompts {{ num_prompts }}
-      --request-rate {{ (max_rps * 0.25) | round(2) }}
+      --request-rate {{ ((max_rps | float) * 0.25) | round(2) }}
       --endpoint /v1/embeddings
       --save-result
       --result-filename {{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/baseline/sweep-25pct.json
@@ -137,7 +137,7 @@
       --dataset-name random
       --random-input-len 512
       --num-prompts {{ num_prompts }}
-      --request-rate {{ (max_rps * 0.25) | round(2) }}
+      --request-rate {{ ((max_rps | float) * 0.25) | round(2) }}
       --endpoint /v1/embeddings
       --save-result
       --result-filename {{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/baseline/sweep-25pct.json
@@ -158,7 +158,7 @@
       --dataset-name random
       --random-input-len 512
       --num-prompts {{ num_prompts }}
-      --request-rate {{ (max_rps * 0.50) | round(2) }}
+      --request-rate {{ ((max_rps | float) * 0.50) | round(2) }}
       --endpoint /v1/embeddings
       --save-result
       --result-filename {{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/baseline/sweep-50pct.json
@@ -176,7 +176,7 @@
       --dataset-name random
       --random-input-len 512
       --num-prompts {{ num_prompts }}
-      --request-rate {{ (max_rps * 0.50) | round(2) }}
+      --request-rate {{ ((max_rps | float) * 0.50) | round(2) }}
       --endpoint /v1/embeddings
       --save-result
       --result-filename {{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/baseline/sweep-50pct.json
@@ -197,7 +197,7 @@
       --dataset-name random
       --random-input-len 512
       --num-prompts {{ num_prompts }}
-      --request-rate {{ (max_rps * 0.75) | round(2) }}
+      --request-rate {{ ((max_rps | float) * 0.75) | round(2) }}
       --endpoint /v1/embeddings
       --save-result
       --result-filename {{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/baseline/sweep-75pct.json
@@ -215,7 +215,7 @@
       --dataset-name random
       --random-input-len 512
       --num-prompts {{ num_prompts }}
-      --request-rate {{ (max_rps * 0.75) | round(2) }}
+      --request-rate {{ ((max_rps | float) * 0.75) | round(2) }}
       --endpoint /v1/embeddings
       --save-result
       --result-filename {{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/baseline/sweep-75pct.json

@@ -52,6 +52,14 @@
         msg: "Embedding Models test suite not yet supported. Use llm-benchmark-concurrent-load.yml instead."
       when: not (allow_unsupported_tests | default(false) | bool)
 
+- name: Initialize embedding benchmark run metadata
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Generate test run ID
+      ansible.builtin.set_fact:
+        test_run_id: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
+
     - name: Display test run information
       ansible.builtin.debug:
         msg:
@@ -89,8 +97,8 @@
         method: GET
         status_code: 200
       register: health_check_result
-      retries: "{{ health_check.timeout // health_check.interval }}"
-      delay: "{{ health_check.interval }}"
+      retries: "{{ (health_check.timeout | int) // (health_check.interval | int) }}"
+      delay: "{{ health_check.interval | int }}"
       until: health_check_result.status == 200
 
     - name: Display vLLM server status
