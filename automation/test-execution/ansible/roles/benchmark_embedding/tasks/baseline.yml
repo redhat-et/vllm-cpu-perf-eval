@@ -26,7 +26,7 @@
       --backend openai-embeddings
       --model {{ model_name }}
       --dataset-name random
-      --random-input-len 512
+      --random-input-len {{ embedding_random_input_len | default(512) }}
       --num-prompts {{ num_prompts }}
       --request-rate inf
       --endpoint /v1/embeddings
@@ -45,7 +45,7 @@
       --backend openai-embeddings
       --model {{ model_name }}
       --dataset-name random
-      --random-input-len 512
+      --random-input-len {{ embedding_random_input_len | default(512) }}
       --num-prompts {{ num_prompts }}
       --request-rate inf
       --endpoint /v1/embeddings
@@ -117,7 +117,7 @@
       --backend openai-embeddings
       --model {{ model_name }}
       --dataset-name random
-      --random-input-len 512
+      --random-input-len {{ embedding_random_input_len | default(512) }}
       --num-prompts {{ num_prompts }}
       --request-rate {{ (max_rps * 0.25) | round(2) }}
       --endpoint /v1/embeddings
@@ -135,7 +135,7 @@
       --backend openai-embeddings
       --model {{ model_name }}
       --dataset-name random
-      --random-input-len 512
+      --random-input-len {{ embedding_random_input_len | default(512) }}
       --num-prompts {{ num_prompts }}
       --request-rate {{ (max_rps * 0.25) | round(2) }}
       --endpoint /v1/embeddings
@@ -156,7 +156,7 @@
       --backend openai-embeddings
       --model {{ model_name }}
       --dataset-name random
-      --random-input-len 512
+      --random-input-len {{ embedding_random_input_len | default(512) }}
       --num-prompts {{ num_prompts }}
       --request-rate {{ (max_rps * 0.50) | round(2) }}
       --endpoint /v1/embeddings
@@ -174,7 +174,7 @@
       --backend openai-embeddings
       --model {{ model_name }}
       --dataset-name random
-      --random-input-len 512
+      --random-input-len {{ embedding_random_input_len | default(512) }}
       --num-prompts {{ num_prompts }}
       --request-rate {{ (max_rps * 0.50) | round(2) }}
       --endpoint /v1/embeddings
@@ -195,7 +195,7 @@
       --backend openai-embeddings
       --model {{ model_name }}
       --dataset-name random
-      --random-input-len 512
+      --random-input-len {{ embedding_random_input_len | default(512) }}
       --num-prompts {{ num_prompts }}
       --request-rate {{ (max_rps * 0.75) | round(2) }}
       --endpoint /v1/embeddings
@@ -213,7 +213,7 @@
       --backend openai-embeddings
       --model {{ model_name }}
       --dataset-name random
-      --random-input-len 512
+      --random-input-len {{ embedding_random_input_len | default(512) }}
       --num-prompts {{ num_prompts }}
       --request-rate {{ (max_rps * 0.75) | round(2) }}
       --endpoint /v1/embeddings

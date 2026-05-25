@@ -339,6 +339,25 @@ Benefits of the bash approach:
 - Simpler error handling and recovery
 - More flexibility for complex sweep patterns
 
+## Embedding Length Overrides
+
+The embedding benchmark workflow defaults to:
+
+- `embedding_max_model_len=512`
+- `embedding_random_input_len=512`
+
+These defaults work for larger embedding models such as IBM Granite embedding models.
+
+Some smaller-context embedding models, for example `sentence-transformers/all-MiniLM-L6-v2`, support lower maximum context lengths and may fail during vLLM startup if the default values are used.
+
+For these models, override the embedding lengths explicitly:
+
+```bash
+ansible-playbook -i inventory/hosts.yml embedding-benchmark.yml \
+  -e "test_model=sentence-transformers/all-MiniLM-L6-v2" \
+  -e "embedding_max_model_len=256" \
+  -e "embedding_random_input_len=256"
+
 ## Extensibility for Embedding Tests
 
 To extend for embedding tests:
