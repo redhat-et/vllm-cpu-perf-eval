@@ -254,6 +254,9 @@ def process_benchmark_section(
     omp_num_threads=None,
     tensor_parallel=None,
     vllm_metrics=None,
+    vllm_mode=None,
+    core_config_name=None,
+    config_type=None,
 ):
     """Process a single benchmark section and extract performance metrics.
 
@@ -273,6 +276,10 @@ def process_benchmark_section(
         cpuset_mems: Memory node affinity (optional).
         omp_num_threads: OpenMP thread count (optional).
         tensor_parallel: Tensor parallelism size (optional, for CPU inference).
+        vllm_metrics: Server-side metrics (optional).
+        vllm_mode: vLLM mode - external or managed (optional).
+        core_config_name: Core configuration name (optional).
+        config_type: Configuration type - auto or manual (optional).
 
     Returns:
         dict: Processed benchmark metrics.
@@ -404,6 +411,10 @@ def process_benchmark_section(
         "cpuset_mems": cpuset_mems,
         "omp_num_threads": omp_num_threads,
         "tpot_mean": tpot_metrics.get("mean"),
+        # Test configuration fields
+        "vllm_mode": vllm_mode,
+        "core_config_name": core_config_name,
+        "config_type": config_type,
     }
 
     # Add server-side metrics if available
@@ -479,6 +490,10 @@ def parse_guidellm_json(
     """
     # Load metadata if provided
     metadata = {}
+    vllm_mode = None
+    core_config_name = None
+    config_type = None
+
     if metadata_path:
         metadata = load_test_metadata(metadata_path)
         # Override with metadata values if not provided as arguments
@@ -498,6 +513,11 @@ def parse_guidellm_json(
             image_tag = f"vllm:{metadata['vllm_version']}"
         if not model_name and metadata.get("model"):
             model_name = metadata["model"]
+
+        # Extract test configuration fields
+        vllm_mode = metadata.get("vllm_mode")
+        core_config_name = metadata.get("core_config_name")
+        config_type = metadata.get("config_type")
 
     try:
         with open(json_path) as f:
@@ -568,6 +588,9 @@ def parse_guidellm_json(
             omp_num_threads=omp_num_threads,
             tensor_parallel=tensor_parallel,
             vllm_metrics=vllm_metrics,
+            vllm_mode=vllm_mode,
+            core_config_name=core_config_name,
+            config_type=config_type,
         )
         if row_data:
             all_run_data.append(row_data)
@@ -800,6 +823,10 @@ def main():
             "cpuset_mems",
             "omp_num_threads",
             "tpot_mean",
+            # Test configuration
+            "vllm_mode",
+            "core_config_name",
+            "config_type",
             # Server-side metrics (from vllm-metrics.json)
             "server_cpu_usage_rate",
             "server_memory_mean_bytes",

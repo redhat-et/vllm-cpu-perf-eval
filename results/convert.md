@@ -16,15 +16,11 @@ pip install -r requirements.txt
 ### 2. Convert All Results
 
 ```bash
-# Run batch conversion (processes all 47 benchmark results)
+# Run batch conversion
 python results/scripts/convert_batch.py
 ```
 
-**✅ Conversion Summary:**
-- **417 rows** generated (416 benchmark data points + 1 header)
-- **50 columns** (45 standard metrics + 5 CPU-specific fields)
-- **100% success rate** (47/47 results converted)
-- **Output file**: `results/all_cpu_benchmarks.csv`
+Output: `results/all_cpu_benchmarks.csv`
 
 ### 3. Review and Share
 
@@ -58,6 +54,11 @@ The `convert_single.py` script is a CPU-specific adaptation of the dashboard's `
   - `cpuset_mems`: Memory node affinity
   - `omp_num_threads`: OpenMP thread count
   - `tpot_mean`: Mean time per output token
+- **Test Configuration Fields**: Distinguish test types:
+  - `vllm_mode`: external (remote server) vs managed (co-located)
+  - `core_config_name`: specific configuration used
+  - `config_type`: auto or manual configuration
+- **Server-Side Metrics**: 21 metrics from vllm-metrics.json (resource usage, cache stats, server latencies)
 
 ### What's Preserved
 - All performance metrics (throughput, latency percentiles, token counts)
@@ -203,7 +204,21 @@ The script generates a CSV with these columns (compatible with the dashboard):
 - guidellm_start_time_ms, guidellm_end_time_ms
 
 **CPU-Specific:**
-- core_count, cpuset_cpus, cpuset_mems, omp_num_threads
+- core_count, cpuset_cpus, cpuset_mems, omp_num_threads, tpot_mean
+
+**Test Configuration:**
+- vllm_mode: `external` (remote server) or `managed` (co-located)
+- core_config_name: e.g., `external-endpoint`, `32cores-numa1-tp1`
+- config_type: `auto` or `manual`
+
+**Server-Side Metrics** (from vllm-metrics.json):
+- Resource usage: server_cpu_usage_rate, server_memory_mean/max_bytes, server_kv_cache_usage_mean/max
+- Queue/Concurrency: server_requests_running_mean/max, server_requests_waiting_mean/max
+- Cache performance: server_prefix_cache_hits/queries/hit_rate, server_num_preemptions
+- Token counts: server_prompt_tokens_total, server_generation_tokens_total
+- Server latencies (ms): server_ttft/tpot/e2e/queue/prefill/decode_time_mean_ms
+
+**Note**: Client metrics (no prefix) include network latency; server metrics (`server_` prefix) are pure server-side measurements.
 
 ## Your Current Results Structure
 
