@@ -94,8 +94,9 @@ benchmark_tool:
     use_container: true
 
     # Container image for vllm bench
+    # Should match the vLLM server image for version consistency
     # Can be overridden with environment variable: export VLLM_BENCH_CONTAINER_IMAGE=...
-    container_image: "{{ lookup('env', 'VLLM_BENCH_CONTAINER_IMAGE') | default('quay.io/mtahhan/vllm:arm-base-cpu', true) }}"
+    container_image: "{{ lookup('env', 'VLLM_BENCH_CONTAINER_IMAGE') | default('docker.io/vllm/vllm-openai-cpu:v0.20.0', true) }}"
 
     # Number of prompts for embedding benchmark tests
     # Trade-off: sample size vs test duration
