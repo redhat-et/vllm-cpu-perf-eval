@@ -17,7 +17,7 @@ def find_benchmark_results(results_dir):
         results_dir: Root directory to search for results.
 
     Returns:
-        list: List of tuples (benchmarks_json_path, metadata_json_path)
+        list: List of tuples (benchmarks_json_path, metadata_json_path, vllm_metrics_json_path)
     """
     results = []
     results_path = Path(results_dir)
@@ -26,21 +26,25 @@ def find_benchmark_results(results_dir):
     for benchmarks_json in results_path.rglob("benchmarks.json"):
         parent_dir = benchmarks_json.parent
         metadata_json = parent_dir / "test-metadata.json"
+        vllm_metrics_json = parent_dir / "vllm-metrics.json"
 
         if metadata_json.exists():
-            results.append((str(benchmarks_json), str(metadata_json)))
+            # vllm-metrics.json is optional - include path if it exists, else None
+            vllm_path = str(vllm_metrics_json) if vllm_metrics_json.exists() else None
+            results.append((str(benchmarks_json), str(metadata_json), vllm_path))
         else:
             print(f"Warning: Found {benchmarks_json} but no corresponding test-metadata.json")
 
     return results
 
 
-def convert_result(benchmarks_json, metadata_json, output_csv, script_path):
+def convert_result(benchmarks_json, metadata_json, vllm_metrics_json, output_csv, script_path):
     """Convert a single benchmark result to CSV format.
 
     Args:
         benchmarks_json: Path to benchmarks.json
         metadata_json: Path to test-metadata.json
+        vllm_metrics_json: Path to vllm-metrics.json (optional, can be None)
         output_csv: Path to output CSV file
         script_path: Path to the import_manual_runs_json_cpu.py script
 
@@ -55,8 +59,14 @@ def convert_result(benchmarks_json, metadata_json, output_csv, script_path):
         "--csv-file", output_csv,
     ]
 
+    # Add vllm-metrics file if available
+    if vllm_metrics_json:
+        cmd.extend(["--vllm-metrics-file", vllm_metrics_json])
+
     print(f"\nProcessing: {benchmarks_json}")
     print(f"  Metadata: {metadata_json}")
+    if vllm_metrics_json:
+        print(f"  Server Metrics: {vllm_metrics_json}")
 
     try:
         result = subprocess.run(
@@ -107,8 +117,8 @@ def main():
     successful = 0
     failed = 0
 
-    for benchmarks_json, metadata_json in benchmark_results:
-        if convert_result(benchmarks_json, metadata_json, str(output_csv), str(import_script)):
+    for benchmarks_json, metadata_json, vllm_metrics_json in benchmark_results:
+        if convert_result(benchmarks_json, metadata_json, vllm_metrics_json, str(output_csv), str(import_script)):
             successful += 1
         else:
             failed += 1

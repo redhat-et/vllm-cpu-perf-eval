@@ -10,6 +10,7 @@ import argparse
 import json
 import os
 import sys
+from pathlib import Path
 
 import pandas as pd
 
@@ -34,6 +35,208 @@ def load_test_metadata(metadata_path):
         return {}
 
 
+def parse_vllm_metrics(vllm_metrics_path):
+    """Parse vLLM server-side metrics from vllm-metrics.json.
+
+    Args:
+        vllm_metrics_path: Path to the vllm-metrics.json file.
+
+    Returns:
+        dict: Aggregated server-side metrics.
+    """
+    if not vllm_metrics_path or not Path(vllm_metrics_path).exists():
+        print(f"Warning: vLLM metrics file not found at {vllm_metrics_path}")
+        return {}
+
+    try:
+        with open(vllm_metrics_path) as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        print(f"Warning: Could not parse vLLM metrics from {vllm_metrics_path}: {e}")
+        return {}
+
+    samples = data.get("samples", [])
+    if not samples:
+        print("Warning: No samples found in vLLM metrics")
+        return {}
+
+    # Helper function to extract metric values across all samples
+    def get_metric_values(metric_name, label_filter=None):
+        """Extract all values for a given metric across samples."""
+        values = []
+        for sample in samples:
+            metrics = sample.get("metrics", {})
+            metric_data = metrics.get(metric_name, [])
+
+            if isinstance(metric_data, list):
+                for item in metric_data:
+                    if label_filter is None or (
+                        isinstance(item, dict) and
+                        item.get("labels", {}) == label_filter
+                    ):
+                        values.append(item.get("value", 0))
+            elif isinstance(metric_data, (int, float)):
+                values.append(metric_data)
+
+        return values
+
+    # Helper to compute percentiles
+    def compute_percentiles(values):
+        """Compute statistics from a list of values."""
+        if not values:
+            return {}
+
+        sorted_vals = sorted(values)
+        n = len(sorted_vals)
+
+        return {
+            "mean": sum(values) / n,
+            "min": sorted_vals[0],
+            "max": sorted_vals[-1],
+            "p50": sorted_vals[int(n * 0.50)],
+            "p95": sorted_vals[int(n * 0.95)] if n > 1 else sorted_vals[0],
+            "p99": sorted_vals[int(n * 0.99)] if n > 1 else sorted_vals[0],
+        }
+
+    # Extract and aggregate metrics
+    result = {}
+
+    # Resource usage metrics
+    cpu_values = get_metric_values("process_cpu_seconds_total")
+    if cpu_values:
+        # CPU is cumulative, so compute rate (difference / time)
+        if len(cpu_values) > 1:
+            cpu_rate = (cpu_values[-1] - cpu_values[0]) / len(samples)
+            result["server_cpu_usage_rate"] = cpu_rate
+        else:
+            result["server_cpu_usage_rate"] = 0
+
+    mem_values = get_metric_values("process_resident_memory_bytes")
+    if mem_values:
+        mem_stats = compute_percentiles(mem_values)
+        result["server_memory_mean_bytes"] = mem_stats.get("mean")
+        result["server_memory_max_bytes"] = mem_stats.get("max")
+
+    kv_cache_values = get_metric_values("vllm:kv_cache_usage_perc")
+    if kv_cache_values:
+        kv_stats = compute_percentiles(kv_cache_values)
+        result["server_kv_cache_usage_mean"] = kv_stats.get("mean")
+        result["server_kv_cache_usage_max"] = kv_stats.get("max")
+
+    # Queue/Concurrency metrics
+    running_values = get_metric_values("vllm:num_requests_running")
+    if running_values:
+        running_stats = compute_percentiles(running_values)
+        result["server_requests_running_mean"] = running_stats.get("mean")
+        result["server_requests_running_max"] = running_stats.get("max")
+
+    waiting_values = get_metric_values("vllm:num_requests_waiting")
+    if waiting_values:
+        waiting_stats = compute_percentiles(waiting_values)
+        result["server_requests_waiting_mean"] = waiting_stats.get("mean")
+        result["server_requests_waiting_max"] = waiting_stats.get("max")
+
+    # Cache performance - extract from last sample (cumulative counters)
+    if samples:
+        last_metrics = samples[-1].get("metrics", {})
+
+        # Prefix cache hits/queries
+        prefix_hits = last_metrics.get("vllm:prefix_cache_hits_total", [])
+        prefix_queries = last_metrics.get("vllm:prefix_cache_queries_total", [])
+
+        if prefix_hits and prefix_queries and isinstance(prefix_hits, list) and isinstance(prefix_queries, list):
+            total_hits = sum(item.get("value", 0) for item in prefix_hits)
+            total_queries = sum(item.get("value", 0) for item in prefix_queries)
+
+            result["server_prefix_cache_hits"] = total_hits
+            result["server_prefix_cache_queries"] = total_queries
+            result["server_prefix_cache_hit_rate"] = (
+                total_hits / total_queries if total_queries > 0 else 0
+            )
+
+        # Preemptions
+        preemptions = last_metrics.get("vllm:num_preemptions_total", [])
+        if preemptions and isinstance(preemptions, list):
+            result["server_num_preemptions"] = sum(
+                item.get("value", 0) for item in preemptions
+            )
+
+        # Token counts
+        prompt_tokens = last_metrics.get("vllm:prompt_tokens_total", [])
+        if prompt_tokens and isinstance(prompt_tokens, list):
+            result["server_prompt_tokens_total"] = sum(
+                item.get("value", 0) for item in prompt_tokens
+            )
+
+        generation_tokens = last_metrics.get("vllm:generation_tokens_total", [])
+        if generation_tokens and isinstance(generation_tokens, list):
+            result["server_generation_tokens_total"] = sum(
+                item.get("value", 0) for item in generation_tokens
+            )
+
+    # Extract histogram metrics (converted from bucket/sum/count format)
+    def extract_histogram_stats(base_name):
+        """Extract summary stats from Prometheus histogram."""
+        sum_metric = f"{base_name}_sum"
+        count_metric = f"{base_name}_count"
+
+        # Get final cumulative values from last sample
+        if not samples:
+            return {}
+
+        last_metrics = samples[-1].get("metrics", {})
+        sum_data = last_metrics.get(sum_metric, [])
+        count_data = last_metrics.get(count_metric, [])
+
+        total_sum = 0
+        total_count = 0
+
+        if isinstance(sum_data, list):
+            total_sum = sum(item.get("value", 0) for item in sum_data)
+        elif isinstance(sum_data, (int, float)):
+            total_sum = sum_data
+
+        if isinstance(count_data, list):
+            total_count = sum(item.get("value", 0) for item in count_data)
+        elif isinstance(count_data, (int, float)):
+            total_count = count_data
+
+        if total_count > 0:
+            return {
+                "mean": total_sum / total_count,
+                "total": total_sum,
+                "count": total_count,
+            }
+        return {}
+
+    # Server-side latency metrics (in seconds, convert to ms)
+    ttft_stats = extract_histogram_stats("vllm:time_to_first_token_seconds")
+    if ttft_stats:
+        result["server_ttft_mean_ms"] = ttft_stats["mean"] * 1000
+
+    tpot_stats = extract_histogram_stats("vllm:request_time_per_output_token_seconds")
+    if tpot_stats:
+        result["server_tpot_mean_ms"] = tpot_stats["mean"] * 1000
+
+    e2e_stats = extract_histogram_stats("vllm:e2e_request_latency_seconds")
+    if e2e_stats:
+        result["server_e2e_latency_mean_ms"] = e2e_stats["mean"] * 1000
+
+    queue_stats = extract_histogram_stats("vllm:request_queue_time_seconds")
+    if queue_stats:
+        result["server_queue_time_mean_ms"] = queue_stats["mean"] * 1000
+
+    prefill_stats = extract_histogram_stats("vllm:request_prefill_time_seconds")
+    if prefill_stats:
+        result["server_prefill_time_mean_ms"] = prefill_stats["mean"] * 1000
+
+    decode_stats = extract_histogram_stats("vllm:request_decode_time_seconds")
+    if decode_stats:
+        result["server_decode_time_mean_ms"] = decode_stats["mean"] * 1000
+
+    return result
+
+
 def process_benchmark_section(
     benchmark,
     cpu_type,
@@ -50,6 +253,7 @@ def process_benchmark_section(
     cpuset_mems=None,
     omp_num_threads=None,
     tensor_parallel=None,
+    vllm_metrics=None,
 ):
     """Process a single benchmark section and extract performance metrics.
 
@@ -202,6 +406,37 @@ def process_benchmark_section(
         "tpot_mean": tpot_metrics.get("mean"),
     }
 
+    # Add server-side metrics if available
+    if vllm_metrics:
+        row.update({
+            # Resource usage
+            "server_cpu_usage_rate": vllm_metrics.get("server_cpu_usage_rate"),
+            "server_memory_mean_bytes": vllm_metrics.get("server_memory_mean_bytes"),
+            "server_memory_max_bytes": vllm_metrics.get("server_memory_max_bytes"),
+            "server_kv_cache_usage_mean": vllm_metrics.get("server_kv_cache_usage_mean"),
+            "server_kv_cache_usage_max": vllm_metrics.get("server_kv_cache_usage_max"),
+            # Queue/Concurrency
+            "server_requests_running_mean": vllm_metrics.get("server_requests_running_mean"),
+            "server_requests_running_max": vllm_metrics.get("server_requests_running_max"),
+            "server_requests_waiting_mean": vllm_metrics.get("server_requests_waiting_mean"),
+            "server_requests_waiting_max": vllm_metrics.get("server_requests_waiting_max"),
+            # Cache performance
+            "server_prefix_cache_hits": vllm_metrics.get("server_prefix_cache_hits"),
+            "server_prefix_cache_queries": vllm_metrics.get("server_prefix_cache_queries"),
+            "server_prefix_cache_hit_rate": vllm_metrics.get("server_prefix_cache_hit_rate"),
+            "server_num_preemptions": vllm_metrics.get("server_num_preemptions"),
+            # Token counts
+            "server_prompt_tokens_total": vllm_metrics.get("server_prompt_tokens_total"),
+            "server_generation_tokens_total": vllm_metrics.get("server_generation_tokens_total"),
+            # Server-side latencies (ms)
+            "server_ttft_mean_ms": vllm_metrics.get("server_ttft_mean_ms"),
+            "server_tpot_mean_ms": vllm_metrics.get("server_tpot_mean_ms"),
+            "server_e2e_latency_mean_ms": vllm_metrics.get("server_e2e_latency_mean_ms"),
+            "server_queue_time_mean_ms": vllm_metrics.get("server_queue_time_mean_ms"),
+            "server_prefill_time_mean_ms": vllm_metrics.get("server_prefill_time_mean_ms"),
+            "server_decode_time_mean_ms": vllm_metrics.get("server_decode_time_mean_ms"),
+        })
+
     return row
 
 
@@ -219,6 +454,7 @@ def parse_guidellm_json(
     cpuset_mems=None,
     omp_num_threads=None,
     tensor_parallel=None,
+    vllm_metrics_path=None,
 ):
     """Parse guidellm 0.5.x+ JSON benchmark results for CPU runs.
 
@@ -236,6 +472,7 @@ def parse_guidellm_json(
         cpuset_mems: Memory node affinity.
         omp_num_threads: OpenMP thread count.
         tensor_parallel: Tensor parallelism size.
+        vllm_metrics_path: Optional path to vllm-metrics.json for server-side metrics.
 
     Returns:
         DataFrame: Processed benchmark results.
@@ -303,6 +540,14 @@ def parse_guidellm_json(
     guidellm_start_time_ms = int(min(start_times) * 1000) if start_times else ""
     guidellm_end_time_ms = int(max(end_times) * 1000) if end_times else ""
 
+    # Parse server-side metrics if available
+    vllm_metrics = None
+    if vllm_metrics_path:
+        print(f"Loading server-side metrics from {vllm_metrics_path}...")
+        vllm_metrics = parse_vllm_metrics(vllm_metrics_path)
+        if vllm_metrics:
+            print(f"  Loaded {len(vllm_metrics)} server-side metric(s)")
+
     print(f"Processing {len(benchmarks)} benchmark sections...")
 
     for i, benchmark in enumerate(benchmarks):
@@ -322,6 +567,7 @@ def parse_guidellm_json(
             cpuset_mems=cpuset_mems,
             omp_num_threads=omp_num_threads,
             tensor_parallel=tensor_parallel,
+            vllm_metrics=vllm_metrics,
         )
         if row_data:
             all_run_data.append(row_data)
@@ -355,6 +601,10 @@ def main():
     parser.add_argument(
         "--metadata-file",
         help="Path to test-metadata.json (will auto-populate many fields)",
+    )
+    parser.add_argument(
+        "--vllm-metrics-file",
+        help="Path to vllm-metrics.json (adds server-side performance metrics)",
     )
     parser.add_argument(
         "--model",
@@ -483,6 +733,7 @@ def main():
         cpuset_mems=cpuset_mems,
         omp_num_threads=omp_num_threads,
         tensor_parallel=tensor_parallel,
+        vllm_metrics_path=args.vllm_metrics_file,
     )
 
     if new_data_df is not None and not new_data_df.empty:
@@ -549,6 +800,28 @@ def main():
             "cpuset_mems",
             "omp_num_threads",
             "tpot_mean",
+            # Server-side metrics (from vllm-metrics.json)
+            "server_cpu_usage_rate",
+            "server_memory_mean_bytes",
+            "server_memory_max_bytes",
+            "server_kv_cache_usage_mean",
+            "server_kv_cache_usage_max",
+            "server_requests_running_mean",
+            "server_requests_running_max",
+            "server_requests_waiting_mean",
+            "server_requests_waiting_max",
+            "server_prefix_cache_hits",
+            "server_prefix_cache_queries",
+            "server_prefix_cache_hit_rate",
+            "server_num_preemptions",
+            "server_prompt_tokens_total",
+            "server_generation_tokens_total",
+            "server_ttft_mean_ms",
+            "server_tpot_mean_ms",
+            "server_e2e_latency_mean_ms",
+            "server_queue_time_mean_ms",
+            "server_prefill_time_mean_ms",
+            "server_decode_time_mean_ms",
         ]
 
         for col in fieldnames:
