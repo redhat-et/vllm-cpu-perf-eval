@@ -69,14 +69,14 @@ The `convert_single.py` script is a CPU-specific adaptation of the dashboard's `
 ```
 results/
 ├── scripts/
-│   ├── convert_single.py    # CPU-specific converter
-│   └── convert_batch.py          # Batch processor
+│   ├── convert_single.py                 # Single result converter
+│   └── convert_batch.py                  # Batch processor
 ├── llm/                                   # Your benchmark data
 │   ├── RedHatAI__gemma-3-4b-it-quantized.w8a8/
 │   ├── RedHatAI__Llama-3.1-8B-Instruct/
 │   └── ...
 ├── all_cpu_benchmarks.csv                # Output CSV
-└── README-cpu-results-psap-conversion.md # This file
+└── convert.md                             # This file
 ```
 
 ## Usage
