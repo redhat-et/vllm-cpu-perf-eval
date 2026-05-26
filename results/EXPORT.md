@@ -17,7 +17,7 @@ pip install -r requirements.txt
 
 ```bash
 # Run batch conversion (processes all 47 benchmark results)
-python results/scripts/batch_convert_results.py
+python results/scripts/convert_batch.py
 ```
 
 **✅ Conversion Summary:**
@@ -45,7 +45,7 @@ Now you can share `results/all_cpu_benchmarks.csv` with the performance dashboar
 
 ## Overview
 
-The `import_manual_runs_json_cpu.py` script is a CPU-specific adaptation of the dashboard's `import_manual_runs_json_v2.py` script. It processes guidellm v0.5.0+ JSON results from CPU-based inference runs.
+The `convert_single.py` script is a CPU-specific adaptation of the dashboard's `import_manual_runs_json_v2.py` script. It processes guidellm v0.5.0+ JSON results from CPU-based inference runs.
 
 ## Key Differences from GPU Version
 
@@ -69,8 +69,8 @@ The `import_manual_runs_json_cpu.py` script is a CPU-specific adaptation of the 
 ```
 results/
 ├── scripts/
-│   ├── import_manual_runs_json_cpu.py    # CPU-specific converter
-│   └── batch_convert_results.py          # Batch processor
+│   ├── convert_single.py    # CPU-specific converter
+│   └── convert_batch.py          # Batch processor
 ├── llm/                                   # Your benchmark data
 │   ├── RedHatAI__gemma-3-4b-it-quantized.w8a8/
 │   ├── RedHatAI__Llama-3.1-8B-Instruct/
@@ -87,7 +87,7 @@ Process all your benchmark results at once:
 
 ```bash
 # From repository root
-python results/scripts/batch_convert_results.py
+python results/scripts/convert_batch.py
 ```
 
 This will:
@@ -100,7 +100,7 @@ This will:
 For a single benchmark run:
 
 ```bash
-python results/scripts/import_manual_runs_json_cpu.py \
+python results/scripts/convert_single.py \
   results/llm/model-name/test-run/external-endpoint/benchmarks.json \
   --metadata-file results/llm/model-name/test-run/external-endpoint/test-metadata.json \
   --csv-file results/output.csv
@@ -109,7 +109,7 @@ python results/scripts/import_manual_runs_json_cpu.py \
 The `--metadata-file` option auto-populates most fields. You can override any field:
 
 ```bash
-python results/scripts/import_manual_runs_json_cpu.py \
+python results/scripts/convert_single.py \
   results/llm/model-name/test-run/external-endpoint/benchmarks.json \
   --metadata-file results/llm/model-name/test-run/external-endpoint/test-metadata.json \
   --cpu-type "Xeon-Platinum-8480+" \
@@ -122,7 +122,7 @@ python results/scripts/import_manual_runs_json_cpu.py \
 If you don't have a metadata file:
 
 ```bash
-python results/scripts/import_manual_runs_json_cpu.py \
+python results/scripts/convert_single.py \
   path/to/benchmarks.json \
   --model "RedHatAI/gemma-3-4b-it-quantized.w8a8" \
   --version "vLLM-0.18.0" \
@@ -162,7 +162,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 # 2. Run batch conversion
-python results/scripts/batch_convert_results.py
+python results/scripts/convert_batch.py
 
 # 3. Check the output
 head results/all_cpu_benchmarks.csv
@@ -249,5 +249,5 @@ Once you've generated the CSV:
 
 ## Scripts
 
-- [`scripts/import_manual_runs_json_cpu.py`](scripts/import_manual_runs_json_cpu.py) - Single result converter (adapted from [import_manual_runs_json_v2.py](https://github.com/openshift-psap/performance-dashboard/blob/main/manual_runs/scripts/import_manual_runs_json_v2.py))
-- [`scripts/batch_convert_results.py`](scripts/batch_convert_results.py) - Batch processor for all results
+- [`scripts/convert_single.py`](scripts/convert_single.py) - Single result converter (adapted from [import_manual_runs_json_v2.py](https://github.com/openshift-psap/performance-dashboard/blob/main/manual_runs/scripts/import_manual_runs_json_v2.py))
+- [`scripts/convert_batch.py`](scripts/convert_batch.py) - Batch processor for all results

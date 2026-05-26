@@ -46,7 +46,7 @@ def convert_result(benchmarks_json, metadata_json, vllm_metrics_json, output_csv
         metadata_json: Path to test-metadata.json
         vllm_metrics_json: Path to vllm-metrics.json (optional, can be None)
         output_csv: Path to output CSV file
-        script_path: Path to the import_manual_runs_json_cpu.py script
+        script_path: Path to the convert_single.py script
 
     Returns:
         bool: True if successful, False otherwise
@@ -93,14 +93,14 @@ def main():
     # Configuration
     results_dir = repo_root / "results" / "llm"
     output_csv = repo_root / "results" / "all_cpu_benchmarks.csv"
-    import_script = script_dir / "import_manual_runs_json_cpu.py"
+    import_script = script_dir / "convert_single.py"
 
     if not results_dir.exists():
         print(f"Error: Results directory '{results_dir}' not found")
         sys.exit(1)
 
     if not import_script.exists():
-        print(f"Error: Import script '{import_script}' not found")
+        print(f"Error: Single converter script '{import_script}' not found")
         sys.exit(1)
 
     # Find all benchmark results
