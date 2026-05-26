@@ -18,7 +18,7 @@
   when:
     - guidellm_rate is defined
     - guidellm_rate is string
-  # Handles all string formats:
+    # Handles all string formats:
   # - Bracketed: "[1,2,4]" → [1, 2, 4]
   # - Plain number: "32" → [32]
   # - Comma-separated: "1,2,4" → [1, 2, 4]

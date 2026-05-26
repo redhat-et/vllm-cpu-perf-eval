@@ -28,8 +28,8 @@ all:
         container_image: "quay.io/mtahhan/vllm:0.14.0"  # or vllm/vllm-openai:latest
         num_prompts: 1000  # Production-grade measurements
 
-    # Optional: External endpoint mode for testing managed vLLM services
-    # vllm_endpoint:
+  # Optional: External endpoint mode for testing managed vLLM services
+  # vllm_endpoint:
     #   mode: "external"
     #   external:
     #     url: "http://vllm-lb-12345.us-east-1.elb.amazonaws.com:8000"
