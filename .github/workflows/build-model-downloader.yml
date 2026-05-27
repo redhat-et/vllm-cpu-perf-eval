@@ -6,12 +6,12 @@ on:
       - main
       - container/**
     paths:
-      - 'container-images/model-downloader/**'
-      - '.github/workflows/build-model-downloader.yml'
+      - "container-images/model-downloader/**"
+      - ".github/workflows/build-model-downloader.yml"
   pull_request:
     paths:
-      - 'container-images/model-downloader/**'
-      - '.github/workflows/build-model-downloader.yml'
+      - "container-images/model-downloader/**"
+      - ".github/workflows/build-model-downloader.yml"
   workflow_dispatch:  # Allow manual trigger
 
 env:
