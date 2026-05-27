@@ -1,0 +1,19 @@
+#!/bin/bash
+# Build and push the model-downloader container image
+
+set -e
+
+IMAGE="quay.io/octo-et/vllm-cpu-perf-eval:model-downloader"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+echo "🔨 Building model-downloader container..."
+podman build -t "$IMAGE" "$SCRIPT_DIR"
+
+echo "✅ Build complete: $IMAGE"
+echo ""
+echo "To push to quay.io:"
+echo "  podman login quay.io"
+echo "  podman push $IMAGE"
+echo ""
+echo "To test locally:"
+echo "  podman run --rm $IMAGE /usr/local/bin/download_model.py --help"
