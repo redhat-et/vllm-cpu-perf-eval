@@ -544,9 +544,12 @@ def log_to_mlflow(
 
         # Check if this test_run_id was already logged (deduplication)
         test_run_id = metadata.get('test_run_id', 'unknown')
+        # Sanitize test_run_id to prevent filter string injection
+        # MLflow filter strings use single quotes, escape them by doubling
+        sanitized_test_run_id = test_run_id.replace("'", "''")
         existing_runs = mlflow.search_runs(
             experiment_ids=[experiment.experiment_id],
-            filter_string=f"params.test_run_id = '{test_run_id}'",
+            filter_string=f"params.test_run_id = '{sanitized_test_run_id}'",
             max_results=1
         )
 

@@ -194,7 +194,7 @@ case $MODE in
                     -e "metadata_file=${meta}" \
                     -e "mlflow_tracking_uri=${MLFLOW_URI}" \
                     --quiet
-                ((COUNT++))
+                COUNT=$((COUNT + 1))
             fi
         done < <(find "$RESULTS_BASE" -name "benchmarks.json" -type f -mtime -1)
 

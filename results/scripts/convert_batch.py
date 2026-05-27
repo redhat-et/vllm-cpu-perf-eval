@@ -80,9 +80,13 @@ def convert_result(benchmarks_json, metadata_json, vllm_metrics_json, output_csv
             capture_output=True,
             text=True,
             check=True,
+            timeout=300,  # 5 minutes timeout to avoid indefinite blocking
         )
         print(result.stdout)
         return True
+    except subprocess.TimeoutExpired:
+        print(f"Error: Conversion timed out after 300s for {benchmarks_json}")
+        return False
     except subprocess.CalledProcessError as e:
         print(f"Error processing {benchmarks_json}:")
         print(e.stdout)
