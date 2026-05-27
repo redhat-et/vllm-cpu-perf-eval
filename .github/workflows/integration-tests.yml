@@ -12,6 +12,9 @@ name: Integration Tests
       - main
   workflow_dispatch:  # Allow manual trigger
 
+permissions:
+  contents: read
+
 jobs:
   integration-fast:
     name: Integration Tests (Fast)
