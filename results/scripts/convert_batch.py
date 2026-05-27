@@ -3,11 +3,17 @@
 
 This script recursively finds all benchmark results in the results/llm directory
 and converts them using the CPU-specific import script.
+
+Results are separated into two CSV files based on vllm_mode:
+- managed_cpu_benchmarks.csv: Single-instance tests (vllm_mode=managed)
+- external_cpu_benchmarks.csv: External Endpoint/Multi-instance tests (vllm_mode=external)
 """
 
 import subprocess
 import sys
 from pathlib import Path
+
+import pandas as pd
 
 
 def find_benchmark_results(results_dir):
@@ -92,7 +98,9 @@ def main():
 
     # Configuration
     results_dir = repo_root / "results" / "llm"
-    output_csv = repo_root / "results" / "all_cpu_benchmarks.csv"
+    temp_csv = repo_root / "results" / "temp_all_cpu_benchmarks.csv"
+    managed_csv = repo_root / "results" / "managed_cpu_benchmarks.csv"
+    external_csv = repo_root / "results" / "external_cpu_benchmarks.csv"
     import_script = script_dir / "convert_single.py"
 
     if not results_dir.exists():
@@ -102,6 +110,10 @@ def main():
     if not import_script.exists():
         print(f"Error: Single converter script '{import_script}' not found")
         sys.exit(1)
+
+    # Remove temp CSV if it exists
+    if temp_csv.exists():
+        temp_csv.unlink()
 
     # Find all benchmark results
     print(f"Searching for benchmark results in {results_dir}...")
@@ -113,15 +125,44 @@ def main():
 
     print(f"\nFound {len(benchmark_results)} benchmark result(s)")
 
-    # Process each result
+    # Process each result into temp CSV
     successful = 0
     failed = 0
 
     for benchmarks_json, metadata_json, vllm_metrics_json in benchmark_results:
-        if convert_result(benchmarks_json, metadata_json, vllm_metrics_json, str(output_csv), str(import_script)):
+        if convert_result(benchmarks_json, metadata_json, vllm_metrics_json, str(temp_csv), str(import_script)):
             successful += 1
         else:
             failed += 1
+
+    if failed > 0:
+        print(f"\nWarning: {failed} results failed to convert")
+
+    # Split results by vllm_mode
+    if temp_csv.exists():
+        print("\nSplitting results by vllm_mode...")
+        df = pd.read_csv(temp_csv)
+
+        # Split into managed and external
+        managed_df = df[df['vllm_mode'] == 'managed']
+        external_df = df[df['vllm_mode'] == 'external']
+
+        # Save to separate files
+        if not managed_df.empty:
+            managed_df.to_csv(managed_csv, index=False)
+            print(f"  Saved {len(managed_df)} managed results to {managed_csv}")
+        else:
+            print("  No managed results found")
+
+        if not external_df.empty:
+            external_df.to_csv(external_csv, index=False)
+            print(f"  Saved {len(external_df)} external results to {external_csv}")
+        else:
+            print("  No external results found")
+
+        # Clean up temp file
+        temp_csv.unlink()
+        print(f"  Removed temporary file {temp_csv}")
 
     # Summary
     print("\n" + "=" * 60)
@@ -130,7 +171,9 @@ def main():
     print(f"Total results found: {len(benchmark_results)}")
     print(f"Successfully converted: {successful}")
     print(f"Failed: {failed}")
-    print(f"\nOutput CSV: {output_csv}")
+    print(f"\nOutput files:")
+    print(f"  Managed (single-instance): {managed_csv}")
+    print(f"  External (variable instances): {external_csv}")
     print(f"Script location: {import_script}")
 
     if failed > 0:

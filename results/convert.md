@@ -20,28 +20,39 @@ pip install -r requirements.txt
 python results/scripts/convert_batch.py
 ```
 
-Output: `results/all_cpu_benchmarks.csv`
+This creates **two separate CSV files**:
+- `results/managed_cpu_benchmarks.csv` - Single-instance tests
+- `results/external_cpu_benchmarks.csv` - External/multi-instance tests
 
 ### 3. Review and Share
 
 ```bash
-# Preview the output
-head results/all_cpu_benchmarks.csv
+# Preview the managed results (single-instance)
+head results/managed_cpu_benchmarks.csv
 
-# Check row count
-wc -l results/all_cpu_benchmarks.csv
+# Preview the external results (variable instances)
+head results/external_cpu_benchmarks.csv
+
+# Check row counts
+wc -l results/*.csv
 
 # When done
 deactivate
 ```
-
-Now you can share `results/all_cpu_benchmarks.csv` with the performance dashboard team!
-
 ---
 
 ## Overview
 
 The `convert_single.py` script is a CPU-specific adaptation of the dashboard's `import_manual_runs_json_v2.py` script. It processes guidellm v0.5.0+ JSON results from CPU-based inference runs.
+
+### Output Files
+
+Results are automatically separated into two CSV files based on test mode:
+
+- **`managed_cpu_benchmarks.csv`**: Single-instance tests where the benchmark framework manages the vLLM server
+- **`external_cpu_benchmarks.csv`**: Tests against external vLLM endpoints (may be single or multi-instance)
+
+This separation allows the dashboard team to import single-instance results for direct GPU comparison, while keeping external/scaled results available as supplementary data.
 
 ## Key Differences from GPU Version
 
@@ -94,7 +105,9 @@ python results/scripts/convert_batch.py
 This will:
 1. Find all `benchmarks.json` + `test-metadata.json` pairs in `results/llm/`
 2. Convert each one using the CPU import script
-3. Append all results to `results/all_cpu_benchmarks.csv`
+3. Split results by vllm_mode:
+   - Managed tests → `results/managed_cpu_benchmarks.csv`
+   - External tests → `results/external_cpu_benchmarks.csv`
 
 ### Option 2: Convert Individual Results
 
@@ -253,11 +266,13 @@ Each `external-endpoint/` directory with both JSON files will be processed.
 
 ## Contributing to the Dashboard
 
-Once you've generated the CSV:
+Once you've generated the CSVs:
 
-1. Review the output for correctness
-2. Follow the dashboard's submission guidelines
-3. You may need to coordinate with dashboard maintainers for:
+1. Review both outputs for correctness
+2. **Primary submission**: `managed_cpu_benchmarks.csv` - single-instance results for direct GPU comparison
+3. **Supplementary data**: `external_cpu_benchmarks.csv` - external/multi-instance results showing scaling behavior
+4. Follow the dashboard's submission guidelines
+5. You may need to coordinate with dashboard maintainers for:
    - Adding CPU-specific column support
    - Updating visualization queries
    - Documenting CPU vs GPU result differences

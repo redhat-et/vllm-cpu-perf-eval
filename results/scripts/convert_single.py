@@ -257,6 +257,15 @@ def process_benchmark_section(
     vllm_mode=None,
     core_config_name=None,
     config_type=None,
+    test_name=None,
+    workload=None,
+    platform=None,
+    vllm_caching_mode=None,
+    vllm_dtype=None,
+    vllm_kv_cache_size=None,
+    vllm_max_model_len=None,
+    backend=None,
+    timestamp=None,
 ):
     """Process a single benchmark section and extract performance metrics.
 
@@ -415,6 +424,16 @@ def process_benchmark_section(
         "vllm_mode": vllm_mode,
         "core_config_name": core_config_name,
         "config_type": config_type,
+        "test_name": test_name,
+        "workload": workload,
+        "platform": platform,
+        # vLLM configuration
+        "vllm_caching_mode": vllm_caching_mode,
+        "vllm_dtype": vllm_dtype,
+        "vllm_kv_cache_size": vllm_kv_cache_size,
+        "vllm_max_model_len": vllm_max_model_len,
+        "backend": backend,
+        "timestamp": timestamp,
     }
 
     # Add server-side metrics if available
@@ -493,12 +512,44 @@ def parse_guidellm_json(
     vllm_mode = None
     core_config_name = None
     config_type = None
+    test_name = None
+    workload = None
+    platform = None
+    vllm_caching_mode = None
+    vllm_dtype = None
+    vllm_kv_cache_size = None
+    vllm_max_model_len = None
+    backend = None
+    timestamp = None
 
     if metadata_path:
         metadata = load_test_metadata(metadata_path)
-        # Override with metadata values if not provided as arguments
-        if not cpu_type and metadata.get("platform"):
-            cpu_type = metadata["platform"]
+
+        # CPU type: prefer platform (actual CPU model) over test_name
+        if not cpu_type:
+            platform_val = metadata.get("platform", "")
+            if platform_val and platform_val != "unknown":
+                # Clean up platform name to match GPU naming style
+                # "AMD_EPYC_9R45_96_Core_Processor" -> "AMD EPYC 9R45"
+                # "Intel_R_Xeon_R_6975P_C" -> "Intel Xeon 6975P"
+                cpu_type = platform_val.replace("_", " ")
+                # Remove common suffixes
+                for suffix in [" Core Processor", " C"]:
+                    if cpu_type.endswith(suffix):
+                        cpu_type = cpu_type[:-len(suffix)]
+                # Remove (R) markers
+                cpu_type = cpu_type.replace(" R ", " ")
+            else:
+                # Extract CPU family from test_name for external tests
+                # "Xeon-NO-SMT" -> "Xeon"
+                # "EPYC-NO-SMT-1-instance" -> "EPYC"
+                test_name_val = metadata.get("test_name", "unknown")
+                if test_name_val and test_name_val != "unknown":
+                    # Extract first part before dash
+                    cpu_type = test_name_val.split("-")[0]
+                else:
+                    cpu_type = "unknown"
+
         if not core_count and metadata.get("core_count"):
             core_count = metadata["core_count"]
         if not cpuset_cpus and metadata.get("cpuset_cpus"):
@@ -518,6 +569,24 @@ def parse_guidellm_json(
         vllm_mode = metadata.get("vllm_mode")
         core_config_name = metadata.get("core_config_name")
         config_type = metadata.get("config_type")
+        test_name = metadata.get("test_name")
+        platform = metadata.get("platform")
+        vllm_caching_mode = metadata.get("vllm_caching_mode")
+        vllm_dtype = metadata.get("vllm_dtype")
+        vllm_kv_cache_size = metadata.get("vllm_kv_cache_size")
+        vllm_max_model_len = metadata.get("vllm_max_model_len")
+        backend = metadata.get("backend")
+        timestamp = metadata.get("timestamp")
+
+        # Translate workload name to ISL:OSL format (PSAP dashboard uses ratios)
+        workload_name = metadata.get("workload")
+        if workload_name:
+            workload_mapping = {
+                "chat_lite": "128:128",
+                "chat": "512:512",
+                "summarization": "2048:256",
+            }
+            workload = workload_mapping.get(workload_name, workload_name)
 
     try:
         with open(json_path) as f:
@@ -591,6 +660,15 @@ def parse_guidellm_json(
             vllm_mode=vllm_mode,
             core_config_name=core_config_name,
             config_type=config_type,
+            test_name=test_name,
+            workload=workload,
+            platform=platform,
+            vllm_caching_mode=vllm_caching_mode,
+            vllm_dtype=vllm_dtype,
+            vllm_kv_cache_size=vllm_kv_cache_size,
+            vllm_max_model_len=vllm_max_model_len,
+            backend=backend,
+            timestamp=timestamp,
         )
         if row_data:
             all_run_data.append(row_data)
@@ -827,6 +905,16 @@ def main():
             "vllm_mode",
             "core_config_name",
             "config_type",
+            "test_name",
+            "workload",
+            "platform",
+            # vLLM configuration
+            "vllm_caching_mode",
+            "vllm_dtype",
+            "vllm_kv_cache_size",
+            "vllm_max_model_len",
+            "backend",
+            "timestamp",
             # Server-side metrics (from vllm-metrics.json)
             "server_cpu_usage_rate",
             "server_memory_mean_bytes",
