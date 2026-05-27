@@ -1,0 +1,130 @@
+---
+# ============================================================================
+# vLLM Scale-Out Configuration
+# ============================================================================
+# Configuration for deploying multiple vLLM instances with nginx load balancing
+#
+# These settings control the scale-out deployment playbook (start-vllm-scaleout.yml)
+# Override these in your inventory or via command line with -e
+# ============================================================================
+
+# ============================================================================
+# Instance Configuration
+# ============================================================================
+
+# Number of vLLM instances to deploy (1-10)
+scaleout_num_instances: 5
+
+# Cores per instance (8, 16, or 32)
+# Total cores used = num_instances * cores_per_instance
+scaleout_cores_per_instance: 32
+
+# Starting CPU core number (instances will be allocated sequentially from this core)
+# Example: start_core=32, 3 instances, 32 cores each:
+#   Instance 1: cores 32-63
+#   Instance 2: cores 64-95
+#   Instance 3: cores 96-127
+scaleout_start_core: 32
+
+# Enable SMT/HyperThreading cores (true/false)
+# When enabled, allocates both physical and logical cores
+# Requires proper NUMA topology configuration
+scaleout_enable_smt: false
+
+# Enable prefix caching (true/false)
+# Prefix caching can significantly improve performance for repeated prompts
+scaleout_enable_prefix_caching: true
+
+# ============================================================================
+# Nginx Load Balancer Configuration
+# ============================================================================
+
+# CPU cores allocated to nginx (format: "start-end")
+scaleout_nginx_cores: "1-15"
+
+# External port for nginx load balancer
+scaleout_nginx_port: 8080
+
+# Load balancing policy
+# Options:
+#   - round_robin: Distribute requests evenly across all instances (default behavior)
+#   - least_conn: Send requests to instance with fewest active connections (best for varying request durations)
+#   - ip_hash: Consistent routing based on client IP (session affinity)
+scaleout_nginx_policy: "least_conn"
+
+# ============================================================================
+# Container Configuration
+# ============================================================================
+
+# vLLM container image
+# Options:
+#   - docker.io/vllm/vllm-openai-cpu:v0.18.0 (official vLLM)
+#   - quay.io/vllm/automation-vllm:cpu-24515584412 (Red Hat AI optimized)
+#   - localhost/vllm-rhaiis:latest (custom built)
+scaleout_vllm_image: "docker.io/vllm/vllm-openai-cpu:v0.18.0"
+
+# Nginx container image
+scaleout_nginx_image: "nginx:alpine"
+
+# Network and volume names
+scaleout_network_name: "vllm-network"
+scaleout_volume_name: "hf-cache"
+
+# ============================================================================
+# Model Configuration
+# ============================================================================
+
+# Model to deploy (can be HuggingFace model ID or local path)
+# This can be overridden at runtime with -e scaleout_model_name="model/name"
+# scaleout_model_name: "RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w8a8"
+
+# Optional: Additional vLLM arguments
+# Uncomment and customize as needed
+# scaleout_vllm_extra_args:
+#   - "--max-model-len"
+#   - "2048"
+#   - "--dtype"
+#   - "bfloat16"
+#   - "--gpu-memory-utilization"
+#   - "0.9"
+
+# ============================================================================
+# Advanced Configuration
+# ============================================================================
+
+# Health check settings
+scaleout_health_check_retries: 30
+scaleout_health_check_delay: 5
+
+# Configuration directory on target system
+scaleout_config_dir: "/tmp/vllm-scaleout"
+
+# SMT core offset (system-specific, adjust based on NUMA topology)
+# Typical values:
+#   - 192 for systems with 192 physical cores
+#   - Auto-detect from lscpu if available
+scaleout_smt_offset: 192
+scaleout_smt_cores_per_instance: 8
+
+# ============================================================================
+# Example Configurations
+# ============================================================================
+#
+# Example 1: 3 instances, 16 cores each, round-robin
+#   scaleout_num_instances: 3
+#   scaleout_cores_per_instance: 16
+#   scaleout_nginx_policy: "round_robin"
+#
+# Example 2: 8 instances, 8 cores each, with SMT, least connections
+#   scaleout_num_instances: 8
+#   scaleout_cores_per_instance: 8
+#   scaleout_enable_smt: true
+#   scaleout_nginx_policy: "least_conn"
+#
+# Example 3: High-performance setup with prefix caching disabled
+#   scaleout_num_instances: 4
+#   scaleout_cores_per_instance: 32
+#   scaleout_enable_prefix_caching: false
+#   scaleout_nginx_policy: "ip_hash"
+#
+# ============================================================================

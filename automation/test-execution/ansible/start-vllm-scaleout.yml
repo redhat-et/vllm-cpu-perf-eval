@@ -1,0 +1,82 @@
+---
+# Start vLLM Scale-Out Deployment
+# Deploys multiple vLLM instances with nginx load balancing
+#
+# Usage:
+#   ansible-playbook start-vllm-scaleout.yml
+#   ansible-playbook start-vllm-scaleout.yml -e "scaleout_num_instances=3 scaleout_cores_per_instance=16"
+#   ansible-playbook start-vllm-scaleout.yml -e "scaleout_nginx_policy=round_robin"
+#
+# Configuration options (override with -e):
+#   - scaleout_num_instances: Number of vLLM instances (default: 5)
+#   - scaleout_cores_per_instance: Cores per instance - 8, 16, or 32 (default: 32)
+#   - scaleout_start_core: Starting CPU core (default: 32)
+#   - scaleout_enable_smt: Enable SMT/HT cores (default: false)
+#   - scaleout_enable_prefix_caching: Enable prefix caching (default: true)
+#   - scaleout_nginx_policy: Load balancing policy - round_robin, least_conn, ip_hash (default: least_conn)
+#   - scaleout_nginx_port: Nginx port (default: 8080)
+#   - scaleout_model_name: Model to deploy (default: from inventory)
+#
+# Examples:
+#   # Deploy 3 instances with 16 cores each, round-robin policy
+#   ansible-playbook start-vllm-scaleout.yml -e "scaleout_num_instances=3 scaleout_cores_per_instance=16 scaleout_nginx_policy=round_robin"
+#
+#   # Deploy 8 instances with 8 cores each, with SMT enabled
+#   ansible-playbook start-vllm-scaleout.yml -e "scaleout_num_instances=8 scaleout_cores_per_instance=8 scaleout_enable_smt=true"
+#
+#   # Deploy with prefix caching disabled
+#   ansible-playbook start-vllm-scaleout.yml -e "scaleout_enable_prefix_caching=false"
+
+- name: "Deploy vLLM Scale-Out Environment"
+  hosts: dut
+  become: true
+  vars:
+    # Override these via -e or in inventory
+    # See defaults in roles/vllm_scaleout/defaults/main.yml
+
+  pre_tasks:
+    - name: Check if podman-compose is installed
+      ansible.builtin.command: which podman-compose
+      register: podman_compose_check
+      changed_when: false
+      failed_when: false
+
+    - name: Fail if podman-compose is not installed
+      ansible.builtin.fail:
+        msg: |
+          podman-compose is not installed on the target system.
+          Install it with: pip3 install podman-compose
+      when: podman_compose_check.rc != 0
+
+    - name: Validate configuration
+      ansible.builtin.assert:
+        that:
+          - scaleout_num_instances | int > 0
+          - scaleout_num_instances | int <= 10
+          - scaleout_cores_per_instance | int in [8, 16, 32]
+          - scaleout_nginx_policy in ['round_robin', 'least_conn', 'ip_hash']
+        fail_msg: |
+          Invalid configuration:
+            - scaleout_num_instances must be 1-10
+            - scaleout_cores_per_instance must be 8, 16, or 32
+            - scaleout_nginx_policy must be round_robin, least_conn, or ip_hash
+
+  roles:
+    - role: vllm_scaleout
+
+  post_tasks:
+    - name: Test deployment health
+      ansible.builtin.uri:
+        url: "http://localhost:{{ scaleout_nginx_port }}/v1/models"
+        method: GET
+        return_content: true
+      register: models_api
+      retries: 3
+      delay: 5
+
+    - name: Display available models
+      ansible.builtin.debug:
+        msg:
+          - "Available models:"
+          - "{{ models_api.json | to_nice_json }}"
+      when: models_api.json is defined
