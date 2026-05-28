@@ -17,7 +17,7 @@ on:
 env:
   IMAGE_REGISTRY: quay.io
   IMAGE_REPOSITORY: vllm-cpu-perf-eval/model-downloader
-  IMAGE_TAG: model-downloader
+  IMAGE_TAG: latest
 
 jobs:
   build-and-push:
