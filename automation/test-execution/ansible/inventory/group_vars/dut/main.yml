@@ -5,8 +5,40 @@
 # Settings specific to the DUT host group
 # These override the global settings in group_vars/all/
 
-# Optional: Mount directories for persistent caching
-# Set use_persistent_cache to false to disable volume mounts
+# ============================================================================
+# Model Caching and Pre-Download Configuration
+# ============================================================================
+# Model pre-download eliminates download delays at vLLM startup time
+# Models are downloaded using the model-downloader container before vLLM starts
+#
+# Benefits:
+#   - Faster test execution (no download wait time on repeated runs)
+#   - More reliable tests (network issues won't interrupt running tests)
+#   - Bandwidth savings (download once, use many times)
+#   - Better CI/CD integration (pre-download in setup phase)
+#
+# Note: Pre-download is automatically skipped for external vLLM deployments
+#       (when vllm_mode: external)
+
+# Enable persistent caching (set to true for model pre-download)
 use_persistent_cache: false
+
+# Model cache directory (HuggingFace cache location)
 model_cache_dir: /var/lib/vllm-models
+
+# Log directory for vLLM container logs
 log_dir: /tmp/vllm-logs
+
+# ============================================================================
+# Optional: Model Download Configuration
+# ============================================================================
+# These variables control model pre-download behavior
+# Only applies when use_persistent_cache: true
+
+# Container image for model downloads
+# Default: quay.io/vllm-cpu-perf-eval/model-downloader:latest
+# model_downloader_image: quay.io/vllm-cpu-perf-eval/model-downloader:latest
+
+# Force model re-download even if already cached
+# Default: false
+# force_model_download: false

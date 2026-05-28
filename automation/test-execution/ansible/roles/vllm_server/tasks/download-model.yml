@@ -1,0 +1,88 @@
+---
+# Pre-download HuggingFace models to persistent cache
+# Avoids downloading models at vLLM startup time
+#
+# Uses model-downloader container for isolated, reproducible downloads:
+#   - DUT may have restricted package installation (no pip install)
+#   - Ensures consistent, versioned tooling across different DUT environments
+#   - Isolates download dependencies from host system
+#   - Aligns with existing containerized infrastructure pattern
+#
+# This task is automatically skipped for external vLLM deployments
+# (handled by playbook-level end_play when vllm_mode == 'external')
+
+- name: Ensure model cache directory exists
+  ansible.builtin.file:
+    path: "{{ model_cache_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Check if model already exists in cache
+  ansible.builtin.stat:
+    path: "{{ model_cache_dir }}/models--{{ test_model | replace('/', '--') }}"
+  register: model_cache_exists
+
+- name: Display model cache status
+  ansible.builtin.debug:
+    msg:
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "Model Cache Check"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "Model: {{ test_model }}"
+      - "Cache Directory: {{ model_cache_dir }}"
+      - "Cache Status: {{ '✓ Already cached' if model_cache_exists.stat.exists else '✗ Not cached - will download' }}"
+      - "Force Download: {{ force_model_download | default(false) }}"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+- name: Pull model-downloader container image
+  containers.podman.podman_image:
+    name: "{{ model_downloader_image | default('quay.io/vllm-cpu-perf-eval/model-downloader:latest') }}"
+    state: present
+  when: not model_cache_exists.stat.exists or (force_model_download | default(false) | bool)
+
+- name: Download model using model-downloader container
+  containers.podman.podman_container:
+    name: "model-downloader-{{ test_model | replace('/', '-') }}"
+    image: "{{ model_downloader_image | default('quay.io/vllm-cpu-perf-eval/model-downloader:latest') }}"
+    state: started
+    detach: false
+    rm: true
+    volumes:
+      - "{{ model_cache_dir }}:/root/.cache/huggingface:rw"
+    env:
+      MODEL_NAME: "{{ test_model }}"
+      HF_TOKEN: "{{ hf_token }}"
+    command: "/usr/local/bin/download_model.py {{ test_model }}"
+  when: not model_cache_exists.stat.exists or (force_model_download | default(false) | bool)
+  register: model_download_result
+  no_log: true  # Prevent HF_TOKEN from appearing in logs
+
+- name: Display download completion
+  ansible.builtin.debug:
+    msg:
+      - "✓ Model Download Complete"
+      - "Model: {{ test_model }}"
+      - "Location: {{ model_cache_dir }}/models--{{ test_model | replace('/', '--') }}"
+  when: model_download_result is changed
+
+- name: Verify model cache exists after download
+  ansible.builtin.stat:
+    path: "{{ model_cache_dir }}/models--{{ test_model | replace('/', '--') }}"
+  register: model_cache_verify
+  when: not model_cache_exists.stat.exists or (force_model_download | default(false) | bool)
+
+- name: Fail if model download unsuccessful
+  ansible.builtin.fail:
+    msg: |
+      ❌ Model download failed or incomplete!
+
+      Expected location: {{ model_cache_dir }}/models--{{ test_model | replace('/', '--') }}
+
+      Check:
+        - HF_TOKEN is valid (required for gated models)
+        - Model ID is correct: {{ test_model }}
+        - Network connectivity to huggingface.co
+        - Available disk space in {{ model_cache_dir }}
+  when:
+    - (not model_cache_exists.stat.exists or (force_model_download | default(false) | bool))
+    - not model_cache_verify.stat.exists

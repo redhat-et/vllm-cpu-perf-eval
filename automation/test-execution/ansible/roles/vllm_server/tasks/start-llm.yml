@@ -21,6 +21,11 @@
     - {path: "{{ log_dir }}", mode: "0755"}
   when: use_persistent_cache | default(false) | bool
 
+- name: Pre-download model to cache
+  ansible.builtin.include_tasks:
+    file: download-model.yml
+  when: use_persistent_cache | default(false) | bool
+
 - name: Get workload and core configuration
   ansible.builtin.set_fact:
     workload_cfg: "{{ test_configs[workload_type] }}"
@@ -339,4 +344,4 @@
 - name: Wait for vLLM initialization (longer for LLM models)
   ansible.builtin.pause:
     seconds: 20
-    prompt: "Waiting for vLLM to download model and initialize (this may take a while for large models)..."
+    prompt: "Waiting for vLLM to initialize (model already cached)..."
