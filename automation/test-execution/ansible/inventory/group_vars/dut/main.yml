@@ -36,9 +36,18 @@ log_dir: /tmp/vllm-logs
 # Only applies when use_persistent_cache: true
 
 # Container image for model downloads
-# Default: quay.io/vllm-cpu-perf-eval/model-downloader:latest
-# model_downloader_image: quay.io/vllm-cpu-perf-eval/model-downloader:latest
+# Pinned to SHA digest for immutability and reproducibility
+model_downloader_image: quay.io/vllm-cpu-perf-eval/model-downloader@sha256:ef8bf0075415a18be6757e8a72fdfc88ed3d967b2744f1663991126884af6dc2
 
 # Force model re-download even if already cached
 # Default: false
 # force_model_download: false
+
+# Minimum free disk space (GB) required before download
+# Default: 50
+# model_download_min_space_gb: 50
+
+# Network resilience: retry configuration
+# Default: 3 retries with 30 second delay
+# model_download_retries: 3
+# model_download_retry_delay: 30
