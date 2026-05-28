@@ -19,7 +19,7 @@
 
 - name: Check if model already exists in cache
   ansible.builtin.stat:
-    path: "{{ model_cache_dir }}/models--{{ test_model | replace('/', '--') }}"
+    path: "{{ model_cache_dir }}/hub/models--{{ test_model | replace('/', '--') }}"
   register: model_cache_exists
 
 - name: Display model cache status
@@ -47,11 +47,13 @@
     state: started
     detach: false
     rm: true
+    user: "0"  # Run as root to avoid permission issues with mounted volume
     volumes:
-      - "{{ model_cache_dir }}:/root/.cache/huggingface:rw"
+      - "{{ model_cache_dir }}:/cache:z"  # :z for SELinux relabeling (shared)
     env:
       MODEL_NAME: "{{ test_model }}"
       HF_TOKEN: "{{ hf_token }}"
+      HF_HOME: "/cache"
     command: "/usr/local/bin/download_model.py {{ test_model }}"
   when: not model_cache_exists.stat.exists or (force_model_download | default(false) | bool)
   register: model_download_result
@@ -62,12 +64,12 @@
     msg:
       - "✓ Model Download Complete"
       - "Model: {{ test_model }}"
-      - "Location: {{ model_cache_dir }}/models--{{ test_model | replace('/', '--') }}"
+      - "Location: {{ model_cache_dir }}/hub/models--{{ test_model | replace('/', '--') }}"
   when: model_download_result is changed
 
 - name: Verify model cache exists after download
   ansible.builtin.stat:
-    path: "{{ model_cache_dir }}/models--{{ test_model | replace('/', '--') }}"
+    path: "{{ model_cache_dir }}/hub/models--{{ test_model | replace('/', '--') }}"
   register: model_cache_verify
   when: not model_cache_exists.stat.exists or (force_model_download | default(false) | bool)
 
@@ -76,7 +78,7 @@
     msg: |
       ❌ Model download failed or incomplete!
 
-      Expected location: {{ model_cache_dir }}/models--{{ test_model | replace('/', '--') }}
+      Expected location: {{ model_cache_dir }}/hub/models--{{ test_model | replace('/', '--') }}
 
       Check:
         - HF_TOKEN is valid (required for gated models)
