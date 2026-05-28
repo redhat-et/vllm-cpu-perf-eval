@@ -3,7 +3,7 @@
 
 set -e
 
-IMAGE="quay.io/octo-et/vllm-cpu-perf-eval:model-downloader"
+IMAGE="quay.io/vllm-cpu-perf-eval/model-downloader:latest"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "🔨 Building model-downloader container..."

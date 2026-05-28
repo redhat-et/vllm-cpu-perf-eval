@@ -15,7 +15,7 @@ Usage:
 Container usage:
     # Using command line argument
     podman run --rm -v hf-cache:/root/.cache/huggingface \\
-      quay.io/octo-et/vllm-cpu-perf-eval:model-downloader \\
+      quay.io/vllm-cpu-perf-eval/model-downloader:latest \\
       /usr/local/bin/download_model.py TinyLlama/TinyLlama-1.1B-Chat-v1.0
 
     # Using environment variable
@@ -23,7 +23,7 @@ Container usage:
       -v /path/to/models:/models \\
       -e MODEL_NAME=TinyLlama/TinyLlama-1.1B-Chat-v1.0 \\
       -e LOCAL_DIR=/models \\
-      quay.io/octo-et/vllm-cpu-perf-eval:model-downloader
+      quay.io/vllm-cpu-perf-eval/model-downloader:latest
 """
 
 import os

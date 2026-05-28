@@ -16,7 +16,7 @@ on:
 
 env:
   IMAGE_REGISTRY: quay.io
-  IMAGE_REPOSITORY: octo-et/vllm-cpu-perf-eval
+  IMAGE_REPOSITORY: vllm-cpu-perf-eval/model-downloader
   IMAGE_TAG: model-downloader
 
 jobs:
@@ -34,12 +34,11 @@ jobs:
 
       - name: Log in to Quay.io
         if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/container/'))
-        uses: docker/login-action@v3
+        uses: redhat-actions/podman-login@v1
         with:
           registry: ${{ env.IMAGE_REGISTRY }}
           username: ${{ secrets.REDHAT_REGISTRY_USERNAME }}
           password: ${{ secrets.REDHAT_REGISTRY_PASSWORD }}
-
       - name: Extract metadata (tags, labels)
         id: meta
         uses: docker/metadata-action@v5
@@ -51,7 +50,7 @@ jobs:
             type=raw,value=${{ env.IMAGE_TAG }}-{{date 'YYYYMMDD'}}
 
       - name: Build container image
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ./container-images/model-downloader
           push: false

@@ -1,6 +1,6 @@
 FROM registry.access.redhat.com/ubi10/python-312-minimal:10.2-1779803286
 
-LABEL maintainer="octo-et"
+LABEL maintainer="vllm-cpu-perf-eval"
 LABEL description="HuggingFace model downloader for vLLM CPU performance evaluation"
 LABEL version="1.0"
 

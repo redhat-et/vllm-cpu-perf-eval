@@ -16,10 +16,10 @@ Lightweight container for downloading HuggingFace models to a cache volume for v
 cd container-images/model-downloader
 
 # Build
-podman build -t quay.io/octo-et/vllm-cpu-perf-eval:model-downloader .
+podman build -t quay.io/vllm-cpu-perf-eval/model-downloader:latest .
 
 # Push to quay.io
-podman push quay.io/octo-et/vllm-cpu-perf-eval:model-downloader
+podman push quay.io/vllm-cpu-perf-eval/model-downloader:latest
 ```
 
 ## Usage
@@ -33,7 +33,7 @@ podman run --rm \
   -v /path/to/models:/models \
   -e MODEL_NAME=TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
   -e LOCAL_DIR=/models \
-  quay.io/octo-et/vllm-cpu-perf-eval:model-downloader
+  quay.io/vllm-cpu-perf-eval/model-downloader:latest
 ```
 
 ### Direct cache download
@@ -43,7 +43,7 @@ Downloads to HuggingFace cache inside the container volume:
 ```bash
 podman run --rm \
   -v hf-cache:/root/.cache/huggingface \
-  quay.io/octo-et/vllm-cpu-perf-eval:model-downloader \
+  quay.io/vllm-cpu-perf-eval/model-downloader:latest \
   /usr/local/bin/download_model.py TinyLlama/TinyLlama-1.1B-Chat-v1.0
 ```
 
@@ -53,7 +53,7 @@ Or using environment variable:
 podman run --rm \
   -v hf-cache:/root/.cache/huggingface \
   -e MODEL_NAME=TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
-  quay.io/octo-et/vllm-cpu-perf-eval:model-downloader
+  quay.io/vllm-cpu-perf-eval/model-downloader:latest
 ```
 
 ### With HuggingFace token (for gated models)
@@ -64,7 +64,7 @@ podman run --rm \
   -e MODEL_NAME=meta-llama/Llama-3.1-8B-Instruct \
   -e LOCAL_DIR=/models \
   -e HF_TOKEN=hf_your_token_here \
-  quay.io/octo-et/vllm-cpu-perf-eval:model-downloader
+  quay.io/vllm-cpu-perf-eval/model-downloader:latest
 ```
 
 ### Download to specific directory
@@ -74,7 +74,7 @@ Using command line:
 ```bash
 podman run --rm \
   -v /var/models:/models \
-  quay.io/octo-et/vllm-cpu-perf-eval:model-downloader \
+  quay.io/vllm-cpu-perf-eval/model-downloader:latest \
   /usr/local/bin/download_model.py \
   TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
   --local-dir /models
@@ -88,6 +88,6 @@ Used by `roles/common/tasks/preload-model.yml` for automatic model pre-caching.
 
 - **Base Image**: `registry.access.redhat.com/ubi10/python-312-minimal:10.2-1779803286`
 - **Size**: ~200MB
-- **Registry**: `quay.io/octo-et/vllm-cpu-perf-eval:model-downloader`
+- **Registry**: `quay.io/vllm-cpu-perf-eval/model-downloader:latest`
 - **Python**: 3.12
 - **Dependencies**: `huggingface_hub`
