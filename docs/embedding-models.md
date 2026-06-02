@@ -425,7 +425,6 @@ ansible-playbook -i inventory/hosts.yml embedding-benchmark.yml \
 The framework automatically detects and configures Red Hat AI images with the correct environment variables:
 - `HF_HOME=/opt/app-root/src/.cache/huggingface` (different from default `/root/.cache/huggingface`)
 - `HF_HUB_OFFLINE=0` (enable network access for model downloads)
-- `MALLOC_TRIM_THRESHOLD_=-1` (memory optimization)
 
 **Reference**: [Red Hat AI Inference Documentation](https://docs.redhat.com/en/documentation/red_hat_ai_inference/3.4/html/getting_started/about-cpu-inference_getting-started)
 
