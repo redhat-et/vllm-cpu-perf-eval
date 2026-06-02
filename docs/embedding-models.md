@@ -382,8 +382,8 @@ Red Hat provides enterprise-grade vLLM images optimized for Intel Xeon and AMD E
 
 1. **Authenticate with Red Hat registry** (one-time setup):
    ```bash
-   # Login to Red Hat registry
-   podman login registry.redhat.io
+   # Login to Red Hat registry (on DUT)
+   sudo podman login registry.redhat.io
    # Enter your Red Hat customer portal credentials
    ```
 
@@ -407,8 +407,9 @@ Red Hat provides enterprise-grade vLLM images optimized for Intel Xeon and AMD E
 #### Complete Example
 
 ```bash
-# Step 1: On DUT - Pull image (one time)
+# Step 1: On DUT - Login and pull image (one time)
 ssh admin@10.19.26.252
+sudo podman login registry.redhat.io  # Enter Red Hat credentials
 sudo podman pull registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
 exit
 
