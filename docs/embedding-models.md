@@ -374,6 +374,64 @@ export GUIDELLM_CONTAINER_IMAGE=your-registry/custom-guidellm:latest
 
 **Note**: Environment variable overrides take precedence over architecture auto-detection.
 
+### Using Red Hat AI Inference Server (RHAIIS) Images
+
+Red Hat provides enterprise-grade vLLM images optimized for Intel Xeon processors. These images require authentication to Red Hat's container registry.
+
+#### Prerequisites
+
+1. **Authenticate with Red Hat registry** (one-time setup):
+   ```bash
+   # Login to Red Hat registry
+   podman login registry.redhat.io
+   # Enter your Red Hat customer portal credentials
+   ```
+
+2. **Manually pull the image on the DUT**:
+   ```bash
+   # SSH to your DUT
+   ssh admin@your-dut-hostname
+   
+   # Pull the Red Hat AI image
+   sudo podman pull registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
+   ```
+
+   **Why manual pull?** Ansible cannot automatically pull authenticated images. You must pull the image manually on the DUT before running tests.
+
+3. **Set the image environment variable**:
+   ```bash
+   # On your control machine (where you run ansible-playbook)
+   export VLLM_CONTAINER_IMAGE=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
+   ```
+
+#### Complete Example
+
+```bash
+# Step 1: On DUT - Pull image (one time)
+ssh admin@10.19.26.252
+sudo podman pull registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
+exit
+
+# Step 2: On control machine - Run benchmark
+export DUT_HOSTNAME=10.19.26.252
+export LOADGEN_HOSTNAME=10.19.26.200
+export VLLM_CONTAINER_IMAGE=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
+
+ansible-playbook -i inventory/hosts.yml embedding-benchmark.yml \
+  -e "test_model=RedHatAI/granite-embedding-english-r2" \
+  -e "scenario=all" \
+  -e "requested_cores=16"
+```
+
+#### Red Hat AI Image Configuration
+
+The framework automatically detects and configures Red Hat AI images with the correct environment variables:
+- `HF_HOME=/opt/app-root/src/.cache/huggingface` (different from default `/root/.cache/huggingface`)
+- `HF_HUB_OFFLINE=0` (enable network access for model downloads)
+- `MALLOC_TRIM_THRESHOLD_=-1` (memory optimization)
+
+**Reference**: [Red Hat AI Inference Documentation](https://docs.redhat.com/en/documentation/red_hat_ai_inference/3.4/html/getting_started/about-cpu-inference_getting-started)
+
 ## Results Collection
 
 Test results are collected in:

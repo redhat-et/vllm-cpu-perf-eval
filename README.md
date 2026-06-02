@@ -267,6 +267,23 @@ The Ansible playbooks automatically detect and use the available container runti
 For manual configuration, see the [vllm_server role](automation/test-execution/ansible/roles/vllm_server/)
 documentation.
 
+### Using Red Hat AI Inference Server Images
+
+Red Hat AI Inference Server (RHAIIS) provides enterprise-grade vLLM images optimized for Intel Xeon. These images require authentication:
+
+```bash
+# 1. Pull image manually on DUT (Ansible cannot pull authenticated images)
+ssh admin@your-dut
+sudo podman pull registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
+
+# 2. Set image environment variable
+export VLLM_CONTAINER_IMAGE=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
+```
+
+**Important**: You must manually pull Red Hat registry images on the DUT before running tests. See [docs/embedding-models.md](docs/embedding-models.md#using-red-hat-ai-inference-server-rhaiis-images) for complete setup instructions.
+
+**Reference**: [Red Hat AI Inference Documentation](https://docs.redhat.com/en/documentation/red_hat_ai_inference/3.4/html/getting_started/about-cpu-inference_getting-started)
+
 ## Contributing
 
 Contributions are welcome! Please:

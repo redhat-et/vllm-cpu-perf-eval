@@ -149,6 +149,8 @@ export VLLM_CONTAINER_IMAGE=docker.io/vllm/vllm-openai-cpu:v0.18.0
 export GUIDELLM_CONTAINER_IMAGE=ghcr.io/vllm-project/guidellm:v0.6.0
 ```
 
+> **⚠️ Red Hat AI Images**: If using Red Hat AI Inference Server images (`registry.redhat.io/rhaii/*`), you **must manually pull** the image on the DUT before running tests, as Ansible cannot pull authenticated images. See [Using Red Hat AI Images](embedding-models.md#using-red-hat-ai-inference-server-rhaiis-images) for complete setup.
+
 The inventory file automatically uses these environment variables with sensible defaults.
 
 **Option B: Edit Inventory File**
