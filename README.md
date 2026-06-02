@@ -269,7 +269,7 @@ documentation.
 
 ### Using Red Hat AI Inference Server Images
 
-Red Hat AI Inference Server (RHAIIS) provides enterprise-grade vLLM images optimized for Intel Xeon. These images require authentication:
+Red Hat AI Inference Server (RHAIIS) provides enterprise-grade vLLM images optimized for Intel Xeon and AMD EPYC processors. These images require authentication:
 
 ```bash
 # 1. Pull image manually on DUT (Ansible cannot pull authenticated images)

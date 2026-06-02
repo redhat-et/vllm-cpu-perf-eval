@@ -376,7 +376,7 @@ export GUIDELLM_CONTAINER_IMAGE=your-registry/custom-guidellm:latest
 
 ### Using Red Hat AI Inference Server (RHAIIS) Images
 
-Red Hat provides enterprise-grade vLLM images optimized for Intel Xeon processors. These images require authentication to Red Hat's container registry.
+Red Hat provides enterprise-grade vLLM images optimized for Intel Xeon and AMD EPYC processors. These images require authentication to Red Hat's container registry.
 
 #### Prerequisites
 
