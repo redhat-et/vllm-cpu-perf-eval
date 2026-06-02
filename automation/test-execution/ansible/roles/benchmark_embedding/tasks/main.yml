@@ -2,18 +2,26 @@
 # Benchmark Embedding Role - Main Entry Point
 # Runs embedding model benchmarks using vllm-bench
 
-- name: Validate test_type
+- name: Validate scenario
   ansible.builtin.assert:
     that:
-      - test_type is defined
-      - test_type in ['baseline', 'latency', 'all']
-    fail_msg: "Invalid test_type '{{ test_type | default('undefined') }}'. Must be one of: baseline, latency, all"
-    success_msg: "test_type validated: {{ test_type }}"
+      - scenario is defined
+      - scenario in ['baseline', 'latency', 'all']
+    fail_msg: "Invalid scenario '{{ scenario | default('undefined') }}'. Must be one of: baseline, latency, all"
+    success_msg: "Scenario validated: {{ scenario }}"
+
+- name: Validate results_base_dir
+  ansible.builtin.assert:
+    that:
+      - results_base_dir is defined
+      - results_base_dir | length > 0
+    fail_msg: "results_base_dir must be provided"
+    success_msg: "results_base_dir: {{ results_base_dir }}"
 
 - name: Run baseline performance test (throughput sweep)
   ansible.builtin.include_tasks: baseline.yml
-  when: test_type == 'baseline' or test_type == 'all'
+  when: scenario == 'baseline' or scenario == 'all'
 
 - name: Run latency performance test
   ansible.builtin.include_tasks: latency.yml
-  when: test_type == 'latency' or test_type == 'all'
+  when: scenario == 'latency' or scenario == 'all'

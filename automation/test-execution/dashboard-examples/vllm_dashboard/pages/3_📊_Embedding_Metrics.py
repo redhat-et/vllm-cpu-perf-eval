@@ -53,57 +53,61 @@ def load_embedding_data(results_dir: str) -> pd.DataFrame:
             with open(metadata_file) as f:
                 metadata = json.load(f)
 
-            test_dir = metadata_file.parent
+            test_run_dir = metadata_file.parent
 
-            # Process all JSON result files (sweep-*.json, concurrent-*.json)
-            for json_file in sorted(test_dir.glob("*.json")):
-                if json_file.name == "test-metadata.json":
+            # Process JSON files in baseline/ and latency/ subdirectories
+            result_subdirs = ['baseline', 'latency']
+            for subdir_name in result_subdirs:
+                subdir = test_run_dir / subdir_name
+                if not subdir.exists():
                     continue
 
-                with open(json_file) as f:
-                    result = json.load(f)
+                # Process all JSON result files in this subdirectory
+                for json_file in sorted(subdir.glob("*.json")):
+                    with open(json_file) as f:
+                        result = json.load(f)
 
-                # Parse test type from filename
-                stem = json_file.stem
-                if stem.startswith('sweep-'):
-                    test_type = 'baseline'
-                    parameter = stem.replace('sweep-', '')
-                elif stem.startswith('concurrent-'):
-                    test_type = 'concurrent'
-                    parameter = stem.replace('concurrent-', '')
-                else:
-                    test_type = 'unknown'
-                    parameter = stem
+                    # Parse test type from filename
+                    stem = json_file.stem
+                    if stem.startswith('sweep-'):
+                        test_type = 'baseline'
+                        parameter = stem.replace('sweep-', '')
+                    elif stem.startswith('concurrent-'):
+                        test_type = 'concurrent'
+                        parameter = stem.replace('concurrent-', '')
+                    else:
+                        test_type = 'unknown'
+                        parameter = stem
 
-                row = {
-                    # Metadata
-                    'test_run_id': metadata.get('test_run_id', 'unknown'),
-                    'test_type_meta': metadata.get('test_type', ''),
-                    'model': metadata.get('model', ''),
-                    'platform': metadata.get('platform', 'unknown'),
-                    'vllm_version': metadata.get('vllm_version', 'unknown'),
-                    'vllm_mode': metadata.get('vllm_mode', 'managed'),
-                    'timestamp': metadata.get('timestamp', ''),
+                    row = {
+                        # Metadata
+                        'test_run_id': metadata.get('test_run_id', 'unknown'),
+                        'scenario': metadata.get('scenario', ''),
+                        'model': metadata.get('model', ''),
+                        'platform': metadata.get('platform', 'unknown'),
+                        'vllm_version': metadata.get('vllm_version', 'unknown'),
+                        'vllm_mode': metadata.get('vllm_mode', 'managed'),
+                        'timestamp': metadata.get('timestamp', ''),
 
-                    # Test configuration
-                    'test_type': test_type,
-                    'parameter': parameter,
-                    'request_rate': result.get('request_rate'),
-                    'max_concurrency': result.get('max_concurrency'),
-                    'num_prompts': result.get('num_prompts'),
+                        # Test configuration
+                        'test_type': test_type,
+                        'parameter': parameter,
+                        'request_rate': result.get('request_rate'),
+                        'max_concurrency': result.get('max_concurrency'),
+                        'num_prompts': result.get('num_prompts'),
 
-                    # Performance metrics
-                    'request_throughput_rps': result.get('request_throughput'),
-                    'token_throughput_tps': result.get('total_token_throughput'),
-                    'mean_latency_ms': result.get('mean_e2el_ms'),
-                    'median_latency_ms': result.get('median_e2el_ms'),
-                    'std_latency_ms': result.get('std_e2el_ms'),
-                    'p99_latency_ms': result.get('p99_e2el_ms'),
-                    'duration_sec': result.get('duration'),
-                    'completed_requests': result.get('completed'),
-                    'total_input_tokens': result.get('total_input_tokens'),
-                }
-                all_results.append(row)
+                        # Performance metrics
+                        'request_throughput_rps': result.get('request_throughput'),
+                        'token_throughput_tps': result.get('total_token_throughput'),
+                        'mean_latency_ms': result.get('mean_e2el_ms'),
+                        'median_latency_ms': result.get('median_e2el_ms'),
+                        'std_latency_ms': result.get('std_e2el_ms'),
+                        'p99_latency_ms': result.get('p99_e2el_ms'),
+                        'duration_sec': result.get('duration'),
+                        'completed_requests': result.get('completed'),
+                        'total_input_tokens': result.get('total_input_tokens'),
+                    }
+                    all_results.append(row)
 
         except Exception as e:
             logger.warning(f"Failed to load {metadata_file}: {e}")

@@ -208,7 +208,8 @@
   become: true
   vars:
     model_name: "{{ test_model | default('ibm-granite/granite-embedding-278m-multilingual') }}"
-    test_type: "{{ scenario | default('baseline') }}"  # baseline, latency, or all
+    scenario_name: "{{ scenario | default('baseline') }}"  # baseline, latency, or all
+    test_run_base: "{{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/{{ scenario_name }}-{{ hostvars['localhost']['test_run_id'] }}"
 
   pre_tasks:
     - name: Check execution mode
@@ -223,15 +224,23 @@
       ansible.builtin.set_fact:
         bench_config: "{{ bench_config | combine({'vllm_host': 'localhost'}) }}"
 
-    - name: Create results directory
+    - name: Create test run base directory
       ansible.builtin.file:
-        path: "{{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/{{ test_type }}"
+        path: "{{ test_run_base }}"
         state: directory
         mode: "0755"
         recurse: true
 
+    - name: Set results directories for roles
+      ansible.builtin.set_fact:
+        baseline_results_dir: "{{ test_run_base }}/baseline"
+        latency_results_dir: "{{ test_run_base }}/latency"
+
   roles:
     - role: benchmark_embedding
+      vars:
+        scenario: "{{ scenario_name }}"
+        results_base_dir: "{{ test_run_base }}"
 
   post_tasks:
     - name: Create test-metadata.json for dut-only mode
@@ -239,7 +248,7 @@
         content: |
           {
             "test_run_id": "{{ hostvars['localhost']['test_run_id'] }}",
-            "test_type": "{{ test_type }}",
+            "scenario": "{{ scenario_name }}",
             "model": "{{ model_name }}",
             "platform": "{{ hostvars['localhost']['dut_platform_name'] | default('unknown') }}",
             "backend": "openai-embeddings",
@@ -252,7 +261,7 @@
             "embedding_random_input_len": {{ embedding_random_input_len | default(512) }},
             "timestamp": "{{ lookup('pipe', 'date -Iseconds') }}"
           }
-        dest: "{{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/{{ test_type }}-{{ hostvars['localhost']['test_run_id'] }}/test-metadata.json"
+        dest: "{{ test_run_base }}/test-metadata.json"
 
 # ==============================================================================
 # PHASE 3: Run Embedding Tests (Managed/External modes)
@@ -264,7 +273,8 @@
   vars:
     # Use detected_model if set (external mode auto-detect), otherwise use test_model or default
     model_name: "{{ detected_model | default(test_model | default('ibm-granite/granite-embedding-278m-multilingual')) }}"
-    test_type: "{{ scenario | default('baseline') }}"  # baseline, latency, or all
+    scenario_name: "{{ scenario | default('baseline') }}"  # baseline, latency, or all
+    test_run_base: "{{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/{{ scenario_name }}-{{ hostvars['localhost']['test_run_id'] }}"
 
   pre_tasks:
     - name: Check execution mode
@@ -285,15 +295,23 @@
         bench_config: "{{ bench_config | combine({'vllm_host': external_endpoint_parsed.hostname, 'vllm_port': external_endpoint_parsed.port | default(8000) | int}) }}"
       when: hostvars['localhost']['vllm_mode'] == 'external'
 
-    - name: Create results directory
+    - name: Create test run base directory
       ansible.builtin.file:
-        path: "{{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/{{ test_type }}"
+        path: "{{ test_run_base }}"
         state: directory
         mode: "0755"
         recurse: true
 
+    - name: Set results directories for roles
+      ansible.builtin.set_fact:
+        baseline_results_dir: "{{ test_run_base }}/baseline"
+        latency_results_dir: "{{ test_run_base }}/latency"
+
   roles:
     - role: benchmark_embedding
+      vars:
+        scenario: "{{ scenario_name }}"
+        results_base_dir: "{{ test_run_base }}"
 
   post_tasks:
     - name: Create test-metadata.json for managed/external mode
@@ -301,7 +319,7 @@
         content: |
           {
             "test_run_id": "{{ hostvars['localhost']['test_run_id'] }}",
-            "test_type": "{{ test_type }}",
+            "scenario": "{{ scenario_name }}",
             "model": "{{ model_name }}",
             "platform": "{{ hostvars['localhost']['dut_platform_name'] | default('unknown') }}",
             "backend": "openai-embeddings",
@@ -314,7 +332,7 @@
             "embedding_random_input_len": {{ embedding_random_input_len | default(512) }},
             "timestamp": "{{ lookup('pipe', 'date -Iseconds') }}"
           }
-        dest: "{{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/{{ test_type }}-{{ hostvars['localhost']['test_run_id'] }}/test-metadata.json"
+        dest: "{{ test_run_base }}/test-metadata.json"
 
 # ==============================================================================
 # PHASE 4: Collect Logs and Results
@@ -327,7 +345,7 @@
     test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
     # DUT-only mode doesn't auto-detect, use test_model or default
     model_name: "{{ test_model | default('ibm-granite/granite-embedding-278m-multilingual') }}"
-    test_type: "{{ scenario | default('baseline') }}"
+    scenario_name: "{{ scenario | default('baseline') }}"
 
   tasks:
     - name: Check execution mode
@@ -340,15 +358,15 @@
 
     - name: Ensure local results directory exists
       ansible.builtin.file:
-        path: "{{ playbook_dir }}/../../../results/embedding/{{ model_name | replace('/', '__') }}/{{ test_type }}-{{ test_run_id }}"
+        path: "{{ playbook_dir }}/../../../results/embedding/{{ model_name | replace('/', '__') }}/{{ scenario_name }}-{{ test_run_id }}"
         state: directory
         mode: "0755"
       delegate_to: localhost
 
     - name: Fetch results to local machine
       ansible.posix.synchronize:
-        src: "{{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/{{ test_type }}/"
-        dest: "{{ playbook_dir }}/../../../results/embedding/{{ model_name | replace('/', '__') }}/{{ test_type }}-{{ test_run_id }}/"
+        src: "{{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/{{ scenario_name }}-{{ test_run_id }}/"
+        dest: "{{ playbook_dir }}/../../../results/embedding/{{ model_name | replace('/', '__') }}/{{ scenario_name }}-{{ test_run_id }}/"
         mode: pull
         recursive: true
 
@@ -359,7 +377,7 @@
     test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
     # Use detected_model if set (external mode auto-detect), otherwise use test_model or default
     model_name: "{{ detected_model | default(test_model | default('ibm-granite/granite-embedding-278m-multilingual')) }}"
-    test_type: "{{ scenario | default('baseline') }}"
+    scenario_name: "{{ scenario | default('baseline') }}"
 
   tasks:
     - name: Check execution mode
@@ -372,15 +390,15 @@
 
     - name: Ensure local results directory exists
       ansible.builtin.file:
-        path: "{{ playbook_dir }}/../../../results/embedding/{{ model_name | replace('/', '__') }}/{{ test_type }}-{{ test_run_id }}"
+        path: "{{ playbook_dir }}/../../../results/embedding/{{ model_name | replace('/', '__') }}/{{ scenario_name }}-{{ test_run_id }}"
         state: directory
         mode: "0755"
       delegate_to: localhost
 
     - name: Fetch results to local machine
       ansible.posix.synchronize:
-        src: "{{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/{{ test_type }}/"
-        dest: "{{ playbook_dir }}/../../../results/embedding/{{ model_name | replace('/', '__') }}/{{ test_type }}-{{ test_run_id }}/"
+        src: "{{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/{{ scenario_name }}-{{ test_run_id }}/"
+        dest: "{{ playbook_dir }}/../../../results/embedding/{{ model_name | replace('/', '__') }}/{{ scenario_name }}-{{ test_run_id }}/"
         mode: pull
         recursive: true
 
@@ -390,7 +408,7 @@
   vars:
     test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
     model_name: "{{ test_model | default('ibm-granite/granite-embedding-278m-multilingual') }}"
-    test_type: "{{ scenario | default('baseline') }}"
+    scenario_name: "{{ scenario | default('baseline') }}"
 
   tasks:
     - name: Check if log collection needed
@@ -405,7 +423,7 @@
       ansible.builtin.include_role:
         name: results_collector
       vars:
-        log_collection_dest: "{{ playbook_dir }}/../../../results/embedding/{{ model_name | replace('/', '__') }}/{{ test_type }}-{{ test_run_id }}/"
+        log_collection_dest: "{{ playbook_dir }}/../../../results/embedding/{{ model_name | replace('/', '__') }}/{{ scenario_name }}-{{ test_run_id }}/"
         journald_identifier: "vllm-embedding"
         log_filename_prefix: "vllm-server"
 

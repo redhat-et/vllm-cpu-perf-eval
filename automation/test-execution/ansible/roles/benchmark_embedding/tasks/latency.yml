@@ -27,7 +27,7 @@
 
 - name: Ensure latency result directory exists
   ansible.builtin.file:
-    path: "{{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/latency"
+    path: "{{ results_base_dir }}/latency"
     state: directory
     mode: "0755"
 
@@ -50,7 +50,7 @@
       --request-rate inf
       --max-concurrency {{ item }}
       --save-result
-      --result-filename {{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/latency/concurrent-{{ item }}.json
+      --result-filename {{ results_base_dir }}/latency/concurrent-{{ item }}.json
   loop: "{{ concurrency_levels }}"
   register: latency_tests
   changed_when: true
@@ -59,5 +59,5 @@
   ansible.builtin.debug:
     msg:
       - "Latency tests completed for concurrency levels: {{ concurrency_levels }}"
-      - "Results saved to {{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/latency/"
+      - "Results saved to {{ results_base_dir }}/latency/"
       - "Look for P99 latency sweet spot and degradation point"
