@@ -432,13 +432,14 @@ def main():
         )
 
     with col3:
-        # vLLM Mode filter
+        # vLLM Mode filter - radio buttons for mutually exclusive choice
         vllm_modes = sorted(df['vllm_mode'].unique())
         vllm_mode_options = ['All'] + vllm_modes
-        selected_vllm_mode = st.selectbox(
+        selected_vllm_mode = st.radio(
             "vLLM Mode",
             options=vllm_mode_options,
-            help="Execution architecture: managed, dut-only, or external"
+            horizontal=True,
+            help="Execution architecture: managed (2-node), dut-only (single-node), or external (existing endpoint)"
         )
 
     # Filters - Row 2: Configuration filters
