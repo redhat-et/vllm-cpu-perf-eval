@@ -95,12 +95,17 @@
   ansible.builtin.set_fact:
     baseline_load_percentages: "{{ baseline_load_percentages | default([25, 50, 75]) }}"
 
+- name: Compute planned load rates
+  ansible.builtin.set_fact:
+    planned_rates: "{{ planned_rates | default([]) + [{'percent': item, 'rate': ((max_rps | float) * (item | float / 100)) | round(2)}] }}"
+  loop: "{{ baseline_load_percentages }}"
+
 - name: Display maximum RPS and planned load tests
   ansible.builtin.debug:
     msg:
       - "Maximum RPS achieved: {{ max_rps }}"
-      - "Planned load tests: {{ baseline_load_percentages | map('string') | map('regex_replace', '^(.*)$', '\\1%') | join(', ') }}"
-      - "{{ baseline_load_percentages | map('divide', 100) | map('multiply', (max_rps | float)) | map('round', 2) | zip(baseline_load_percentages) | map('join', ' = ') | map('regex_replace', '^(.*)$', '  \\1% rate') | list }}"
+      - "Planned load tests: {{ baseline_load_percentages | join('%, ') }}%"
+      - "{{ planned_rates | map(attribute='percent') | zip(planned_rates | map(attribute='rate')) | map('join', '% = ') | map('regex_replace', '^(.*)$', '  \\1 req/s') | list }}"
 
 - name: "Baseline Test - Run at each load percentage"
   ansible.builtin.command:
