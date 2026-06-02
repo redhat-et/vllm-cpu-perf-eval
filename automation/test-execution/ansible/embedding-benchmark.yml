@@ -47,6 +47,12 @@
           Set via: export VLLM_ENDPOINT_URL=http://your-vllm-host:8000
       when: vllm_mode == 'external'
 
+    - name: Set platform for external mode
+      ansible.builtin.set_fact:
+        dut_platform_name: "external"
+        dut_platform_raw: "External vLLM Endpoint"
+      when: vllm_mode == 'external'
+
     - name: Generate test run ID
       ansible.builtin.set_fact:
         test_run_id: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
@@ -79,6 +85,29 @@
     - name: End play if external mode
       ansible.builtin.meta: end_play
       when: skip_vllm_management | bool
+
+    - name: Get CPU model name for platform identification
+      ansible.builtin.shell: |
+        lscpu | grep -i '^Model name' | sed 's/^[Mm]odel name:[[:space:]]*//' | head -1
+      register: cpu_model_raw
+      changed_when: false
+
+    - name: Set platform name from CPU model (sanitized)
+      ansible.builtin.set_fact:
+        dut_platform_name: "{{ cpu_model_raw.stdout | trim | regex_replace('[^a-zA-Z0-9]', '_') | regex_replace('_+', '_') | regex_replace('^_|_$', '') }}"
+
+    - name: Save platform name to localhost for metadata
+      ansible.builtin.set_fact:
+        dut_platform_name: "{{ dut_platform_name }}"
+        dut_platform_raw: "{{ cpu_model_raw.stdout | trim }}"
+      delegate_to: localhost
+      delegate_facts: true
+
+    - name: Display detected platform
+      ansible.builtin.debug:
+        msg:
+          - "Platform detected: {{ cpu_model_raw.stdout | trim }}"
+          - "Sanitized: {{ dut_platform_name }}"
 
     - name: Start vLLM server
       ansible.builtin.include_role:
