@@ -119,8 +119,8 @@ The test suite focuses on representative models from different architecture fami
 
 | Architecture Family | Representative Model | Application Focus | Parameters |
 |-------------------|---------------------|-------------------|------------|
-| MiniLM/BERT (English Dense) | ibm-granite/granite-embedding-english-r2 | Encoder-Only (Fastest Baseline) | ~110M |
-| XLM-RoBERTa (Multilingual Dense) | ibm-granite/granite-embedding-278m-multilingual | Encoder-Only (Multilingual) | ~278M |
+| MiniLM/BERT (English Dense) | RedHatAI/granite-embedding-english-r2 | Encoder-Only (Fastest Baseline) | ~110M |
+| XLM-RoBERTa (Multilingual Dense) | RedHatAI/nomic-embed-text-v1.5 | Encoder-Only (Multilingual) | ~278M |
 
 ### Model Selection Rationale
 
@@ -138,7 +138,7 @@ See [model-matrix.yaml](model-matrix.yaml) for complete model definitions and co
 **Objective**: Establish maximum Request Throughput (RPS) and analyze performance scaling.
 
 - **Test Type**: vllm bench serve (sweep)
-- **Model**: ibm-granite/granite-embedding-english-r2
+- **Model**: RedHatAI/granite-embedding-english-r2
 - **Workload**: Embedding (512:1)
 - **KV Cache**: 1GiB
 - **Quantization**: OFF
@@ -161,7 +161,7 @@ See [model-matrix.yaml](model-matrix.yaml) for complete model definitions and co
 **Objective**: Establish maximum Request Throughput (RPS) for multilingual model.
 
 - **Test Type**: vllm bench serve (sweep)
-- **Model**: ibm-granite/granite-embedding-278m-multilingual
+- **Model**: RedHatAI/nomic-embed-text-v1.5
 - **Workload**: Embedding (512:1)
 - **KV Cache**: 1GiB
 - **Quantization**: OFF
@@ -176,7 +176,7 @@ See [model-matrix.yaml](model-matrix.yaml) for complete model definitions and co
 **Objective**: Measure latency scaling under increasing concurrent requests.
 
 - **Test Type**: vllm bench serve (concurrent)
-- **Model**: ibm-granite/granite-embedding-278m-multilingual
+- **Model**: RedHatAI/nomic-embed-text-v1.5
 - **Workload**: Embedding (512:1)
 - **Concurrency Levels**: {16, 32, 64, 128, 196}
 - **Primary Metric**: P99 Latency Scaling
@@ -233,7 +233,7 @@ ansible-playbook playbooks/embedding/run-tests.yml \
 # Test specific model
 ansible-playbook playbooks/embedding/run-tests.yml \
   -i inventory/hosts.yml \
-  -e "test_model=ibm-granite/granite-embedding-english-r2"
+  -e "test_model=RedHatAI/granite-embedding-english-r2"
 
 # Keep vLLM running after tests
 ansible-playbook playbooks/embedding/run-tests.yml \
@@ -257,7 +257,7 @@ podman run -d \
   -e VLLM_CPU_KVCACHE_SPACE=1GiB \
   -e OMP_NUM_THREADS=64 \
   vllm/vllm-openai:latest \
-  --model ibm-granite/granite-embedding-278m-multilingual \
+  --model RedHatAI/nomic-embed-text-v1.5 \
   --host 0.0.0.0 \
   --port 8000 \
   --dtype bfloat16 \
@@ -282,21 +282,21 @@ export VLLM_HOST=192.168.1.10
 export VLLM_PORT=8000
 
 # Run baseline test
-./run-baseline.sh ibm-granite/granite-embedding-278m-multilingual
+./run-baseline.sh RedHatAI/nomic-embed-text-v1.5
 
 # Run latency test
-./run-latency.sh ibm-granite/granite-embedding-278m-multilingual
+./run-latency.sh RedHatAI/nomic-embed-text-v1.5
 
 # Run all tests
 ./run-all.sh
 
 # Custom configuration
-./run-baseline.sh ibm-granite/granite-embedding-english-r2 \
+./run-baseline.sh RedHatAI/granite-embedding-english-r2 \
   --vllm-host 192.168.1.10 \
   --num-prompts 2000
 
 # Custom concurrency levels
-./run-latency.sh ibm-granite/granite-embedding-278m-multilingual \
+./run-latency.sh RedHatAI/nomic-embed-text-v1.5 \
   --concurrency "8 16 32 64 128"
 ```
 
@@ -791,8 +791,8 @@ done
 ```bash
 # Test multiple models across both test types
 for model in \
-  "ibm-granite/granite-embedding-english-r2" \
-  "ibm-granite/granite-embedding-278m-multilingual"; do
+  "RedHatAI/granite-embedding-english-r2" \
+  "RedHatAI/nomic-embed-text-v1.5"; do
 
   echo "Testing $model..."
 
@@ -991,7 +991,7 @@ CPU Cores: 64 (0-63)
 NUMA Nodes: 2
 OMP_NUM_THREADS: 64
 VLLM_CPU_KVCACHE_SPACE: 1GiB
-Model: ibm-granite/granite-embedding-278m-multilingual
+Model: RedHatAI/nomic-embed-text-v1.5
 Dtype: bfloat16
 Max Model Length: 512
 ```
@@ -1006,8 +1006,8 @@ Embedding test cases follow the hierarchical naming scheme:
 - **Prefix**: `EMB` (Embedding)
 - **Type**: `BASELINE` (Baseline Performance), `LATENCY` (Concurrent Latency)
 - **Model**: Short abbreviation
-  - `GRANITE-EN`: ibm-granite/granite-embedding-english-r2
-  - `GRANITE-ML`: ibm-granite/granite-embedding-278m-multilingual
+  - `GRANITE-EN`: RedHatAI/granite-embedding-english-r2
+  - `GRANITE-ML`: RedHatAI/nomic-embed-text-v1.5
 - **Workload**: `EMB512` (512-token embedding)
 
 **Examples**:

@@ -8,7 +8,7 @@
   become: true
   vars:
     # Can be overridden when importing
-    model_name: "{{ test_model | default('ibm-granite/granite-embedding-278m-multilingual') }}"
+    model_name: "{{ test_model | default('RedHatAI/granite-embedding-english-r2') }}"
     container_name: "{{ vllm_container_name | default('vllm-embedding-server') }}"
     cpu_cores: "{{ vllm_cpu_cores | default('') }}"  # Empty = no pinning
 

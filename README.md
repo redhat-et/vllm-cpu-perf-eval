@@ -209,7 +209,7 @@ Current model coverage:
 - Granite-3.2-2B - Balanced enterprise
 - Qwen3-0.6B, Qwen2.5-3B - High-efficiency balanced
 
-**Embedding Models:** ✅ **NOW SUPPORTED**
+**Embedding Models:** ✅ **SUPPORTED**
 
 Embedding models are fully supported with three execution modes and comprehensive dashboard analysis:
 
