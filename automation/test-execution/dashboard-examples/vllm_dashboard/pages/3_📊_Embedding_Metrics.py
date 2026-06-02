@@ -687,6 +687,16 @@ def main():
         st.warning("No data matches the selected filters.")
         return
 
+    # Show what's being displayed
+    unique_models = filtered_df['model'].unique()
+    unique_cores = sorted(filtered_df['requested_cores'].unique())
+    unique_test_runs = len(filtered_df['test_run_id'].unique())
+
+    st.info(f"📊 Displaying: **{len(unique_models)} model(s)** ({', '.join([m.split('/')[-1] for m in unique_models])}) | "
+            f"**{len(unique_cores)} core config(s)** ({', '.join([f'{c}c' for c in unique_cores])}) | "
+            f"**{unique_test_runs} test run(s)** | "
+            f"**{len(filtered_df)} data points**")
+
     # Main analysis tabs - show all filtered data together
     st.header("📊 Performance Analysis")
 
