@@ -240,6 +240,49 @@ Unlike LLM models (which generate tokens), embedding models:
 - Comparing embedding model performance
 - RAG/search application capacity planning
 
+**Dashboard Filters:**
+
+The Embedding Metrics dashboard includes comprehensive filtering for multi-dimensional analysis:
+
+1. **Primary Filters** (Row 1)
+   - **Models** - Select one or more embedding models to compare
+   - **Platforms** - Filter by CPU platform (e.g., Intel Xeon, AMD EPYC)
+   - **vLLM Mode** - Execution architecture (managed, dut-only, external)
+
+2. **Configuration Filters** (Row 2)
+   - **Core Count** - CPU cores allocated to vLLM (8, 16, 32, 64, etc.)
+   - **Input Length** - Token length used for testing (512, 1024, 2048, etc.)
+   - **Scenario** - Test type (baseline, latency, or all)
+
+3. **Version & Identification** (Row 3)
+   - **vLLM Version** - Software version tested
+   - **Test Name** - Custom configuration identifier
+   - **Date Range** - Time-based filtering for trend analysis
+
+4. **Test Run** (Row 4)
+   - Select specific test run to analyze (most recent first)
+
+**Populating Filter Data:**
+
+Filters show "(no data)" when viewing old test results. To populate all filters, run a new test:
+
+```bash
+ansible-playbook -i inventory/hosts.yml embedding-benchmark.yml \
+  -e "test_model=RedHatAI/all-MiniLM-L6-v2" \
+  -e "test_name=Xeon-32C-1024tok" \
+  -e "requested_cores=32" \
+  -e "embedding_random_input_len=1024" \
+  -e "scenario=all"
+```
+
+This populates:
+- ✅ Platform (auto-detected from CPU)
+- ✅ Core Count (from requested_cores)
+- ✅ Input Length (from embedding_random_input_len)
+- ✅ Test Name (from test_name)
+- ✅ vLLM Version (auto-detected)
+- ✅ Timestamp (for date filtering)
+
 ## Analysis Workflow
 
 **Recommended approach for LLM models:**
@@ -261,20 +304,23 @@ Unlike LLM models (which generate tokens), embedding models:
 
 **Recommended approach for Embedding models:**
 
-1. **Start with Embedding Metrics (Saturation Analysis)**
+1. **Start with Concurrent Load Analysis** (First Tab)
+   - Verify concurrent request handling capability
+   - Find sweet spot for parallel embedding generation
+   - Identify where throughput plateaus
+   - Validate latency remains acceptable under concurrency
+
+2. **Deep Dive with Saturation Analysis** (Second Tab)
    - View saturation curve to find max throughput
    - Identify where P99 latency starts degrading
    - Determine optimal operating load (typically 50-75% of max)
-
-2. **Check Concurrent Load Analysis**
-   - Verify concurrent request handling
-   - Find sweet spot for parallel embedding generation
-   - Validate latency remains acceptable under concurrency
+   - Fine-tune based on your SLO requirements
 
 3. **Compare Models** (if testing multiple)
    - Side-by-side throughput comparison
    - P99 latency at same load levels
    - Choose model that meets throughput + latency SLOs
+   - Use filters to compare same configuration across models
 
 ## Quick Examples
 

@@ -209,13 +209,28 @@ Current model coverage:
 - Granite-3.2-2B - Balanced enterprise
 - Qwen3-0.6B, Qwen2.5-3B - High-efficiency balanced
 
-**Embedding Models:**
+**Embedding Models:** ✅ **NOW SUPPORTED**
 
-> **🚧 NOT YET SUPPORTED** - Embedding model tests are blocked by default.
-> These models are defined but testing is not yet validated.
+Embedding models are fully supported with three execution modes and comprehensive dashboard analysis:
 
-- granite-embedding-english-r2
-- granite-embedding-278m-multilingual
+- **RedHatAI/all-MiniLM-L6-v2** (22M) - Fast, lightweight
+- **RedHatAI/nomic-embed-text-v1.5** (137M) - General-purpose
+- **RedHatAI/granite-embedding-english-r2** (109M) - Enterprise
+- **RedHatAI/embeddinggemma-300m** (300M) - Medium-quality
+- **RedHatAI/Qwen3-Embedding-8B** (8B) - High-quality, long context (40K tokens)
+
+**Quick start:**
+```bash
+ansible-playbook -i inventory/hosts.yml embedding-benchmark.yml \
+  -e "test_model=RedHatAI/all-MiniLM-L6-v2" \
+  -e "scenario=all"
+```
+
+See [docs/embedding-models.md](docs/embedding-models.md) for comprehensive guide including:
+- Three execution modes (managed, dut-only, external)
+- Configurable baseline percentages
+- Custom input lengths
+- Dashboard filtering
 
 See [models/models.md](models/models.md) for complete model definitions,
 selection rationale, and how to add new models.
