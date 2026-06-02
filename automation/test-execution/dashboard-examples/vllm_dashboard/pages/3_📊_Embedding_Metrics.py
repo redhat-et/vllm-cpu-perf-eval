@@ -225,6 +225,48 @@ def plot_saturation_curve(df: pd.DataFrame):
 
     st.plotly_chart(fig, use_container_width=True)
 
+    # Token throughput graph
+    st.subheader("Token Processing Speed vs Load")
+    fig_tokens = go.Figure()
+    color_idx = 0
+
+    for (_, model, _, cores, input_len, test_name, test_id), group_df in grouped:
+        group_df = group_df.copy()
+        group_df['load_order'] = group_df['parameter'].map(load_order).fillna(0)
+        group_df = group_df.sort_values('load_order')
+
+        model_short = model.split('/')[-1]
+        run_id_short = test_id[-6:] if len(test_id) >= 6 else test_id
+
+        if test_name and test_name.strip():
+            label = f"{test_name} ({run_id_short})"
+        else:
+            label = f"{model_short} | {cores}c | {input_len}tok ({run_id_short})"
+
+        fig_tokens.add_trace(go.Scatter(
+            x=group_df['parameter'],
+            y=group_df['token_throughput_tps'],
+            name=label,
+            mode='lines+markers',
+            marker=dict(size=8, color=colors[color_idx % len(colors)]),
+            line=dict(width=3, color=colors[color_idx % len(colors)])
+        ))
+        color_idx += 1
+
+    fig_tokens.update_xaxes(
+        title_text="Load Level",
+        categoryorder='array',
+        categoryarray=['25pct', '50pct', '75pct', 'inf']
+    )
+    fig_tokens.update_yaxes(title_text="Token Throughput (tokens/s)")
+    fig_tokens.update_layout(
+        title="Token Processing Speed vs Load",
+        hovermode='x unified',
+        height=500,
+        legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02)
+    )
+    st.plotly_chart(fig_tokens, use_container_width=True)
+
     # Metrics table for all configurations
     st.subheader("Baseline Metrics (All Configurations)")
 
@@ -256,14 +298,27 @@ def plot_concurrent_load(df: pd.DataFrame):
     df = df.dropna(subset=['concurrency'])
     df['concurrency'] = df['concurrency'].astype(int)
 
-    # Latency metric selector
-    latency_metric = st.radio(
-        "Latency Metric",
-        options=["Mean", "P99"],
-        horizontal=True,
-        help="Select which latency metric to display"
-    )
-    latency_col = 'mean_latency_ms' if latency_metric == "Mean" else 'p99_latency_ms'
+    # Metric selectors
+    col_selector1, col_selector2 = st.columns(2)
+
+    with col_selector1:
+        throughput_metric = st.radio(
+            "Throughput Metric",
+            options=["RPS", "Token/s"],
+            horizontal=True,
+            help="Select throughput metric: Requests per second or Tokens per second"
+        )
+        throughput_col = 'request_throughput_rps' if throughput_metric == "RPS" else 'token_throughput_tps'
+        throughput_label = "Request Throughput (req/s)" if throughput_metric == "RPS" else "Token Throughput (tokens/s)"
+
+    with col_selector2:
+        latency_metric = st.radio(
+            "Latency Metric",
+            options=["Mean", "P99"],
+            horizontal=True,
+            help="Select which latency metric to display"
+        )
+        latency_col = 'mean_latency_ms' if latency_metric == "Mean" else 'p99_latency_ms'
 
     # Group by test configuration
     grouped = df.groupby([
@@ -294,7 +349,7 @@ def plot_concurrent_load(df: pd.DataFrame):
 
             fig1.add_trace(go.Scatter(
                 x=group_df['concurrency'],
-                y=group_df['request_throughput_rps'],
+                y=group_df[throughput_col],
                 name=label,
                 mode='lines+markers',
                 marker=dict(size=8, color=colors[color_idx % len(colors)]),
@@ -303,9 +358,9 @@ def plot_concurrent_load(df: pd.DataFrame):
             color_idx += 1
 
         fig1.update_layout(
-            title="Throughput vs Concurrency",
+            title=f"{throughput_metric} vs Concurrency",
             xaxis_title="Concurrent Requests",
-            yaxis_title="Request Throughput (req/s)",
+            yaxis_title=throughput_label,
             height=500,
             legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02)
         )
@@ -595,81 +650,35 @@ def main():
         st.warning("Please select at least one model")
         return
 
-    # Debug info
-    with st.expander("🔍 Debug: Data Overview"):
-        st.write(f"Total rows loaded: {len(df)}")
-        st.write(f"Unique models: {df['model'].unique().tolist()}")
-        st.write(f"Unique platforms: {df['platform'].unique().tolist()}")
-        st.write(f"Unique vllm_modes: {df['vllm_mode'].unique().tolist()}")
-        st.write(f"Unique scenarios: {df['scenario'].unique().tolist()}")
-        st.write(f"Unique requested_cores: {df['requested_cores'].unique().tolist()}")
-        st.write(f"Unique input_length: {df['input_length'].unique().tolist()}")
-        st.write(f"Unique vllm_version: {df['vllm_version'].unique().tolist()}")
-        st.write(f"Unique test_runs: {df['test_run_id'].unique().tolist()[:5]} (showing first 5)")
-        st.write(f"Unique test_types: {df['test_type'].unique().tolist()}")
-        st.write(f"Sample data (first 3 rows):")
-        st.dataframe(df.head(3)[[
-            'test_run_id', 'model', 'scenario', 'test_type', 'parameter',
-            'requested_cores', 'input_length', 'vllm_version'
-        ]])
-
-    # Apply filters with debug tracking
-    step1 = df[df['model'].isin(selected_models)]
-    step2 = step1[step1['platform'].isin(selected_platforms)]
-    filtered_df = step2[step2['vllm_mode'] == selected_vllm_mode]
+    # Apply filters
+    filtered_df = df[
+        (df['model'].isin(selected_models)) &
+        (df['platform'].isin(selected_platforms)) &
+        (df['vllm_mode'] == selected_vllm_mode)
+    ]
 
     # Apply core count filter (only if data exists)
     if selected_core_counts:
-        before_cores = len(filtered_df)
         filtered_df = filtered_df[filtered_df['requested_cores'].isin(selected_core_counts)]
-        after_cores = len(filtered_df)
-    else:
-        before_cores = after_cores = len(filtered_df)
 
     # Apply input length filter (only if data exists)
     if selected_input_lengths:
-        before_input = len(filtered_df)
         filtered_df = filtered_df[filtered_df['input_length'].isin(selected_input_lengths)]
-        after_input = len(filtered_df)
-    else:
-        before_input = after_input = len(filtered_df)
 
     # Apply scenario filter
     if selected_scenarios:
-        before_scenario = len(filtered_df)
         filtered_df = filtered_df[filtered_df['scenario'].isin(selected_scenarios)]
-        after_scenario = len(filtered_df)
-    else:
-        before_scenario = after_scenario = len(filtered_df)
 
     # Apply vLLM version filter
     if selected_vllm_versions:
-        before_version = len(filtered_df)
         filtered_df = filtered_df[filtered_df['vllm_version'].isin(selected_vllm_versions)]
-        after_version = len(filtered_df)
-    else:
-        before_version = after_version = len(filtered_df)
 
     # Apply test name filter (only if custom names exist)
     if selected_test_names is not None:
-        before_name = len(filtered_df)
         filtered_df = filtered_df[filtered_df['test_name'].isin(selected_test_names)]
-        after_name = len(filtered_df)
-    else:
-        before_name = after_name = len(filtered_df)
-
-    with st.expander("🔍 Debug: Filter Steps"):
-        st.write(f"After model filter: {len(step1)} rows")
-        st.write(f"After platform filter: {len(step2)} rows")
-        st.write(f"After vllm_mode filter: {len(filtered_df)} rows")
-        st.write(f"After core_count filter: {after_cores} rows (from {before_cores})")
-        st.write(f"After input_length filter: {after_input} rows (from {before_input})")
-        st.write(f"After scenario filter: {after_scenario} rows (from {before_scenario})")
-        st.write(f"After vllm_version filter: {after_version} rows (from {before_version})")
-        st.write(f"After test_name filter: {after_name} rows (from {before_name})")
 
     if filtered_df.empty:
-        st.warning("No data matches the selected filters. Check the debug info above to see where data was lost.")
+        st.warning("No data matches the selected filters.")
         return
 
     # Main analysis tabs - show all filtered data together
