@@ -7,6 +7,25 @@
   register: system_arch
   changed_when: false
 
+- name: Validate supported architecture
+  ansible.builtin.fail:
+    msg: |
+      ❌ Unsupported architecture detected!
+
+      Detected: {{ system_arch.stdout }}
+      Supported: x86_64, amd64, aarch64, arm64
+
+      This framework currently supports Intel/AMD x86_64 and ARM aarch64 processors only.
+      Other architectures (ppc64le, s390x, riscv64) are not yet supported.
+
+      To add support for {{ system_arch.stdout }}:
+        1. Build vLLM container for {{ system_arch.stdout }}
+        2. Update detect-architecture.yml with architecture mappings
+        3. Test the container images on target platform
+
+      For more information, see: docs/ansible/test-execution.md
+  when: system_arch.stdout not in ['x86_64', 'amd64', 'aarch64', 'arm64']
+
 - name: Set architecture-specific container images
   ansible.builtin.set_fact:
     vllm_server_image_default: >-

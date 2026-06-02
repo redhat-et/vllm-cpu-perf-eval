@@ -18,7 +18,7 @@
     vllm_bench_prefix: >-
       {% if use_vllm_bench_container %}
       podman run --rm --entrypoint="" --network host
-      -v {{ bench_config.results_dir }}:{{ bench_config.results_dir }}:z
+      -v "{{ bench_config.results_dir }}":"{{ bench_config.results_dir }}":z
       {{ vllm_bench_image }}
       /opt/venv/bin/vllm bench serve
       {% else %}
@@ -38,14 +38,14 @@
       --host {{ bench_config.vllm_host }}
       --port {{ bench_config.vllm_port }}
       --backend openai-embeddings
-      --model {{ model_name }}
+      --model "{{ model_name }}"
       --dataset-name random
       --random-input-len {{ embedding_random_input_len | default(512) }}
       --num-prompts {{ num_prompts }}
       --request-rate inf
       --endpoint /v1/embeddings
       --save-result
-      --result-filename {{ results_base_dir }}/baseline/sweep-inf.json
+      --result-filename "{{ results_base_dir }}/baseline/sweep-inf.json"
   register: baseline_inf_result
   changed_when: true
 
@@ -106,14 +106,14 @@
       --host {{ bench_config.vllm_host }}
       --port {{ bench_config.vllm_port }}
       --backend openai-embeddings
-      --model {{ model_name }}
+      --model "{{ model_name }}"
       --dataset-name random
       --random-input-len {{ embedding_random_input_len | default(512) }}
       --num-prompts {{ num_prompts }}
       --request-rate {{ ((max_rps | float) * 0.25) | round(2) }}
       --endpoint /v1/embeddings
       --save-result
-      --result-filename {{ results_base_dir }}/baseline/sweep-25pct.json
+      --result-filename "{{ results_base_dir }}/baseline/sweep-25pct.json"
   changed_when: true
 
 - name: "Baseline Test - 50% Load"
@@ -123,14 +123,14 @@
       --host {{ bench_config.vllm_host }}
       --port {{ bench_config.vllm_port }}
       --backend openai-embeddings
-      --model {{ model_name }}
+      --model "{{ model_name }}"
       --dataset-name random
       --random-input-len {{ embedding_random_input_len | default(512) }}
       --num-prompts {{ num_prompts }}
       --request-rate {{ ((max_rps | float) * 0.50) | round(2) }}
       --endpoint /v1/embeddings
       --save-result
-      --result-filename {{ results_base_dir }}/baseline/sweep-50pct.json
+      --result-filename "{{ results_base_dir }}/baseline/sweep-50pct.json"
   changed_when: true
 
 - name: "Baseline Test - 75% Load"
@@ -140,14 +140,14 @@
       --host {{ bench_config.vllm_host }}
       --port {{ bench_config.vllm_port }}
       --backend openai-embeddings
-      --model {{ model_name }}
+      --model "{{ model_name }}"
       --dataset-name random
       --random-input-len {{ embedding_random_input_len | default(512) }}
       --num-prompts {{ num_prompts }}
       --request-rate {{ ((max_rps | float) * 0.75) | round(2) }}
       --endpoint /v1/embeddings
       --save-result
-      --result-filename {{ results_base_dir }}/baseline/sweep-75pct.json
+      --result-filename "{{ results_base_dir }}/baseline/sweep-75pct.json"
   changed_when: true
 
 - name: Display baseline test completion

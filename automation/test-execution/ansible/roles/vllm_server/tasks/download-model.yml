@@ -114,7 +114,48 @@
   retries: "{{ model_download_retries | default(3) }}"
   delay: "{{ model_download_retry_delay | default(30) }}"
   until: model_download_result is succeeded
+  ignore_errors: true
   no_log: true  # Prevent HF_TOKEN from appearing in logs
+
+- name: Report download failure with details
+  ansible.builtin.fail:
+    msg: |
+      ❌ Model download failed after {{ model_download_retries | default(3) }} retries!
+
+      Model: {{ test_model }}
+      Cache Directory: {{ model_cache_dir }}
+      Container Image: {{ model_downloader_image | default('quay.io/vllm-cpu-perf-eval/model-downloader@sha256:...') }}
+
+      Error: {{ model_download_result.msg | default('Container execution failed') }}
+
+      Common causes:
+        1. Invalid HF_TOKEN (required for gated models like Llama, Qwen)
+           - Verify token at: https://huggingface.co/settings/tokens
+           - Check model access permissions
+
+        2. Incorrect model ID
+           - Verify model exists: https://huggingface.co/{{ test_model }}
+           - Check for typos in model name
+
+        3. Network connectivity issues
+           - Test connection: curl https://huggingface.co
+           - Check firewall/proxy settings
+
+        4. Disk space exhausted during download
+           - Check available space: df -h {{ model_cache_dir }}
+
+        5. Container runtime issues
+           - Check podman logs: journalctl -u podman -f
+           - Verify container image is accessible
+
+      To retry with verbose logging:
+        podman run --rm -v "{{ model_cache_dir }}:/cache:z" \
+          -e HF_TOKEN=$HF_TOKEN -e HF_HOME=/cache \
+          {{ model_downloader_image | default('quay.io/vllm-cpu-perf-eval/model-downloader@sha256:ef8bf0075415a18be6757e8a72fdfc88ed3d967b2744f1663991126884af6dc2') }} \
+          /usr/local/bin/download_model.py {{ test_model }}
+  when:
+    - (not model_cache_exists.stat.exists or (force_model_download | default(false) | bool))
+    - model_download_result is failed
 
 - name: Display download completion
   ansible.builtin.debug:

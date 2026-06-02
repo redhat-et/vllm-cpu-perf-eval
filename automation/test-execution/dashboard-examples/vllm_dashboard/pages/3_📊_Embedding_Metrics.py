@@ -53,6 +53,13 @@ def load_embedding_data(results_dir: str) -> pd.DataFrame:
             with open(metadata_file) as f:
                 metadata = json.load(f)
 
+            # Validate required metadata fields
+            required_fields = ['test_run_id', 'model', 'platform']
+            missing = [f for f in required_fields if f not in metadata or not metadata[f]]
+            if missing:
+                logger.warning(f"Skipping {metadata_file}: missing required fields {missing}")
+                continue
+
             test_run_dir = metadata_file.parent
 
             # Process JSON files in baseline/ and latency/ subdirectories
@@ -66,6 +73,13 @@ def load_embedding_data(results_dir: str) -> pd.DataFrame:
                 for json_file in sorted(subdir.glob("*.json")):
                     with open(json_file) as f:
                         result = json.load(f)
+
+                    # Validate result has key metrics
+                    required_metrics = ['request_throughput', 'mean_e2el_ms']
+                    missing_metrics = [m for m in required_metrics if m not in result]
+                    if missing_metrics:
+                        logger.warning(f"Skipping {json_file}: missing metrics {missing_metrics}")
+                        continue
 
                     # Parse test type from filename
                     stem = json_file.stem
@@ -125,7 +139,7 @@ def plot_saturation_curve(df: pd.DataFrame):
     # Order load levels
     load_order = {'inf': 4, '75pct': 3, '50pct': 2, '25pct': 1}
     df = df.copy()
-    df['load_order'] = df['parameter'].map(load_order)
+    df['load_order'] = df['parameter'].map(load_order).fillna(0)
     df = df.sort_values('load_order')
 
     # Create dual-axis figure

@@ -443,14 +443,14 @@
       ansible.builtin.meta: end_play
       when: skip_cleanup | bool
 
-    - name: Stop vLLM container
+    - name: Stop and remove vLLM container
       containers.podman.podman_container:
         name: vllm-embedding-server
-        state: stopped
+        state: absent
       when:
         - cleanup | bool
         - container_runtime.engine == 'podman'
 
     - name: Display cleanup status
       ansible.builtin.debug:
-        msg: "vLLM server {{ 'stopped' if cleanup else 'still running - use cleanup_after_test=true to stop' }}"
+        msg: "vLLM server {{ 'stopped and removed' if cleanup else 'still running - use cleanup_after_test=true to cleanup' }}"

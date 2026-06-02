@@ -18,7 +18,7 @@
     vllm_bench_prefix: >-
       {% if use_vllm_bench_container %}
       podman run --rm --entrypoint="" --network host
-      -v {{ bench_config.results_dir }}:{{ bench_config.results_dir }}:z
+      -v "{{ bench_config.results_dir }}":"{{ bench_config.results_dir }}":z
       {{ vllm_bench_image }}
       /opt/venv/bin/vllm bench serve
       {% else %}
@@ -42,7 +42,7 @@
       --host {{ bench_config.vllm_host }}
       --port {{ bench_config.vllm_port }}
       --backend openai-embeddings
-      --model {{ model_name }}
+      --model "{{ model_name }}"
       --dataset-name random
       --random-input-len 512
       --num-prompts {{ num_prompts }}
@@ -50,7 +50,7 @@
       --request-rate inf
       --max-concurrency {{ item }}
       --save-result
-      --result-filename {{ results_base_dir }}/latency/concurrent-{{ item }}.json
+      --result-filename "{{ results_base_dir }}/latency/concurrent-{{ item }}.json"
   loop: "{{ concurrency_levels }}"
   register: latency_tests
   changed_when: true
