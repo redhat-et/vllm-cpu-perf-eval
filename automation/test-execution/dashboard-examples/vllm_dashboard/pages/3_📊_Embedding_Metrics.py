@@ -93,15 +93,26 @@ def load_embedding_data(results_dir: str) -> pd.DataFrame:
                         test_type = 'unknown'
                         parameter = stem
 
+                    # Extract test_name from test_run_id (format: test_name-YYYYMMDD-HHMMSS or just YYYYMMDD-HHMMSS)
+                    test_run_id = metadata.get('test_run_id', 'unknown')
+                    test_name = None
+                    if test_run_id != 'unknown' and '-' in test_run_id:
+                        parts = test_run_id.split('-')
+                        # If more than 2 parts (date-time), first part(s) are test_name
+                        if len(parts) > 2:
+                            test_name = '-'.join(parts[:-2])
+
                     row = {
                         # Metadata
-                        'test_run_id': metadata.get('test_run_id', 'unknown'),
+                        'test_run_id': test_run_id,
+                        'test_name': test_name,
                         'scenario': metadata.get('scenario', ''),
                         'model': metadata.get('model', ''),
                         'platform': metadata.get('platform', 'unknown'),
                         'vllm_version': metadata.get('vllm_version', 'unknown'),
                         'vllm_mode': metadata.get('vllm_mode', 'managed'),
                         'requested_cores': metadata.get('requested_cores'),
+                        'input_length': metadata.get('embedding_random_input_len'),
                         'timestamp': metadata.get('timestamp', ''),
 
                         # Test configuration
@@ -376,35 +387,42 @@ def main():
 
     st.success(f"✓ Loaded {len(df)} test results from {results_dir_input}")
 
-    # Filters - Row 1
+    # Filters Header
+    st.markdown("### 🔍 Filters")
+
+    # Filters - Row 1: Primary filters
     col1, col2, col3 = st.columns(3)
 
     with col1:
         models = sorted(df['model'].unique())
         selected_models = st.multiselect(
-            "Select Models",
+            "Models",
             options=models,
-            default=[models[0]] if models else []
+            default=[models[0]] if models else [],
+            help="Select one or more models to compare"
         )
 
     with col2:
         platforms = sorted(df['platform'].unique())
         selected_platforms = st.multiselect(
-            "Select Platforms",
+            "Platforms",
             options=platforms,
-            default=platforms
+            default=platforms,
+            help="Filter by CPU platform"
         )
 
     with col3:
-        test_runs = sorted(df['test_run_id'].unique(), reverse=True)
-        selected_test_run = st.selectbox(
-            "Test Run",
-            options=test_runs,
-            help="Select specific test run to analyze"
+        # vLLM Mode filter
+        vllm_modes = sorted(df['vllm_mode'].unique())
+        vllm_mode_options = ['All'] + vllm_modes
+        selected_vllm_mode = st.selectbox(
+            "vLLM Mode",
+            options=vllm_mode_options,
+            help="Execution architecture: managed, dut-only, or external"
         )
 
-    # Filters - Row 2
-    col4, col5 = st.columns(2)
+    # Filters - Row 2: Configuration filters
+    col4, col5, col6 = st.columns(3)
 
     with col4:
         # Get unique core counts, filtering out None/NaN
@@ -413,36 +431,118 @@ def main():
         selected_core_count = st.selectbox(
             "Core Count",
             options=core_count_options,
-            help="Filter by CPU core allocation"
+            help="CPU cores allocated to vLLM"
         )
 
     with col5:
+        # Input length filter
+        input_lengths = sorted([i for i in df['input_length'].unique() if pd.notna(i)])
+        input_length_options = ['All'] + [str(int(i)) for i in input_lengths]
+        selected_input_length = st.selectbox(
+            "Input Length",
+            options=input_length_options,
+            help="Random input token length"
+        )
+
+    with col6:
+        # Scenario filter
+        scenarios = sorted(df['scenario'].unique())
+        scenario_options = ['All'] + [s for s in scenarios if s]
+        selected_scenario = st.selectbox(
+            "Scenario",
+            options=scenario_options,
+            help="Test scenario: baseline, latency, or all"
+        )
+
+    # Filters - Row 3: Version and test identification
+    col7, col8, col9 = st.columns(3)
+
+    with col7:
         vllm_versions = sorted(df['vllm_version'].unique())
         vllm_version_options = ['All'] + vllm_versions
         selected_vllm_version = st.selectbox(
             "vLLM Version",
             options=vllm_version_options,
-            help="Filter by vLLM version"
+            help="vLLM software version"
         )
+
+    with col8:
+        # Test name filter
+        test_names = sorted([n for n in df['test_name'].unique() if n is not None])
+        test_name_options = ['All'] + test_names
+        selected_test_name = st.selectbox(
+            "Test Name",
+            options=test_name_options,
+            help="Custom test configuration name"
+        )
+
+    with col9:
+        # Date range filter
+        if not df['timestamp'].empty:
+            df['date'] = pd.to_datetime(df['timestamp']).dt.date
+            min_date = df['date'].min()
+            max_date = df['date'].max()
+
+            date_range = st.date_input(
+                "Date Range",
+                value=(min_date, max_date),
+                min_value=min_date,
+                max_value=max_date,
+                help="Filter by test date range"
+            )
+        else:
+            date_range = None
+
+    # Filters - Row 4: Test run selection
+    test_runs = sorted(df['test_run_id'].unique(), reverse=True)
+    selected_test_run = st.selectbox(
+        "Test Run ID",
+        options=test_runs,
+        help="Select specific test run to analyze (most recent first)"
+    )
 
     if not selected_models:
         st.warning("Please select at least one model")
         return
 
-    # Filter data
+    # Apply filters
     filtered_df = df[
         (df['model'].isin(selected_models)) &
         (df['platform'].isin(selected_platforms)) &
         (df['test_run_id'] == selected_test_run)
     ]
 
+    # Apply vLLM mode filter if not 'All'
+    if selected_vllm_mode != 'All':
+        filtered_df = filtered_df[filtered_df['vllm_mode'] == selected_vllm_mode]
+
     # Apply core count filter if not 'All'
     if selected_core_count != 'All':
         filtered_df = filtered_df[filtered_df['requested_cores'] == int(selected_core_count)]
 
+    # Apply input length filter if not 'All'
+    if selected_input_length != 'All':
+        filtered_df = filtered_df[filtered_df['input_length'] == int(selected_input_length)]
+
+    # Apply scenario filter if not 'All'
+    if selected_scenario != 'All':
+        filtered_df = filtered_df[filtered_df['scenario'] == selected_scenario]
+
     # Apply vLLM version filter if not 'All'
     if selected_vllm_version != 'All':
         filtered_df = filtered_df[filtered_df['vllm_version'] == selected_vllm_version]
+
+    # Apply test name filter if not 'All'
+    if selected_test_name != 'All':
+        filtered_df = filtered_df[filtered_df['test_name'] == selected_test_name]
+
+    # Apply date range filter
+    if date_range and len(date_range) == 2:
+        start_date, end_date = date_range
+        filtered_df = filtered_df[
+            (filtered_df['date'] >= start_date) &
+            (filtered_df['date'] <= end_date)
+        ]
 
     if filtered_df.empty:
         st.warning("No data matches the selected filters")
