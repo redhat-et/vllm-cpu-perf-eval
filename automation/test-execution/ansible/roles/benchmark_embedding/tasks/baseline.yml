@@ -53,17 +53,6 @@
   ansible.builtin.set_fact:
     baseline_inf_output: "{{ baseline_inf_result.stdout }}"
 
-- name: Debug baseline test output
-  ansible.builtin.debug:
-    msg: |
-      === Baseline Test STDOUT ===
-      {{ baseline_inf_output }}
-      === Baseline Test STDERR ===
-      {{ baseline_inf_result.stderr | default('No stderr') }}
-      === Return Code ===
-      {{ baseline_inf_result.rc | default('N/A') }}
-      === End Output ===
-
 - name: Validate baseline test output
   ansible.builtin.assert:
     that:
@@ -78,12 +67,6 @@
 - name: Parse maximum RPS from inf rate test
   ansible.builtin.set_fact:
     max_rps_match: "{{ baseline_inf_output | regex_search('Request throughput \\(req/s\\):\\s+([0-9.]+)', '\\1') }}"
-
-- name: Debug RPS extraction
-  ansible.builtin.debug:
-    msg: |
-      Extracted RPS match: {{ max_rps_match }}
-      Match length: {{ max_rps_match | length if max_rps_match else 0 }}
 
 - name: Validate RPS extraction
   ansible.builtin.assert:
