@@ -427,27 +427,35 @@ def main():
     with col4:
         # Get unique core counts, filtering out None/NaN
         core_counts = sorted([c for c in df['requested_cores'].unique() if pd.notna(c)])
-        core_count_options = ['All'] + [str(int(c)) for c in core_counts]
+        if core_counts:
+            core_count_options = ['All'] + [str(int(c)) for c in core_counts]
+        else:
+            core_count_options = ['All (no data)']
         selected_core_count = st.selectbox(
             "Core Count",
             options=core_count_options,
-            help="CPU cores allocated to vLLM"
+            help="CPU cores allocated to vLLM (run new test with -e requested_cores=X to populate)",
+            disabled=len(core_count_options) == 1
         )
 
     with col5:
         # Input length filter
         input_lengths = sorted([i for i in df['input_length'].unique() if pd.notna(i)])
-        input_length_options = ['All'] + [str(int(i)) for i in input_lengths]
+        if input_lengths:
+            input_length_options = ['All'] + [str(int(i)) for i in input_lengths]
+        else:
+            input_length_options = ['All (no data)']
         selected_input_length = st.selectbox(
             "Input Length",
             options=input_length_options,
-            help="Random input token length"
+            help="Random input token length (default: 512)",
+            disabled=len(input_length_options) == 1
         )
 
     with col6:
-        # Scenario filter
-        scenarios = sorted(df['scenario'].unique())
-        scenario_options = ['All'] + [s for s in scenarios if s]
+        # Scenario filter - remove empty strings and deduplicate
+        scenarios = sorted(set([s for s in df['scenario'].unique() if s and s.strip()]))
+        scenario_options = ['All'] + scenarios
         selected_scenario = st.selectbox(
             "Scenario",
             options=scenario_options,
@@ -458,22 +466,31 @@ def main():
     col7, col8, col9 = st.columns(3)
 
     with col7:
-        vllm_versions = sorted(df['vllm_version'].unique())
-        vllm_version_options = ['All'] + vllm_versions
+        # Filter out "unknown" and keep only real versions
+        vllm_versions = sorted([v for v in df['vllm_version'].unique() if v and v != 'unknown'])
+        if vllm_versions:
+            vllm_version_options = ['All'] + vllm_versions
+        else:
+            vllm_version_options = ['All (unknown)']
         selected_vllm_version = st.selectbox(
             "vLLM Version",
             options=vllm_version_options,
-            help="vLLM software version"
+            help="vLLM software version (detected automatically)",
+            disabled=len(vllm_version_options) == 1
         )
 
     with col8:
-        # Test name filter
-        test_names = sorted([n for n in df['test_name'].unique() if n is not None])
-        test_name_options = ['All'] + test_names
+        # Test name filter - only show if there are custom names
+        test_names = sorted([n for n in df['test_name'].unique() if n is not None and n.strip()])
+        if test_names:
+            test_name_options = ['All'] + test_names
+        else:
+            test_name_options = ['All (none set)']
         selected_test_name = st.selectbox(
             "Test Name",
             options=test_name_options,
-            help="Custom test configuration name"
+            help="Custom test configuration name (use -e test_name=... to set)",
+            disabled=len(test_name_options) == 1
         )
 
     with col9:
@@ -516,24 +533,24 @@ def main():
     if selected_vllm_mode != 'All':
         filtered_df = filtered_df[filtered_df['vllm_mode'] == selected_vllm_mode]
 
-    # Apply core count filter if not 'All'
-    if selected_core_count != 'All':
+    # Apply core count filter if not 'All' and has data
+    if selected_core_count not in ['All', 'All (no data)']:
         filtered_df = filtered_df[filtered_df['requested_cores'] == int(selected_core_count)]
 
-    # Apply input length filter if not 'All'
-    if selected_input_length != 'All':
+    # Apply input length filter if not 'All' and has data
+    if selected_input_length not in ['All', 'All (no data)']:
         filtered_df = filtered_df[filtered_df['input_length'] == int(selected_input_length)]
 
     # Apply scenario filter if not 'All'
     if selected_scenario != 'All':
         filtered_df = filtered_df[filtered_df['scenario'] == selected_scenario]
 
-    # Apply vLLM version filter if not 'All'
-    if selected_vllm_version != 'All':
+    # Apply vLLM version filter if not 'All' and not unknown
+    if selected_vllm_version not in ['All', 'All (unknown)']:
         filtered_df = filtered_df[filtered_df['vllm_version'] == selected_vllm_version]
 
-    # Apply test name filter if not 'All'
-    if selected_test_name != 'All':
+    # Apply test name filter if not 'All' and has data
+    if selected_test_name not in ['All', 'All (none set)']:
         filtered_df = filtered_df[filtered_df['test_name'] == selected_test_name]
 
     # Apply date range filter
@@ -565,15 +582,15 @@ def main():
             continue
 
         # Tabs for different views
-        tab1, tab2 = st.tabs(["📊 Saturation Analysis", "🔀 Concurrent Load"])
+        tab1, tab2 = st.tabs(["🔀 Concurrent Load", "📊 Saturation Analysis"])
 
         with tab1:
-            baseline_data = model_data[model_data['test_type'] == 'baseline']
-            plot_saturation_curve(baseline_data)
-
-        with tab2:
             concurrent_data = model_data[model_data['test_type'] == 'concurrent']
             plot_concurrent_load(concurrent_data)
+
+        with tab2:
+            baseline_data = model_data[model_data['test_type'] == 'baseline']
+            plot_saturation_curve(baseline_data)
 
         st.markdown("---")
 
