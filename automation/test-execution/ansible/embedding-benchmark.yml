@@ -288,6 +288,7 @@
             "vllm_bench_container": "{{ benchmark_tool.vllm_bench.use_container | default(true) }}",
             "num_prompts": "{{ benchmark_tool.vllm_bench.num_prompts | default(250) }}",
             "embedding_random_input_len": {{ embedding_random_input_len | default(512) }},
+            "requested_cores": {{ requested_cores | default('null') }},
             "timestamp": "{{ lookup('pipe', 'date -Iseconds') }}"
           }
         dest: "{{ test_run_base }}/test-metadata.json"
@@ -359,6 +360,7 @@
             "vllm_bench_container": "{{ benchmark_tool.vllm_bench.use_container | default(true) }}",
             "num_prompts": "{{ benchmark_tool.vllm_bench.num_prompts | default(250) }}",
             "embedding_random_input_len": {{ embedding_random_input_len | default(512) }},
+            "requested_cores": {{ requested_cores | default('null') }},
             "timestamp": "{{ lookup('pipe', 'date -Iseconds') }}"
           }
         dest: "{{ test_run_base }}/test-metadata.json"

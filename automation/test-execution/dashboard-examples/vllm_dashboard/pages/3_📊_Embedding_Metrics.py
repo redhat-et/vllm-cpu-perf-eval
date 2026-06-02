@@ -101,6 +101,7 @@ def load_embedding_data(results_dir: str) -> pd.DataFrame:
                         'platform': metadata.get('platform', 'unknown'),
                         'vllm_version': metadata.get('vllm_version', 'unknown'),
                         'vllm_mode': metadata.get('vllm_mode', 'managed'),
+                        'requested_cores': metadata.get('requested_cores'),
                         'timestamp': metadata.get('timestamp', ''),
 
                         # Test configuration
@@ -375,7 +376,7 @@ def main():
 
     st.success(f"✓ Loaded {len(df)} test results from {results_dir_input}")
 
-    # Filters
+    # Filters - Row 1
     col1, col2, col3 = st.columns(3)
 
     with col1:
@@ -402,6 +403,28 @@ def main():
             help="Select specific test run to analyze"
         )
 
+    # Filters - Row 2
+    col4, col5 = st.columns(2)
+
+    with col4:
+        # Get unique core counts, filtering out None/NaN
+        core_counts = sorted([c for c in df['requested_cores'].unique() if pd.notna(c)])
+        core_count_options = ['All'] + [str(int(c)) for c in core_counts]
+        selected_core_count = st.selectbox(
+            "Core Count",
+            options=core_count_options,
+            help="Filter by CPU core allocation"
+        )
+
+    with col5:
+        vllm_versions = sorted(df['vllm_version'].unique())
+        vllm_version_options = ['All'] + vllm_versions
+        selected_vllm_version = st.selectbox(
+            "vLLM Version",
+            options=vllm_version_options,
+            help="Filter by vLLM version"
+        )
+
     if not selected_models:
         st.warning("Please select at least one model")
         return
@@ -412,6 +435,14 @@ def main():
         (df['platform'].isin(selected_platforms)) &
         (df['test_run_id'] == selected_test_run)
     ]
+
+    # Apply core count filter if not 'All'
+    if selected_core_count != 'All':
+        filtered_df = filtered_df[filtered_df['requested_cores'] == int(selected_core_count)]
+
+    # Apply vLLM version filter if not 'All'
+    if selected_vllm_version != 'All':
+        filtered_df = filtered_df[filtered_df['vllm_version'] == selected_vllm_version]
 
     if filtered_df.empty:
         st.warning("No data matches the selected filters")
