@@ -143,160 +143,228 @@ def load_embedding_data(results_dir: str) -> pd.DataFrame:
 
 
 def plot_saturation_curve(df: pd.DataFrame):
-    """Plot throughput and P99 latency vs load level (saturation analysis)."""
+    """Plot throughput and P99 latency vs load level, grouped by test configuration."""
     if df.empty:
         st.warning("No baseline data to display")
         return
 
-    # Order load levels
-    load_order = {'inf': 4, '75pct': 3, '50pct': 2, '25pct': 1}
-    df = df.copy()
-    df['load_order'] = df['parameter'].map(load_order).fillna(0)
-    df = df.sort_values('load_order')
+    # Group by test configuration
+    grouped = df.groupby([
+        'platform', 'model', 'vllm_version', 'requested_cores',
+        'input_length', 'test_name', 'test_run_id'
+    ])
 
     # Create dual-axis figure
     fig = make_subplots(specs=[[{"secondary_y": True}]])
 
-    # Throughput line
-    fig.add_trace(
-        go.Scatter(
-            x=df['parameter'],
-            y=df['request_throughput_rps'],
-            name='Throughput (req/s)',
-            mode='lines+markers',
-            marker=dict(size=10, color='blue'),
-            line=dict(width=3, color='blue')
-        ),
-        secondary_y=False
-    )
+    colors = px.colors.qualitative.Set2
+    color_idx = 0
 
-    # P99 Latency line
-    fig.add_trace(
-        go.Scatter(
-            x=df['parameter'],
-            y=df['p99_latency_ms'],
-            name='P99 Latency (ms)',
-            mode='lines+markers',
-            marker=dict(size=10, color='red'),
-            line=dict(width=3, dash='dash', color='red')
-        ),
-        secondary_y=True
-    )
+    # Order for load levels
+    load_order = {'inf': 4, '75pct': 3, '50pct': 2, '25pct': 1}
+
+    for (platform, model, version, cores, input_len, test_name, test_id), group_df in grouped:
+        # Sort by load order
+        group_df = group_df.copy()
+        group_df['load_order'] = group_df['parameter'].map(load_order).fillna(0)
+        group_df = group_df.sort_values('load_order')
+
+        # Build trace label
+        model_short = model.split('/')[-1]
+        platform_short = platform.replace('_', ' ')
+        run_id_short = test_id[-12:] if len(test_id) >= 12 else test_id
+
+        if test_name and test_name.strip():
+            base_label = f"[{test_name}] {platform_short} | {model_short} | {version} | {cores}c | {input_len}tok (run {run_id_short})"
+        else:
+            base_label = f"{platform_short} | {model_short} | {version} | {cores}c | {input_len}tok (run {run_id_short})"
+
+        # Throughput trace
+        fig.add_trace(
+            go.Scatter(
+                x=group_df['parameter'],
+                y=group_df['request_throughput_rps'],
+                name=f"{base_label} - Throughput",
+                mode='lines+markers',
+                marker=dict(size=8, color=colors[color_idx % len(colors)]),
+                line=dict(width=3, color=colors[color_idx % len(colors)])
+            ),
+            secondary_y=False
+        )
+
+        # P99 Latency trace
+        fig.add_trace(
+            go.Scatter(
+                x=group_df['parameter'],
+                y=group_df['p99_latency_ms'],
+                name=f"{base_label} - P99 Latency",
+                mode='lines+markers',
+                marker=dict(size=8, color=colors[color_idx % len(colors)]),
+                line=dict(width=2, dash='dash', color=colors[color_idx % len(colors)])
+            ),
+            secondary_y=True
+        )
+
+        color_idx += 1
 
     fig.update_xaxes(
         title_text="Load Level",
         categoryorder='array',
         categoryarray=['25pct', '50pct', '75pct', 'inf']
     )
-    fig.update_yaxes(title_text="Request Throughput (req/s)", secondary_y=False, title_font_color='blue')
-    fig.update_yaxes(title_text="P99 Latency (ms)", secondary_y=True, title_font_color='red')
+    fig.update_yaxes(title_text="Request Throughput (req/s)", secondary_y=False)
+    fig.update_yaxes(title_text="P99 Latency (ms)", secondary_y=True)
 
     fig.update_layout(
         title="Saturation Analysis: Throughput & Latency vs Load",
         hovermode='x unified',
-        height=500,
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        height=600,
+        legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02)
     )
 
     st.plotly_chart(fig, use_container_width=True)
 
-    # Metrics table
-    st.subheader("Baseline Metrics")
+    # Metrics table for all configurations
+    st.subheader("Baseline Metrics (All Configurations)")
 
-    # Check if input_length data exists
-    if 'input_length' in df.columns and df['input_length'].notna().any():
-        metrics_display = df[[
-            'parameter', 'input_length', 'request_throughput_rps', 'p99_latency_ms',
-            'mean_latency_ms', 'median_latency_ms'
-        ]].copy()
-        metrics_display.columns = ['Load', 'Input Len', 'RPS', 'P99 (ms)', 'Mean (ms)', 'Median (ms)']
-    else:
-        metrics_display = df[[
-            'parameter', 'request_throughput_rps', 'p99_latency_ms',
-            'mean_latency_ms', 'median_latency_ms'
-        ]].copy()
-        metrics_display.columns = ['Load', 'RPS', 'P99 (ms)', 'Mean (ms)', 'Median (ms)']
+    # Prepare display dataframe with config info
+    display_df = df.copy()
+    display_df['config'] = display_df.apply(
+        lambda row: f"{row['model'].split('/')[-1]} | {row['requested_cores']}c | {row['input_length']}tok | run {row['test_run_id'][-8:]}",
+        axis=1
+    )
 
+    metrics_display = display_df[[
+        'config', 'parameter', 'request_throughput_rps', 'p99_latency_ms',
+        'mean_latency_ms', 'median_latency_ms'
+    ]].copy()
+    metrics_display.columns = ['Configuration', 'Load', 'RPS', 'P99 (ms)', 'Mean (ms)', 'Median (ms)']
     metrics_display = metrics_display.round(2)
     st.dataframe(metrics_display, use_container_width=True)
 
 
 def plot_concurrent_load(df: pd.DataFrame):
-    """Plot throughput and latency vs concurrency level."""
+    """Plot throughput and latency vs concurrency level, grouped by test configuration."""
     if df.empty:
         st.warning("No concurrent load data to display")
         return
 
+    # Parse concurrency from parameter column
     df = df.copy()
     df['concurrency'] = pd.to_numeric(df['parameter'], errors='coerce')
     df = df.dropna(subset=['concurrency'])
     df['concurrency'] = df['concurrency'].astype(int)
-    df = df.sort_values('concurrency')
+
+    # Latency metric selector
+    latency_metric = st.radio(
+        "Latency Metric",
+        options=["Mean", "P99"],
+        horizontal=True,
+        help="Select which latency metric to display"
+    )
+    latency_col = 'mean_latency_ms' if latency_metric == "Mean" else 'p99_latency_ms'
+
+    # Group by test configuration
+    grouped = df.groupby([
+        'platform', 'model', 'vllm_version', 'requested_cores',
+        'input_length', 'test_name', 'test_run_id'
+    ])
+
+    colors = px.colors.qualitative.Set2
+    color_idx = 0
 
     col1, col2 = st.columns(2)
 
     with col1:
         # Throughput vs concurrency
         fig1 = go.Figure()
-        fig1.add_trace(go.Scatter(
-            x=df['concurrency'],
-            y=df['request_throughput_rps'],
-            mode='lines+markers',
-            marker=dict(size=10),
-            line=dict(width=3)
-        ))
+
+        for (platform, model, version, cores, input_len, test_name, test_id), group_df in grouped:
+            group_df = group_df.sort_values('concurrency')
+
+            # Build trace label
+            model_short = model.split('/')[-1]
+            platform_short = platform.replace('_', ' ')
+            run_id_short = test_id[-12:] if len(test_id) >= 12 else test_id
+
+            if test_name and test_name.strip():
+                label = f"[{test_name}] {platform_short} | {model_short} | {version} | {cores}c | {input_len}tok (run {run_id_short})"
+            else:
+                label = f"{platform_short} | {model_short} | {version} | {cores}c | {input_len}tok (run {run_id_short})"
+
+            fig1.add_trace(go.Scatter(
+                x=group_df['concurrency'],
+                y=group_df['request_throughput_rps'],
+                name=label,
+                mode='lines+markers',
+                marker=dict(size=8, color=colors[color_idx % len(colors)]),
+                line=dict(width=3, color=colors[color_idx % len(colors)])
+            ))
+            color_idx += 1
+
         fig1.update_layout(
             title="Throughput vs Concurrency",
             xaxis_title="Concurrent Requests",
             yaxis_title="Request Throughput (req/s)",
-            height=400
+            height=500,
+            legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02)
         )
         st.plotly_chart(fig1, use_container_width=True)
 
     with col2:
-        # Latencies vs concurrency
+        # Latency vs concurrency
         fig2 = go.Figure()
-        fig2.add_trace(go.Scatter(
-            x=df['concurrency'],
-            y=df['mean_latency_ms'],
-            name='Mean Latency',
-            mode='lines+markers',
-            marker=dict(size=8)
-        ))
-        fig2.add_trace(go.Scatter(
-            x=df['concurrency'],
-            y=df['p99_latency_ms'],
-            name='P99 Latency',
-            mode='lines+markers',
-            marker=dict(size=8)
-        ))
+        color_idx = 0
+
+        for (platform, model, version, cores, input_len, test_name, test_id), group_df in grouped:
+            group_df = group_df.sort_values('concurrency')
+
+            # Build trace label
+            model_short = model.split('/')[-1]
+            platform_short = platform.replace('_', ' ')
+            run_id_short = test_id[-12:] if len(test_id) >= 12 else test_id
+
+            if test_name and test_name.strip():
+                label = f"[{test_name}] {platform_short} | {model_short} | {version} | {cores}c | {input_len}tok (run {run_id_short})"
+            else:
+                label = f"{platform_short} | {model_short} | {version} | {cores}c | {input_len}tok (run {run_id_short})"
+
+            fig2.add_trace(go.Scatter(
+                x=group_df['concurrency'],
+                y=group_df[latency_col],
+                name=label,
+                mode='lines+markers',
+                marker=dict(size=8, color=colors[color_idx % len(colors)]),
+                line=dict(width=3, color=colors[color_idx % len(colors)])
+            ))
+            color_idx += 1
+
         fig2.update_layout(
-            title="Latency vs Concurrency",
+            title=f"{latency_metric} Latency vs Concurrency",
             xaxis_title="Concurrent Requests",
-            yaxis_title="Latency (ms)",
-            height=400
+            yaxis_title=f"{latency_metric} Latency (ms)",
+            height=500,
+            legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02)
         )
         st.plotly_chart(fig2, use_container_width=True)
 
-    # Metrics table
-    st.subheader("Concurrent Load Metrics")
+    # Metrics table for all configurations
+    st.subheader("Concurrent Load Metrics (All Configurations)")
 
-    # Check if input_length data exists
-    if 'input_length' in df.columns and df['input_length'].notna().any():
-        concurrent_display = df[[
-            'concurrency', 'input_length', 'request_throughput_rps',
-            'mean_latency_ms', 'median_latency_ms', 'p99_latency_ms'
-        ]].copy()
-        concurrent_display.columns = ['Concurrency', 'Input Len', 'RPS', 'Mean (ms)', 'Median (ms)', 'P99 (ms)']
-    else:
-        concurrent_display = df[[
-            'concurrency', 'request_throughput_rps',
-            'mean_latency_ms', 'median_latency_ms', 'p99_latency_ms'
-        ]].copy()
-        concurrent_display.columns = ['Concurrency', 'RPS', 'Mean (ms)', 'Median (ms)', 'P99 (ms)']
+    # Prepare display dataframe with config info
+    display_df = df.copy()
+    display_df['config'] = display_df.apply(
+        lambda row: f"{row['model'].split('/')[-1]} | {row['requested_cores']}c | {row['input_length']}tok | run {row['test_run_id'][-8:]}",
+        axis=1
+    )
 
-    concurrent_display = concurrent_display.round(2)
-    st.dataframe(concurrent_display, use_container_width=True)
+    metrics_display = display_df[[
+        'config', 'concurrency', 'request_throughput_rps',
+        'mean_latency_ms', 'median_latency_ms', 'p99_latency_ms'
+    ]].copy()
+    metrics_display.columns = ['Configuration', 'Concurrency', 'RPS', 'Mean (ms)', 'Median (ms)', 'P99 (ms)']
+    metrics_display = metrics_display.round(2)
+    st.dataframe(metrics_display, use_container_width=True)
 
 
 def plot_model_comparison(df: pd.DataFrame, models: list, test_type: str):
@@ -528,22 +596,6 @@ def main():
         st.warning("Please select at least one model")
         return
 
-    # Filters - Row 4: Test run selection (filtered by selected models)
-    # Only show test runs that match the selected models
-    model_filtered_df = df[df['model'].isin(selected_models)]
-    test_runs = sorted(model_filtered_df['test_run_id'].unique(), reverse=True)
-
-    if not test_runs:
-        st.error("No test runs found for selected models")
-        return
-
-    selected_test_run = st.selectbox(
-        "Test Run ID",
-        options=test_runs,
-        index=0,  # Default to most recent test run
-        help="Select specific test run to analyze (most recent first, filtered by selected models)"
-    )
-
     # Debug info
     with st.expander("🔍 Debug: Data Overview"):
         st.write(f"Total rows loaded: {len(df)}")
@@ -565,8 +617,7 @@ def main():
     # Apply filters with debug tracking
     step1 = df[df['model'].isin(selected_models)]
     step2 = step1[step1['platform'].isin(selected_platforms)]
-    step3 = step2[step2['test_run_id'] == selected_test_run]
-    filtered_df = step3[step3['vllm_mode'] == selected_vllm_mode]
+    filtered_df = step2[step2['vllm_mode'] == selected_vllm_mode]
 
     # Apply core count filter (only if data exists)
     if selected_core_counts:
@@ -611,8 +662,7 @@ def main():
     with st.expander("🔍 Debug: Filter Steps"):
         st.write(f"After model filter: {len(step1)} rows")
         st.write(f"After platform filter: {len(step2)} rows")
-        st.write(f"After test_run filter: {len(step3)} rows")
-        st.write(f"After vllm_mode filter: {len(step3[step3['vllm_mode'] == selected_vllm_mode])} rows")
+        st.write(f"After vllm_mode filter: {len(filtered_df)} rows")
         st.write(f"After core_count filter: {after_cores} rows (from {before_cores})")
         st.write(f"After input_length filter: {after_input} rows (from {before_input})")
         st.write(f"After scenario filter: {after_scenario} rows (from {before_scenario})")
@@ -623,34 +673,26 @@ def main():
         st.warning("No data matches the selected filters. Check the debug info above to see where data was lost.")
         return
 
-    # Model comparison (if multiple models)
-    if len(selected_models) > 1:
-        st.header("🔍 Model Comparison")
-        plot_model_comparison(df, selected_models, 'baseline')
-        st.markdown("---")
+    # Main analysis tabs - show all filtered data together
+    st.header("📊 Performance Analysis")
 
-    # Detailed analysis for each model
-    for model in selected_models:
-        st.header(f"📈 {model}")
+    tab1, tab2 = st.tabs(["🔀 Concurrent Load", "📊 Saturation Analysis"])
 
-        model_data = filtered_df[filtered_df['model'] == model]
-
-        if model_data.empty:
-            st.warning(f"No data for {model} in selected test run")
-            continue
-
-        # Tabs for different views
-        tab1, tab2 = st.tabs(["🔀 Concurrent Load", "📊 Saturation Analysis"])
-
-        with tab1:
-            concurrent_data = model_data[model_data['test_type'] == 'concurrent']
+    with tab1:
+        concurrent_data = filtered_df[filtered_df['test_type'] == 'concurrent']
+        if not concurrent_data.empty:
             plot_concurrent_load(concurrent_data)
+        else:
+            st.info("No concurrent load data available for selected filters. Run latency tests to generate this data.")
 
-        with tab2:
-            baseline_data = model_data[model_data['test_type'] == 'baseline']
+    with tab2:
+        baseline_data = filtered_df[filtered_df['test_type'] == 'baseline']
+        if not baseline_data.empty:
             plot_saturation_curve(baseline_data)
+        else:
+            st.info("No baseline saturation data available for selected filters. Run baseline tests to generate this data.")
 
-        st.markdown("---")
+    st.markdown("---")
 
     # Raw data export
     with st.expander("📥 Export Data"):
