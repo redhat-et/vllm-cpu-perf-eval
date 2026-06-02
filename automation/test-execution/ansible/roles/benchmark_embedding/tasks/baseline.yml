@@ -8,19 +8,28 @@
     vllm_bench_image: "{{ benchmark_tool.vllm_bench.container_image | default('quay.io/mtahhan/vllm:arm-base-cpu') }}"
     num_prompts: "{{ benchmark_tool.vllm_bench.num_prompts | default(250) }}"
 
+- name: Build vllm-bench command prefix
+  ansible.builtin.set_fact:
+    vllm_bench_prefix: >-
+      {% if use_vllm_bench_container %}
+      podman run --rm --entrypoint="" --network host
+      -v {{ bench_config.results_dir }}:{{ bench_config.results_dir }}:z
+      {{ vllm_bench_image }}
+      /opt/venv/bin/vllm bench serve
+      {% else %}
+      vllm bench serve
+      {% endif %}
+
 - name: Ensure baseline result directory exists
   ansible.builtin.file:
     path: "{{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/baseline"
     state: directory
     mode: "0755"
 
-- name: "Baseline Test - Find Maximum Throughput (inf rate) - Containerized"
+- name: "Baseline Test - Find Maximum Throughput (inf rate)"
   ansible.builtin.command:
     cmd: >
-      podman run --rm --entrypoint="" --network host
-      -v {{ bench_config.results_dir }}:{{ bench_config.results_dir }}:z
-      {{ vllm_bench_image }}
-      /opt/venv/bin/vllm bench serve
+      {{ vllm_bench_prefix }}
       --host {{ bench_config.vllm_host }}
       --port {{ bench_config.vllm_port }}
       --backend openai-embeddings
@@ -32,32 +41,12 @@
       --endpoint /v1/embeddings
       --save-result
       --result-filename {{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/baseline/sweep-inf.json
-  register: baseline_inf_container
+  register: baseline_inf_result
   changed_when: true
-  when: use_vllm_bench_container | bool
-
-- name: "Baseline Test - Find Maximum Throughput (inf rate) - Host"
-  ansible.builtin.command:
-    cmd: >
-      vllm bench serve
-      --host {{ bench_config.vllm_host }}
-      --port {{ bench_config.vllm_port }}
-      --backend openai-embeddings
-      --model {{ model_name }}
-      --dataset-name random
-      --random-input-len {{ embedding_random_input_len | default(512) }}
-      --num-prompts {{ num_prompts }}
-      --request-rate inf
-      --endpoint /v1/embeddings
-      --save-result
-      --result-filename {{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/baseline/sweep-inf.json
-  register: baseline_inf_host
-  changed_when: true
-  when: not (use_vllm_bench_container | bool)
 
 - name: Set baseline_inf output
   ansible.builtin.set_fact:
-    baseline_inf_output: "{{ (baseline_inf_container.stdout | default('')) if (use_vllm_bench_container | bool) else (baseline_inf_host.stdout | default('')) }}"
+    baseline_inf_output: "{{ baseline_inf_result.stdout }}"
 
 - name: Validate baseline test output
   ansible.builtin.assert:
@@ -105,13 +94,10 @@
       - "50% rate: {{ ((max_rps | float) * 0.50) | round(2) }}"
       - "75% rate: {{ ((max_rps | float) * 0.75) | round(2) }}"
 
-- name: "Baseline Test - 25% Load - Containerized"
+- name: "Baseline Test - 25% Load"
   ansible.builtin.command:
     cmd: >
-      podman run --rm --entrypoint="" --network host
-      -v {{ bench_config.results_dir }}:{{ bench_config.results_dir }}:z
-      {{ vllm_bench_image }}
-      /opt/venv/bin/vllm bench serve
+      {{ vllm_bench_prefix }}
       --host {{ bench_config.vllm_host }}
       --port {{ bench_config.vllm_port }}
       --backend openai-embeddings
@@ -124,33 +110,11 @@
       --save-result
       --result-filename {{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/baseline/sweep-25pct.json
   changed_when: true
-  when: use_vllm_bench_container | bool
 
-- name: "Baseline Test - 25% Load - Host"
+- name: "Baseline Test - 50% Load"
   ansible.builtin.command:
     cmd: >
-      vllm bench serve
-      --host {{ bench_config.vllm_host }}
-      --port {{ bench_config.vllm_port }}
-      --backend openai-embeddings
-      --model {{ model_name }}
-      --dataset-name random
-      --random-input-len {{ embedding_random_input_len | default(512) }}
-      --num-prompts {{ num_prompts }}
-      --request-rate {{ ((max_rps | float) * 0.25) | round(2) }}
-      --endpoint /v1/embeddings
-      --save-result
-      --result-filename {{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/baseline/sweep-25pct.json
-  changed_when: true
-  when: not (use_vllm_bench_container | bool)
-
-- name: "Baseline Test - 50% Load - Containerized"
-  ansible.builtin.command:
-    cmd: >
-      podman run --rm --entrypoint="" --network host
-      -v {{ bench_config.results_dir }}:{{ bench_config.results_dir }}:z
-      {{ vllm_bench_image }}
-      /opt/venv/bin/vllm bench serve
+      {{ vllm_bench_prefix }}
       --host {{ bench_config.vllm_host }}
       --port {{ bench_config.vllm_port }}
       --backend openai-embeddings
@@ -163,33 +127,11 @@
       --save-result
       --result-filename {{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/baseline/sweep-50pct.json
   changed_when: true
-  when: use_vllm_bench_container | bool
 
-- name: "Baseline Test - 50% Load - Host"
+- name: "Baseline Test - 75% Load"
   ansible.builtin.command:
     cmd: >
-      vllm bench serve
-      --host {{ bench_config.vllm_host }}
-      --port {{ bench_config.vllm_port }}
-      --backend openai-embeddings
-      --model {{ model_name }}
-      --dataset-name random
-      --random-input-len {{ embedding_random_input_len | default(512) }}
-      --num-prompts {{ num_prompts }}
-      --request-rate {{ ((max_rps | float) * 0.50) | round(2) }}
-      --endpoint /v1/embeddings
-      --save-result
-      --result-filename {{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/baseline/sweep-50pct.json
-  changed_when: true
-  when: not (use_vllm_bench_container | bool)
-
-- name: "Baseline Test - 75% Load - Containerized"
-  ansible.builtin.command:
-    cmd: >
-      podman run --rm --entrypoint="" --network host
-      -v {{ bench_config.results_dir }}:{{ bench_config.results_dir }}:z
-      {{ vllm_bench_image }}
-      /opt/venv/bin/vllm bench serve
+      {{ vllm_bench_prefix }}
       --host {{ bench_config.vllm_host }}
       --port {{ bench_config.vllm_port }}
       --backend openai-embeddings
@@ -202,25 +144,6 @@
       --save-result
       --result-filename {{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/baseline/sweep-75pct.json
   changed_when: true
-  when: use_vllm_bench_container | bool
-
-- name: "Baseline Test - 75% Load - Host"
-  ansible.builtin.command:
-    cmd: >
-      vllm bench serve
-      --host {{ bench_config.vllm_host }}
-      --port {{ bench_config.vllm_port }}
-      --backend openai-embeddings
-      --model {{ model_name }}
-      --dataset-name random
-      --random-input-len {{ embedding_random_input_len | default(512) }}
-      --num-prompts {{ num_prompts }}
-      --request-rate {{ ((max_rps | float) * 0.75) | round(2) }}
-      --endpoint /v1/embeddings
-      --save-result
-      --result-filename {{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/baseline/sweep-75pct.json
-  changed_when: true
-  when: not (use_vllm_bench_container | bool)
 
 - name: Display baseline test completion
   ansible.builtin.debug:

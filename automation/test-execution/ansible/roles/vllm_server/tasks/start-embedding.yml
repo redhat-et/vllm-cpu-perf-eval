@@ -96,7 +96,7 @@
       --host {{ vllm_server.host }}
       --port {{ vllm_server.port }}
       --dtype bfloat16
-      --max-model-len {{ embedding_max_model_len | default(512) }}
+      {{ ('--max-model-len ' + (embedding_max_model_len | string)) if embedding_max_model_len is defined else '' }}
     log_driver: journald
     log_opt:
       tag: "vllm-embedding-{{ core_cfg.cores | default('auto') }}c"
@@ -126,7 +126,7 @@
       --host {{ vllm_server.host }}
       --port {{ vllm_server.port }}
       --dtype bfloat16
-      --max-model-len {{ embedding_max_model_len | default(512) }}
+      {{ ('--max-model-len ' + (embedding_max_model_len | string)) if embedding_max_model_len is defined else '' }}
     log_driver: journald
     log_opt:
       tag: "vllm-embedding-auto"

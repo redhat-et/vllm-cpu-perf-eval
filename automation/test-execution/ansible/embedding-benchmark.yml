@@ -1,6 +1,11 @@
 ---
 # Main playbook for running embedding model performance tests
-# Two-node architecture: Start vLLM on DUT, wait for ready, then run tests from Load Generator
+# Supports three execution modes: managed (loadgen), dut-only, and external
+#
+# Execution Modes:
+# - managed (default): vLLM runs on DUT, tests run from load_generator
+# - dut-only: Both vLLM and tests run on DUT (single-node setup)
+# - external: Tests run against existing vLLM endpoint (skip server management)
 
 - name: "Embedding Performance Tests - Complete Workflow"
   hosts: localhost
@@ -56,6 +61,35 @@
   hosts: localhost
   gather_facts: false
   tasks:
+    - name: Set vLLM mode
+      ansible.builtin.set_fact:
+        vllm_mode: "{{ lookup('env', 'VLLM_MODE') | default(vllm_endpoint.mode | default('managed'), true) }}"
+
+    - name: Validate vLLM mode
+      ansible.builtin.assert:
+        that:
+          - vllm_mode in ['managed', 'dut-only', 'external']
+        fail_msg: |
+          Invalid vllm_mode: {{ vllm_mode }}
+          Supported modes: managed, dut-only, external
+
+          Set via environment variable:
+            export VLLM_MODE=managed     # vLLM on DUT, tests from load_generator
+            export VLLM_MODE=dut-only    # Both vLLM and tests on DUT
+            export VLLM_MODE=external    # Test existing vLLM endpoint
+
+          Or in inventory: vllm_endpoint.mode
+
+    - name: Validate external endpoint configuration
+      ansible.builtin.assert:
+        that:
+          - vllm_endpoint.external.url is defined
+          - vllm_endpoint.external.url | length > 0
+        fail_msg: |
+          External mode requires vllm_endpoint.external.url
+          Set via: export VLLM_ENDPOINT_URL=http://your-vllm-host:8000
+      when: vllm_mode == 'external'
+
     - name: Generate test run ID
       ansible.builtin.set_fact:
         test_run_id: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
@@ -64,8 +98,9 @@
       ansible.builtin.debug:
         msg:
           - "Test Run ID: {{ test_run_id }}"
-          - "DUT Host: {{ groups['dut'][0] }}"
-          - "Load Generator Host: {{ groups['load_generator'][0] }}"
+          - "vLLM Mode: {{ vllm_mode }}"
+          - "{{ 'DUT Host: ' + groups['dut'][0] if vllm_mode in ['managed', 'dut-only'] else 'External Endpoint: ' + vllm_endpoint.external.url }}"
+          - "{{ 'Load Generator Host: ' + groups['load_generator'][0] if vllm_mode == 'managed' else 'Test Host: ' + (groups['dut'][0] if vllm_mode == 'dut-only' else groups['load_generator'][0]) }}"
 
 # ==============================================================================
 # PHASE 1: Prepare and Start vLLM Server on DUT
@@ -79,18 +114,92 @@
     test_model: "{{ test_model | default('ibm-granite/granite-embedding-278m-multilingual') }}"
     workload_type: embedding
 
-  roles:
-    - role: vllm_server
+  tasks:
+    - name: Check if vLLM management needed
+      ansible.builtin.set_fact:
+        skip_vllm_management: "{{ hostvars['localhost']['vllm_mode'] == 'external' }}"
+
+    - name: End play if external mode
+      ansible.builtin.meta: end_play
+      when: skip_vllm_management | bool
+
+    - name: Start vLLM server
+      ansible.builtin.include_role:
+        name: vllm_server
 
 # ==============================================================================
 # PHASE 2: Health Check - Wait for vLLM to be Ready
 # ==============================================================================
 
-- name: "Phase 2 - Wait for vLLM Server to be Ready"
+# DUT-only mode: Health check on DUT with localhost
+- name: "Phase 2a - Health Check (DUT-only mode)"
+  hosts: dut
+  gather_facts: false
+
+  tasks:
+    - name: Check execution mode
+      ansible.builtin.set_fact:
+        is_dut_only: "{{ hostvars['localhost']['vllm_mode'] == 'dut-only' }}"
+
+    - name: End play if not dut-only mode
+      ansible.builtin.meta: end_play
+      when: not is_dut_only
+
+    - name: Override bench_config for dut-only
+      ansible.builtin.set_fact:
+        bench_config: "{{ bench_config | combine({'vllm_host': 'localhost'}) }}"
+
+    - name: Wait for vLLM health endpoint
+      ansible.builtin.uri:
+        url: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/health"
+        method: GET
+        status_code: 200
+      register: health_check_result
+      retries: "{{ (health_check.timeout | int) // (health_check.interval | int) }}"
+      delay: "{{ health_check.interval | int }}"
+      until: health_check_result.status == 200
+
+    - name: Display vLLM server status
+      ansible.builtin.debug:
+        msg:
+          - "vLLM Server is READY!"
+          - "Health check: {{ health_check_result.json | default('OK') }}"
+
+    - name: Verify vLLM /v1/models endpoint
+      ansible.builtin.uri:
+        url: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/v1/models"
+        method: GET
+        status_code: 200
+      register: models_check
+
+    - name: Display available models
+      ansible.builtin.debug:
+        msg: "Available models: {{ models_check.json.data | map(attribute='id') | list }}"
+
+# Managed/External modes: Health check from load_generator
+- name: "Phase 2b - Health Check (Managed/External modes)"
   hosts: load_generator
   gather_facts: false
 
   tasks:
+    - name: Check execution mode
+      ansible.builtin.set_fact:
+        is_managed_or_external: "{{ hostvars['localhost']['vllm_mode'] in ['managed', 'external'] }}"
+
+    - name: End play if dut-only mode
+      ansible.builtin.meta: end_play
+      when: not is_managed_or_external
+
+    - name: Parse external endpoint URL using urlsplit
+      ansible.builtin.set_fact:
+        external_endpoint_parsed: "{{ vllm_endpoint.external.url | urlsplit }}"
+      when: hostvars['localhost']['vllm_mode'] == 'external'
+
+    - name: Override bench_config for external mode
+      ansible.builtin.set_fact:
+        bench_config: "{{ bench_config | combine({'vllm_host': external_endpoint_parsed.hostname, 'vllm_port': external_endpoint_parsed.port | default(8000) | int}) }}"
+      when: hostvars['localhost']['vllm_mode'] == 'external'
+
     - name: Wait for vLLM health endpoint
       ansible.builtin.uri:
         url: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/health"
@@ -119,10 +228,44 @@
         msg: "Available models: {{ models_check.json.data | map(attribute='id') | list }}"
 
 # ==============================================================================
-# PHASE 3: Run Embedding Tests from Load Generator
+# PHASE 3: Run Embedding Tests (DUT-only mode)
 # ==============================================================================
 
-- name: "Phase 3 - Run Embedding Performance Tests"
+- name: "Phase 3a - Run Embedding Performance Tests (DUT-only mode)"
+  hosts: dut
+  become: true
+  vars:
+    model_name: "{{ test_model | default('ibm-granite/granite-embedding-278m-multilingual') }}"
+    test_type: "{{ scenario | default('baseline') }}"  # baseline, latency, or all
+
+  pre_tasks:
+    - name: Check execution mode
+      ansible.builtin.set_fact:
+        is_dut_only: "{{ hostvars['localhost']['vllm_mode'] == 'dut-only' }}"
+
+    - name: End play if not dut-only mode
+      ansible.builtin.meta: end_play
+      when: not is_dut_only
+
+    - name: Set vllm_host for dut-only mode
+      ansible.builtin.set_fact:
+        bench_config: "{{ bench_config | combine({'vllm_host': 'localhost'}) }}"
+
+    - name: Create results directory
+      ansible.builtin.file:
+        path: "{{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/{{ test_type }}"
+        state: directory
+        mode: "0755"
+        recurse: true
+
+  roles:
+    - role: benchmark_embedding
+
+# ==============================================================================
+# PHASE 3: Run Embedding Tests (Managed/External modes)
+# ==============================================================================
+
+- name: "Phase 3b - Run Embedding Performance Tests (Managed/External modes)"
   hosts: load_generator
   become: true
   vars:
@@ -130,7 +273,25 @@
     test_type: "{{ scenario | default('baseline') }}"  # baseline, latency, or all
 
   pre_tasks:
-    - name: Create results directory on load generator
+    - name: Check execution mode
+      ansible.builtin.set_fact:
+        is_managed_or_external: "{{ hostvars['localhost']['vllm_mode'] in ['managed', 'external'] }}"
+
+    - name: End play if dut-only mode
+      ansible.builtin.meta: end_play
+      when: not is_managed_or_external
+
+    - name: Parse external endpoint URL using urlsplit
+      ansible.builtin.set_fact:
+        external_endpoint_parsed: "{{ vllm_endpoint.external.url | urlsplit }}"
+      when: hostvars['localhost']['vllm_mode'] == 'external'
+
+    - name: Override bench_config for external mode
+      ansible.builtin.set_fact:
+        bench_config: "{{ bench_config | combine({'vllm_host': external_endpoint_parsed.hostname, 'vllm_port': external_endpoint_parsed.port | default(8000) | int}) }}"
+      when: hostvars['localhost']['vllm_mode'] == 'external'
+
+    - name: Create results directory
       ansible.builtin.file:
         path: "{{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/{{ test_type }}"
         state: directory
@@ -144,7 +305,38 @@
 # PHASE 4: Collect Logs and Results
 # ==============================================================================
 
-- name: "Phase 4 - Fetch Test Results"
+- name: "Phase 4a - Fetch Test Results (DUT-only mode)"
+  hosts: dut
+  gather_facts: false
+  vars:
+    test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
+    model_name: "{{ test_model | default('ibm-granite/granite-embedding-278m-multilingual') }}"
+    test_type: "{{ scenario | default('baseline') }}"
+
+  tasks:
+    - name: Check execution mode
+      ansible.builtin.set_fact:
+        is_dut_only: "{{ hostvars['localhost']['vllm_mode'] == 'dut-only' }}"
+
+    - name: End play if not dut-only mode
+      ansible.builtin.meta: end_play
+      when: not is_dut_only
+
+    - name: Ensure local results directory exists
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/../../../results/embedding/{{ model_name | replace('/', '__') }}/{{ test_type }}-{{ test_run_id }}"
+        state: directory
+        mode: "0755"
+      delegate_to: localhost
+
+    - name: Fetch results to local machine
+      ansible.posix.synchronize:
+        src: "{{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/{{ test_type }}/"
+        dest: "{{ playbook_dir }}/../../../results/embedding/{{ model_name | replace('/', '__') }}/{{ test_type }}-{{ test_run_id }}/"
+        mode: pull
+        recursive: true
+
+- name: "Phase 4b - Fetch Test Results (Managed/External modes)"
   hosts: load_generator
   gather_facts: false
   vars:
@@ -153,6 +345,14 @@
     test_type: "{{ scenario | default('baseline') }}"
 
   tasks:
+    - name: Check execution mode
+      ansible.builtin.set_fact:
+        is_managed_or_external: "{{ hostvars['localhost']['vllm_mode'] in ['managed', 'external'] }}"
+
+    - name: End play if dut-only mode
+      ansible.builtin.meta: end_play
+      when: not is_managed_or_external
+
     - name: Ensure local results directory exists
       ansible.builtin.file:
         path: "{{ playbook_dir }}/../../../results/embedding/{{ model_name | replace('/', '__') }}/{{ test_type }}-{{ test_run_id }}"
@@ -175,8 +375,18 @@
     model_name: "{{ test_model | default('ibm-granite/granite-embedding-278m-multilingual') }}"
     test_type: "{{ scenario | default('baseline') }}"
 
-  roles:
-    - role: results_collector
+  tasks:
+    - name: Check if log collection needed
+      ansible.builtin.set_fact:
+        skip_log_collection: "{{ hostvars['localhost']['vllm_mode'] == 'external' }}"
+
+    - name: End play if external mode
+      ansible.builtin.meta: end_play
+      when: skip_log_collection | bool
+
+    - name: Collect logs
+      ansible.builtin.include_role:
+        name: results_collector
       vars:
         log_collection_dest: "{{ playbook_dir }}/../../../results/embedding/{{ model_name | replace('/', '__') }}/{{ test_type }}-{{ test_run_id }}/"
         journald_identifier: "vllm-embedding"
@@ -193,6 +403,14 @@
     cleanup: "{{ cleanup_after_test | default(false) }}"
 
   tasks:
+    - name: Check if cleanup needed
+      ansible.builtin.set_fact:
+        skip_cleanup: "{{ hostvars['localhost']['vllm_mode'] == 'external' }}"
+
+    - name: End play if external mode
+      ansible.builtin.meta: end_play
+      when: skip_cleanup | bool
+
     - name: Stop vLLM container
       containers.podman.podman_container:
         name: vllm-embedding-server
