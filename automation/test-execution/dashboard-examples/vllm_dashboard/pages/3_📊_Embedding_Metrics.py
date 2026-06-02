@@ -548,7 +548,7 @@ def main():
         selected_models = st.multiselect(
             "Models",
             options=models,
-            default=[models[0]] if models else [],
+            default=models,  # Select all models by default
             help="Select one or more models to compare"
         )
 
