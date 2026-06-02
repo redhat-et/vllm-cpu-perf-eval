@@ -380,21 +380,17 @@ Red Hat provides enterprise-grade vLLM images optimized for Intel Xeon and AMD E
 
 #### Prerequisites
 
-1. **Authenticate with Red Hat registry** (one-time setup):
-   ```bash
-   # Login to Red Hat registry (on DUT)
-   sudo podman login registry.redhat.io
-   # Enter your Red Hat customer portal credentials
-   ```
-
-2. **Manually pull the image on the DUT**:
+1. **Authenticate with Red Hat registry and pull image** (one-time setup):
    ```bash
    # SSH to your DUT
    ssh admin@your-dut-hostname
    
-   # Pull the Red Hat AI image
+   # Login and pull with sudo (both commands must use sudo together)
+   sudo podman login registry.redhat.io  # Enter Red Hat customer portal credentials
    sudo podman pull registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
    ```
+   
+   **Important:** Both `login` and `pull` must use `sudo` together (or neither should use `sudo`). Root and regular user have separate credential stores, so mixing will fail.
 
    **Why manual pull?** Ansible cannot automatically pull authenticated images. You must pull the image manually on the DUT before running tests.
 

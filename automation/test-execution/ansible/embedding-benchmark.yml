@@ -135,51 +135,10 @@
       ansible.builtin.set_fact:
         bench_config: "{{ bench_config | combine({'vllm_host': 'localhost'}) }}"
 
-    - name: Wait for vLLM health endpoint
-      ansible.builtin.uri:
-        url: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/health"
-        method: GET
-        status_code: 200
-      register: health_check_result
-      retries: "{{ (health_check.timeout | int) // (health_check.interval | int) }}"
-      delay: "{{ health_check.interval | int }}"
-      until: health_check_result.status == 200
-
-    - name: Display vLLM server status
-      ansible.builtin.debug:
-        msg:
-          - "vLLM Server is READY!"
-          - "Health check: {{ health_check_result.json | default('OK') }}"
-
-    - name: Verify vLLM /v1/models endpoint
-      ansible.builtin.uri:
-        url: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/v1/models"
-        method: GET
-        status_code: 200
-      register: models_check
-
-    - name: Display available models
-      ansible.builtin.debug:
-        msg: "Available models: {{ models_check.json.data | map(attribute='id') | list }}"
-
-    - name: Get vLLM version
-      ansible.builtin.uri:
-        url: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/version"
-        method: GET
-        status_code: 200
-      register: version_check
-      ignore_errors: true
-
-    - name: Set vLLM version (dut-only mode)
-      ansible.builtin.set_fact:
-        vllm_version: "{{ version_check.json.version | default('unknown') }}"
-      when: version_check is succeeded
-
-    - name: Save vLLM version to localhost for metadata
-      ansible.builtin.set_fact:
-        vllm_version: "{{ vllm_version | default('unknown') }}"
-      delegate_to: localhost
-      delegate_facts: true
+    - name: Run vLLM health check
+      ansible.builtin.include_role:
+        name: common
+        tasks_from: vllm-health-check
 
 # Managed/External modes: Health check from load_generator
 - name: "Phase 2b - Health Check (Managed/External modes)"
@@ -205,51 +164,10 @@
         bench_config: "{{ bench_config | combine({'vllm_host': external_endpoint_parsed.hostname, 'vllm_port': external_endpoint_parsed.port | default(8000) | int}) }}"
       when: hostvars['localhost']['vllm_mode'] == 'external'
 
-    - name: Wait for vLLM health endpoint
-      ansible.builtin.uri:
-        url: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/health"
-        method: GET
-        status_code: 200
-      register: health_check_result
-      retries: "{{ (health_check.timeout | int) // (health_check.interval | int) }}"
-      delay: "{{ health_check.interval | int }}"
-      until: health_check_result.status == 200
-
-    - name: Display vLLM server status
-      ansible.builtin.debug:
-        msg:
-          - "vLLM Server is READY!"
-          - "Health check: {{ health_check_result.json | default('OK') }}"
-
-    - name: Verify vLLM /v1/models endpoint
-      ansible.builtin.uri:
-        url: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/v1/models"
-        method: GET
-        status_code: 200
-      register: models_check
-
-    - name: Display available models
-      ansible.builtin.debug:
-        msg: "Available models: {{ models_check.json.data | map(attribute='id') | list }}"
-
-    - name: Get vLLM version
-      ansible.builtin.uri:
-        url: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/version"
-        method: GET
-        status_code: 200
-      register: version_check
-      ignore_errors: true
-
-    - name: Set vLLM version (managed/external mode)
-      ansible.builtin.set_fact:
-        vllm_version: "{{ version_check.json.version | default('unknown') }}"
-      when: version_check is succeeded
-
-    - name: Save vLLM version to localhost for metadata
-      ansible.builtin.set_fact:
-        vllm_version: "{{ vllm_version | default('unknown') }}"
-      delegate_to: localhost
-      delegate_facts: true
+    - name: Run vLLM health check
+      ansible.builtin.include_role:
+        name: common
+        tasks_from: vllm-health-check
 
     - name: Auto-detect model for external mode (if not specified)
       ansible.builtin.set_fact:

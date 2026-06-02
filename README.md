@@ -274,8 +274,13 @@ Red Hat AI Inference Server (RHAIIS) provides enterprise-grade vLLM images optim
 ```bash
 # 1. Login and pull image manually on DUT (Ansible cannot pull authenticated images)
 ssh admin@your-dut
+
+# Login and pull with sudo (credentials stored in /root/.config/containers/auth.json)
 sudo podman login registry.redhat.io  # Enter Red Hat credentials
 sudo podman pull registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
+
+# Note: Both login and pull must use sudo together, or neither should use sudo.
+# Using sudo for only one will fail because root and user have separate auth files.
 
 # 2. Set image environment variable
 export VLLM_CONTAINER_IMAGE=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0

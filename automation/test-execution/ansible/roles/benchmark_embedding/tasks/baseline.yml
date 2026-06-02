@@ -95,6 +95,20 @@
   ansible.builtin.set_fact:
     baseline_load_percentages: "{{ baseline_load_percentages | default([25, 50, 75]) }}"
 
+- name: Validate baseline load percentages
+  ansible.builtin.assert:
+    that:
+      - baseline_load_percentages is defined
+      - baseline_load_percentages | length > 0
+      - item | int >= 1
+      - item | int <= 100
+    fail_msg: |
+      Invalid baseline_load_percentages value: {{ item }}
+      Each percentage must be an integer between 1 and 100.
+      Current value: {{ baseline_load_percentages }}
+    success_msg: "Baseline load percentages validated"
+  loop: "{{ baseline_load_percentages }}"
+
 - name: Compute planned load rates
   ansible.builtin.set_fact:
     planned_rates: "{{ planned_rates | default([]) + [{'percent': item, 'rate': ((max_rps | float) * (item | float / 100)) | round(2)}] }}"
