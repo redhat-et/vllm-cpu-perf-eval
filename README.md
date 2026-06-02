@@ -159,10 +159,6 @@ Full documentation index: [docs/docs.md](docs/docs.md)
 >   - Playbook: `llm-core-sweep-auto.yml` (will fail with error message)
 >   - Contains: sweep, synchronous, poisson tests
 >
-> - **Embedding Models** - Work in progress; blocked by default
->   - Playbook: `embedding-benchmark.yml` (will fail with error message)
->   - Scripts: `run-baseline.sh`, `run-latency.sh`, `run-all.sh` (will exit with error)
->
 > - **Resource Contention** - Planned; not yet implemented
 >   - No test files exist yet
 >

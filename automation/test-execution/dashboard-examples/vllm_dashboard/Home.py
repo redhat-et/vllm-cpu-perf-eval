@@ -45,11 +45,12 @@ st.markdown("---")
 st.markdown("""
 ### Welcome!
 
-This dashboard suite provides two complementary views of your
+This dashboard suite provides comprehensive analysis of your
 vLLM CPU benchmark results:
 
-📊 **Client-Side Metrics** - End-user performance (GuideLLM)
-🖥️ **Server-Side Metrics** - Internal server (vLLM metrics)
+📊 **Client-Side Metrics** - End-user performance (GuideLLM - LLM models)
+🖥️ **Server-Side Metrics** - Internal server (vLLM metrics - LLM models)
+📊 **Embedding Metrics** - Embedding model performance (vLLM bench serve)
 
 **👈 Use the sidebar to navigate between dashboards**
 """)
@@ -57,12 +58,12 @@ vLLM CPU benchmark results:
 st.markdown("---")
 
 # Dashboard overview cards
-col1, col2 = st.columns(2)
+col1, col2, col3 = st.columns(3)
 
 with col1:
     st.markdown("### 📊 Client-Side")
     st.info("""
-    **What**: GuideLLM benchmark results
+    **What**: GuideLLM benchmark results (LLM models)
 
     **Metrics**:
     - Throughput (tokens/sec)
@@ -75,13 +76,12 @@ with col1:
     - Platform comparison
     - Configurable X-axis
     - CSV data export
-    - Percentile analysis (Mean, P50, P95, P99)
     """)
 
 with col2:
     st.markdown("### 🖥️ Server-Side")
     st.info("""
-    **What**: vLLM server metrics (Prometheus)
+    **What**: vLLM server metrics (LLM models - Prometheus)
 
     **Metrics**:
     - Queue depth over time
@@ -93,7 +93,23 @@ with col2:
     - Time-series analysis
     - Multi-test comparison
     - Summary statistics
-    - Raw data inspection
+    """)
+
+with col3:
+    st.markdown("### 📊 Embedding")
+    st.info("""
+    **What**: vLLM bench serve results (Embedding models)
+
+    **Metrics**:
+    - Request throughput (req/s)
+    - End-to-end latency (P50, P99)
+    - Token processing speed
+    - Concurrent load handling
+
+    **Features**:
+    - Saturation curves
+    - Model comparison
+    - CSV data export
     """)
 
 st.markdown("---")
@@ -135,7 +151,23 @@ with tab1:
 
     **Results are automatically saved to:** `results/llm/`
 
-    Each dashboard loads from this directory - just run a test and refresh!
+    **Embedding Model Tests:**
+    ```bash
+    # Baseline + concurrent load tests
+    ansible-playbook embedding-benchmark.yml \\
+      -e "test_model=RedHatAI/all-MiniLM-L6-v2" \\
+      -e "scenario=all"
+
+    # External endpoint mode
+    export VLLM_MODE=external
+    export VLLM_ENDPOINT_URL=http://your-endpoint:8000
+    ansible-playbook embedding-benchmark.yml \\
+      -e "scenario=baseline"
+    ```
+
+    **Embedding results are saved to:** `results/embedding/`
+
+    Each dashboard loads from its respective directory - just run a test and refresh!
 
     **Note**: External endpoint runs always show client metrics. Server-side metrics are
     available when the external endpoint exposes `/metrics`.
@@ -178,10 +210,16 @@ with tab3:
     - 📊 Summary statistics
     - 🔍 Raw data tab
 
+    **Embedding Dashboard adds:**
+    - 📈 Saturation curve analysis (throughput vs latency)
+    - 🔀 Concurrent load testing
+    - 📊 Model-to-model comparison
+    - 💾 CSV export
+
     **Analysis Workflow:**
-    - Start with Client Metrics to understand user experience
-    - Switch to Server Metrics to identify bottlenecks
-    - Compare metrics between dashboards for root cause analysis
+    - LLM: Start with Client Metrics, then Server Metrics
+    - Embedding: Use saturation curves to find optimal load
+    - Compare metrics between models for performance analysis
     """)
 
 st.markdown("---")

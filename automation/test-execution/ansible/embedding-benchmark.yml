@@ -14,49 +14,6 @@
   vars:
     test_run_id: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
 
-  tasks:
-    - name: Display unsupported test suite message
-      ansible.builtin.debug:
-        msg:
-          - ""
-          - "════════════════════════════════════════════════════════════════════════════════"
-          - "❌ EMBEDDING MODELS TEST SUITE NOT YET SUPPORTED"
-          - "════════════════════════════════════════════════════════════════════════════════"
-          - ""
-          - "This playbook (embedding-benchmark.yml) is blocked because the Embedding"
-          - "Models test suite is still work in progress and not validated for end users."
-          - ""
-          - "✅ USE SUPPORTED TESTS INSTEAD:"
-          - ""
-          - "Concurrent Load Testing (Phase 1 & Phase 2) is fully validated for LLM models."
-          - ""
-          - "Run 2-phase test (skip Phase 3):"
-          - "  ansible-playbook -i inventory/hosts.yml llm-benchmark-concurrent-load.yml \\"
-          - "    -e \"test_model=TinyLlama/TinyLlama-1.1B-Chat-v1.0\" \\"
-          - "    -e \"base_workload=chat\" \\"
-          - "    -e \"core_sweep_counts=[16,32,64]\" \\"
-          - "    -e \"skip_phase_3=true\""
-          - ""
-          - "Run single phase (Phase 1 baseline):"
-          - "  ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \\"
-          - "    -e \"test_model=TinyLlama/TinyLlama-1.1B-Chat-v1.0\" \\"
-          - "    -e \"workload_type=chat\" \\"
-          - "    -e \"requested_cores=16\" \\"
-          - "    -e \"guidellm_profile=concurrent\" \\"
-          - "    -e \"guidellm_rate=[1,2,4,8,16,32]\""
-          - ""
-          - "📚 See: tests/concurrent-load/concurrent-load.md | README.md"
-          - ""
-          - "To bypass (development only): -e \"allow_unsupported_tests=true\""
-          - ""
-          - "════════════════════════════════════════════════════════════════════════════════"
-      when: not (allow_unsupported_tests | default(false) | bool)
-
-    - name: Block unsupported test suite
-      ansible.builtin.fail:
-        msg: "Embedding Models test suite not yet supported. Use llm-benchmark-concurrent-load.yml instead."
-      when: not (allow_unsupported_tests | default(false) | bool)
-
 - name: Initialize embedding benchmark run metadata
   hosts: localhost
   gather_facts: false
@@ -276,6 +233,27 @@
   roles:
     - role: benchmark_embedding
 
+  post_tasks:
+    - name: Create test-metadata.json for dut-only mode
+      ansible.builtin.copy:
+        content: |
+          {
+            "test_run_id": "{{ hostvars['localhost']['test_run_id'] }}",
+            "test_type": "{{ test_type }}",
+            "model": "{{ model_name }}",
+            "platform": "{{ hostvars['localhost']['dut_platform_name'] | default('unknown') }}",
+            "backend": "openai-embeddings",
+            "vllm_version": "{{ hostvars['localhost']['vllm_version'] | default('unknown') }}",
+            "vllm_mode": "{{ hostvars['localhost']['vllm_mode'] }}",
+            "vllm_endpoint_url": "n/a",
+            "vllm_bench_version": "{{ benchmark_tool.vllm_bench.version | default('built-in') }}",
+            "vllm_bench_container": "{{ benchmark_tool.vllm_bench.use_container | default(true) }}",
+            "num_prompts": "{{ benchmark_tool.vllm_bench.num_prompts | default(250) }}",
+            "embedding_random_input_len": {{ embedding_random_input_len | default(512) }},
+            "timestamp": "{{ lookup('pipe', 'date -Iseconds') }}"
+          }
+        dest: "{{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/{{ test_type }}-{{ hostvars['localhost']['test_run_id'] }}/test-metadata.json"
+
 # ==============================================================================
 # PHASE 3: Run Embedding Tests (Managed/External modes)
 # ==============================================================================
@@ -316,6 +294,27 @@
 
   roles:
     - role: benchmark_embedding
+
+  post_tasks:
+    - name: Create test-metadata.json for managed/external mode
+      ansible.builtin.copy:
+        content: |
+          {
+            "test_run_id": "{{ hostvars['localhost']['test_run_id'] }}",
+            "test_type": "{{ test_type }}",
+            "model": "{{ model_name }}",
+            "platform": "{{ hostvars['localhost']['dut_platform_name'] | default('unknown') }}",
+            "backend": "openai-embeddings",
+            "vllm_version": "{{ hostvars['localhost']['vllm_version'] | default('unknown') }}",
+            "vllm_mode": "{{ hostvars['localhost']['vllm_mode'] }}",
+            "vllm_endpoint_url": "{{ vllm_endpoint.external.url if hostvars['localhost']['vllm_mode'] == 'external' else 'n/a' }}",
+            "vllm_bench_version": "{{ benchmark_tool.vllm_bench.version | default('built-in') }}",
+            "vllm_bench_container": "{{ benchmark_tool.vllm_bench.use_container | default(true) }}",
+            "num_prompts": "{{ benchmark_tool.vllm_bench.num_prompts | default(250) }}",
+            "embedding_random_input_len": {{ embedding_random_input_len | default(512) }},
+            "timestamp": "{{ lookup('pipe', 'date -Iseconds') }}"
+          }
+        dest: "{{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/{{ test_type }}-{{ hostvars['localhost']['test_run_id'] }}/test-metadata.json"
 
 # ==============================================================================
 # PHASE 4: Collect Logs and Results

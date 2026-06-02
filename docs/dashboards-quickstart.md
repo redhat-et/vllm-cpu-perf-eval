@@ -8,11 +8,16 @@ Quick guide to accessing and using the dashboards for vLLM performance analysis.
 ## TL;DR
 
 ```bash
-# Run a test (metrics auto-collected)
+# Run an LLM test (metrics auto-collected)
 ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
   -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
   -e "workload_type=chat" \
   -e "requested_cores=16"
+
+# Or run an embedding test
+ansible-playbook -i inventory/hosts.yml embedding-benchmark.yml \
+  -e "test_model=RedHatAI/all-MiniLM-L6-v2" \
+  -e "scenario=all"
 
 # View results
 cd automation/test-execution/dashboard-examples/vllm_dashboard
@@ -43,14 +48,16 @@ cd vllm_dashboard
 **Access:** <http://localhost:8501>
 
 **What it shows:**
-- Client metrics (GuideLLM) - throughput, latency, success rate
+- Client metrics (GuideLLM) - LLM throughput, latency, success rate
 - Server metrics (vLLM) - queue depth, cache usage, token rates
+- Embedding metrics (vLLM bench serve) - request throughput, latency
 - Unified analysis - correlate client & server behavior
 - Platform comparisons - side-by-side performance
 
 **Data source:**
-- `benchmarks.json` (GuideLLM results)
+- `benchmarks.json` (GuideLLM results for LLM models)
 - `vllm-metrics.json` (vLLM server metrics)
+- `sweep-*.json`, `concurrent-*.json` (vLLM bench serve for embeddings)
 
 **Requirement:**
 - ✅ **No Grafana needed!**
@@ -198,9 +205,44 @@ Percentile definition: Pxx = the value below which xx% of data points fall
 - Cache behavior analysis
 - Server capacity planning
 
+### 📊 Embedding Metrics
+
+**Shows:** vLLM bench serve embedding benchmark results
+
+**Key Metrics:**
+- Request throughput (req/s) - how many embedding requests per second
+- End-to-end latency (P50, P99, Mean) - time to generate embeddings
+- Token processing speed (tokens/sec input)
+- Concurrent request handling
+
+**Visualizations:**
+- **Saturation curves**: Throughput and P99 latency vs load level (inf, 75%, 50%, 25%)
+- **Concurrent load analysis**: Performance vs concurrency level
+- **Model comparison**: Side-by-side throughput and latency comparison
+- CSV export
+
+**Understanding Embedding Metrics:**
+
+Unlike LLM models (which generate tokens), embedding models:
+- ❌ No TTFT (Time To First Token) - no token generation
+- ❌ No ITL (Inter-Token Latency) - no streaming
+- ✅ **Request throughput (req/s)** - PRIMARY metric for embeddings
+- ✅ **End-to-end latency** - time from request to embedding vector
+- ✅ **Token processing speed** - how fast it processes input text
+
+**Data Source:**
+- `vllm bench serve` JSON results (`sweep-*.json`, `concurrent-*.json`)
+- **Note**: Currently uses vLLM bench serve. Future versions will also support GuideLLM embedding tests when available.
+
+**Best for:**
+- Finding max sustainable throughput
+- Identifying latency sweet spots for embedding workloads
+- Comparing embedding model performance
+- RAG/search application capacity planning
+
 ## Analysis Workflow
 
-**Recommended approach:**
+**Recommended approach for LLM models:**
 
 1. **Start with Client Metrics**
    - Understand end-user performance
@@ -216,6 +258,23 @@ Percentile definition: Pxx = the value below which xx% of data points fall
    - High latency + queue buildup = Capacity issue
    - Good throughput + high cache = Optimal utilization
    - Client issues + empty queue = Network problem
+
+**Recommended approach for Embedding models:**
+
+1. **Start with Embedding Metrics (Saturation Analysis)**
+   - View saturation curve to find max throughput
+   - Identify where P99 latency starts degrading
+   - Determine optimal operating load (typically 50-75% of max)
+
+2. **Check Concurrent Load Analysis**
+   - Verify concurrent request handling
+   - Find sweet spot for parallel embedding generation
+   - Validate latency remains acceptable under concurrency
+
+3. **Compare Models** (if testing multiple)
+   - Side-by-side throughput comparison
+   - P99 latency at same load levels
+   - Choose model that meets throughput + latency SLOs
 
 ## Quick Examples
 
@@ -269,6 +328,26 @@ ansible-playbook llm-benchmark-auto.yml -e "guidellm_max_seconds=600" ...
 
 # 4. Watch real-time in Grafana during test
 # 5. Analyze detailed results in Streamlit after test
+```
+
+### Example 4: Analyze Embedding Model Performance
+
+```bash
+# 1. Run embedding test (baseline + concurrent load)
+ansible-playbook -i inventory/hosts.yml embedding-benchmark.yml \
+  -e "test_model=RedHatAI/all-MiniLM-L6-v2" \
+  -e "scenario=all"
+
+# 2. Launch dashboard
+cd automation/test-execution/dashboard-examples/vllm_dashboard
+./launch-dashboard.sh
+
+# 3. Navigate to Embedding Metrics page
+# 4. View saturation curve to identify max throughput
+# 5. Check concurrent load analysis for sweet spot
+# 6. Export to CSV if needed
+
+# Note: Embedding tests use vLLM bench serve for benchmarking
 ```
 
 ## Common Workflows
@@ -328,6 +407,45 @@ ansible-playbook llm-benchmark-auto.yml -e "guidellm_max_seconds=600" ...
    - ITL P99 < 50ms? (chat SLO)
 
 4. **Export to CSV** if needed for reporting
+
+### Workflow: Find Optimal Embedding Model
+
+1. **Run baseline tests for multiple models:**
+   ```bash
+   # Test multiple embedding models
+   for model in "RedHatAI/all-MiniLM-L6-v2" \
+                "RedHatAI/nomic-embed-text-v1.5" \
+                "RedHatAI/granite-embedding-english-r2"; do
+     ansible-playbook embedding-benchmark.yml \
+       -e "test_model=$model" \
+       -e "scenario=baseline"
+   done
+   ```
+
+2. **Launch Streamlit:**
+   ```bash
+   ./launch-dashboard.sh
+   ```
+
+3. **Navigate to Embedding Metrics**
+
+4. **Select all models** from filter
+
+5. **Compare max throughput and P99 latency:**
+   - Identify which model meets your throughput requirements
+   - Check if P99 latency fits your SLO
+   - Consider model size vs performance tradeoff
+
+6. **Run concurrent load test** on selected model:
+   ```bash
+   ansible-playbook embedding-benchmark.yml \
+     -e "test_model=<selected-model>" \
+     -e "scenario=latency"
+   ```
+
+7. **Validate concurrent request handling** in dashboard
+
+**Note:** Embedding tests use `vllm bench serve` for benchmarking. Future versions will also support GuideLLM embedding tests when available.
 
 ## Troubleshooting
 
