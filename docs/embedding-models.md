@@ -139,12 +139,17 @@ The following embedding models from the [RedHatAI Intel Xeon-compatible collecti
 The `scenario` parameter controls which test suite to run:
 
 ### baseline
-Finds maximum throughput and tests at 25%, 50%, 75% load levels:
+Finds maximum throughput and tests at configurable load levels (default: 25%, 50%, 75%):
 - Infinite rate test to determine max throughput
 - Fixed-rate tests at percentage intervals
 
 ```bash
+# Use default percentages (25, 50, 75)
 -e "scenario=baseline"
+
+# Customize load percentages
+-e "scenario=baseline" \
+-e "baseline_load_percentages=[10,25,50,75,90]"
 ```
 
 ### latency
@@ -247,6 +252,40 @@ Enable persistent model caching to avoid re-downloading on each test:
 
 See [Model Pre-Download Documentation](ansible/model-predownload.md) for details.
 
+### Customizing Baseline Load Percentages
+
+By default, baseline tests run at 25%, 50%, and 75% of maximum throughput. You can customize these percentages:
+
+```bash
+# Default behavior (25%, 50%, 75%)
+ansible-playbook embedding-benchmark.yml \
+  -e "scenario=baseline"
+
+# Custom percentages for fine-grained analysis
+ansible-playbook embedding-benchmark.yml \
+  -e "scenario=baseline" \
+  -e "baseline_load_percentages=[10,25,50,75,90,95]"
+
+# Focus on high-load scenarios
+ansible-playbook embedding-benchmark.yml \
+  -e "scenario=baseline" \
+  -e "baseline_load_percentages=[80,85,90,95,99]"
+
+# Quick test with fewer data points
+ansible-playbook embedding-benchmark.yml \
+  -e "scenario=baseline" \
+  -e "baseline_load_percentages=[50,75]"
+```
+
+**Use Cases:**
+- **Fine-grained saturation curves**: `[10,20,30,40,50,60,70,80,90,95]`
+- **High-load focus**: `[75,80,85,90,95,99]` - Find breaking point
+- **Quick validation**: `[50]` - Single mid-point check
+- **Custom SLO testing**: `[60,80]` - Match your target load levels
+
+**Results:**
+Files are generated as `sweep-{percentage}pct.json` (e.g., `sweep-10pct.json`, `sweep-95pct.json`)
+
 ## Benchmark Parameters
 
 Override default benchmark settings:
@@ -255,11 +294,33 @@ Override default benchmark settings:
 # Adjust number of test prompts (trade-off: sample size vs duration)
 -e "num_prompts=500"  # Default: 250
 
+# Set input token length for random text generation
+-e "embedding_random_input_len=1024"  # Default: 512
+# Options: 128, 256, 512, 1024, 2048, 4096, 8192
+# Use smaller values for quick tests, larger to test model limits
+
 # Use containerized benchmark tool (default: true)
 -e "use_container=true"
 
 # Custom vllm-bench container image
 -e "vllm_bench_image=docker.io/vllm/vllm-openai-cpu:v0.20.0"
+```
+
+**Example: Test different input lengths**
+```bash
+# Short inputs (128 tokens)
+ansible-playbook embedding-benchmark.yml \
+  -e "test_model=RedHatAI/all-MiniLM-L6-v2" \
+  -e "embedding_random_input_len=128" \
+  -e "test_name=short-input" \
+  -e "scenario=all"
+
+# Long inputs (2048 tokens)
+ansible-playbook embedding-benchmark.yml \
+  -e "test_model=RedHatAI/nomic-embed-text-v1.5" \
+  -e "embedding_random_input_len=2048" \
+  -e "test_name=long-input" \
+  -e "scenario=all"
 ```
 
 Configuration in `inventory/group_vars/all/benchmark-tools.yml`:

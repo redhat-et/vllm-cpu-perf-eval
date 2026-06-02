@@ -91,15 +91,18 @@
     fail_msg: "Invalid RPS value: {{ max_rps }}. Expected positive number."
     success_msg: "RPS value validated: {{ max_rps }}"
 
-- name: Display maximum RPS
+- name: Set baseline load percentages
+  ansible.builtin.set_fact:
+    baseline_load_percentages: "{{ baseline_load_percentages | default([25, 50, 75]) }}"
+
+- name: Display maximum RPS and planned load tests
   ansible.builtin.debug:
     msg:
       - "Maximum RPS achieved: {{ max_rps }}"
-      - "25% rate: {{ ((max_rps | float) * 0.25) | round(2) }}"
-      - "50% rate: {{ ((max_rps | float) * 0.50) | round(2) }}"
-      - "75% rate: {{ ((max_rps | float) * 0.75) | round(2) }}"
+      - "Planned load tests: {{ baseline_load_percentages | map('string') | map('regex_replace', '^(.*)$', '\\1%') | join(', ') }}"
+      - "{{ baseline_load_percentages | map('divide', 100) | map('multiply', (max_rps | float)) | map('round', 2) | zip(baseline_load_percentages) | map('join', ' = ') | map('regex_replace', '^(.*)$', '  \\1% rate') | list }}"
 
-- name: "Baseline Test - 25% Load"
+- name: "Baseline Test - Run at each load percentage"
   ansible.builtin.command:
     cmd: >
       {{ vllm_bench_prefix }}
@@ -110,44 +113,12 @@
       --dataset-name random
       --random-input-len {{ embedding_random_input_len | default(512) }}
       --num-prompts {{ num_prompts }}
-      --request-rate {{ ((max_rps | float) * 0.25) | round(2) }}
+      --request-rate {{ ((max_rps | float) * (item | float / 100)) | round(2) }}
       --endpoint /v1/embeddings
       --save-result
-      --result-filename "{{ results_base_dir }}/baseline/sweep-25pct.json"
-  changed_when: true
-
-- name: "Baseline Test - 50% Load"
-  ansible.builtin.command:
-    cmd: >
-      {{ vllm_bench_prefix }}
-      --host {{ bench_config.vllm_host }}
-      --port {{ bench_config.vllm_port }}
-      --backend openai-embeddings
-      --model "{{ model_name }}"
-      --dataset-name random
-      --random-input-len {{ embedding_random_input_len | default(512) }}
-      --num-prompts {{ num_prompts }}
-      --request-rate {{ ((max_rps | float) * 0.50) | round(2) }}
-      --endpoint /v1/embeddings
-      --save-result
-      --result-filename "{{ results_base_dir }}/baseline/sweep-50pct.json"
-  changed_when: true
-
-- name: "Baseline Test - 75% Load"
-  ansible.builtin.command:
-    cmd: >
-      {{ vllm_bench_prefix }}
-      --host {{ bench_config.vllm_host }}
-      --port {{ bench_config.vllm_port }}
-      --backend openai-embeddings
-      --model "{{ model_name }}"
-      --dataset-name random
-      --random-input-len {{ embedding_random_input_len | default(512) }}
-      --num-prompts {{ num_prompts }}
-      --request-rate {{ ((max_rps | float) * 0.75) | round(2) }}
-      --endpoint /v1/embeddings
-      --save-result
-      --result-filename "{{ results_base_dir }}/baseline/sweep-75pct.json"
+      --result-filename "{{ results_base_dir }}/baseline/sweep-{{ item }}pct.json"
+  loop: "{{ baseline_load_percentages }}"
+  register: baseline_load_tests
   changed_when: true
 
 - name: Display baseline test completion

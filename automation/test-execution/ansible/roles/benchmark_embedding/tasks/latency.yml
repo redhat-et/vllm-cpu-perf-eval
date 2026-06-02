@@ -44,7 +44,7 @@
       --backend openai-embeddings
       --model "{{ model_name }}"
       --dataset-name random
-      --random-input-len 512
+      --random-input-len {{ embedding_random_input_len | default(512) }}
       --num-prompts {{ num_prompts }}
       --endpoint /v1/embeddings
       --request-rate inf
