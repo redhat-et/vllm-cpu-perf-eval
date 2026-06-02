@@ -32,7 +32,11 @@ ansible-galaxy collection install containers.podman
 export VLLM_CPU_KVCACHE_SPACE=1GiB
 ```
 
-### Two-Node Architecture
+### Test Architectures
+
+The framework supports three execution modes to accommodate different testing scenarios:
+
+#### Mode 1: Managed (Two-Node) - Default
 
 ```text
 ┌─────────────────────┐          ┌─────────────────────┐
@@ -44,10 +48,44 @@ export VLLM_CPU_KVCACHE_SPACE=1GiB
 └─────────────────────┘          └─────────────────────┘
 ```
 
+**Best for**: Production-like performance testing, network overhead measurement
+
+#### Mode 2: DUT-Only (Single-Node)
+
+```text
+┌─────────────────────────────┐
+│         DUT (SUT)           │
+│      (192.168.1.10)         │
+│                             │
+│  vllm (podman)              │
+│  --port 8000                │
+│                             │
+│  vllm bench serve           │
+│  --host localhost           │
+└─────────────────────────────┘
+```
+
+**Best for**: Single-node testing, eliminating network latency overhead
+
+#### Mode 3: External (Test Existing Endpoint)
+
+```text
+┌─────────────────────┐          ┌────────────────────────┐
+│  Load Generator     │          │  External vLLM Server  │
+│  (192.168.1.20)     │◄────────►│  (production/cloud)    │
+│                     │ internet │                        │
+│  vllm bench serve   │          │    vllm (any runtime)  │
+│  --host <external>  │          │    --port 8000         │
+└─────────────────────┘          └────────────────────────┘
+```
+
+**Best for**: Testing production deployments, cloud/K8s endpoints, remote services
+
 **Components**:
-- **DUT (Device Under Test)**: Runs vLLM server in a container with CPU pinning
-- **Load Generator**: Executes `vllm bench serve` against the DUT
-- **Network**: Typically 10GbE or higher for minimal network latency impact
+- **DUT (Device Under Test)**: Runs vLLM server in a container with CPU pinning (Modes 1 & 2)
+- **Load Generator**: Executes `vllm bench serve` to generate test load (Modes 1 & 3)
+- **External Server**: Pre-existing vLLM deployment (Mode 3)
+- **Network**: Typically 10GbE or higher for minimal network latency impact (Mode 1)
 
 ## Test Structure
 
@@ -62,7 +100,7 @@ embedding-models/
 automation/test-execution/
 ├── ansible/                      # Ansible automation (recommended)
 │   ├── inventory/
-│   │   └── hosts.yml            # Two-node inventory
+│   │   └── hosts.yml            # Node inventory (supports 1-2 nodes)
 │   └── playbooks/
 │       ├── embedding/
 │       │   ├── run-tests.yml    # Main test execution
@@ -820,7 +858,7 @@ ansible-playbook playbooks/embedding/run-tests.yml \
 ```text
 automation/test-execution/ansible/
 ├── inventory/
-│   └── hosts.yml                   # Two-node inventory
+│   └── hosts.yml                   # Node inventory (1-2 nodes)
 ├── playbooks/
 │   ├── embedding/                  # Embedding-specific playbooks
 │   │   ├── run-tests.yml          # Main test execution
@@ -841,7 +879,7 @@ automation/test-execution/ansible/
 ```
 
 **Key Features**:
-- **Two-node orchestration**: DUT (vLLM server) + Load Generator (vllm bench serve)
+- **Flexible execution modes**: Managed (2-node), DUT-only (1-node), or external endpoint
 - **Containerized vLLM**: Podman/Docker with CPU pinning support
 - **Core count sweep**: Test vLLM with varying CPU allocations (8, 16, 32, 64 cores)
 - **Health checks**: Wait for vLLM to be ready before running tests

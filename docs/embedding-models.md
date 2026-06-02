@@ -7,7 +7,7 @@ This guide covers testing embedding models on Intel Xeon processors using the vL
 ## Execution Modes
 
 ### 1. Managed Mode (Load Generator + DUT) - Default
-- **vLLM Server**: Runs on DUT (Device Under Test)
+- **vLLM Server**: Runs on DUT in container (Device Under Test)
 - **Benchmark Tool**: Runs on separate Load Generator node
 - **Best For**: Production-like performance testing, network overhead measurement
 - **Network**: Requires network connectivity between DUT and Load Generator
@@ -24,7 +24,7 @@ ansible-playbook -i inventory/hosts.yml embedding-benchmark.yml \
 ```
 
 ### 2. DUT-Only Mode
-- **vLLM Server**: Runs on DUT
+- **vLLM Server**: Runs on DUT (in container)
 - **Benchmark Tool**: Runs on same DUT node (localhost)
 - **Best For**: Single-node testing, eliminating network latency overhead
 - **Network**: No network communication needed (uses localhost)
@@ -172,7 +172,7 @@ Runs both baseline and latency test suites:
 
 ### Production Testing (Managed Mode)
 ```bash
-# Two-node setup with optimal resource isolation
+# Managed mode: Two-node setup with optimal resource isolation
 export DUT_HOSTNAME=10.0.1.100
 export LOADGEN_HOSTNAME=10.0.1.101
 export HF_TOKEN=hf_xxxxx
