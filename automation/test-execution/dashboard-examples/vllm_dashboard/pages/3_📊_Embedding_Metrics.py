@@ -524,18 +524,25 @@ def main():
         else:
             selected_test_names = None
 
-    # Filters - Row 4: Test run selection
-    test_runs = sorted(df['test_run_id'].unique(), reverse=True)
+    if not selected_models:
+        st.warning("Please select at least one model")
+        return
+
+    # Filters - Row 4: Test run selection (filtered by selected models)
+    # Only show test runs that match the selected models
+    model_filtered_df = df[df['model'].isin(selected_models)]
+    test_runs = sorted(model_filtered_df['test_run_id'].unique(), reverse=True)
+
+    if not test_runs:
+        st.error("No test runs found for selected models")
+        return
+
     selected_test_run = st.selectbox(
         "Test Run ID",
         options=test_runs,
         index=0,  # Default to most recent test run
-        help="Select specific test run to analyze (most recent first)"
+        help="Select specific test run to analyze (most recent first, filtered by selected models)"
     )
-
-    if not selected_models:
-        st.warning("Please select at least one model")
-        return
 
     # Debug info
     with st.expander("🔍 Debug: Data Overview"):
