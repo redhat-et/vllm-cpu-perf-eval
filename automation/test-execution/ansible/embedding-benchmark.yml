@@ -209,7 +209,7 @@
   vars:
     model_name: "{{ test_model | default('ibm-granite/granite-embedding-278m-multilingual') }}"
     scenario_name: "{{ scenario | default('baseline') }}"  # baseline, latency, or all
-    test_run_base: "{{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/{{ scenario_name }}-{{ hostvars['localhost']['test_run_id'] }}"
+    test_run_base: "{{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/{{ hostvars['localhost']['test_run_id'] }}"
 
   pre_tasks:
     - name: Check execution mode
@@ -274,7 +274,7 @@
     # Use detected_model if set (external mode auto-detect), otherwise use test_model or default
     model_name: "{{ detected_model | default(test_model | default('ibm-granite/granite-embedding-278m-multilingual')) }}"
     scenario_name: "{{ scenario | default('baseline') }}"  # baseline, latency, or all
-    test_run_base: "{{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/{{ scenario_name }}-{{ hostvars['localhost']['test_run_id'] }}"
+    test_run_base: "{{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/{{ hostvars['localhost']['test_run_id'] }}"
 
   pre_tasks:
     - name: Check execution mode
@@ -345,7 +345,6 @@
     test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
     # DUT-only mode doesn't auto-detect, use test_model or default
     model_name: "{{ test_model | default('ibm-granite/granite-embedding-278m-multilingual') }}"
-    scenario_name: "{{ scenario | default('baseline') }}"
 
   tasks:
     - name: Check execution mode
@@ -358,15 +357,15 @@
 
     - name: Ensure local results directory exists
       ansible.builtin.file:
-        path: "{{ playbook_dir }}/../../../results/embedding/{{ model_name | replace('/', '__') }}/{{ scenario_name }}-{{ test_run_id }}"
+        path: "{{ playbook_dir }}/../../../results/embedding/{{ model_name | replace('/', '__') }}/{{ test_run_id }}"
         state: directory
         mode: "0755"
       delegate_to: localhost
 
     - name: Fetch results to local machine
       ansible.posix.synchronize:
-        src: "{{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/{{ scenario_name }}-{{ test_run_id }}/"
-        dest: "{{ playbook_dir }}/../../../results/embedding/{{ model_name | replace('/', '__') }}/{{ scenario_name }}-{{ test_run_id }}/"
+        src: "{{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/{{ test_run_id }}/"
+        dest: "{{ playbook_dir }}/../../../results/embedding/{{ model_name | replace('/', '__') }}/{{ test_run_id }}/"
         mode: pull
         recursive: true
 
@@ -377,7 +376,6 @@
     test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
     # Use detected_model if set (external mode auto-detect), otherwise use test_model or default
     model_name: "{{ detected_model | default(test_model | default('ibm-granite/granite-embedding-278m-multilingual')) }}"
-    scenario_name: "{{ scenario | default('baseline') }}"
 
   tasks:
     - name: Check execution mode
@@ -390,15 +388,15 @@
 
     - name: Ensure local results directory exists
       ansible.builtin.file:
-        path: "{{ playbook_dir }}/../../../results/embedding/{{ model_name | replace('/', '__') }}/{{ scenario_name }}-{{ test_run_id }}"
+        path: "{{ playbook_dir }}/../../../results/embedding/{{ model_name | replace('/', '__') }}/{{ test_run_id }}"
         state: directory
         mode: "0755"
       delegate_to: localhost
 
     - name: Fetch results to local machine
       ansible.posix.synchronize:
-        src: "{{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/{{ scenario_name }}-{{ test_run_id }}/"
-        dest: "{{ playbook_dir }}/../../../results/embedding/{{ model_name | replace('/', '__') }}/{{ scenario_name }}-{{ test_run_id }}/"
+        src: "{{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/{{ test_run_id }}/"
+        dest: "{{ playbook_dir }}/../../../results/embedding/{{ model_name | replace('/', '__') }}/{{ test_run_id }}/"
         mode: pull
         recursive: true
 
@@ -408,7 +406,6 @@
   vars:
     test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
     model_name: "{{ test_model | default('ibm-granite/granite-embedding-278m-multilingual') }}"
-    scenario_name: "{{ scenario | default('baseline') }}"
 
   tasks:
     - name: Check if log collection needed
@@ -423,7 +420,7 @@
       ansible.builtin.include_role:
         name: results_collector
       vars:
-        log_collection_dest: "{{ playbook_dir }}/../../../results/embedding/{{ model_name | replace('/', '__') }}/{{ scenario_name }}-{{ test_run_id }}/"
+        log_collection_dest: "{{ playbook_dir }}/../../../results/embedding/{{ model_name | replace('/', '__') }}/{{ test_run_id }}/"
         journald_identifier: "vllm-embedding"
         log_filename_prefix: "vllm-server"
 

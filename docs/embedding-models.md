@@ -317,18 +317,19 @@ export GUIDELLM_CONTAINER_IMAGE=your-registry/custom-guidellm:latest
 
 Test results are collected in:
 ```
-results/embedding/<model-name>/<scenario>-<timestamp>/
-├── baseline/
+results/embedding/<model-name>/<timestamp>/
+├── baseline/                # Created when scenario=baseline or all
 │   ├── sweep-inf.json       # Max throughput test
 │   ├── sweep-25pct.json     # 25% load test
 │   ├── sweep-50pct.json     # 50% load test
 │   └── sweep-75pct.json     # 75% load test
-├── latency/
+├── latency/                 # Created when scenario=latency or all
 │   ├── concurrent-16.json   # Concurrency level tests
 │   ├── concurrent-32.json
 │   ├── concurrent-64.json
 │   ├── concurrent-128.json
 │   └── concurrent-196.json
+├── test-metadata.json       # Test run metadata
 └── logs/
     └── vllm-server.log      # vLLM server logs (managed/dut-only modes only)
 ```
