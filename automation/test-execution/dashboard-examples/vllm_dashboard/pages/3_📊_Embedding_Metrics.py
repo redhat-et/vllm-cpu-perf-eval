@@ -169,15 +169,16 @@ def plot_saturation_curve(df: pd.DataFrame):
         group_df['load_order'] = group_df['parameter'].map(load_order).fillna(0)
         group_df = group_df.sort_values('load_order')
 
-        # Build trace label
+        # Build concise trace label
         model_short = model.split('/')[-1]
-        platform_short = platform.replace('_', ' ')
-        run_id_short = test_id[-12:] if len(test_id) >= 12 else test_id
+        run_id_short = test_id[-6:] if len(test_id) >= 6 else test_id
 
+        # If test_name exists (e.g., "embeddinggemma-300m-8C"), use it since it's already compact
         if test_name and test_name.strip():
-            base_label = f"[{test_name}] {platform_short} | {model_short} | {version} | {cores}c | {input_len}tok (run {run_id_short})"
+            base_label = f"{test_name} ({run_id_short})"
         else:
-            base_label = f"{platform_short} | {model_short} | {version} | {cores}c | {input_len}tok (run {run_id_short})"
+            # Otherwise: model | cores | input_len
+            base_label = f"{model_short} | {cores}c | {input_len}tok ({run_id_short})"
 
         # Throughput trace
         fig.add_trace(
@@ -279,18 +280,17 @@ def plot_concurrent_load(df: pd.DataFrame):
         # Throughput vs concurrency
         fig1 = go.Figure()
 
-        for (platform, model, version, cores, input_len, test_name, test_id), group_df in grouped:
+        for (_, model, _, cores, input_len, test_name, test_id), group_df in grouped:
             group_df = group_df.sort_values('concurrency')
 
-            # Build trace label
+            # Build concise trace label
             model_short = model.split('/')[-1]
-            platform_short = platform.replace('_', ' ')
-            run_id_short = test_id[-12:] if len(test_id) >= 12 else test_id
+            run_id_short = test_id[-6:] if len(test_id) >= 6 else test_id
 
             if test_name and test_name.strip():
-                label = f"[{test_name}] {platform_short} | {model_short} | {version} | {cores}c | {input_len}tok (run {run_id_short})"
+                label = f"{test_name} ({run_id_short})"
             else:
-                label = f"{platform_short} | {model_short} | {version} | {cores}c | {input_len}tok (run {run_id_short})"
+                label = f"{model_short} | {cores}c | {input_len}tok ({run_id_short})"
 
             fig1.add_trace(go.Scatter(
                 x=group_df['concurrency'],
@@ -316,18 +316,17 @@ def plot_concurrent_load(df: pd.DataFrame):
         fig2 = go.Figure()
         color_idx = 0
 
-        for (platform, model, version, cores, input_len, test_name, test_id), group_df in grouped:
+        for (_, model, _, cores, input_len, test_name, test_id), group_df in grouped:
             group_df = group_df.sort_values('concurrency')
 
-            # Build trace label
+            # Build concise trace label
             model_short = model.split('/')[-1]
-            platform_short = platform.replace('_', ' ')
-            run_id_short = test_id[-12:] if len(test_id) >= 12 else test_id
+            run_id_short = test_id[-6:] if len(test_id) >= 6 else test_id
 
             if test_name and test_name.strip():
-                label = f"[{test_name}] {platform_short} | {model_short} | {version} | {cores}c | {input_len}tok (run {run_id_short})"
+                label = f"{test_name} ({run_id_short})"
             else:
-                label = f"{platform_short} | {model_short} | {version} | {cores}c | {input_len}tok (run {run_id_short})"
+                label = f"{model_short} | {cores}c | {input_len}tok ({run_id_short})"
 
             fig2.add_trace(go.Scatter(
                 x=group_df['concurrency'],
