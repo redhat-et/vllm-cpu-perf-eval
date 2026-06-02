@@ -816,10 +816,10 @@ def main():
             - **<80%** = Diminishing returns, bottlenecks present
             """)
 
-        # Best Configuration Recommendations
-        st.subheader("🎯 Recommended Configurations")
+        # Best Configuration Summary
+        st.subheader("🎯 Best Configurations")
 
-        recommendations = []
+        best_configs = []
         for model in scaling_analysis['model'].unique():
             model_data = scaling_analysis[scaling_analysis['model'] == model].copy()
 
@@ -832,42 +832,24 @@ def main():
             best_efficiency_row = model_data.loc[model_data['rps_per_core'].idxmax()]
             best_efficiency_cores = int(best_efficiency_row['requested_cores'])
             best_efficiency_rps_per_core = best_efficiency_row['rps_per_core']
-
-            # Determine recommendation based on efficiency threshold
-            # If best throughput config has >80% of best efficiency's RPS/core, recommend it
-            # Otherwise recommend the most efficient config
-            throughput_efficiency = best_throughput_row['rps_per_core']
-            efficiency_ratio = (throughput_efficiency / best_efficiency_rps_per_core) * 100
-
-            if efficiency_ratio >= 80:
-                recommended_cores = best_throughput_cores
-                recommendation_reason = "Max throughput with acceptable efficiency (>80%)"
-            else:
-                recommended_cores = best_efficiency_cores
-                recommendation_reason = "Best efficiency; higher core counts show diminishing returns"
+            best_efficiency_rps = best_efficiency_row['request_throughput_rps']
 
             model_short = model.split('/')[-1]
 
-            recommendations.append({
+            best_configs.append({
                 'Model': model_short,
-                'Recommended': f"{recommended_cores} cores",
-                'Reason': recommendation_reason,
                 'Best Throughput': f"{best_throughput_cores}c @ {best_throughput_rps:.1f} RPS",
-                'Best Efficiency': f"{best_efficiency_cores}c @ {best_efficiency_rps_per_core:.2f} RPS/core"
+                'Best Efficiency': f"{best_efficiency_cores}c @ {best_efficiency_rps_per_core:.2f} RPS/core ({best_efficiency_rps:.1f} RPS)"
             })
 
-        if recommendations:
-            rec_df = pd.DataFrame(recommendations)
-
-            # Style the dataframe
-            st.markdown("**Quick Reference: Optimal Core Counts**")
-            st.dataframe(rec_df, use_container_width=True, hide_index=True)
+        if best_configs:
+            config_df = pd.DataFrame(best_configs)
+            st.dataframe(config_df, use_container_width=True, hide_index=True)
 
             st.markdown("""
-            **How to use:**
-            - **Recommended**: Best balance of throughput and efficiency for production
-            - **Best Throughput**: Choose when you need maximum RPS (accept higher core usage)
-            - **Best Efficiency**: Choose when optimizing for cost/resource utilization
+            **How to choose:**
+            - **Best Throughput**: Maximum RPS - use when you need highest absolute performance
+            - **Best Efficiency**: Lowest resource usage per request - use for cost optimization or when running multiple instances
             """)
 
     st.markdown("---")
