@@ -37,11 +37,20 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=3600)  # Increased from 5min to 1 hour - results rarely change
 def load_embedding_data(results_dir: str) -> pd.DataFrame:
     """Load embedding benchmark results from directory structure."""
     results_path = Path(results_dir)
     all_results = []
+
+    # Track skipped/failed files for user feedback
+    stats = {
+        'total_metadata_files': 0,
+        'skipped_missing_fields': 0,
+        'skipped_missing_metrics': 0,
+        'skipped_json_errors': 0,
+        'failed_unexpected': 0
+    }
 
     if not results_path.exists():
         logger.warning(f"Results directory not found: {results_path}")
@@ -49,6 +58,7 @@ def load_embedding_data(results_dir: str) -> pd.DataFrame:
 
     # Scan for all test-metadata.json files in embedding results
     for metadata_file in results_path.rglob("test-metadata.json"):
+        stats['total_metadata_files'] += 1
         try:
             with open(metadata_file) as f:
                 metadata = json.load(f)
@@ -58,6 +68,7 @@ def load_embedding_data(results_dir: str) -> pd.DataFrame:
             missing = [f for f in required_fields if f not in metadata or not metadata[f]]
             if missing:
                 logger.warning(f"Skipping {metadata_file}: missing required fields {missing}")
+                stats['skipped_missing_fields'] += 1
                 continue
 
             test_run_dir = metadata_file.parent
@@ -71,79 +82,101 @@ def load_embedding_data(results_dir: str) -> pd.DataFrame:
 
                 # Process all JSON result files in this subdirectory
                 for json_file in sorted(subdir.glob("*.json")):
-                    with open(json_file) as f:
-                        result = json.load(f)
+                    try:
+                        with open(json_file) as f:
+                            result = json.load(f)
 
-                    # Validate result has key metrics
-                    required_metrics = ['request_throughput', 'mean_e2el_ms']
-                    missing_metrics = [m for m in required_metrics if m not in result]
-                    if missing_metrics:
-                        logger.warning(f"Skipping {json_file}: missing metrics {missing_metrics}")
+                        # Validate result has key metrics
+                        required_metrics = ['request_throughput', 'mean_e2el_ms']
+                        missing_metrics = [m for m in required_metrics if m not in result]
+                        if missing_metrics:
+                            logger.warning(f"Skipping {json_file}: missing metrics {missing_metrics}")
+                            stats['skipped_missing_metrics'] += 1
+                            continue
+
+                        # Parse test type from filename
+                        stem = json_file.stem
+                        if stem.startswith('sweep-'):
+                            test_type = 'baseline'
+                            parameter = stem.replace('sweep-', '')
+                        elif stem.startswith('concurrent-'):
+                            test_type = 'concurrent'
+                            parameter = stem.replace('concurrent-', '')
+                        else:
+                            test_type = 'unknown'
+                            parameter = stem
+
+                        # Extract test_name from test_run_id (format: test_name-YYYYMMDD-HHMMSS or just YYYYMMDD-HHMMSS)
+                        test_run_id = metadata.get('test_run_id', 'unknown')
+                        test_name = None
+                        if test_run_id != 'unknown' and '-' in test_run_id:
+                            parts = test_run_id.split('-')
+                            # If more than 2 parts (date-time), first part(s) are test_name
+                            if len(parts) > 2:
+                                test_name = '-'.join(parts[:-2])
+
+                        # Calculate derived metrics
+                        rps = result.get('request_throughput', 0)
+                        cores = metadata.get('requested_cores')
+                        rps_per_core = (rps / cores) if cores and cores > 0 else None
+
+                        row = {
+                            # Metadata
+                            'test_run_id': test_run_id,
+                            'test_name': test_name,
+                            'scenario': metadata.get('scenario', ''),
+                            'model': metadata.get('model', ''),
+                            'platform': metadata.get('platform', 'unknown'),
+                            'vllm_version': metadata.get('vllm_version', 'unknown'),
+                            'vllm_mode': metadata.get('vllm_mode', 'managed'),
+                            'requested_cores': metadata.get('requested_cores'),
+                            'input_length': metadata.get('embedding_random_input_len'),
+                            'timestamp': metadata.get('timestamp', ''),
+
+                            # Test configuration
+                            'test_type': test_type,
+                            'parameter': parameter,
+                            'request_rate': result.get('request_rate'),
+                            'max_concurrency': result.get('max_concurrency'),
+                            'num_prompts': result.get('num_prompts'),
+
+                            # Performance metrics
+                            'request_throughput_rps': rps,
+                            'token_throughput_tps': result.get('total_token_throughput'),
+                            'rps_per_core': rps_per_core,
+                            'mean_latency_ms': result.get('mean_e2el_ms'),
+                            'median_latency_ms': result.get('median_e2el_ms'),
+                            'std_latency_ms': result.get('std_e2el_ms'),
+                            'p99_latency_ms': result.get('p99_e2el_ms'),
+                            'duration_sec': result.get('duration'),
+                            'completed_requests': result.get('completed'),
+                            'total_input_tokens': result.get('total_input_tokens'),
+                        }
+                        all_results.append(row)
+
+                    except json.JSONDecodeError as e:
+                        logger.warning(f"Failed to parse JSON in {json_file}: {e}")
+                        stats['skipped_json_errors'] += 1
                         continue
 
-                    # Parse test type from filename
-                    stem = json_file.stem
-                    if stem.startswith('sweep-'):
-                        test_type = 'baseline'
-                        parameter = stem.replace('sweep-', '')
-                    elif stem.startswith('concurrent-'):
-                        test_type = 'concurrent'
-                        parameter = stem.replace('concurrent-', '')
-                    else:
-                        test_type = 'unknown'
-                        parameter = stem
-
-                    # Extract test_name from test_run_id (format: test_name-YYYYMMDD-HHMMSS or just YYYYMMDD-HHMMSS)
-                    test_run_id = metadata.get('test_run_id', 'unknown')
-                    test_name = None
-                    if test_run_id != 'unknown' and '-' in test_run_id:
-                        parts = test_run_id.split('-')
-                        # If more than 2 parts (date-time), first part(s) are test_name
-                        if len(parts) > 2:
-                            test_name = '-'.join(parts[:-2])
-
-                    # Calculate derived metrics
-                    rps = result.get('request_throughput', 0)
-                    cores = metadata.get('requested_cores')
-                    rps_per_core = (rps / cores) if cores and cores > 0 else None
-
-                    row = {
-                        # Metadata
-                        'test_run_id': test_run_id,
-                        'test_name': test_name,
-                        'scenario': metadata.get('scenario', ''),
-                        'model': metadata.get('model', ''),
-                        'platform': metadata.get('platform', 'unknown'),
-                        'vllm_version': metadata.get('vllm_version', 'unknown'),
-                        'vllm_mode': metadata.get('vllm_mode', 'managed'),
-                        'requested_cores': metadata.get('requested_cores'),
-                        'input_length': metadata.get('embedding_random_input_len'),
-                        'timestamp': metadata.get('timestamp', ''),
-
-                        # Test configuration
-                        'test_type': test_type,
-                        'parameter': parameter,
-                        'request_rate': result.get('request_rate'),
-                        'max_concurrency': result.get('max_concurrency'),
-                        'num_prompts': result.get('num_prompts'),
-
-                        # Performance metrics
-                        'request_throughput_rps': rps,
-                        'token_throughput_tps': result.get('total_token_throughput'),
-                        'rps_per_core': rps_per_core,
-                        'mean_latency_ms': result.get('mean_e2el_ms'),
-                        'median_latency_ms': result.get('median_e2el_ms'),
-                        'std_latency_ms': result.get('std_e2el_ms'),
-                        'p99_latency_ms': result.get('p99_e2el_ms'),
-                        'duration_sec': result.get('duration'),
-                        'completed_requests': result.get('completed'),
-                        'total_input_tokens': result.get('total_input_tokens'),
-                    }
-                    all_results.append(row)
-
-        except Exception as e:
+        except (json.JSONDecodeError, KeyError, FileNotFoundError) as e:
             logger.warning(f"Failed to load {metadata_file}: {e}")
+            stats['skipped_json_errors'] += 1
             continue
+        except Exception as e:
+            logger.error(f"Unexpected error loading {metadata_file}: {e}")
+            stats['failed_unexpected'] += 1
+            # Re-raise unexpected errors - don't hide bugs
+            raise
+
+    # Log statistics about data loading
+    logger.info(f"Data loading complete: {len(all_results)} result files loaded from {stats['total_metadata_files']} test runs")
+    if stats['skipped_missing_fields'] > 0 or stats['skipped_missing_metrics'] > 0 or stats['skipped_json_errors'] > 0:
+        logger.warning(
+            f"Skipped files: {stats['skipped_missing_fields']} missing fields, "
+            f"{stats['skipped_missing_metrics']} missing metrics, "
+            f"{stats['skipped_json_errors']} JSON errors"
+        )
 
     return pd.DataFrame(all_results)
 
@@ -796,13 +829,28 @@ def main():
                     actual_speedup = rps / base_rps
                     efficiency_pct = (actual_speedup / theoretical_speedup) * 100
 
+                    # Add visual indicator for degraded performance
+                    if actual_speedup < 1.0:
+                        speedup_display = f"❌ {actual_speedup:.2f}x (SLOWER)"
+                        verdict = "❌ Degraded"
+                    elif efficiency_pct < 50:
+                        speedup_display = f"⚠️ {actual_speedup:.2f}x"
+                        verdict = "⚠️ Poor"
+                    elif efficiency_pct < 80:
+                        speedup_display = f"{actual_speedup:.2f}x"
+                        verdict = "⚠️ Fair"
+                    else:
+                        speedup_display = f"✅ {actual_speedup:.2f}x"
+                        verdict = "✅ Good"
+
                     efficiency_data.append({
                         'Model': model.split('/')[-1],
                         'Baseline': f"{base_cores}c",
                         'Comparison': f"{cores}c",
                         'Theoretical Speedup': f"{theoretical_speedup:.1f}x",
-                        'Actual Speedup': f"{actual_speedup:.2f}x",
-                        'Efficiency %': f"{efficiency_pct:.1f}%"
+                        'Actual Speedup': speedup_display,
+                        'Efficiency %': f"{efficiency_pct:.1f}%",
+                        'Verdict': verdict
                     })
 
         if efficiency_data:
@@ -811,9 +859,17 @@ def main():
 
             st.info("""
             **Scaling Efficiency** shows how close actual performance gains are to theoretical (linear) scaling.
-            - **100%** = Perfect linear scaling (doubling cores doubles throughput)
-            - **>80%** = Good scaling efficiency
-            - **<80%** = Diminishing returns, bottlenecks present
+
+            **Verdict Guide:**
+            - ✅ **Good** (≥80%): Excellent scaling - worth adding cores
+            - ⚠️ **Fair** (50-80%): Moderate scaling - some benefit but diminishing returns
+            - ⚠️ **Poor** (<50%): Minimal benefit - cores are underutilized
+            - ❌ **Degraded** (<1.0x speedup): **Performance got WORSE** - overhead exceeds benefit
+
+            **Actual Speedup:**
+            - **<1.0x** means adding cores made it **SLOWER** (avoid this configuration)
+            - **1.0x-2.0x** for doubling cores = partial scaling (check if worth the resources)
+            - **2.0x** for doubling cores = perfect linear scaling (ideal)
             """)
 
         # Best Configuration Summary
