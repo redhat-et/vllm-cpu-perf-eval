@@ -202,11 +202,21 @@ def plot_saturation_curve(df: pd.DataFrame):
 
     # Metrics table
     st.subheader("Baseline Metrics")
-    metrics_display = df[[
-        'parameter', 'request_throughput_rps', 'p99_latency_ms',
-        'mean_latency_ms', 'median_latency_ms'
-    ]].copy()
-    metrics_display.columns = ['Load', 'RPS', 'P99 (ms)', 'Mean (ms)', 'Median (ms)']
+
+    # Check if input_length data exists
+    if 'input_length' in df.columns and df['input_length'].notna().any():
+        metrics_display = df[[
+            'parameter', 'input_length', 'request_throughput_rps', 'p99_latency_ms',
+            'mean_latency_ms', 'median_latency_ms'
+        ]].copy()
+        metrics_display.columns = ['Load', 'Input Len', 'RPS', 'P99 (ms)', 'Mean (ms)', 'Median (ms)']
+    else:
+        metrics_display = df[[
+            'parameter', 'request_throughput_rps', 'p99_latency_ms',
+            'mean_latency_ms', 'median_latency_ms'
+        ]].copy()
+        metrics_display.columns = ['Load', 'RPS', 'P99 (ms)', 'Mean (ms)', 'Median (ms)']
+
     metrics_display = metrics_display.round(2)
     st.dataframe(metrics_display, use_container_width=True)
 
@@ -268,11 +278,21 @@ def plot_concurrent_load(df: pd.DataFrame):
 
     # Metrics table
     st.subheader("Concurrent Load Metrics")
-    concurrent_display = df[[
-        'concurrency', 'request_throughput_rps',
-        'mean_latency_ms', 'median_latency_ms', 'p99_latency_ms'
-    ]].copy()
-    concurrent_display.columns = ['Concurrency', 'RPS', 'Mean (ms)', 'Median (ms)', 'P99 (ms)']
+
+    # Check if input_length data exists
+    if 'input_length' in df.columns and df['input_length'].notna().any():
+        concurrent_display = df[[
+            'concurrency', 'input_length', 'request_throughput_rps',
+            'mean_latency_ms', 'median_latency_ms', 'p99_latency_ms'
+        ]].copy()
+        concurrent_display.columns = ['Concurrency', 'Input Len', 'RPS', 'Mean (ms)', 'Median (ms)', 'P99 (ms)']
+    else:
+        concurrent_display = df[[
+            'concurrency', 'request_throughput_rps',
+            'mean_latency_ms', 'median_latency_ms', 'p99_latency_ms'
+        ]].copy()
+        concurrent_display.columns = ['Concurrency', 'RPS', 'Mean (ms)', 'Median (ms)', 'P99 (ms)']
+
     concurrent_display = concurrent_display.round(2)
     st.dataframe(concurrent_display, use_container_width=True)
 
