@@ -119,15 +119,17 @@ def scan_results_directory(results_dir: Path, model_filter: Optional[str] = None
     Expected structure:
         results/embedding/
         ├── RedHatAI__all-MiniLM-L6-v2/
-        │   ├── baseline-20260602-105959/
-        │   │   ├── sweep-inf.json
-        │   │   ├── sweep-25pct.json
-        │   │   ├── sweep-50pct.json
-        │   │   └── sweep-75pct.json
-        │   └── latency-20260602-110500/
-        │       ├── concurrent-16.json
-        │       ├── concurrent-32.json
-        │       └── ...
+        │   └── 20260602-105959/
+        │       ├── baseline/
+        │       │   ├── sweep-inf.json
+        │       │   ├── sweep-25pct.json
+        │       │   ├── sweep-50pct.json
+        │       │   └── sweep-75pct.json
+        │       ├── latency/
+        │       │   ├── concurrent-16.json
+        │       │   ├── concurrent-32.json
+        │       │   └── ...
+        │       └── test-metadata.json
     """
     rows = []
 
@@ -155,23 +157,29 @@ def scan_results_directory(results_dir: Path, model_filter: Optional[str] = None
             test_run_id = test_run_dir.name
             core_count = extract_core_count(test_run_id)
 
-            # Process all JSON files in this test run
-            for json_file in sorted(test_run_dir.glob('*.json')):
-                result = load_json_result(json_file)
-                if not result:
+            # Process JSON files in baseline/ and latency/ subdirectories
+            for subdir_name in ['baseline', 'latency']:
+                subdir = test_run_dir / subdir_name
+                if not subdir.exists():
                     continue
 
-                test_type, parameter = parse_test_type(json_file.name)
+                # Process all JSON files in this subdirectory
+                for json_file in sorted(subdir.glob('*.json')):
+                    result = load_json_result(json_file)
+                    if not result:
+                        continue
 
-                row = flatten_result(
-                    result=result,
-                    model_name=model_name,
-                    test_run_id=test_run_id,
-                    test_type=test_type,
-                    parameter=parameter,
-                    core_count=core_count
-                )
-                rows.append(row)
+                    test_type, parameter = parse_test_type(json_file.name)
+
+                    row = flatten_result(
+                        result=result,
+                        model_name=model_name,
+                        test_run_id=test_run_id,
+                        test_type=test_type,
+                        parameter=parameter,
+                        core_count=core_count
+                    )
+                    rows.append(row)
 
     return rows
 
