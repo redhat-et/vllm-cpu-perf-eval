@@ -102,6 +102,11 @@ def load_embedding_data(results_dir: str) -> pd.DataFrame:
                         if len(parts) > 2:
                             test_name = '-'.join(parts[:-2])
 
+                    # Calculate derived metrics
+                    rps = result.get('request_throughput', 0)
+                    cores = metadata.get('requested_cores')
+                    rps_per_core = (rps / cores) if cores and cores > 0 else None
+
                     row = {
                         # Metadata
                         'test_run_id': test_run_id,
@@ -123,8 +128,9 @@ def load_embedding_data(results_dir: str) -> pd.DataFrame:
                         'num_prompts': result.get('num_prompts'),
 
                         # Performance metrics
-                        'request_throughput_rps': result.get('request_throughput'),
+                        'request_throughput_rps': rps,
                         'token_throughput_tps': result.get('total_token_throughput'),
+                        'rps_per_core': rps_per_core,
                         'mean_latency_ms': result.get('mean_e2el_ms'),
                         'median_latency_ms': result.get('median_e2el_ms'),
                         'std_latency_ms': result.get('std_e2el_ms'),
@@ -278,10 +284,10 @@ def plot_saturation_curve(df: pd.DataFrame):
     )
 
     metrics_display = display_df[[
-        'config', 'parameter', 'request_throughput_rps', 'token_throughput_tps',
+        'config', 'parameter', 'request_throughput_rps', 'rps_per_core', 'token_throughput_tps',
         'p99_latency_ms', 'mean_latency_ms', 'median_latency_ms'
     ]].copy()
-    metrics_display.columns = ['Configuration', 'Load', 'RPS', 'Token/s', 'P99 (ms)', 'Mean (ms)', 'Median (ms)']
+    metrics_display.columns = ['Configuration', 'Load', 'RPS', 'RPS/Core', 'Token/s', 'P99 (ms)', 'Mean (ms)', 'Median (ms)']
     metrics_display = metrics_display.round(2)
     st.dataframe(metrics_display, use_container_width=True)
 
@@ -413,10 +419,10 @@ def plot_concurrent_load(df: pd.DataFrame):
     )
 
     metrics_display = display_df[[
-        'config', 'concurrency', 'request_throughput_rps', 'token_throughput_tps',
+        'config', 'concurrency', 'request_throughput_rps', 'rps_per_core', 'token_throughput_tps',
         'mean_latency_ms', 'median_latency_ms', 'p99_latency_ms'
     ]].copy()
-    metrics_display.columns = ['Configuration', 'Concurrency', 'RPS', 'Token/s', 'Mean (ms)', 'Median (ms)', 'P99 (ms)']
+    metrics_display.columns = ['Configuration', 'Concurrency', 'RPS', 'RPS/Core', 'Token/s', 'Mean (ms)', 'Median (ms)', 'P99 (ms)']
     metrics_display = metrics_display.round(2)
     st.dataframe(metrics_display, use_container_width=True)
 
@@ -699,6 +705,106 @@ def main():
             plot_saturation_curve(baseline_data)
         else:
             st.info("No baseline saturation data available for selected filters. Run baseline tests to generate this data.")
+
+    st.markdown("---")
+
+    # Scaling Efficiency Analysis
+    baseline_inf_data = filtered_df[
+        (filtered_df['test_type'] == 'baseline') &
+        (filtered_df['parameter'] == 'inf')
+    ]
+
+    if not baseline_inf_data.empty and baseline_inf_data['requested_cores'].nunique() > 1:
+        st.header("📈 Core Scaling Efficiency")
+        st.markdown("How well does throughput scale when adding more CPU cores?")
+
+        # Group by model and cores, get max RPS at inf load
+        scaling_analysis = baseline_inf_data.groupby(['model', 'requested_cores']).agg({
+            'request_throughput_rps': 'max',
+            'rps_per_core': 'max'
+        }).reset_index()
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            # Throughput vs Core Count
+            fig_scaling = px.bar(
+                scaling_analysis,
+                x='requested_cores',
+                y='request_throughput_rps',
+                color='model',
+                barmode='group',
+                title='Max Throughput vs Core Count',
+                labels={
+                    'requested_cores': 'CPU Cores',
+                    'request_throughput_rps': 'Max RPS (at inf load)',
+                    'model': 'Model'
+                },
+                text='request_throughput_rps'
+            )
+            fig_scaling.update_traces(texttemplate='%{text:.1f}', textposition='outside')
+            fig_scaling.update_layout(height=400)
+            st.plotly_chart(fig_scaling, use_container_width=True)
+
+        with col2:
+            # RPS per Core (efficiency)
+            fig_efficiency = px.bar(
+                scaling_analysis,
+                x='requested_cores',
+                y='rps_per_core',
+                color='model',
+                barmode='group',
+                title='Efficiency: RPS per Core',
+                labels={
+                    'requested_cores': 'CPU Cores',
+                    'rps_per_core': 'RPS per Core',
+                    'model': 'Model'
+                },
+                text='rps_per_core'
+            )
+            fig_efficiency.update_traces(texttemplate='%{text:.2f}', textposition='outside')
+            fig_efficiency.update_layout(height=400)
+            st.plotly_chart(fig_efficiency, use_container_width=True)
+
+        # Calculate scaling efficiency
+        st.subheader("Scaling Efficiency Metrics")
+
+        efficiency_data = []
+        for model in scaling_analysis['model'].unique():
+            model_data = scaling_analysis[scaling_analysis['model'] == model].sort_values('requested_cores')
+
+            if len(model_data) > 1:
+                base_row = model_data.iloc[0]
+                base_cores = base_row['requested_cores']
+                base_rps = base_row['request_throughput_rps']
+
+                for _, row in model_data.iloc[1:].iterrows():
+                    cores = row['requested_cores']
+                    rps = row['request_throughput_rps']
+
+                    theoretical_speedup = cores / base_cores
+                    actual_speedup = rps / base_rps
+                    efficiency_pct = (actual_speedup / theoretical_speedup) * 100
+
+                    efficiency_data.append({
+                        'Model': model.split('/')[-1],
+                        'Baseline': f"{base_cores}c",
+                        'Comparison': f"{cores}c",
+                        'Theoretical Speedup': f"{theoretical_speedup:.1f}x",
+                        'Actual Speedup': f"{actual_speedup:.2f}x",
+                        'Efficiency %': f"{efficiency_pct:.1f}%"
+                    })
+
+        if efficiency_data:
+            efficiency_df = pd.DataFrame(efficiency_data)
+            st.dataframe(efficiency_df, use_container_width=True)
+
+            st.info("""
+            **Scaling Efficiency** shows how close actual performance gains are to theoretical (linear) scaling.
+            - **100%** = Perfect linear scaling (doubling cores doubles throughput)
+            - **>80%** = Good scaling efficiency
+            - **<80%** = Diminishing returns, bottlenecks present
+            """)
 
     st.markdown("---")
 
