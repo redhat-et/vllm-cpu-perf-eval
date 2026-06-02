@@ -162,6 +162,25 @@
       ansible.builtin.debug:
         msg: "Available models: {{ models_check.json.data | map(attribute='id') | list }}"
 
+    - name: Get vLLM version
+      ansible.builtin.uri:
+        url: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/version"
+        method: GET
+        status_code: 200
+      register: version_check
+      ignore_errors: true
+
+    - name: Set vLLM version (dut-only mode)
+      ansible.builtin.set_fact:
+        vllm_version: "{{ version_check.json.version | default('unknown') }}"
+      when: version_check is succeeded
+
+    - name: Save vLLM version to localhost for metadata
+      ansible.builtin.set_fact:
+        vllm_version: "{{ vllm_version | default('unknown') }}"
+      delegate_to: localhost
+      delegate_facts: true
+
 # Managed/External modes: Health check from load_generator
 - name: "Phase 2b - Health Check (Managed/External modes)"
   hosts: load_generator
@@ -212,6 +231,25 @@
     - name: Display available models
       ansible.builtin.debug:
         msg: "Available models: {{ models_check.json.data | map(attribute='id') | list }}"
+
+    - name: Get vLLM version
+      ansible.builtin.uri:
+        url: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/version"
+        method: GET
+        status_code: 200
+      register: version_check
+      ignore_errors: true
+
+    - name: Set vLLM version (managed/external mode)
+      ansible.builtin.set_fact:
+        vllm_version: "{{ version_check.json.version | default('unknown') }}"
+      when: version_check is succeeded
+
+    - name: Save vLLM version to localhost for metadata
+      ansible.builtin.set_fact:
+        vllm_version: "{{ vllm_version | default('unknown') }}"
+      delegate_to: localhost
+      delegate_facts: true
 
     - name: Auto-detect model for external mode (if not specified)
       ansible.builtin.set_fact:

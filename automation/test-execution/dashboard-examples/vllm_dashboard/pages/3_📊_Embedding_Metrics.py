@@ -434,10 +434,9 @@ def main():
     with col3:
         # vLLM Mode filter - radio buttons for mutually exclusive choice
         vllm_modes = sorted(df['vllm_mode'].unique())
-        vllm_mode_options = ['All'] + vllm_modes
         selected_vllm_mode = st.radio(
             "vLLM Mode",
-            options=vllm_mode_options,
+            options=vllm_modes,
             horizontal=True,
             help="Execution architecture: managed (2-node), dut-only (single-node), or external (existing endpoint)"
         )
@@ -447,39 +446,31 @@ def main():
 
     with col4:
         # Get unique core counts, filtering out None/NaN
-        core_counts = sorted([c for c in df['requested_cores'].unique() if pd.notna(c)])
-        if core_counts:
-            core_count_options = ['All'] + [str(int(c)) for c in core_counts]
-        else:
-            core_count_options = ['All (no data)']
-        selected_core_count = st.selectbox(
+        core_counts = sorted([int(c) for c in df['requested_cores'].unique() if pd.notna(c)])
+        selected_core_counts = st.multiselect(
             "Core Count",
-            options=core_count_options,
-            help="CPU cores allocated to vLLM (run new test with -e requested_cores=X to populate)",
-            disabled=len(core_count_options) == 1
+            options=core_counts,
+            default=core_counts,
+            help="CPU cores allocated to vLLM"
         )
 
     with col5:
         # Input length filter
-        input_lengths = sorted([i for i in df['input_length'].unique() if pd.notna(i)])
-        if input_lengths:
-            input_length_options = ['All'] + [str(int(i)) for i in input_lengths]
-        else:
-            input_length_options = ['All (no data)']
-        selected_input_length = st.selectbox(
+        input_lengths = sorted([int(i) for i in df['input_length'].unique() if pd.notna(i)])
+        selected_input_lengths = st.multiselect(
             "Input Length",
-            options=input_length_options,
-            help="Random input token length (default: 512)",
-            disabled=len(input_length_options) == 1
+            options=input_lengths,
+            default=input_lengths,
+            help="Random input token length"
         )
 
     with col6:
         # Scenario filter - remove empty strings and deduplicate
         scenarios = sorted(set([s for s in df['scenario'].unique() if s and s.strip()]))
-        scenario_options = ['All'] + scenarios
-        selected_scenario = st.selectbox(
+        selected_scenarios = st.multiselect(
             "Scenario",
-            options=scenario_options,
+            options=scenarios,
+            default=scenarios,
             help="Test scenario: baseline, latency, or all"
         )
 
@@ -489,30 +480,25 @@ def main():
     with col7:
         # Filter out "unknown" and keep only real versions
         vllm_versions = sorted([v for v in df['vllm_version'].unique() if v and v != 'unknown'])
-        if vllm_versions:
-            vllm_version_options = ['All'] + vllm_versions
-        else:
-            vllm_version_options = ['All (unknown)']
-        selected_vllm_version = st.selectbox(
+        selected_vllm_versions = st.multiselect(
             "vLLM Version",
-            options=vllm_version_options,
-            help="vLLM software version (detected automatically)",
-            disabled=len(vllm_version_options) == 1
+            options=vllm_versions,
+            default=vllm_versions,
+            help="vLLM software version (detected automatically)"
         )
 
     with col8:
         # Test name filter - only show if there are custom names
         test_names = sorted([n for n in df['test_name'].unique() if n is not None and n.strip()])
         if test_names:
-            test_name_options = ['All'] + test_names
+            selected_test_names = st.multiselect(
+                "Test Name",
+                options=test_names,
+                default=test_names,
+                help="Custom test configuration name"
+            )
         else:
-            test_name_options = ['All (none set)']
-        selected_test_name = st.selectbox(
-            "Test Name",
-            options=test_name_options,
-            help="Custom test configuration name (use -e test_name=... to set)",
-            disabled=len(test_name_options) == 1
-        )
+            selected_test_names = None
 
     with col9:
         # Date range filter
@@ -547,32 +533,29 @@ def main():
     filtered_df = df[
         (df['model'].isin(selected_models)) &
         (df['platform'].isin(selected_platforms)) &
-        (df['test_run_id'] == selected_test_run)
+        (df['test_run_id'] == selected_test_run) &
+        (df['vllm_mode'] == selected_vllm_mode)
     ]
 
-    # Apply vLLM mode filter if not 'All'
-    if selected_vllm_mode != 'All':
-        filtered_df = filtered_df[filtered_df['vllm_mode'] == selected_vllm_mode]
+    # Apply core count filter (only if data exists)
+    if selected_core_counts:
+        filtered_df = filtered_df[filtered_df['requested_cores'].isin(selected_core_counts)]
 
-    # Apply core count filter if not 'All' and has data
-    if selected_core_count not in ['All', 'All (no data)']:
-        filtered_df = filtered_df[filtered_df['requested_cores'] == int(selected_core_count)]
+    # Apply input length filter (only if data exists)
+    if selected_input_lengths:
+        filtered_df = filtered_df[filtered_df['input_length'].isin(selected_input_lengths)]
 
-    # Apply input length filter if not 'All' and has data
-    if selected_input_length not in ['All', 'All (no data)']:
-        filtered_df = filtered_df[filtered_df['input_length'] == int(selected_input_length)]
+    # Apply scenario filter
+    if selected_scenarios:
+        filtered_df = filtered_df[filtered_df['scenario'].isin(selected_scenarios)]
 
-    # Apply scenario filter if not 'All'
-    if selected_scenario != 'All':
-        filtered_df = filtered_df[filtered_df['scenario'] == selected_scenario]
+    # Apply vLLM version filter
+    if selected_vllm_versions:
+        filtered_df = filtered_df[filtered_df['vllm_version'].isin(selected_vllm_versions)]
 
-    # Apply vLLM version filter if not 'All' and not unknown
-    if selected_vllm_version not in ['All', 'All (unknown)']:
-        filtered_df = filtered_df[filtered_df['vllm_version'] == selected_vllm_version]
-
-    # Apply test name filter if not 'All' and has data
-    if selected_test_name not in ['All', 'All (none set)']:
-        filtered_df = filtered_df[filtered_df['test_name'] == selected_test_name]
+    # Apply test name filter (only if custom names exist)
+    if selected_test_names is not None:
+        filtered_df = filtered_df[filtered_df['test_name'].isin(selected_test_names)]
 
     # Apply date range filter
     if date_range and len(date_range) == 2:
