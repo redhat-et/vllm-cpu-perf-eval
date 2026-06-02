@@ -58,7 +58,7 @@ def parse_test_type(filename: str) -> tuple[str, Optional[str]]:
         return ("baseline", load_level)
     elif stem.startswith('concurrent-'):
         concurrency = stem.replace('concurrent-', '')
-        return ("concurrent", concurrency)
+        return ("concurrency", concurrency)
     else:
         return ("unknown", None)
 
@@ -258,7 +258,7 @@ def main():
         # Print summary
         models = set(r['model'] for r in rows)
         test_types = set(r['test_type'] for r in rows)
-        print(f"\nSummary:")
+        print("\nSummary:")
         print(f"  Models: {len(models)}")
         print(f"  Test types: {', '.join(sorted(test_types))}")
         print(f"  Total metrics: {len(rows)}")

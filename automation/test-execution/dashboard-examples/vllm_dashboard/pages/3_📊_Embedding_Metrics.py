@@ -228,7 +228,9 @@ def plot_concurrent_load(df: pd.DataFrame):
         return
 
     df = df.copy()
-    df['concurrency'] = df['parameter'].astype(int)
+    df['concurrency'] = pd.to_numeric(df['parameter'], errors='coerce')
+    df = df.dropna(subset=['concurrency'])
+    df['concurrency'] = df['concurrency'].astype(int)
     df = df.sort_values('concurrency')
 
     col1, col2 = st.columns(2)
@@ -503,17 +505,22 @@ def main():
     with col9:
         # Date range filter
         if not df['timestamp'].empty:
-            df['date'] = pd.to_datetime(df['timestamp']).dt.date
-            min_date = df['date'].min()
-            max_date = df['date'].max()
+            df['date'] = pd.to_datetime(df['timestamp'], errors='coerce').dt.date
+            valid_dates = df['date'].dropna()
 
-            date_range = st.date_input(
-                "Date Range",
-                value=(min_date, max_date),
-                min_value=min_date,
-                max_value=max_date,
-                help="Filter by test date range"
-            )
+            if not valid_dates.empty:
+                min_date = valid_dates.min()
+                max_date = valid_dates.max()
+
+                date_range = st.date_input(
+                    "Date Range",
+                    value=(min_date, max_date),
+                    min_value=min_date,
+                    max_value=max_date,
+                    help="Filter by test date range"
+                )
+            else:
+                date_range = None
         else:
             date_range = None
 

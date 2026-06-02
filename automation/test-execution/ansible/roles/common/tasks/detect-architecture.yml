@@ -36,14 +36,7 @@
       {%- else -%}
       docker.io/vllm/vllm-openai-cpu:v0.20.0
       {%- endif -%}
-    guidellm_image_default: >-
-      {%- if system_arch.stdout in ['x86_64', 'amd64'] -%}
-      ghcr.io/vllm-project/guidellm:v0.6.0
-      {%- elif system_arch.stdout in ['aarch64', 'arm64'] -%}
-      ghcr.io/vllm-project/guidellm:v0.6.0
-      {%- else -%}
-      ghcr.io/vllm-project/guidellm:v0.6.0
-      {%- endif -%}
+    guidellm_image_default: ghcr.io/vllm-project/guidellm:v0.6.0
 
 - name: Display detected architecture
   ansible.builtin.debug:

@@ -127,7 +127,7 @@ When testing external vLLM deployments (cloud, K8s, production):
 **Typical workflow:**
 ```bash
 # 1. Configure external endpoint
-export VLLM_ENDPOINT_MODE=external
+export VLLM_MODE=external
 export VLLM_ENDPOINT_URL=http://your-endpoint:8000
 
 # 2. Run test (cores not needed in external mode)
@@ -518,12 +518,12 @@ cd automation/test-execution/dashboard-examples
 ### Metrics file missing
 
 ```bash
-# Check if test completed
-find results/llm -name "vllm-metrics.json"
+# Check if test completed (search both llm and embedding results)
+find results/llm results/embedding -name "vllm-metrics.json" 2>/dev/null
 
 # If missing, metrics collection may have failed
 # Check logs:
-tail -f results/llm/*/metrics-collector.log
+tail -f results/llm/*/metrics-collector.log results/embedding/*/logs/metrics-collector.log 2>/dev/null
 ```
 
 ### Grafana shows no data
