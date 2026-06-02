@@ -2,6 +2,17 @@
 # vLLM Server Role - Main Entry Point
 # Determines which vLLM server type to start based on workload
 
+- name: Detect architecture and set defaults
+  ansible.builtin.include_role:
+    name: common
+    tasks_from: detect-architecture
+
+- name: Override container_runtime image if not explicitly set via env var
+  ansible.builtin.set_fact:
+    container_runtime: "{{ container_runtime | combine({'image': vllm_server_image_default}) }}"
+  when:
+    - lookup('env', 'VLLM_CONTAINER_IMAGE') == ''
+
 - name: Validate workload type
   ansible.builtin.assert:
     that:

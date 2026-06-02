@@ -3,10 +3,15 @@
 # General-purpose vllm-bench execution role
 # Can be used for custom vllm-bench tests
 
+- name: Detect architecture and set defaults
+  ansible.builtin.include_role:
+    name: common
+    tasks_from: detect-architecture
+
 - name: Set vllm-bench execution mode
   ansible.builtin.set_fact:
     use_vllm_bench_container: "{{ benchmark_tool.vllm_bench.use_container | default(true) }}"
-    vllm_bench_image: "{{ benchmark_tool.vllm_bench.container_image | default('quay.io/mtahhan/vllm:arm-base-cpu') }}"
+    vllm_bench_image: "{{ benchmark_tool.vllm_bench.container_image | default(vllm_server_image_default) }}"
 
 - name: Display vllm-bench configuration
   ansible.builtin.debug:

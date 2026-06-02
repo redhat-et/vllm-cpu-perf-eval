@@ -6,6 +6,11 @@
 # COMMON SETUP (Both Execution Modes)
 # ============================================================================
 
+- name: Detect architecture and set defaults
+  ansible.builtin.include_role:
+    name: common
+    tasks_from: detect-architecture
+
 - name: Get workload configuration
   ansible.builtin.set_fact:
     workload_cfg: "{{ test_configs[workload_type] }}"
@@ -43,7 +48,7 @@
     guidellm_cfg: "{{ guidellm_cfg | combine({
         'profile': guidellm_profile | default(guidellm_cfg.profile | default('sweep')),
         'rate': _rate_list,
-        'container_image': guidellm_container_image | default(guidellm_cfg.container_image | default('ghcr.io/vllm-project/guidellm:v0.5.3')),
+        'container_image': guidellm_container_image | default(guidellm_cfg.container_image | default(guidellm_image_default)),
         'use_container': (guidellm_use_container if (guidellm_use_container is defined and guidellm_use_container is not none) else (guidellm_cfg.use_container | default(true))),
         'cpuset_cpus': guidellm_cpuset_cpus | default(guidellm_cfg.cpuset_cpus | default('16-31')),
         'cpuset_mems': guidellm_cpuset_mems | default(guidellm_cfg.cpuset_mems | default('0')),

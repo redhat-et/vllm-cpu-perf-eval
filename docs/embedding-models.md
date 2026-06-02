@@ -270,6 +270,49 @@ vllm_bench:
   num_prompts: 250
 ```
 
+## Architecture Support
+
+The framework **automatically detects system architecture** and selects appropriate container images for both the vLLM server (DUT) and benchmark tools (load generator).
+
+### Supported Architectures
+
+| Architecture | vLLM Server Image | vllm-bench/GuideLLM Image |
+|--------------|-------------------|---------------------------|
+| **x86_64/amd64** | `docker.io/vllm/vllm-openai-cpu:v0.20.0` | `docker.io/vllm/vllm-openai-cpu:v0.20.0` |
+| **aarch64/arm64** | `quay.io/mtahhan/vllm:arm-base-cpu` | `quay.io/mtahhan/vllm:arm-base-cpu` |
+
+### How It Works
+
+Architecture detection runs automatically on **both hosts**:
+- **DUT (vLLM Server)**: Detects architecture and selects vLLM server container image
+- **Load Generator**: Detects architecture and selects benchmark tool container image
+
+```bash
+# No special configuration needed - architecture is detected automatically
+export DUT_HOSTNAME=x86-server.example.com
+export LOADGEN_HOSTNAME=arm-loadgen.example.com  # Different architecture? No problem!
+
+ansible-playbook -i inventory/hosts.yml embedding-benchmark.yml \
+  -e "test_model=RedHatAI/granite-embedding-english-r2"
+```
+
+### Override Container Images
+
+To use custom container images, set environment variables:
+
+```bash
+# Override vLLM server image (DUT)
+export VLLM_CONTAINER_IMAGE=your-registry/custom-vllm:latest
+
+# Override vllm-bench image (load generator)
+export VLLM_BENCH_CONTAINER_IMAGE=your-registry/custom-vllm-bench:latest
+
+# Override GuideLLM image (for LLM testing)
+export GUIDELLM_CONTAINER_IMAGE=your-registry/custom-guidellm:latest
+```
+
+**Note**: Environment variable overrides take precedence over architecture auto-detection.
+
 ## Results Collection
 
 Test results are collected in:
