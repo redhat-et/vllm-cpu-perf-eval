@@ -17,6 +17,40 @@
     state: directory
     mode: "0755"
 
+- name: Verify cache directory is writable
+  ansible.builtin.tempfile:
+    state: file
+    path: "{{ model_cache_dir }}"
+    prefix: ".write-test-"
+  register: write_test
+  failed_when: false
+
+- name: Clean up write test file
+  ansible.builtin.file:
+    path: "{{ write_test.path }}"
+    state: absent
+  when: write_test is succeeded
+
+- name: Fail if cache directory is not writable
+  ansible.builtin.fail:
+    msg: |
+      ❌ Cache directory is not writable!
+
+      Location: {{ model_cache_dir }}
+      Error: {{ write_test.msg | default('Permission denied') }}
+
+      Common issues:
+        - Directory requires elevated permissions (consider using /mnt, /data, or ~/cache)
+        - SELinux/AppArmor blocking access (check audit logs)
+        - Filesystem mounted read-only
+        - Insufficient permissions for Ansible user
+
+      Recommendation: Choose a writable location with sufficient space:
+        - Fast local storage: /mnt/nvme/hf-cache or /data/hf-cache
+        - User directory: ~/vllm-models or ~/.cache/huggingface
+        - Shared storage: /mnt/storage/hf-cache (ensure writable)
+  when: write_test is failed
+
 - name: Check if model already exists in cache
   ansible.builtin.stat:
     path: "{{ model_cache_dir }}/hub/models--{{ test_model | replace('/', '--') }}"

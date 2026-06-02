@@ -64,7 +64,7 @@ The task is **automatically skipped** when:
 | Variable | Description | Example |
 |----------|-------------|---------|
 | `test_model` | HuggingFace model ID | `meta-llama/Llama-3.1-8B-Instruct` |
-| `model_cache_dir` | Persistent cache directory | `/mnt/storage/hf-cache` |
+| `model_cache_dir` | Persistent cache directory (see [Choosing a Cache Location](#choosing-a-cache-location)) | `/mnt/nvme/hf-cache` |
 | `use_persistent_cache` | Enable persistent caching | `true` |
 | `hf_token` | HuggingFace token (for gated models) | `hf_xxx...` |
 
@@ -77,6 +77,68 @@ The task is **automatically skipped** when:
 | `model_download_min_space_gb` | `50` | Minimum free disk space (GB) required before download |
 | `model_download_retries` | `3` | Number of retry attempts for failed downloads |
 | `model_download_retry_delay` | `30` | Delay in seconds between retry attempts |
+
+## Choosing a Cache Location
+
+The `model_cache_dir` location is critical for performance and reliability. **Avoid system directories like `/var/lib`** which may have limited space or restricted permissions.
+
+### Recommended Locations
+
+#### 1. Fast Local Storage (Best Performance)
+```yaml
+model_cache_dir: /mnt/nvme/hf-cache     # NVMe SSD
+model_cache_dir: /data/hf-cache         # Dedicated data partition
+```
+- ✅ Fastest model loading times
+- ✅ Best for repeated benchmarks
+- ⚠️ May not persist across node reprovisioning
+
+#### 2. Shared/Network Storage (Best for Multi-Node)
+```yaml
+model_cache_dir: /mnt/storage/hf-cache  # NFS, CIFS, or distributed FS
+```
+- ✅ Share models across multiple DUT nodes
+- ✅ Download once, use everywhere
+- ⚠️ Slower than local storage
+- ⚠️ Check permissions (NFS uid mapping, CIFS credentials)
+
+#### 3. User Home Directory (Development/Testing)
+```yaml
+model_cache_dir: ~/vllm-models          # Expands to user's home
+model_cache_dir: ~/.cache/huggingface   # Standard HF location
+```
+- ✅ No elevated permissions needed
+- ✅ Good for development/testing
+- ⚠️ Limited space on some systems
+- ⚠️ Not shared across users
+
+### Space Requirements
+
+| Model Size | Minimum Free Space | Recommended |
+|------------|-------------------|-------------|
+| Small (< 3B params) | 10 GB | 20 GB |
+| Medium (7-13B params) | 30 GB | 50 GB |
+| Large (30-70B params) | 80 GB | 150 GB |
+| Very Large (70B+ params) | 150 GB | 200 GB |
+
+### Permission Requirements
+
+The directory must be:
+- **Writable** by the Ansible user
+- **Accessible** to containers (SELinux: use `:z` mount option, automatically applied)
+- **Sufficient space** for models + 20% overhead
+
+The playbook automatically:
+1. Creates the directory if it doesn't exist
+2. Verifies write permissions before download
+3. Checks available disk space
+
+### What to Avoid
+
+❌ `/var/lib/vllm-models` - System directory, often small partition
+❌ `/tmp` - May be cleared on reboot, often limited size
+❌ `/` or `/root` - Root filesystem should stay small
+❌ Read-only mounts - Obviously won't work
 
 ## How It Works
 
@@ -183,9 +245,43 @@ ansible-playbook ... -e model_download_min_space_gb=100
 
 ### Permission Issues
 
-**Ensure cache directory has correct permissions:**
+**Error: "Cache directory is not writable"**
+
+This indicates the Ansible user cannot write to the cache directory.
+
+**Quick fixes:**
 ```bash
-chmod 755 {{ model_cache_dir }}
+# Option 1: Use a user-owned directory
+model_cache_dir: ~/vllm-models
+
+# Option 2: Change ownership (if you have sudo)
+sudo chown -R $USER:$USER {{ model_cache_dir }}
+sudo chmod 755 {{ model_cache_dir }}
+
+# Option 3: Use a different location
+model_cache_dir: /mnt/data/hf-cache  # Or wherever you have write access
+```
+
+**SELinux issues (RHEL/Fedora):**
+```bash
+# Check SELinux denials
+sudo ausearch -m avc -ts recent | grep podman
+
+# If needed, set SELinux context (usually automatic with :z flag)
+sudo semanage fcontext -a -t container_file_t "{{ model_cache_dir }}(/.*)?"
+sudo restorecon -Rv {{ model_cache_dir }}
+```
+
+**NFS permission issues:**
+```bash
+# Verify NFS export allows write access
+showmount -e <nfs-server>
+
+# Check mount options include 'rw'
+mount | grep {{ model_cache_dir }}
+
+# May need to adjust NFS export options on server:
+# /export/hf-cache *(rw,sync,no_root_squash,no_subtree_check)
 ```
 
 ## Example Playbook Usage

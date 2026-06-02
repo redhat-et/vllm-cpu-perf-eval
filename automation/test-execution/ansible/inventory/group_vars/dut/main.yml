@@ -24,7 +24,13 @@
 use_persistent_cache: false
 
 # Model cache directory (HuggingFace cache location)
-model_cache_dir: /var/lib/vllm-models
+# IMPORTANT: Choose a location with:
+#   - Sufficient free space (50GB+ for small models, 200GB+ for large models)
+#   - Write permissions for Ansible user
+#   - Fast storage (NVMe/SSD) for best performance
+# Recommended: /mnt/nvme/hf-cache, /data/hf-cache, or ~/vllm-models
+# Avoid: /var/lib (small partition), /tmp (ephemeral)
+model_cache_dir: /var/lib/vllm-models  # Default - override with appropriate location
 
 # Log directory for vLLM container logs
 log_dir: /tmp/vllm-logs
