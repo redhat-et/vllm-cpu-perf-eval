@@ -236,10 +236,10 @@ def plot_saturation_curve(df: pd.DataFrame):
     )
 
     metrics_display = display_df[[
-        'config', 'parameter', 'request_throughput_rps', 'p99_latency_ms',
-        'mean_latency_ms', 'median_latency_ms'
+        'config', 'parameter', 'request_throughput_rps', 'token_throughput_tps',
+        'p99_latency_ms', 'mean_latency_ms', 'median_latency_ms'
     ]].copy()
-    metrics_display.columns = ['Configuration', 'Load', 'RPS', 'P99 (ms)', 'Mean (ms)', 'Median (ms)']
+    metrics_display.columns = ['Configuration', 'Load', 'RPS', 'Token/s', 'P99 (ms)', 'Mean (ms)', 'Median (ms)']
     metrics_display = metrics_display.round(2)
     st.dataframe(metrics_display, use_container_width=True)
 
@@ -358,10 +358,10 @@ def plot_concurrent_load(df: pd.DataFrame):
     )
 
     metrics_display = display_df[[
-        'config', 'concurrency', 'request_throughput_rps',
+        'config', 'concurrency', 'request_throughput_rps', 'token_throughput_tps',
         'mean_latency_ms', 'median_latency_ms', 'p99_latency_ms'
     ]].copy()
-    metrics_display.columns = ['Configuration', 'Concurrency', 'RPS', 'Mean (ms)', 'Median (ms)', 'P99 (ms)']
+    metrics_display.columns = ['Configuration', 'Concurrency', 'RPS', 'Token/s', 'Mean (ms)', 'Median (ms)', 'P99 (ms)']
     metrics_display = metrics_display.round(2)
     st.dataframe(metrics_display, use_container_width=True)
 
