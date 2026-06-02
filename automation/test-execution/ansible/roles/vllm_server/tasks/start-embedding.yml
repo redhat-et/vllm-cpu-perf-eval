@@ -39,6 +39,13 @@
       HF_TOKEN: "{{ hf_token }}"
   no_log: true  # Prevent HF_TOKEN from appearing in logs
 
+- name: Add LD_PRELOAD if specified (for Red Hat AI image)
+  ansible.builtin.set_fact:
+    vllm_env_vars: "{{ vllm_env_vars | combine({'LD_PRELOAD': lookup('env', 'LD_PRELOAD') }) }}"
+  when:
+    - lookup('env', 'LD_PRELOAD') | length > 0
+  no_log: true
+
 - name: Add OMP_NUM_THREADS if specified (ONLY for TP > 1)
   ansible.builtin.set_fact:
     vllm_env_vars: "{{ vllm_env_vars | combine({'OMP_NUM_THREADS': core_cfg.omp_num_threads | string}) }}"
