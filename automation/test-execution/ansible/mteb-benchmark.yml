@@ -9,7 +9,7 @@
 # Prerequisites:
 #   - vLLM server must be running (managed or external mode)
 #   - Model must be loaded and accessible via /v1/embeddings endpoint
-#   - MTEB container image must be built
+#   - MTEB container image available (quay.io or local)
 #
 # Usage:
 #   # Test with managed vLLM (starts vLLM on DUT)
@@ -26,11 +26,14 @@
 #
 # ============================================================================
 
-- name: MTEB Quality Benchmark for Embedding Models
+# ===========================================================================
+# PHASE 0: Validation and Configuration
+# ===========================================================================
+- name: "Phase 0 - Validate Configuration"
   hosts: localhost
   gather_facts: true
   vars:
-    # Test mode: managed (start vLLM), external (use existing endpoint)
+    # Test mode: managed (start vLLM on DUT), external (use existing endpoint)
     vllm_mode: "{{ lookup('env', 'VLLM_MODE') | default('managed', true) }}"
 
     # Model configuration
@@ -38,20 +41,11 @@
 
     # MTEB configuration
     mteb_task_preset: "{{ lookup('env', 'MTEB_TASK_PRESET') | default('quick', true) }}"
-    mteb_tasks: "{{ lookup('env', 'MTEB_TASKS') | default('', true) }}"  # Custom task list (space-separated)
+    mteb_tasks: "{{ lookup('env', 'MTEB_TASKS') | default('', true) }}"
     mteb_languages: "{{ lookup('env', 'MTEB_LANGUAGES') | default('en', true) }}"
 
     # Container configuration
     mteb_container_image: "{{ lookup('env', 'MTEB_CONTAINER_IMAGE') | default('quay.io/vllm-cpu-perf-eval/vllm-mteb:latest', true) }}"
-    mteb_container_name: "mteb-benchmark"
-
-    # Results configuration
-    results_base_dir: "{{ playbook_dir }}/../../../results/mteb"
-    timestamp: "{{ ansible_date_time.date }}T{{ ansible_date_time.time }}"
-
-    # vLLM server configuration (managed mode)
-    vllm_server_host: "{{ lookup('env', 'DUT_HOSTNAME') | default('localhost', true) }}"
-    vllm_server_port: 8000
 
     # External endpoint (external mode)
     vllm_endpoint_url: "{{ lookup('env', 'VLLM_ENDPOINT_URL') | default('', true) }}"
@@ -59,7 +53,7 @@
     # Resource configuration (for managed mode)
     requested_cores: "{{ lookup('env', 'REQUESTED_CORES') | default(16, true) | int }}"
 
-  pre_tasks:
+  tasks:
     - name: Validate test mode
       ansible.builtin.assert:
         that:
@@ -91,13 +85,22 @@
           - "{% if mteb_tasks %}Custom Tasks: {{ mteb_tasks }}{% endif %}"
           - "Languages: {{ mteb_languages }}"
           - "Container: {{ mteb_container_image }}"
+          - "{% if vllm_mode == 'managed' %}DUT: {{ groups['dut'][0] }}{% endif %}"
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-  tasks:
-    # ========================================================================
-    # Managed Mode: Start vLLM Server
-    # ========================================================================
+# ===========================================================================
+# PHASE 1: Start vLLM Server on DUT (Managed Mode Only)
+# ===========================================================================
+- name: "Phase 1 - Start vLLM Server on DUT"
+  hosts: dut
+  gather_facts: true
+  vars:
+    vllm_mode: "{{ lookup('env', 'VLLM_MODE') | default('managed', true) }}"
+    test_model: "{{ lookup('env', 'TEST_MODEL') }}"
+    requested_cores: "{{ lookup('env', 'REQUESTED_CORES') | default(16, true) | int }}"
+    vllm_server_port: 8000
 
+  tasks:
     - name: Start vLLM server (managed mode)
       when: vllm_mode == 'managed'
       block:
@@ -108,13 +111,9 @@
           vars:
             embedding_max_model_len: null  # Use model default
 
-        - name: Set vLLM endpoint for managed mode
-          ansible.builtin.set_fact:
-            vllm_endpoint_url: "http://{{ vllm_server_host }}:{{ vllm_server_port }}"
-
         - name: Wait for vLLM server to be ready
           ansible.builtin.uri:
-            url: "{{ vllm_endpoint_url }}/v1/models"
+            url: "http://{{ ansible_host }}:{{ vllm_server_port }}/v1/models"
             method: GET
             status_code: 200
           register: vllm_health
@@ -122,9 +121,31 @@
           retries: 30
           delay: 2
 
-    # ========================================================================
-    # Run MTEB Benchmark
-    # ========================================================================
+# ===========================================================================
+# PHASE 2: Run MTEB Benchmark
+# ===========================================================================
+- name: "Phase 2 - Run MTEB Benchmark"
+  hosts: localhost
+  gather_facts: true
+  vars:
+    vllm_mode: "{{ lookup('env', 'VLLM_MODE') | default('managed', true) }}"
+    test_model: "{{ lookup('env', 'TEST_MODEL') }}"
+    mteb_task_preset: "{{ lookup('env', 'MTEB_TASK_PRESET') | default('quick', true) }}"
+    mteb_tasks: "{{ lookup('env', 'MTEB_TASKS') | default('', true) }}"
+    mteb_languages: "{{ lookup('env', 'MTEB_LANGUAGES') | default('en', true) }}"
+    mteb_container_image: "{{ lookup('env', 'MTEB_CONTAINER_IMAGE') | default('quay.io/vllm-cpu-perf-eval/vllm-mteb:latest', true) }}"
+    mteb_container_name: "mteb-benchmark"
+    results_base_dir: "{{ playbook_dir }}/../../../results/mteb"
+    timestamp: "{{ ansible_date_time.date }}T{{ ansible_date_time.time }}"
+
+  tasks:
+    - name: Set vLLM endpoint URL
+      ansible.builtin.set_fact:
+        vllm_endpoint_url: "{{ lookup('env', 'VLLM_ENDPOINT_URL') if vllm_mode == 'external' else 'http://' + hostvars[groups['dut'][0]]['ansible_host'] + ':8000' }}"
+
+    - name: Display endpoint being tested
+      ansible.builtin.debug:
+        msg: "Testing vLLM endpoint: {{ vllm_endpoint_url }}"
 
     - name: Create results directory
       ansible.builtin.file:
@@ -154,7 +175,7 @@
         state: started
         detach: false  # Wait for completion
         rm: true       # Remove container after completion
-        network: host  # Access vLLM server via localhost
+        network: host  # Access vLLM server via network
         volumes:
           - "{{ results_base_dir }}:/results:z"
         command: "{{ mteb_command }}"
@@ -171,7 +192,16 @@
           - "Results: {{ results_base_dir }}/{{ test_model | replace('/', '__') }}"
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-  post_tasks:
+# ===========================================================================
+# PHASE 3: Cleanup (Managed Mode Only)
+# ===========================================================================
+- name: "Phase 3 - Cleanup vLLM Server"
+  hosts: dut
+  gather_facts: false
+  vars:
+    vllm_mode: "{{ lookup('env', 'VLLM_MODE') | default('managed', true) }}"
+
+  tasks:
     - name: Stop vLLM server (managed mode)
       when: vllm_mode == 'managed'
       ansible.builtin.include_role:
