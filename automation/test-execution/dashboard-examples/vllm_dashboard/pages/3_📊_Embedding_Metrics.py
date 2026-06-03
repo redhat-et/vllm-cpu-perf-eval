@@ -701,8 +701,102 @@ def plot_mteb_quality_metrics(df: pd.DataFrame):
     - **Clustering**: Document clustering quality (V-measure)
     - **STS**: Semantic textual similarity correlation
 
-    Higher scores indicate better quality.
+    Higher scores indicate better quality. All metrics range from 0 to 1 (or 0 to 100%).
     """)
+
+    with st.expander("📖 Metric Definitions", expanded=False):
+        st.markdown("""
+        ### Classification Metrics
+
+        **Accuracy** (0-1, higher is better)
+        - Percentage of correctly classified text samples
+        - Example: 0.85 = 85% of samples classified correctly
+        - Used in: Banking77Classification, EmotionClassification, ToxicConversations
+
+        **F1 Score** (0-1, higher is better)
+        - Harmonic mean of precision and recall
+        - Balances false positives and false negatives
+        - Useful when class distribution is imbalanced
+
+        **Precision** (0-1, higher is better)
+        - Of all predicted positive cases, how many were actually positive
+        - High precision = fewer false positives
+
+        **Recall** (0-1, higher is better)
+        - Of all actual positive cases, how many were correctly identified
+        - High recall = fewer false negatives
+
+        ---
+
+        ### Retrieval Metrics
+
+        **NDCG@10** (Normalized Discounted Cumulative Gain at 10) (0-1, higher is better)
+        - Measures ranking quality of top 10 retrieved documents
+        - Accounts for position - relevant docs ranked higher score better
+        - 1.0 = perfect ranking, 0.0 = worst possible ranking
+        - Used in: ArguAna, NFCorpus, SCIDOCS retrieval tasks
+
+        **MAP** (Mean Average Precision) (0-1, higher is better)
+        - Average precision across all recall levels
+        - Emphasizes retrieving relevant documents early in results
+        - Commonly used for search quality evaluation
+
+        **MRR** (Mean Reciprocal Rank) (0-1, higher is better)
+        - Average of reciprocal ranks of first relevant document
+        - Example: First relevant doc at position 3 → reciprocal rank = 1/3
+        - Focuses on "first good result" - important for search engines
+
+        ---
+
+        ### Clustering Metrics
+
+        **V-Measure** (0-1, higher is better)
+        - Harmonic mean of homogeneity and completeness
+        - Homogeneity: Each cluster contains only members of a single class
+        - Completeness: All members of a class are in the same cluster
+        - Used in: ArxivClustering, TwentyNewsgroups
+
+        ---
+
+        ### Semantic Similarity Metrics
+
+        **Spearman Correlation** (-1 to 1, closer to 1 is better)
+        - Measures monotonic relationship between predicted and actual similarity
+        - Rank-based: Doesn't require linear relationship
+        - Robust to outliers
+        - Used in: STS12, STS15, STS16 tasks
+
+        **Pearson Correlation** (-1 to 1, closer to 1 is better)
+        - Measures linear relationship between predicted and actual similarity
+        - More sensitive to outliers than Spearman
+        - Assumes normal distribution
+
+        ---
+
+        ### Interpretation Guide
+
+        | Score Range | Classification/V-Measure | Retrieval (NDCG/MAP/MRR) | Correlation (Spearman/Pearson) |
+        |-------------|--------------------------|--------------------------|----------------------------------|
+        | **0.90-1.00** | Excellent | Excellent | Very Strong |
+        | **0.80-0.89** | Very Good | Very Good | Strong |
+        | **0.70-0.79** | Good | Good | Moderate-Strong |
+        | **0.60-0.69** | Fair | Fair | Moderate |
+        | **0.50-0.59** | Weak | Weak | Weak |
+        | **<0.50** | Poor | Poor | Very Weak/None |
+
+        ### Example: Understanding a Score
+
+        **NDCG@10 = 0.72 on ArguAna**
+        - For every query, the top 10 retrieved documents are 72% as good as the perfect ranking
+        - This is a "Good" score - the model ranks relevant documents reasonably high
+        - Room for improvement, but performs well enough for many applications
+
+        **Accuracy = 0.85 on Banking77Classification**
+        - The model correctly identifies the banking query intent 85% of the time
+        - This is "Very Good" - only 15% misclassification rate
+        - Suitable for production use in most scenarios
+        """)
+
 
     # Task filter
     selected_tasks = st.multiselect(
