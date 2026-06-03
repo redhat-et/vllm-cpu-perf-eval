@@ -95,36 +95,63 @@
   hosts: dut
   gather_facts: true
   vars:
-    vllm_mode: "{{ lookup('env', 'VLLM_MODE') | default('managed', true) }}"
-    test_model: "{{ lookup('env', 'TEST_MODEL') }}"
-    requested_cores: "{{ lookup('env', 'REQUESTED_CORES') | default(16, true) | int }}"
-    vllm_server_port: 8000
+    vllm_mode: "{{ hostvars['localhost']['vllm_mode'] }}"
+    test_model: "{{ hostvars['localhost']['test_model'] }}"
+    requested_cores: "{{ hostvars['localhost']['requested_cores'] }}"
 
   tasks:
     - name: Start vLLM server (managed mode)
       when: vllm_mode == 'managed'
-      block:
-        - name: Include vLLM server startup
-          ansible.builtin.include_role:
-            name: vllm_server
-            tasks_from: start-embedding
-          vars:
-            embedding_max_model_len: null  # Use model default
-
-        - name: Wait for vLLM server to be ready
-          ansible.builtin.uri:
-            url: "http://{{ ansible_host }}:{{ vllm_server_port }}/v1/models"
-            method: GET
-            status_code: 200
-          register: vllm_health
-          until: vllm_health.status == 200
-          retries: 30
-          delay: 2
+      ansible.builtin.include_role:
+        name: vllm_server
+        tasks_from: start-embedding
+      vars:
+        embedding_max_model_len: null  # Use model default
 
 # ===========================================================================
-# PHASE 2: Run MTEB Benchmark
+# PHASE 2: Health Check - Wait for vLLM to be Ready
 # ===========================================================================
-- name: "Phase 2 - Run MTEB Benchmark"
+- name: "Phase 2 - Health Check"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    vllm_mode: "{{ lookup('env', 'VLLM_MODE') | default('managed', true) }}"
+    vllm_endpoint_url: "{{ lookup('env', 'VLLM_ENDPOINT_URL') | default('', true) }}"
+
+    # Health check configuration
+    health_check:
+      timeout: 300  # 5 minutes
+      interval: 2   # Check every 2 seconds
+
+  tasks:
+    - name: Set vLLM host for managed mode
+      ansible.builtin.set_fact:
+        bench_config:
+          vllm_host: "{{ hostvars[groups['dut'][0]]['ansible_host'] }}"
+          vllm_port: 8000
+      when: vllm_mode == 'managed'
+
+    - name: Parse external endpoint URL
+      ansible.builtin.set_fact:
+        external_endpoint_parsed: "{{ vllm_endpoint_url | urlsplit }}"
+      when: vllm_mode == 'external'
+
+    - name: Set vLLM host for external mode
+      ansible.builtin.set_fact:
+        bench_config:
+          vllm_host: "{{ external_endpoint_parsed.hostname }}"
+          vllm_port: "{{ external_endpoint_parsed.port | default(8000) | int }}"
+      when: vllm_mode == 'external'
+
+    - name: Run vLLM health check
+      ansible.builtin.include_role:
+        name: common
+        tasks_from: vllm-health-check
+
+# ===========================================================================
+# PHASE 3: Run MTEB Benchmark
+# ===========================================================================
+- name: "Phase 3 - Run MTEB Benchmark"
   hosts: localhost
   gather_facts: true
   vars:
@@ -139,9 +166,9 @@
     timestamp: "{{ ansible_date_time.date }}T{{ ansible_date_time.time }}"
 
   tasks:
-    - name: Set vLLM endpoint URL
+    - name: Build vLLM endpoint URL
       ansible.builtin.set_fact:
-        vllm_endpoint_url: "{{ lookup('env', 'VLLM_ENDPOINT_URL') if vllm_mode == 'external' else 'http://' + hostvars[groups['dut'][0]]['ansible_host'] + ':8000' }}"
+        vllm_endpoint_url: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}"
 
     - name: Display endpoint being tested
       ansible.builtin.debug:
@@ -193,13 +220,13 @@
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # ===========================================================================
-# PHASE 3: Cleanup (Managed Mode Only)
+# PHASE 4: Cleanup (Managed Mode Only)
 # ===========================================================================
-- name: "Phase 3 - Cleanup vLLM Server"
+- name: "Phase 4 - Cleanup vLLM Server"
   hosts: dut
   gather_facts: false
   vars:
-    vllm_mode: "{{ lookup('env', 'VLLM_MODE') | default('managed', true) }}"
+    vllm_mode: "{{ hostvars['localhost']['vllm_mode'] }}"
 
   tasks:
     - name: Stop vLLM server (managed mode)
