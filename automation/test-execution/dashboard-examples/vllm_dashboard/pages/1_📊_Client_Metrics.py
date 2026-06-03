@@ -978,8 +978,9 @@ def render_compare_versions(df: pd.DataFrame):
 
     # Comparison plot
     fig = make_subplots(
-        rows=1, cols=2,
-        subplot_titles=('Throughput Comparison', 'TTFT P95 Comparison')
+        rows=2, cols=1,
+        subplot_titles=('Throughput Comparison', 'TTFT P95 Comparison'),
+        vertical_spacing=0.15
     )
 
     # Create detailed labels with test run info
@@ -1042,15 +1043,15 @@ def render_compare_versions(df: pd.DataFrame):
                 showlegend=False,
                 legendgroup=name
             ),
-            row=1, col=2
+            row=2, col=1
         )
 
     fig.update_xaxes(title_text=selected_x_axis_compare, row=1, col=1)
-    fig.update_xaxes(title_text=selected_x_axis_compare, row=1, col=2)
+    fig.update_xaxes(title_text=selected_x_axis_compare, row=2, col=1)
     fig.update_yaxes(title_text="Throughput (tokens/sec)", row=1, col=1)
-    fig.update_yaxes(title_text="TTFT P95 (ms)", row=1, col=2)
+    fig.update_yaxes(title_text="TTFT P95 (ms)", row=2, col=1)
 
-    fig.update_layout(height=500, hovermode='closest')
+    fig.update_layout(height=900, hovermode='closest')
 
     st.plotly_chart(fig, use_container_width=True)
 

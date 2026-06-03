@@ -47,8 +47,7 @@ test_configs:
     backend: "openai-embeddings"
     vllm_args:
       - "--dtype=auto"            # Fallback dtype - overridden by model-specific dtype
-      - "--max-model-len=512"     # Limit context to input length
-    kv_cache_space: "1GiB"        # Minimal cache (no generation)
+    kv_cache_space: "8GiB"        # Supports large context models (e.g., Qwen3-Embedding-8B with 40K tokens)
 
   # ============================================================================
   # LLM Generative Models - Various Workloads

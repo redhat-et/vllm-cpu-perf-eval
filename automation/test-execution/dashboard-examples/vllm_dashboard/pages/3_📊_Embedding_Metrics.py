@@ -193,13 +193,17 @@ def plot_saturation_curve(df: pd.DataFrame):
         'input_length', 'test_name', 'test_run_id'
     ])
 
-    # Create dual-axis figure
-    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    # Create subplots: 2 rows, 1 column
+    fig = make_subplots(
+        rows=2, cols=1,
+        subplot_titles=('Throughput vs Load', 'Latency vs Load'),
+        vertical_spacing=0.15
+    )
 
     colors = px.colors.qualitative.Set2
     color_idx = 0
 
-    # Order for load levels
+    # Order for load levels (for sorting display)
     load_order = {'inf': 4, '75pct': 3, '50pct': 2, '25pct': 1}
 
     for (platform, model, version, cores, input_len, test_name, test_id), group_df in grouped:
@@ -219,47 +223,68 @@ def plot_saturation_curve(df: pd.DataFrame):
             # Otherwise: model | cores | input_len
             base_label = f"{model_short} | {cores}c | {input_len}tok ({run_id_short})"
 
-        # Throughput trace
+        # Graph 1: Load (x-axis) vs Throughput (y-axis)
         fig.add_trace(
             go.Scatter(
                 x=group_df['parameter'],
                 y=group_df['request_throughput_rps'],
-                name=f"{base_label} - Throughput",
+                name=base_label,
                 mode='lines+markers',
                 marker=dict(size=8, color=colors[color_idx % len(colors)]),
-                line=dict(width=3, color=colors[color_idx % len(colors)])
+                line=dict(width=3, color=colors[color_idx % len(colors)]),
+                legendgroup=base_label
             ),
-            secondary_y=False
+            row=1, col=1
         )
 
-        # P99 Latency trace
+        # Graph 2: Load (x-axis) vs Latency (y-axis)
         fig.add_trace(
             go.Scatter(
                 x=group_df['parameter'],
                 y=group_df['p99_latency_ms'],
-                name=f"{base_label} - P99 Latency",
+                name=base_label,
                 mode='lines+markers',
                 marker=dict(size=8, color=colors[color_idx % len(colors)]),
-                line=dict(width=2, dash='dash', color=colors[color_idx % len(colors)])
+                line=dict(width=3, color=colors[color_idx % len(colors)]),
+                showlegend=False,
+                legendgroup=base_label
             ),
-            secondary_y=True
+            row=2, col=1
         )
 
         color_idx += 1
 
+    # X-axes for both graphs (categorical load levels)
     fig.update_xaxes(
         title_text="Load Level",
         categoryorder='array',
-        categoryarray=['25pct', '50pct', '75pct', 'inf']
+        categoryarray=['25pct', '50pct', '75pct', 'inf'],
+        row=1, col=1
     )
-    fig.update_yaxes(title_text="Request Throughput (req/s)", secondary_y=False)
-    fig.update_yaxes(title_text="P99 Latency (ms)", secondary_y=True)
+    fig.update_xaxes(
+        title_text="Load Level",
+        categoryorder='array',
+        categoryarray=['25pct', '50pct', '75pct', 'inf'],
+        row=2, col=1
+    )
+
+    # Y-axes for metrics
+    fig.update_yaxes(title_text="Request Throughput (req/s)", row=1, col=1)
+    fig.update_yaxes(title_text="P99 Latency (ms)", row=2, col=1)
 
     fig.update_layout(
         title="Saturation Analysis: Throughput & Latency vs Load",
-        hovermode='x unified',
-        height=600,
-        legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02)
+        hovermode='closest',
+        height=1100,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=-0.15,
+            xanchor="center",
+            x=0.5,
+            font=dict(size=10)
+        ),
+        margin=dict(b=200)  # Add bottom margin for legend
     )
 
     st.plotly_chart(fig, use_container_width=True)
@@ -301,8 +326,16 @@ def plot_saturation_curve(df: pd.DataFrame):
     fig_tokens.update_layout(
         title="Token Processing Speed vs Load",
         hovermode='x unified',
-        height=500,
-        legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02)
+        height=650,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=-0.45,
+            xanchor="center",
+            x=0.5,
+            font=dict(size=10)
+        ),
+        margin=dict(b=200)
     )
     st.plotly_chart(fig_tokens, use_container_width=True)
 
@@ -337,27 +370,15 @@ def plot_concurrent_load(df: pd.DataFrame):
     df = df.dropna(subset=['concurrency'])
     df['concurrency'] = df['concurrency'].astype(int)
 
-    # Metric selectors
-    col_selector1, col_selector2 = st.columns(2)
-
-    with col_selector1:
-        throughput_metric = st.radio(
-            "Throughput Metric",
-            options=["RPS", "Token/s"],
-            horizontal=True,
-            help="Select throughput metric: Requests per second or Tokens per second"
-        )
-        throughput_col = 'request_throughput_rps' if throughput_metric == "RPS" else 'token_throughput_tps'
-        throughput_label = "Request Throughput (req/s)" if throughput_metric == "RPS" else "Token Throughput (tokens/s)"
-
-    with col_selector2:
-        latency_metric = st.radio(
-            "Latency Metric",
-            options=["Mean", "P99"],
-            horizontal=True,
-            help="Select which latency metric to display"
-        )
-        latency_col = 'mean_latency_ms' if latency_metric == "Mean" else 'p99_latency_ms'
+    # Throughput metric selector
+    throughput_metric = st.radio(
+        "Throughput Metric",
+        options=["RPS", "Token/s"],
+        horizontal=True,
+        help="Select throughput metric: Requests per second or Tokens per second"
+    )
+    throughput_col = 'request_throughput_rps' if throughput_metric == "RPS" else 'token_throughput_tps'
+    throughput_label = "Request Throughput (req/s)" if throughput_metric == "RPS" else "Token Throughput (tokens/s)"
 
     # Group by test configuration
     grouped = df.groupby([
@@ -368,78 +389,99 @@ def plot_concurrent_load(df: pd.DataFrame):
     colors = px.colors.qualitative.Set2
     color_idx = 0
 
-    col1, col2 = st.columns(2)
+    # Throughput vs concurrency
+    fig1 = go.Figure()
 
-    with col1:
-        # Throughput vs concurrency
-        fig1 = go.Figure()
+    for (_, model, _, cores, input_len, test_name, test_id), group_df in grouped:
+        group_df = group_df.sort_values('concurrency')
 
-        for (_, model, _, cores, input_len, test_name, test_id), group_df in grouped:
-            group_df = group_df.sort_values('concurrency')
+        # Build concise trace label
+        model_short = model.split('/')[-1]
+        run_id_short = test_id[-6:] if len(test_id) >= 6 else test_id
 
-            # Build concise trace label
-            model_short = model.split('/')[-1]
-            run_id_short = test_id[-6:] if len(test_id) >= 6 else test_id
+        if test_name and test_name.strip():
+            label = f"{test_name} ({run_id_short})"
+        else:
+            label = f"{model_short} | {cores}c | {input_len}tok ({run_id_short})"
 
-            if test_name and test_name.strip():
-                label = f"{test_name} ({run_id_short})"
-            else:
-                label = f"{model_short} | {cores}c | {input_len}tok ({run_id_short})"
+        fig1.add_trace(go.Scatter(
+            x=group_df['concurrency'],
+            y=group_df[throughput_col],
+            name=label,
+            mode='lines+markers',
+            marker=dict(size=8, color=colors[color_idx % len(colors)]),
+            line=dict(width=3, color=colors[color_idx % len(colors)])
+        ))
+        color_idx += 1
 
-            fig1.add_trace(go.Scatter(
-                x=group_df['concurrency'],
-                y=group_df[throughput_col],
-                name=label,
-                mode='lines+markers',
-                marker=dict(size=8, color=colors[color_idx % len(colors)]),
-                line=dict(width=3, color=colors[color_idx % len(colors)])
-            ))
-            color_idx += 1
+    fig1.update_layout(
+        title=f"{throughput_metric} vs Concurrency",
+        xaxis_title="Concurrent Requests",
+        yaxis_title=throughput_label,
+        height=650,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=-0.45,
+            xanchor="center",
+            x=0.5,
+            font=dict(size=10)
+        ),
+        margin=dict(b=200)
+    )
+    st.plotly_chart(fig1, use_container_width=True)
 
-        fig1.update_layout(
-            title=f"{throughput_metric} vs Concurrency",
-            xaxis_title="Concurrent Requests",
-            yaxis_title=throughput_label,
-            height=500,
-            legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02)
-        )
-        st.plotly_chart(fig1, use_container_width=True)
+    # Latency metric selector (after throughput graph)
+    latency_metric = st.radio(
+        "Latency Metric",
+        options=["Mean", "P99"],
+        horizontal=True,
+        help="Select which latency metric to display"
+    )
+    latency_col = 'mean_latency_ms' if latency_metric == "Mean" else 'p99_latency_ms'
 
-    with col2:
-        # Latency vs concurrency
-        fig2 = go.Figure()
-        color_idx = 0
+    # Latency vs concurrency
+    fig2 = go.Figure()
+    color_idx = 0
 
-        for (_, model, _, cores, input_len, test_name, test_id), group_df in grouped:
-            group_df = group_df.sort_values('concurrency')
+    for (_, model, _, cores, input_len, test_name, test_id), group_df in grouped:
+        group_df = group_df.sort_values('concurrency')
 
-            # Build concise trace label
-            model_short = model.split('/')[-1]
-            run_id_short = test_id[-6:] if len(test_id) >= 6 else test_id
+        # Build concise trace label
+        model_short = model.split('/')[-1]
+        run_id_short = test_id[-6:] if len(test_id) >= 6 else test_id
 
-            if test_name and test_name.strip():
-                label = f"{test_name} ({run_id_short})"
-            else:
-                label = f"{model_short} | {cores}c | {input_len}tok ({run_id_short})"
+        if test_name and test_name.strip():
+            label = f"{test_name} ({run_id_short})"
+        else:
+            label = f"{model_short} | {cores}c | {input_len}tok ({run_id_short})"
 
-            fig2.add_trace(go.Scatter(
-                x=group_df['concurrency'],
-                y=group_df[latency_col],
-                name=label,
-                mode='lines+markers',
-                marker=dict(size=8, color=colors[color_idx % len(colors)]),
-                line=dict(width=3, color=colors[color_idx % len(colors)])
-            ))
-            color_idx += 1
+        fig2.add_trace(go.Scatter(
+            x=group_df['concurrency'],
+            y=group_df[latency_col],
+            name=label,
+            mode='lines+markers',
+            marker=dict(size=8, color=colors[color_idx % len(colors)]),
+            line=dict(width=3, color=colors[color_idx % len(colors)])
+        ))
+        color_idx += 1
 
-        fig2.update_layout(
-            title=f"{latency_metric} Latency vs Concurrency",
-            xaxis_title="Concurrent Requests",
-            yaxis_title=f"{latency_metric} Latency (ms)",
-            height=500,
-            legend=dict(orientation="v", yanchor="top", y=1, xanchor="left", x=1.02)
-        )
-        st.plotly_chart(fig2, use_container_width=True)
+    fig2.update_layout(
+        title=f"{latency_metric} Latency vs Concurrency",
+        xaxis_title="Concurrent Requests",
+        yaxis_title=f"{latency_metric} Latency (ms)",
+        height=650,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=-0.45,
+            xanchor="center",
+            x=0.5,
+            font=dict(size=10)
+        ),
+        margin=dict(b=200)
+    )
+    st.plotly_chart(fig2, use_container_width=True)
 
     # Metrics table for all configurations
     st.subheader("Concurrent Load Metrics (All Configurations)")
@@ -767,47 +809,43 @@ def main():
             'rps_per_core': 'max'
         }).reset_index()
 
-        col1, col2 = st.columns(2)
+        # Throughput vs Core Count
+        fig_scaling = px.bar(
+            scaling_analysis,
+            x='requested_cores',
+            y='request_throughput_rps',
+            color='model',
+            barmode='group',
+            title='Max Throughput vs Core Count',
+            labels={
+                'requested_cores': 'CPU Cores',
+                'request_throughput_rps': 'Max RPS (at inf load)',
+                'model': 'Model'
+            },
+            text='request_throughput_rps'
+        )
+        fig_scaling.update_traces(texttemplate='%{text:.1f}', textposition='outside')
+        fig_scaling.update_layout(height=400)
+        st.plotly_chart(fig_scaling, use_container_width=True)
 
-        with col1:
-            # Throughput vs Core Count
-            fig_scaling = px.bar(
-                scaling_analysis,
-                x='requested_cores',
-                y='request_throughput_rps',
-                color='model',
-                barmode='group',
-                title='Max Throughput vs Core Count',
-                labels={
-                    'requested_cores': 'CPU Cores',
-                    'request_throughput_rps': 'Max RPS (at inf load)',
-                    'model': 'Model'
-                },
-                text='request_throughput_rps'
-            )
-            fig_scaling.update_traces(texttemplate='%{text:.1f}', textposition='outside')
-            fig_scaling.update_layout(height=400)
-            st.plotly_chart(fig_scaling, use_container_width=True)
-
-        with col2:
-            # RPS per Core (efficiency)
-            fig_efficiency = px.bar(
-                scaling_analysis,
-                x='requested_cores',
-                y='rps_per_core',
-                color='model',
-                barmode='group',
-                title='Efficiency: RPS per Core',
-                labels={
-                    'requested_cores': 'CPU Cores',
-                    'rps_per_core': 'RPS per Core',
-                    'model': 'Model'
-                },
-                text='rps_per_core'
-            )
-            fig_efficiency.update_traces(texttemplate='%{text:.2f}', textposition='outside')
-            fig_efficiency.update_layout(height=400)
-            st.plotly_chart(fig_efficiency, use_container_width=True)
+        # RPS per Core (efficiency)
+        fig_efficiency = px.bar(
+            scaling_analysis,
+            x='requested_cores',
+            y='rps_per_core',
+            color='model',
+            barmode='group',
+            title='Efficiency: RPS per Core',
+            labels={
+                'requested_cores': 'CPU Cores',
+                'rps_per_core': 'RPS per Core',
+                'model': 'Model'
+            },
+            text='rps_per_core'
+        )
+        fig_efficiency.update_traces(texttemplate='%{text:.2f}', textposition='outside')
+        fig_efficiency.update_layout(height=400)
+        st.plotly_chart(fig_efficiency, use_container_width=True)
 
         # Calculate scaling efficiency
         st.subheader("Scaling Efficiency Metrics")
