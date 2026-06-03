@@ -42,7 +42,7 @@
     mteb_languages: "{{ lookup('env', 'MTEB_LANGUAGES') | default('en', true) }}"
 
     # Container configuration
-    mteb_container_image: "{{ lookup('env', 'MTEB_CONTAINER_IMAGE') | default('vllm-mteb:latest', true) }}"
+    mteb_container_image: "{{ lookup('env', 'MTEB_CONTAINER_IMAGE') | default('quay.io/vllm-cpu-perf-eval/vllm-mteb:latest', true) }}"
     mteb_container_name: "mteb-benchmark"
 
     # Results configuration
