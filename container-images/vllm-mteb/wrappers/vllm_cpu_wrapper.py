@@ -44,8 +44,6 @@ class VllmCPUEncoderWrapper(AbsEncoder):
         max_retries: Maximum number of retries for failed requests
     """
 
-    mteb_model_meta = None
-
     def __init__(
         self,
         endpoint_url: str,
@@ -64,15 +62,33 @@ class VllmCPUEncoderWrapper(AbsEncoder):
     ):
         """Initialize the vLLM CPU wrapper."""
         self.endpoint_url = endpoint_url.rstrip("/")
-        self.model_name = model_name
         self.api_key = api_key
-        self.revision = revision
         self.prompts_dict = prompt_dict
         self.use_instructions = use_instructions
         self.instruction_template = instruction_template
         self.apply_instruction_to_passages = apply_instruction_to_documents
         self.timeout = timeout
         self.max_retries = max_retries
+
+        # MTEB looks for these attributes directly for result organization
+        self.model_name = model_name
+        self.revision = revision if revision else "main"
+
+        # Set MTEB model metadata for proper result organization
+        try:
+            from mteb.model_meta import ModelMeta
+            self.mteb_model_meta = ModelMeta(
+                name=self.model_name,
+                revision=self.revision,
+                release_date=None,
+                languages=None,
+            )
+        except ImportError:
+            # Fallback: set as simple dict if ModelMeta not available
+            self.mteb_model_meta = {
+                "name": self.model_name,
+                "revision": self.revision,
+            }
 
         if use_instructions and instruction_template is None:
             raise ValueError(

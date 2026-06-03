@@ -16,7 +16,7 @@
   gather_facts: false
   vars:
     vllm_mode: "{{ hostvars['localhost']['vllm_mode'] }}"
-    vllm_container_name: "{{ vllm_container_name | default('vllm-server') }}"
+    vllm_container_name: "{{ hostvars['localhost']['vllm_container_name'] | default('vllm-server') }}"
 
   tasks:
     - name: Check if cleanup needed

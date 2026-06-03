@@ -167,7 +167,6 @@
           - "{{ results_base_dir }}:/results:z"
         command: "{{ mteb_command }}"
       register: mteb_result
-      failed_when: mteb_result.rc != 0
 
     - name: Display MTEB results
       ansible.builtin.debug:

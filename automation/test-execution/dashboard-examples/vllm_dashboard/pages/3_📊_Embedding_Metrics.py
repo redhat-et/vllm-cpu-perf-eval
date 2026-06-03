@@ -1044,11 +1044,11 @@ def main():
     has_quality = not mteb_df.empty
 
     if has_performance and has_quality:
-        tab1, tab2, tab3 = st.tabs(["🔀 Concurrent Load", "📊 Saturation Analysis", "🎯 MTEB Quality"])
+        tab1, tab2, tab3, tab4 = st.tabs(["🔀 Concurrent Load", "📊 Saturation Analysis", "⚙️ Core Scaling", "🎯 MTEB Quality"])
     elif has_performance:
-        tab1, tab2 = st.tabs(["🔀 Concurrent Load", "📊 Saturation Analysis"])
+        tab1, tab2, tab3 = st.tabs(["🔀 Concurrent Load", "📊 Saturation Analysis", "⚙️ Core Scaling"])
     elif has_quality:
-        tab3 = st.container()
+        tab4 = st.container()
         st.markdown("### 🎯 MTEB Quality Metrics")
     else:
         st.warning("No data available")
@@ -1069,164 +1069,168 @@ def main():
             else:
                 st.info("No baseline saturation data available for selected filters. Run baseline tests to generate this data.")
 
-    if has_quality:
         with tab3:
-            plot_mteb_quality_metrics(mteb_df)
+            # ==============================================================================
+            # Core Scaling Analysis Section
+            # ==============================================================================
 
-    st.markdown("---")
+            st.markdown("*Analyze how performance scales when adding more CPU cores (baseline data at max load)*")
 
-    # Scaling Efficiency Analysis
-    baseline_inf_data = filtered_df[
-        (filtered_df['test_type'] == 'baseline') &
-        (filtered_df['parameter'] == 'inf')
-    ]
+            baseline_inf_data = filtered_df[
+                (filtered_df['test_type'] == 'baseline') &
+                (filtered_df['parameter'] == 'inf')
+            ]
 
-    if not baseline_inf_data.empty and baseline_inf_data['requested_cores'].nunique() > 1:
-        st.header("📈 Core Scaling Efficiency")
-        st.markdown("How well does throughput scale when adding more CPU cores?")
+            if not baseline_inf_data.empty and baseline_inf_data['requested_cores'].nunique() > 1:
+                st.subheader("📈 Throughput Scaling")
+                st.markdown("How well does throughput scale when adding more CPU cores?")
 
-        # Group by model and cores, get max RPS at inf load
-        scaling_analysis = baseline_inf_data.groupby(['model', 'requested_cores']).agg({
-            'request_throughput_rps': 'max',
-            'rps_per_core': 'max'
-        }).reset_index()
+                # Group by model and cores, get max RPS at inf load
+                scaling_analysis = baseline_inf_data.groupby(['model', 'requested_cores']).agg({
+                    'request_throughput_rps': 'max',
+                    'rps_per_core': 'max'
+                }).reset_index()
 
-        # Throughput vs Core Count
-        fig_scaling = px.bar(
-            scaling_analysis,
-            x='requested_cores',
-            y='request_throughput_rps',
-            color='model',
-            barmode='group',
-            title='Max Throughput vs Core Count',
-            labels={
-                'requested_cores': 'CPU Cores',
-                'request_throughput_rps': 'Max RPS (at inf load)',
-                'model': 'Model'
-            },
-            text='request_throughput_rps'
-        )
-        fig_scaling.update_traces(texttemplate='%{text:.1f}', textposition='outside')
-        fig_scaling.update_layout(height=400)
-        st.plotly_chart(fig_scaling, use_container_width=True)
+                # Throughput vs Core Count
+                fig_scaling = px.bar(
+                    scaling_analysis,
+                    x='requested_cores',
+                    y='request_throughput_rps',
+                    color='model',
+                    barmode='group',
+                    title='Max Throughput vs Core Count',
+                    labels={
+                        'requested_cores': 'CPU Cores',
+                        'request_throughput_rps': 'Max RPS (at inf load)',
+                        'model': 'Model'
+                    },
+                    text='request_throughput_rps'
+                )
+                fig_scaling.update_traces(texttemplate='%{text:.1f}', textposition='outside')
+                fig_scaling.update_layout(height=400)
+                st.plotly_chart(fig_scaling, use_container_width=True)
 
-        # RPS per Core (efficiency)
-        fig_efficiency = px.bar(
-            scaling_analysis,
-            x='requested_cores',
-            y='rps_per_core',
-            color='model',
-            barmode='group',
-            title='Efficiency: RPS per Core',
-            labels={
-                'requested_cores': 'CPU Cores',
-                'rps_per_core': 'RPS per Core',
-                'model': 'Model'
-            },
-            text='rps_per_core'
-        )
-        fig_efficiency.update_traces(texttemplate='%{text:.2f}', textposition='outside')
-        fig_efficiency.update_layout(height=400)
-        st.plotly_chart(fig_efficiency, use_container_width=True)
+                # RPS per Core (efficiency)
+                fig_efficiency = px.bar(
+                    scaling_analysis,
+                    x='requested_cores',
+                    y='rps_per_core',
+                    color='model',
+                    barmode='group',
+                    title='Efficiency: RPS per Core',
+                    labels={
+                        'requested_cores': 'CPU Cores',
+                        'rps_per_core': 'RPS per Core',
+                        'model': 'Model'
+                    },
+                    text='rps_per_core'
+                )
+                fig_efficiency.update_traces(texttemplate='%{text:.2f}', textposition='outside')
+                fig_efficiency.update_layout(height=400)
+                st.plotly_chart(fig_efficiency, use_container_width=True)
 
-        # Calculate scaling efficiency
-        st.subheader("Scaling Efficiency Metrics")
+                # Calculate scaling efficiency
+                st.subheader("Scaling Efficiency Metrics")
 
-        efficiency_data = []
-        for model in scaling_analysis['model'].unique():
-            model_data = scaling_analysis[scaling_analysis['model'] == model].sort_values('requested_cores')
+                efficiency_data = []
+                for model in scaling_analysis['model'].unique():
+                    model_data = scaling_analysis[scaling_analysis['model'] == model].sort_values('requested_cores')
 
-            if len(model_data) > 1:
-                base_row = model_data.iloc[0]
-                base_cores = base_row['requested_cores']
-                base_rps = base_row['request_throughput_rps']
+                    if len(model_data) > 1:
+                        base_row = model_data.iloc[0]
+                        base_cores = base_row['requested_cores']
+                        base_rps = base_row['request_throughput_rps']
 
-                for _, row in model_data.iloc[1:].iterrows():
-                    cores = row['requested_cores']
-                    rps = row['request_throughput_rps']
+                        for _, row in model_data.iloc[1:].iterrows():
+                            cores = row['requested_cores']
+                            rps = row['request_throughput_rps']
 
-                    theoretical_speedup = cores / base_cores
-                    actual_speedup = rps / base_rps
-                    efficiency_pct = (actual_speedup / theoretical_speedup) * 100
+                            theoretical_speedup = cores / base_cores
+                            actual_speedup = rps / base_rps
+                            efficiency_pct = (actual_speedup / theoretical_speedup) * 100
 
-                    # Add visual indicator for degraded performance
-                    if actual_speedup < 1.0:
-                        speedup_display = f"❌ {actual_speedup:.2f}x (SLOWER)"
-                        verdict = "❌ Degraded"
-                    elif efficiency_pct < 50:
-                        speedup_display = f"⚠️ {actual_speedup:.2f}x"
-                        verdict = "⚠️ Poor"
-                    elif efficiency_pct < 80:
-                        speedup_display = f"{actual_speedup:.2f}x"
-                        verdict = "⚠️ Fair"
-                    else:
-                        speedup_display = f"✅ {actual_speedup:.2f}x"
-                        verdict = "✅ Good"
+                            # Add visual indicator for degraded performance
+                            if actual_speedup < 1.0:
+                                speedup_display = f"❌ {actual_speedup:.2f}x (SLOWER)"
+                                verdict = "❌ Degraded"
+                            elif efficiency_pct < 50:
+                                speedup_display = f"⚠️ {actual_speedup:.2f}x"
+                                verdict = "⚠️ Poor"
+                            elif efficiency_pct < 80:
+                                speedup_display = f"{actual_speedup:.2f}x"
+                                verdict = "⚠️ Fair"
+                            else:
+                                speedup_display = f"✅ {actual_speedup:.2f}x"
+                                verdict = "✅ Good"
 
-                    efficiency_data.append({
-                        'Model': model.split('/')[-1],
-                        'Baseline': f"{base_cores}c",
-                        'Comparison': f"{cores}c",
-                        'Theoretical Speedup': f"{theoretical_speedup:.1f}x",
-                        'Actual Speedup': speedup_display,
-                        'Efficiency %': f"{efficiency_pct:.1f}%",
-                        'Verdict': verdict
+                            efficiency_data.append({
+                                'Model': model.split('/')[-1],
+                                'Baseline': f"{base_cores}c",
+                                'Comparison': f"{cores}c",
+                                'Theoretical Speedup': f"{theoretical_speedup:.1f}x",
+                                'Actual Speedup': speedup_display,
+                                'Efficiency %': f"{efficiency_pct:.1f}%",
+                                'Verdict': verdict
+                            })
+
+                if efficiency_data:
+                    efficiency_df = pd.DataFrame(efficiency_data)
+                    st.dataframe(efficiency_df, use_container_width=True)
+
+                    st.info("""
+                    **Scaling Efficiency** shows how close actual performance gains are to theoretical (linear) scaling.
+
+                    **Verdict Guide:**
+                    - ✅ **Good** (≥80%): Excellent scaling - worth adding cores
+                    - ⚠️ **Fair** (50-80%): Moderate scaling - some benefit but diminishing returns
+                    - ⚠️ **Poor** (<50%): Minimal benefit - cores are underutilized
+                    - ❌ **Degraded** (<1.0x speedup): **Performance got WORSE** - overhead exceeds benefit
+
+                    **Actual Speedup:**
+                    - **<1.0x** means adding cores made it **SLOWER** (avoid this configuration)
+                    - **1.0x-2.0x** for doubling cores = partial scaling (check if worth the resources)
+                    - **2.0x** for doubling cores = perfect linear scaling (ideal)
+                    """)
+
+                # Best Configuration Summary
+                st.subheader("🎯 Best Configurations")
+
+                best_configs = []
+                for model in scaling_analysis['model'].unique():
+                    model_data = scaling_analysis[scaling_analysis['model'] == model].copy()
+
+                    # Find best throughput (highest RPS)
+                    best_throughput_row = model_data.loc[model_data['request_throughput_rps'].idxmax()]
+                    best_throughput_cores = int(best_throughput_row['requested_cores'])
+                    best_throughput_rps = best_throughput_row['request_throughput_rps']
+
+                    # Find best efficiency (highest RPS per core)
+                    best_efficiency_row = model_data.loc[model_data['rps_per_core'].idxmax()]
+                    best_efficiency_cores = int(best_efficiency_row['requested_cores'])
+                    best_efficiency_rps_per_core = best_efficiency_row['rps_per_core']
+                    best_efficiency_rps = best_efficiency_row['request_throughput_rps']
+
+                    model_short = model.split('/')[-1]
+
+                    best_configs.append({
+                        'Model': model_short,
+                        'Best Throughput': f"{best_throughput_cores}c @ {best_throughput_rps:.1f} RPS",
+                        'Best Efficiency': f"{best_efficiency_cores}c @ {best_efficiency_rps_per_core:.2f} RPS/core ({best_efficiency_rps:.1f} RPS)"
                     })
 
-        if efficiency_data:
-            efficiency_df = pd.DataFrame(efficiency_data)
-            st.dataframe(efficiency_df, use_container_width=True)
+                if best_configs:
+                    config_df = pd.DataFrame(best_configs)
+                    st.dataframe(config_df, use_container_width=True, hide_index=True)
 
-            st.info("""
-            **Scaling Efficiency** shows how close actual performance gains are to theoretical (linear) scaling.
+                    st.markdown("""
+                    **How to choose:**
+                    - **Best Throughput**: Maximum RPS - use when you need highest absolute performance
+                    - **Best Efficiency**: Lowest resource usage per request - use for cost optimization or when running multiple instances
+                    """)
 
-            **Verdict Guide:**
-            - ✅ **Good** (≥80%): Excellent scaling - worth adding cores
-            - ⚠️ **Fair** (50-80%): Moderate scaling - some benefit but diminishing returns
-            - ⚠️ **Poor** (<50%): Minimal benefit - cores are underutilized
-            - ❌ **Degraded** (<1.0x speedup): **Performance got WORSE** - overhead exceeds benefit
-
-            **Actual Speedup:**
-            - **<1.0x** means adding cores made it **SLOWER** (avoid this configuration)
-            - **1.0x-2.0x** for doubling cores = partial scaling (check if worth the resources)
-            - **2.0x** for doubling cores = perfect linear scaling (ideal)
-            """)
-
-        # Best Configuration Summary
-        st.subheader("🎯 Best Configurations")
-
-        best_configs = []
-        for model in scaling_analysis['model'].unique():
-            model_data = scaling_analysis[scaling_analysis['model'] == model].copy()
-
-            # Find best throughput (highest RPS)
-            best_throughput_row = model_data.loc[model_data['request_throughput_rps'].idxmax()]
-            best_throughput_cores = int(best_throughput_row['requested_cores'])
-            best_throughput_rps = best_throughput_row['request_throughput_rps']
-
-            # Find best efficiency (highest RPS per core)
-            best_efficiency_row = model_data.loc[model_data['rps_per_core'].idxmax()]
-            best_efficiency_cores = int(best_efficiency_row['requested_cores'])
-            best_efficiency_rps_per_core = best_efficiency_row['rps_per_core']
-            best_efficiency_rps = best_efficiency_row['request_throughput_rps']
-
-            model_short = model.split('/')[-1]
-
-            best_configs.append({
-                'Model': model_short,
-                'Best Throughput': f"{best_throughput_cores}c @ {best_throughput_rps:.1f} RPS",
-                'Best Efficiency': f"{best_efficiency_cores}c @ {best_efficiency_rps_per_core:.2f} RPS/core ({best_efficiency_rps:.1f} RPS)"
-            })
-
-        if best_configs:
-            config_df = pd.DataFrame(best_configs)
-            st.dataframe(config_df, use_container_width=True, hide_index=True)
-
-            st.markdown("""
-            **How to choose:**
-            - **Best Throughput**: Maximum RPS - use when you need highest absolute performance
-            - **Best Efficiency**: Lowest resource usage per request - use for cost optimization or when running multiple instances
-            """)
+    if has_quality:
+        with tab4:
+            plot_mteb_quality_metrics(mteb_df)
 
     st.markdown("---")
 
