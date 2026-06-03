@@ -3,8 +3,6 @@ layout: default
 title: MTEB Troubleshooting
 ---
 
-# MTEB Troubleshooting Guide
-
 ## MTEB Results Not Showing in Dashboard
 
 ### Issue
@@ -69,7 +67,7 @@ for file in *.json; do
   if [ "$file" != "run_summary.json" ] && [ "$file" != "model_meta.json" ]; then
     task_name="${file%.json}"
     mkdir -p "$task_name"
-    
+
     # Create test.json with simplified structure
     jq '{test: .scores.test[0]}' "$file" > "$task_name/test.json"
   fi

@@ -3,11 +3,9 @@ layout: default
 title: MTEB Quality Testing - Quick Start Guide
 ---
 
-# MTEB Model Sweep - Quick Start Guide
-
 ## Quick Answer: Timing
 
-**TL;DR:**  
+**TL;DR:**
 - **Quick test (2 tasks)**: ~10-25 minutes for all 5 models
 - **Comprehensive (5 tasks)**: ~100-150 minutes (1.7-2.5 hours) for all 5 models
 

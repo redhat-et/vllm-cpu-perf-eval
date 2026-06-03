@@ -3,8 +3,6 @@ layout: default
 title: Scripts Reference
 ---
 
-# Scripts Reference Guide
-
 Complete reference for all test execution and utility scripts in the repository.
 
 ## High-Level Test Execution Scripts
@@ -84,7 +82,7 @@ cd automation/test-execution/scripts
 | clustering | 2 | 40-75 min |
 | comprehensive | 5 | 100-150 min |
 
-**Full Documentation:** 
+**Full Documentation:**
 - Run `./bash/run-mteb-model-sweep.sh --help`
 - [MTEB Sweep Guide](mteb-sweep-guide.md)
 - [MTEB Timing Guide](mteb-timing-guide.md)
@@ -383,5 +381,5 @@ All scripts support `--help`:
 ```
 
 For issues or questions:
-- GitHub Issues: https://github.com/redhat-et/vllm-cpu-perf-eval/issues
-- Documentation: https://redhat-et.github.io/vllm-cpu-perf-eval/
+- GitHub Issues: <https://github.com/redhat-et/vllm-cpu-perf-eval/issues>
+- Documentation: <https://redhat-et.github.io/vllm-cpu-perf-eval/>

@@ -3,8 +3,6 @@ layout: default
 title: MTEB Timing Guide
 ---
 
-# MTEB Quality Test Timing Guide
-
 ## Quick Reference
 
 | Test Preset | Tasks | Per-Model Time | 5 Models Total |

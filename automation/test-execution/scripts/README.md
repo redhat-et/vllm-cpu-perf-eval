@@ -336,7 +336,7 @@ python python/convert-embedding-results.py --output my-results.csv
 When adding new high-level test execution scripts:
 
 1. Place bash scripts in `bash/` directory
-2. Place Python scripts in `python/` directory  
+2. Place Python scripts in `python/` directory
 3. Make scripts executable: `chmod +x script-name.sh`
 4. Add `--help` option with detailed usage
 5. Update this README with description and examples
