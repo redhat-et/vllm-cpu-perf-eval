@@ -280,8 +280,8 @@ def plot_saturation_curve(df: pd.DataFrame):
     # Create subplots: 2 rows, 1 column
     fig = make_subplots(
         rows=2, cols=1,
-        subplot_titles=('Throughput vs Load', 'Latency vs Load'),
-        vertical_spacing=0.15
+        subplot_titles=('Throughput vs Load', 'E2E Latency vs Load'),
+        vertical_spacing=0.25
     )
 
     colors = px.colors.qualitative.Set2
@@ -354,21 +354,21 @@ def plot_saturation_curve(df: pd.DataFrame):
 
     # Y-axes for metrics
     fig.update_yaxes(title_text="Request Throughput (req/s)", row=1, col=1)
-    fig.update_yaxes(title_text="P99 Latency (ms)", row=2, col=1)
+    fig.update_yaxes(title_text="P99 E2E Latency (ms)", row=2, col=1)
 
     fig.update_layout(
-        title="Saturation Analysis: Throughput & Latency vs Load",
+        title="Saturation Analysis: Throughput & E2E Latency vs Load",
         hovermode='closest',
-        height=1100,
+        height=1200,
         legend=dict(
             orientation="h",
             yanchor="bottom",
-            y=-0.15,
+            y=-0.25,
             xanchor="center",
             x=0.5,
             font=dict(size=10)
         ),
-        margin=dict(b=200)  # Add bottom margin for legend
+        margin=dict(b=400)  # Add bottom margin for legend
     )
 
     st.plotly_chart(fig, use_container_width=True)
@@ -517,14 +517,14 @@ def plot_concurrent_load(df: pd.DataFrame):
 
     # Latency metric selector (after throughput graph)
     latency_metric = st.radio(
-        "Latency Metric",
+        "E2E Latency Metric",
         options=["Mean", "P99"],
         horizontal=True,
-        help="Select which latency metric to display"
+        help="Select which E2E latency metric to display"
     )
     latency_col = 'mean_latency_ms' if latency_metric == "Mean" else 'p99_latency_ms'
 
-    # Latency vs concurrency
+    # E2E Latency vs concurrency
     fig2 = go.Figure()
     color_idx = 0
 
@@ -551,9 +551,9 @@ def plot_concurrent_load(df: pd.DataFrame):
         color_idx += 1
 
     fig2.update_layout(
-        title=f"{latency_metric} Latency vs Concurrency",
+        title=f"{latency_metric} E2E Latency vs Concurrency",
         xaxis_title="Concurrent Requests",
-        yaxis_title=f"{latency_metric} Latency (ms)",
+        yaxis_title=f"{latency_metric} E2E Latency (ms)",
         height=650,
         legend=dict(
             orientation="h",
@@ -629,11 +629,11 @@ def plot_model_comparison(df: pd.DataFrame, models: list, test_type: str):
             comparison_df,
             x='model',
             y='p99_latency_ms',
-            title='P99 Latency Comparison',
+            title='P99 E2E Latency Comparison',
             text='p99_latency_ms'
         )
         fig2.update_traces(texttemplate='%{text:.2f}', textposition='outside')
-        fig2.update_layout(xaxis_title="Model", yaxis_title="P99 Latency (ms)", height=400)
+        fig2.update_layout(xaxis_title="Model", yaxis_title="P99 E2E Latency (ms)", height=400)
         st.plotly_chart(fig2, use_container_width=True)
 
     # Comparison table
@@ -824,7 +824,7 @@ def main():
         st.markdown("**Performance Metrics:**")
         st.markdown("""
         - Request Throughput (req/s)
-        - End-to-End Latency (P50, P99)
+        - E2E Latency (P50, P99)
         - Token Processing Speed
         - Concurrent Request Handling
         """)

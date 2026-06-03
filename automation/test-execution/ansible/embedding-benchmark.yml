@@ -18,9 +18,11 @@
   hosts: localhost
   gather_facts: false
   tasks:
-    - name: Set vLLM mode
+    - name: Set configuration variables
       ansible.builtin.set_fact:
         vllm_mode: "{{ lookup('env', 'VLLM_MODE') | default(vllm_endpoint.mode | default('managed'), true) }}"
+        test_model: "{{ lookup('env', 'TEST_MODEL') | default(test_model | default('RedHatAI/granite-embedding-english-r2'), true) }}"
+        requested_cores: "{{ lookup('env', 'REQUESTED_CORES') | default(requested_cores | default(16), true) | int }}"
 
     - name: Validate vLLM mode
       ansible.builtin.assert:
@@ -62,6 +64,7 @@
         msg:
           - "Test Run ID: {{ test_run_id }}"
           - "vLLM Mode: {{ vllm_mode }}"
+          - "Model: {{ test_model }}"
           - "{{ 'DUT Host: ' + groups['dut'][0] if vllm_mode in ['managed', 'dut-only'] else 'External Endpoint: ' + vllm_endpoint.external.url }}"
           - "{{ 'Load Generator Host: ' + groups['load_generator'][0] if vllm_mode == 'managed' else 'Test Host: ' + (groups['dut'][0] if vllm_mode == 'dut-only' else groups['load_generator'][0]) }}"
 
@@ -69,22 +72,19 @@
 # PHASE 1: Prepare and Start vLLM Server on DUT
 # ==============================================================================
 
-- name: "Phase 1 - Start vLLM Server on DUT"
+- name: "Phase 1a - Detect Platform"
   hosts: dut
   become: true
   gather_facts: false
-  vars:
-    test_model: "{{ test_model | default('RedHatAI/granite-embedding-english-r2') }}"
-    workload_type: embedding
 
   tasks:
-    - name: Check if vLLM management needed
+    - name: Check if platform detection needed
       ansible.builtin.set_fact:
-        skip_vllm_management: "{{ hostvars['localhost']['vllm_mode'] == 'external' }}"
+        skip_platform_detection: "{{ hostvars['localhost']['vllm_mode'] == 'external' }}"
 
     - name: End play if external mode
       ansible.builtin.meta: end_play
-      when: skip_vllm_management | bool
+      when: skip_platform_detection | bool
 
     - name: Get CPU model name for platform identification
       ansible.builtin.shell: |
@@ -109,9 +109,8 @@
           - "Platform detected: {{ cpu_model_raw.stdout | trim }}"
           - "Sanitized: {{ dut_platform_name }}"
 
-    - name: Start vLLM server
-      ansible.builtin.include_role:
-        name: vllm_server
+- name: "Phase 1b - Start vLLM Embedding Server"
+  ansible.builtin.import_playbook: common/vllm-embedding-startup.yml
 
 # ==============================================================================
 # PHASE 2: Health Check - Wait for vLLM to be Ready
@@ -412,32 +411,8 @@
         log_filename_prefix: "vllm-server"
 
 # ==============================================================================
-# PHASE 5: Cleanup (Optional)
+# PHASE 5: Cleanup
 # ==============================================================================
 
-- name: "Phase 5 - Cleanup (if requested)"
-  hosts: dut
-  become: true
-  vars:
-    cleanup: "{{ cleanup_after_test | default(false) }}"
-
-  tasks:
-    - name: Check if cleanup needed
-      ansible.builtin.set_fact:
-        skip_cleanup: "{{ hostvars['localhost']['vllm_mode'] == 'external' }}"
-
-    - name: End play if external mode
-      ansible.builtin.meta: end_play
-      when: skip_cleanup | bool
-
-    - name: Stop and remove vLLM container
-      containers.podman.podman_container:
-        name: vllm-embedding-server
-        state: absent
-      when:
-        - cleanup | bool
-        - container_runtime.engine == 'podman'
-
-    - name: Display cleanup status
-      ansible.builtin.debug:
-        msg: "vLLM server {{ 'stopped and removed' if cleanup else 'still running - use cleanup_after_test=true to cleanup' }}"
+- name: "Phase 5 - Cleanup vLLM Server"
+  ansible.builtin.import_playbook: common/vllm-embedding-cleanup.yml

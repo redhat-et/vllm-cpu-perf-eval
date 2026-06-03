@@ -42,7 +42,7 @@
     # MTEB configuration
     mteb_task_preset: "{{ lookup('env', 'MTEB_TASK_PRESET') | default('quick', true) }}"
     mteb_tasks: "{{ lookup('env', 'MTEB_TASKS') | default('', true) }}"
-    mteb_languages: "{{ lookup('env', 'MTEB_LANGUAGES') | default('en', true) }}"
+    mteb_languages: "{{ lookup('env', 'MTEB_LANGUAGES') | default('eng', true) }}"
 
     # Container configuration
     mteb_container_image: "{{ lookup('env', 'MTEB_CONTAINER_IMAGE') | default('quay.io/vllm-cpu-perf-eval/vllm-mteb:latest', true) }}"
@@ -54,7 +54,7 @@
     requested_cores: "{{ lookup('env', 'REQUESTED_CORES') | default(16, true) | int }}"
 
   tasks:
-    - name: Set vllm_mode as fact
+    - name: Set configuration as facts
       ansible.builtin.set_fact:
         vllm_mode: "{{ vllm_mode }}"
         test_model: "{{ test_model }}"
@@ -100,86 +100,35 @@
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # ===========================================================================
-# PHASE 1: Start vLLM Server on DUT (Managed Mode Only)
+# PHASE 1-2: Common vLLM Lifecycle (Startup & Health Check)
 # ===========================================================================
-- name: "Phase 1 - Start vLLM Server on DUT"
-  hosts: dut
-  gather_facts: true
-  vars:
-    vllm_mode: "{{ hostvars['localhost']['vllm_mode'] }}"
-    test_model: "{{ hostvars['localhost']['test_model'] }}"
-    requested_cores: "{{ hostvars['localhost']['requested_cores'] }}"
+- name: Import vLLM embedding server startup
+  ansible.builtin.import_playbook: common/vllm-embedding-startup.yml
 
-  tasks:
-    - name: Start vLLM server (managed mode)
-      when: vllm_mode == 'managed'
-      ansible.builtin.include_role:
-        name: vllm_server
-        tasks_from: start-embedding
-      vars:
-        embedding_max_model_len: null  # Use model default
-
-# ===========================================================================
-# PHASE 2: Health Check - Wait for vLLM to be Ready
-# ===========================================================================
-- name: "Phase 2 - Health Check"
-  hosts: localhost
-  gather_facts: false
-  vars:
-    vllm_mode: "{{ lookup('env', 'VLLM_MODE') | default('managed', true) }}"
-    vllm_endpoint_url: "{{ lookup('env', 'VLLM_ENDPOINT_URL') | default('', true) }}"
-
-    # Health check configuration
-    health_check:
-      timeout: 300  # 5 minutes
-      interval: 2   # Check every 2 seconds
-
-  tasks:
-    - name: Set vLLM host for managed mode
-      ansible.builtin.set_fact:
-        bench_config:
-          vllm_host: "{{ hostvars[groups['dut'][0]]['ansible_host'] }}"
-          vllm_port: 8000
-      when: vllm_mode == 'managed'
-
-    - name: Parse external endpoint URL
-      ansible.builtin.set_fact:
-        external_endpoint_parsed: "{{ vllm_endpoint_url | urlsplit }}"
-      when: vllm_mode == 'external'
-
-    - name: Set vLLM host for external mode
-      ansible.builtin.set_fact:
-        bench_config:
-          vllm_host: "{{ external_endpoint_parsed.hostname }}"
-          vllm_port: "{{ external_endpoint_parsed.port | default(8000) | int }}"
-      when: vllm_mode == 'external'
-
-    - name: Run vLLM health check
-      ansible.builtin.include_role:
-        name: common
-        tasks_from: vllm-health-check
+- name: Import vLLM health check
+  ansible.builtin.import_playbook: common/vllm-embedding-health-check.yml
 
 # ===========================================================================
 # PHASE 3: Run MTEB Benchmark
 # ===========================================================================
 - name: "Phase 3 - Run MTEB Benchmark"
-  hosts: localhost
+  hosts: dut
+  become: true
   gather_facts: true
   vars:
-    vllm_mode: "{{ lookup('env', 'VLLM_MODE') | default('managed', true) }}"
-    test_model: "{{ lookup('env', 'TEST_MODEL') }}"
-    mteb_task_preset: "{{ lookup('env', 'MTEB_TASK_PRESET') | default('quick', true) }}"
-    mteb_tasks: "{{ lookup('env', 'MTEB_TASKS') | default('', true) }}"
-    mteb_languages: "{{ lookup('env', 'MTEB_LANGUAGES') | default('en', true) }}"
-    mteb_container_image: "{{ lookup('env', 'MTEB_CONTAINER_IMAGE') | default('quay.io/vllm-cpu-perf-eval/vllm-mteb:latest', true) }}"
+    vllm_mode: "{{ hostvars['localhost']['vllm_mode'] }}"
+    test_model: "{{ hostvars['localhost']['test_model'] }}"
+    mteb_task_preset: "{{ hostvars['localhost']['mteb_task_preset'] }}"
+    mteb_tasks: "{{ hostvars['localhost']['mteb_tasks'] }}"
+    mteb_languages: "{{ hostvars['localhost']['mteb_languages'] }}"
+    mteb_container_image: "{{ hostvars['localhost']['mteb_container_image'] }}"
     mteb_container_name: "mteb-benchmark"
-    results_base_dir: "{{ playbook_dir }}/../../../results/mteb"
-    timestamp: "{{ ansible_date_time.date }}T{{ ansible_date_time.time }}"
+    results_base_dir: "/tmp/mteb-results"
 
   tasks:
-    - name: Build vLLM endpoint URL
+    - name: Build vLLM endpoint URL (localhost for single-node)
       ansible.builtin.set_fact:
-        vllm_endpoint_url: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}"
+        vllm_endpoint_url: "http://localhost:{{ hostvars['localhost']['bench_config']['vllm_port'] }}"
 
     - name: Display endpoint being tested
       ansible.builtin.debug:
@@ -231,17 +180,32 @@
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # ===========================================================================
-# PHASE 4: Cleanup (Managed Mode Only)
+# PHASE 4: Fetch Results to Local Machine
 # ===========================================================================
-- name: "Phase 4 - Cleanup vLLM Server"
+- name: "Phase 4 - Fetch MTEB Results"
   hosts: dut
   gather_facts: false
   vars:
-    vllm_mode: "{{ hostvars['localhost']['vllm_mode'] }}"
+    results_base_dir: "/tmp/mteb-results"
+    local_results_dir: "{{ playbook_dir }}/../../../results/mteb"
 
   tasks:
-    - name: Stop vLLM server (managed mode)
-      when: vllm_mode == 'managed'
-      ansible.builtin.include_role:
-        name: vllm_server
-        tasks_from: stop
+    - name: Ensure local results directory exists
+      ansible.builtin.file:
+        path: "{{ local_results_dir }}"
+        state: directory
+        mode: "0755"
+      delegate_to: localhost
+
+    - name: Fetch results to local machine
+      ansible.posix.synchronize:
+        src: "{{ results_base_dir }}/"
+        dest: "{{ local_results_dir }}/"
+        mode: pull
+        recursive: true
+
+# ===========================================================================
+# PHASE 5: Common Cleanup
+# ===========================================================================
+- name: Import vLLM cleanup
+  ansible.builtin.import_playbook: common/vllm-embedding-cleanup.yml

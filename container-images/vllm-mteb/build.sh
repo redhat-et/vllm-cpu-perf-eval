@@ -3,11 +3,11 @@
 # Build MTEB benchmark container for vLLM CPU testing
 #
 # Usage:
-#   ./build-container.sh [image-name] [--push]
+#   ./build.sh [image-name] [--push]
 #
 # Examples:
-#   ./build-container.sh vllm-mteb:latest
-#   ./build-container.sh quay.io/vllm-cpu-perf-eval/vllm-mteb:latest --push
+#   ./build.sh vllm-mteb:latest
+#   ./build.sh quay.io/vllm-cpu-perf-eval/vllm-mteb:latest --push
 #
 
 set -e
@@ -82,6 +82,6 @@ if [ "$PUSH_IMAGE" = false ]; then
     echo ""
     echo "To push to Quay.io:"
     echo "  podman login quay.io"
-    echo "  ./build-container.sh --push"
+    echo "  ./build.sh --push"
 fi
 echo ""

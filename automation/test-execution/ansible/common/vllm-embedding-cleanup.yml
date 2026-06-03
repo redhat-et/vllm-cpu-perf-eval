@@ -1,0 +1,43 @@
+---
+# ===========================================================================
+# Common: Cleanup vLLM Embedding Server
+# ===========================================================================
+# This playbook stops and cleans up the vLLM embedding server on DUT.
+# Shared by embedding-benchmark.yml and mteb-benchmark.yml.
+#
+# Expected variables from calling playbook:
+#   - vllm_mode: managed|dut-only|external
+#
+# ===========================================================================
+
+- name: "Cleanup vLLM Server"
+  hosts: dut
+  become: true
+  gather_facts: false
+  vars:
+    vllm_mode: "{{ hostvars['localhost']['vllm_mode'] }}"
+    vllm_container_name: "{{ vllm_container_name | default('vllm-server') }}"
+
+  tasks:
+    - name: Check if cleanup needed
+      ansible.builtin.set_fact:
+        skip_cleanup: "{{ vllm_mode == 'external' }}"
+
+    - name: End play if external mode
+      ansible.builtin.meta: end_play
+      when: skip_cleanup | bool
+
+    - name: Stop and remove vLLM container (managed/dut-only modes)
+      containers.podman.podman_container:
+        name: "{{ vllm_container_name }}"
+        state: absent
+      when:
+        - vllm_mode in ['managed', 'dut-only']
+        - container_runtime.engine == 'podman'
+      register: cleanup_result
+      ignore_errors: true
+
+    - name: Display cleanup status
+      ansible.builtin.debug:
+        msg: "✓ vLLM server stopped and removed"
+      when: cleanup_result is succeeded

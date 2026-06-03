@@ -128,8 +128,8 @@ def parse_args():
         "--languages",
         type=str,
         nargs="+",
-        default=["en"],
-        help="Languages to filter tasks by (default: en)",
+        default=["eng"],
+        help="Languages to filter tasks by (ISO 639-3 codes, default: eng for English)",
     )
 
     parser.add_argument(

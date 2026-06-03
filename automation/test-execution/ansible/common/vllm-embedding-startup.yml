@@ -1,0 +1,39 @@
+---
+# ===========================================================================
+# Common: Start vLLM Embedding Server on DUT (Managed Mode Only)
+# ===========================================================================
+# This playbook starts a vLLM server for embedding models on the DUT.
+# Shared by embedding-benchmark.yml and mteb-benchmark.yml.
+#
+# Expected variables from calling playbook:
+#   - vllm_mode: managed|dut-only|external
+#   - test_model: Model to load
+#   - requested_cores: Number of cores to allocate
+#
+# ===========================================================================
+
+- name: "Start vLLM Embedding Server on DUT"
+  hosts: dut
+  become: true
+  gather_facts: true
+  vars:
+    vllm_mode: "{{ hostvars['localhost']['vllm_mode'] }}"
+    test_model: "{{ hostvars['localhost']['test_model'] }}"
+    requested_cores: "{{ hostvars['localhost']['requested_cores'] }}"
+    workload_type: embedding
+
+  tasks:
+    - name: Check if vLLM startup needed
+      ansible.builtin.set_fact:
+        skip_vllm_startup: "{{ vllm_mode == 'external' }}"
+
+    - name: End play if external mode
+      ansible.builtin.meta: end_play
+      when: skip_vllm_startup | bool
+
+    - name: Start vLLM embedding server
+      ansible.builtin.include_role:
+        name: vllm_server
+        tasks_from: start-embedding
+      vars:
+        embedding_max_model_len: null  # Use model default

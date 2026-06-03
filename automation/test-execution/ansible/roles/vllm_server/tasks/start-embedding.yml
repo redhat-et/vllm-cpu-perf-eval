@@ -117,7 +117,7 @@
       --host {{ vllm_server.host }}
       --port {{ vllm_server.port }}
       --dtype bfloat16
-      {{ ('--max-model-len ' + (embedding_max_model_len | string)) if embedding_max_model_len is defined else '' }}
+      {{ ('--max-model-len ' + (embedding_max_model_len | string)) if (embedding_max_model_len is defined and embedding_max_model_len is not none) else '' }}
       {{ '--trust-remote-code' if (trust_remote_code | default(false) | bool) else '' }}
     log_driver: journald
     log_opt:
@@ -148,7 +148,7 @@
       --host {{ vllm_server.host }}
       --port {{ vllm_server.port }}
       --dtype bfloat16
-      {{ ('--max-model-len ' + (embedding_max_model_len | string)) if embedding_max_model_len is defined else '' }}
+      {{ ('--max-model-len ' + (embedding_max_model_len | string)) if (embedding_max_model_len is defined and embedding_max_model_len is not none) else '' }}
       {{ '--trust-remote-code' if (trust_remote_code | default(false) | bool) else '' }}
     log_driver: journald
     log_opt:
