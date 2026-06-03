@@ -63,8 +63,15 @@ class VllmCPUEncoderWrapper(AbsEncoder):
         max_retries: int = 3,
         batch_size: int = 32,
         verify_ssl: bool = True,
+        max_length: int | None = None,
     ):
-        """Initialize the vLLM CPU wrapper."""
+        """Initialize the vLLM CPU wrapper.
+
+        Args:
+            max_length: Maximum sequence length. If provided, texts will be truncated
+                       to this length before sending to vLLM. If None, uses model's
+                       default (may cause errors for long inputs).
+        """
         self.endpoint_url = endpoint_url.rstrip("/")
         self.api_key = api_key
         self.prompts_dict = prompt_dict
@@ -75,6 +82,7 @@ class VllmCPUEncoderWrapper(AbsEncoder):
         self.max_retries = max_retries
         self.batch_size = batch_size
         self.verify_ssl = verify_ssl
+        self.max_length = max_length
 
         # MTEB looks for these attributes directly for result organization
         self.model_name = model_name
@@ -102,7 +110,7 @@ class VllmCPUEncoderWrapper(AbsEncoder):
         self._verify_server()
 
     def _verify_server(self) -> None:
-        """Verify that the vLLM server is reachable."""
+        """Verify that the vLLM server is reachable and get model info."""
         try:
             response = requests.get(
                 f"{self.endpoint_url}/v1/models",
@@ -125,6 +133,20 @@ class VllmCPUEncoderWrapper(AbsEncoder):
                     f"Successfully connected to vLLM server. "
                     f"Model: {self.model_name}"
                 )
+
+                # Auto-detect max_length from model info if not provided
+                if self.max_length is None:
+                    for model in models.get("data", []):
+                        if model["id"] == self.model_name:
+                            # vLLM returns max_model_len in model metadata
+                            max_model_len = model.get("max_model_len")
+                            if max_model_len:
+                                self.max_length = max_model_len
+                                logger.info(
+                                    f"Auto-detected max_length={self.max_length} "
+                                    f"from model metadata"
+                                )
+                            break
 
         except Exception as e:
             raise ConnectionError(
@@ -152,6 +174,11 @@ class VllmCPUEncoderWrapper(AbsEncoder):
             "input": texts,
             "encoding_format": "float",
         }
+
+        # Add truncation parameter if max_length is set
+        # This tells vLLM to truncate inputs to model's max length
+        if self.max_length:
+            payload["truncate_prompt_tokens"] = self.max_length
 
         for attempt in range(self.max_retries):
             try:

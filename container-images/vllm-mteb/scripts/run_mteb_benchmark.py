@@ -152,6 +152,13 @@ def parse_args():
         help="Disable SSL certificate verification",
     )
 
+    parser.add_argument(
+        "--max-length",
+        type=int,
+        default=None,
+        help="Maximum sequence length for truncation (default: use model's max)",
+    )
+
     return parser.parse_args()
 
 
@@ -240,6 +247,7 @@ def run_benchmark(args):
         timeout=args.timeout,
         batch_size=args.batch_size,
         verify_ssl=args.verify_ssl,
+        max_length=args.max_length,
     )
 
     # Get tasks
