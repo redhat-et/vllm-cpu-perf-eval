@@ -12,12 +12,16 @@
     use_vllm_bench_container: "{{ benchmark_tool.vllm_bench.use_container | default(true) | bool }}"
     vllm_bench_image: "{{ benchmark_tool.vllm_bench.container_image | default(vllm_server_image_default) }}"
     num_prompts: "{{ benchmark_tool.vllm_bench.num_prompts | default(250) }}"
+    vllm_bench_cpuset_cpus: "{{ vllm_bench_cpus | default(benchmark_tool.vllm_bench.cpuset_cpus | default('')) }}"
+    vllm_bench_cpuset_mems: "{{ vllm_bench_numa_node | default(benchmark_tool.vllm_bench.cpuset_mems | default('')) }}"
 
 - name: Build vllm-bench command prefix
   ansible.builtin.set_fact:
     vllm_bench_prefix: >-
       {% if use_vllm_bench_container %}
       podman run --rm --entrypoint="" --network host
+      {% if vllm_bench_cpuset_cpus %}--cpuset-cpus {{ vllm_bench_cpuset_cpus }}{% endif %}
+      {% if vllm_bench_cpuset_mems %}--cpuset-mems {{ vllm_bench_cpuset_mems }}{% endif %}
       -v "{{ bench_config.results_dir }}":"{{ bench_config.results_dir }}":z
       {{ vllm_bench_image }}
       /opt/venv/bin/vllm bench serve
