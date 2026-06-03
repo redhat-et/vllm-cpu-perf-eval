@@ -22,13 +22,15 @@ WORKDIR /workspace
 # Install Python dependencies
 RUN pip install --upgrade pip setuptools wheel
 
-# Install MTEB and dependencies
+# Install PyTorch CPU version first
+RUN pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+# Install MTEB and other dependencies from PyPI
 RUN pip install \
     mteb \
     numpy \
     pandas \
     requests \
-    torch --index-url https://download.pytorch.org/whl/cpu \
     sentence-transformers
 
 # Copy custom vLLM CPU wrapper
