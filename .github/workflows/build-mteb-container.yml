@@ -68,7 +68,7 @@ jobs:
 
       - name: Push container image
         if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/container/'))
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v7
         with:
           context: ./container-images/vllm-mteb
           push: true

@@ -39,9 +39,11 @@ class VllmCPUEncoderWrapper(AbsEncoder):
         prompt_dict: A dictionary mapping task names to prompt strings
         use_instructions: Whether to use instructions from the prompt_dict
         instruction_template: A template or callable to format instructions
-        apply_instruction_to_documents: Whether to apply instructions to documents
+        apply_instruction_to_documents: Whether to apply instructions
         timeout: Request timeout in seconds
         max_retries: Maximum number of retries for failed requests
+        batch_size: Batch size for processing embeddings
+        verify_ssl: Whether to verify SSL certificates (default: True)
     """
 
     def __init__(
@@ -59,6 +61,8 @@ class VllmCPUEncoderWrapper(AbsEncoder):
         apply_instruction_to_documents: bool = True,
         timeout: int = 300,
         max_retries: int = 3,
+        batch_size: int = 32,
+        verify_ssl: bool = True,
     ):
         """Initialize the vLLM CPU wrapper."""
         self.endpoint_url = endpoint_url.rstrip("/")
@@ -69,6 +73,8 @@ class VllmCPUEncoderWrapper(AbsEncoder):
         self.apply_instruction_to_passages = apply_instruction_to_documents
         self.timeout = timeout
         self.max_retries = max_retries
+        self.batch_size = batch_size
+        self.verify_ssl = verify_ssl
 
         # MTEB looks for these attributes directly for result organization
         self.model_name = model_name
@@ -101,6 +107,7 @@ class VllmCPUEncoderWrapper(AbsEncoder):
             response = requests.get(
                 f"{self.endpoint_url}/v1/models",
                 timeout=10,
+                verify=self.verify_ssl,
             )
             response.raise_for_status()
             models = response.json()
@@ -112,13 +119,17 @@ class VllmCPUEncoderWrapper(AbsEncoder):
                     f"Model '{self.model_name}' not found in server. "
                     f"Available models: {available_models}"
                 )
-                # Still allow initialization - model name might be an alias
+                # Still allow initialization - model name might be alias
             else:
-                logger.info(f"Successfully connected to vLLM server. Model: {self.model_name}")
+                logger.info(
+                    f"Successfully connected to vLLM server. "
+                    f"Model: {self.model_name}"
+                )
 
         except Exception as e:
             raise ConnectionError(
-                f"Failed to connect to vLLM server at {self.endpoint_url}: {e}"
+                f"Failed to connect to vLLM server at "
+                f"{self.endpoint_url}: {e}"
             ) from e
 
     def _get_embeddings(self, texts: list[str]) -> Array:
@@ -149,6 +160,7 @@ class VllmCPUEncoderWrapper(AbsEncoder):
                     json=payload,
                     headers=headers,
                     timeout=self.timeout,
+                    verify=self.verify_ssl,
                 )
                 response.raise_for_status()
 
@@ -165,17 +177,23 @@ class VllmCPUEncoderWrapper(AbsEncoder):
             except requests.exceptions.Timeout:
                 if attempt < self.max_retries - 1:
                     logger.warning(
-                        f"Request timeout (attempt {attempt + 1}/{self.max_retries}). Retrying..."
+                        f"Request timeout "
+                        f"(attempt {attempt + 1}/{self.max_retries}). "
+                        f"Retrying..."
                     )
                     continue
                 raise
             except requests.exceptions.RequestException as e:
                 if attempt < self.max_retries - 1:
                     logger.warning(
-                        f"Request failed (attempt {attempt + 1}/{self.max_retries}): {e}. Retrying..."
+                        f"Request failed "
+                        f"(attempt {attempt + 1}/{self.max_retries}): {e}. "
+                        f"Retrying..."
                     )
                     continue
-                raise RuntimeError(f"Failed to get embeddings from vLLM server: {e}") from e
+                raise RuntimeError(
+                    f"Failed to get embeddings from vLLM server: {e}"
+                ) from e
 
     def encode(
         self,
@@ -232,12 +250,14 @@ class VllmCPUEncoderWrapper(AbsEncoder):
         texts = [prompt + text for batch in inputs for text in batch["text"]]
 
         # Process in batches to avoid overwhelming the server
-        batch_size = 32  # Adjust based on server capacity
         all_embeddings = []
 
-        for i in range(0, len(texts), batch_size):
-            batch_texts = texts[i : i + batch_size]
-            logger.debug(f"Processing batch {i // batch_size + 1} ({len(batch_texts)} texts)")
+        for i in range(0, len(texts), self.batch_size):
+            batch_texts = texts[i : i + self.batch_size]
+            logger.debug(
+                f"Processing batch {i // self.batch_size + 1} "
+                f"({len(batch_texts)} texts)"
+            )
             batch_embeddings = self._get_embeddings(batch_texts)
             all_embeddings.append(batch_embeddings)
 

@@ -2,8 +2,6 @@
 title: vLLM CPU Performance Evaluation
 ---
 
-# vLLM CPU Performance Evaluation
-
 Comprehensive performance evaluation framework for vLLM on CPU platforms, with support for both generative and embedding models.
 
 ## Quick Start

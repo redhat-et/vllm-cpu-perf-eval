@@ -185,14 +185,15 @@ def load_embedding_data(results_dir: str) -> pd.DataFrame:
 def load_mteb_data(results_dir: str) -> pd.DataFrame:
     """Load MTEB benchmark results from directory structure.
 
-    MTEB results structure:
-    results/mteb/
-    ├── RedHatAI__granite-embedding-english-r2/
-    │   └── 20260603-143025/
-    │       ├── run_summary.json          # Test metadata
-    │       ├── Banking77Classification/  # Per-task results
-    │       │   └── test.json
-    │       └── ...
+    MTEB results can be in two formats:
+
+    Format 1 (Expected):
+    results/mteb/MODEL/TIMESTAMP/TaskName/test.json
+
+    Format 2 (Actual MTEB output):
+    results/mteb/MODEL/TIMESTAMP/no_model_name_available/no_revision_available/TaskName.json
+
+    This function handles both formats.
     """
     results_path = Path(results_dir)
     all_results = []
@@ -214,28 +215,52 @@ def load_mteb_data(results_dir: str) -> pd.DataFrame:
             # Get test run directory
             test_run_dir = summary_file.parent
 
-            # Process each task subdirectory
+            # Look for task results in multiple possible locations
+            task_files = []
+
+            # Format 1: TaskName/test.json subdirectories
             for task_dir in test_run_dir.iterdir():
                 if not task_dir.is_dir():
                     continue
-
                 test_file = task_dir / "test.json"
-                if not test_file.exists():
-                    continue
+                if test_file.exists():
+                    task_files.append((task_dir.name, test_file, 'format1'))
 
+            # Format 2: Look in no_model_name_available/no_revision_available/*.json
+            mteb_output_dir = test_run_dir / "no_model_name_available" / "no_revision_available"
+            if mteb_output_dir.exists() and mteb_output_dir.is_dir():
+                for result_file in mteb_output_dir.glob("*.json"):
+                    # Skip model_meta.json
+                    if result_file.name == "model_meta.json":
+                        continue
+                    task_name = result_file.stem  # filename without .json
+                    task_files.append((task_name, result_file, 'format2'))
+
+            # Process all found task files
+            for task_name, task_file, file_format in task_files:
                 try:
-                    with open(test_file) as f:
+                    with open(task_file) as f:
                         task_results = json.load(f)
 
-                    # Extract metrics from test split
-                    test_metrics = task_results.get('test', {})
+                    # Extract metrics based on format
+                    if file_format == 'format1':
+                        # Direct test metrics
+                        test_metrics = task_results.get('test', {})
+                    else:  # format2
+                        # MTEB format: scores.test[0] contains aggregated metrics
+                        test_scores = task_results.get('scores', {}).get('test', [])
+                        if test_scores and len(test_scores) > 0:
+                            test_metrics = test_scores[0]
+                        else:
+                            logger.warning(f"No test scores found in {task_file}")
+                            continue
 
                     # Build row with all available metrics
                     row = {
                         'model': model,
                         'timestamp': timestamp,
                         'task_preset': task_preset,
-                        'task_name': task_dir.name,
+                        'task_name': task_name,
                         # Common metrics (not all tasks have all of these)
                         'accuracy': test_metrics.get('accuracy'),
                         'f1': test_metrics.get('f1'),
@@ -251,7 +276,10 @@ def load_mteb_data(results_dir: str) -> pd.DataFrame:
                     all_results.append(row)
 
                 except json.JSONDecodeError as e:
-                    logger.warning(f"Failed to parse {test_file}: {e}")
+                    logger.warning(f"Failed to parse {task_file}: {e}")
+                    continue
+                except Exception as e:
+                    logger.warning(f"Error processing {task_file}: {e}")
                     continue
 
         except json.JSONDecodeError as e:

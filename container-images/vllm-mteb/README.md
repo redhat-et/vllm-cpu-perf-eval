@@ -1,12 +1,12 @@
-## MTEB Integration for vLLM CPU Performance Evaluation
+# MTEB Integration for vLLM CPU Performance Evaluation
 
 This directory contains integration components for running MTEB (Massive Text Embedding Benchmark) quality tests on embedding models served by vLLM CPU or Red Hat AI Inference Server (RHAIIS).
 
-### Overview
+## Overview
 
 **MTEB** provides standardized benchmarks for evaluating embedding model quality across multiple tasks:
 - **Retrieval** - Information retrieval performance
-- **Classification** - Text classification accuracy  
+- **Classification** - Text classification accuracy
 - **Clustering** - Document clustering quality
 - **Semantic Textual Similarity (STS)** - Sentence similarity correlation
 - **Reranking** - Document reranking effectiveness

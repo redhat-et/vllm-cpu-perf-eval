@@ -15,6 +15,21 @@
     vllm_bench_cpuset_cpus: "{{ vllm_bench_cpus | default(benchmark_tool.vllm_bench.cpuset_cpus | default('')) }}"
     vllm_bench_cpuset_mems: "{{ vllm_bench_numa_node | default(benchmark_tool.vllm_bench.cpuset_mems | default('')) }}"
 
+- name: Validate NUMA pinning configuration
+  ansible.builtin.assert:
+    that:
+      - vllm_bench_cpuset_cpus is match('^[0-9,\\-]*$')
+      - vllm_bench_cpuset_mems is match('^[0-9,\\-]*$')
+    fail_msg: |
+      Invalid CPU/NUMA format.
+      vllm_bench_cpuset_cpus must match format: '0-15,32-47' or '0,1,2,3'
+      vllm_bench_cpuset_mems must match format: '0' or '0,1'
+      Current values:
+        cpuset_cpus: {{ vllm_bench_cpuset_cpus }}
+        cpuset_mems: {{ vllm_bench_cpuset_mems }}
+    success_msg: "NUMA pinning configuration validated"
+  when: vllm_bench_cpuset_cpus != '' or vllm_bench_cpuset_mems != ''
+
 - name: Build vllm-bench command prefix
   ansible.builtin.set_fact:
     vllm_bench_prefix: >-

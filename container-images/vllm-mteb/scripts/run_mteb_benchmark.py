@@ -138,10 +138,26 @@ def parse_args():
         help="Test connection to vLLM server and exit",
     )
 
+    parser.add_argument(
+        "--verify-ssl",
+        action="store_true",
+        default=True,
+        help="Verify SSL certificates (default: True)",
+    )
+
+    parser.add_argument(
+        "--no-verify-ssl",
+        dest="verify_ssl",
+        action="store_false",
+        help="Disable SSL certificate verification",
+    )
+
     return parser.parse_args()
 
 
-def test_connection(endpoint_url: str, model_name: str) -> bool:
+def test_connection(
+    endpoint_url: str, model_name: str, verify_ssl: bool = True
+) -> bool:
     """Test connection to vLLM server.
 
     Args:
@@ -157,6 +173,7 @@ def test_connection(endpoint_url: str, model_name: str) -> bool:
         wrapper = VllmCPUEncoderWrapper(
             endpoint_url=endpoint_url,
             model_name=model_name,
+            verify_ssl=verify_ssl,
         )
 
         # Try a simple embedding request
@@ -221,6 +238,8 @@ def run_benchmark(args):
         model_name=args.model_name,
         api_key=args.api_key,
         timeout=args.timeout,
+        batch_size=args.batch_size,
+        verify_ssl=args.verify_ssl,
     )
 
     # Get tasks
@@ -292,7 +311,9 @@ def main():
 
     # Test connection if requested
     if args.test_connection:
-        success = test_connection(args.endpoint_url, args.model_name)
+        success = test_connection(
+            args.endpoint_url, args.model_name, args.verify_ssl
+        )
         return 0 if success else 1
 
     # Run benchmark

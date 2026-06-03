@@ -1,0 +1,69 @@
+---
+# ==============================================================================
+# benchmark_embedding Role - Default Variables
+# ==============================================================================
+# This file documents the variables used by the benchmark_embedding role.
+# All variables are optional and have sensible defaults.
+
+# ==============================================================================
+# NUMA Pinning Configuration (Optional)
+# ==============================================================================
+# These variables control CPU and NUMA node pinning for the benchmark tool
+# container (vllm-bench). Pinning can improve performance by reducing memory
+# access latency and ensuring consistent benchmark results.
+#
+# Use cases:
+#   - Multi-socket systems: Pin benchmark to same NUMA node as vLLM server
+#   - Isolating benchmark load: Pin to specific cores to avoid interference
+#   - Performance tuning: Test impact of NUMA placement on throughput/latency
+#
+# Examples:
+#   # Pin to cores 0-15 on NUMA node 0
+#   vllm_bench_cpus: "0-15"
+#   vllm_bench_numa_node: "0"
+#
+#   # Pin to specific cores using comma-separated list
+#   vllm_bench_cpus: "0,2,4,6,8,10,12,14"
+#   vllm_bench_numa_node: "0"
+#
+#   # Pin to multiple core ranges
+#   vllm_bench_cpus: "0-7,16-23"
+#   vllm_bench_numa_node: "0,1"
+#
+# Format:
+#   - vllm_bench_cpus: CPU list in format: "0-15" or "0,1,2,3" or "0-7,16-23"
+#   - vllm_bench_numa_node: NUMA node in format: "0" or "0,1"
+#
+# Default: Not set (no pinning, benchmark uses any available CPU)
+
+# vllm_bench_cpus: ""
+# vllm_bench_numa_node: ""
+
+# ==============================================================================
+# Baseline Load Test Configuration
+# ==============================================================================
+# Controls the load percentages tested during baseline sweep tests.
+# Each percentage is relative to the maximum RPS discovered during the
+# infinite-rate test.
+#
+# Example:
+#   baseline_load_percentages: [25, 50, 75, 90]
+#   # Tests at 25%, 50%, 75%, and 90% of max RPS
+#
+# Constraints:
+#   - Each value must be between 1 and 100 (inclusive)
+#   - No duplicate values allowed
+#   - Array must contain at least one value
+#
+# Default: [25, 50, 75]
+
+# baseline_load_percentages: [25, 50, 75]
+
+# ==============================================================================
+# Input Configuration
+# ==============================================================================
+# Controls the input length for random embeddings during tests.
+#
+# Default: 512 tokens
+
+# embedding_random_input_len: 512

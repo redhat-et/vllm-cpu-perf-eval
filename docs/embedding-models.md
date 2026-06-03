@@ -384,17 +384,17 @@ Red Hat provides enterprise-grade vLLM images optimized for Intel Xeon and AMD E
    ```bash
    # SSH to your DUT
    ssh admin@your-dut-hostname
-   
+
    # Login and pull with sudo (both commands must use sudo together)
    sudo podman login registry.redhat.io  # Enter Red Hat customer portal credentials
    sudo podman pull registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
    ```
-   
+
    **Important:** Both `login` and `pull` must use `sudo` together (or neither should use `sudo`). Root and regular user have separate credential stores, so mixing will fail.
 
    **Why manual pull?** Ansible cannot automatically pull authenticated images. You must pull the image manually on the DUT before running tests.
 
-3. **Set the image environment variable**:
+2. **Set the image environment variable**:
    ```bash
    # On your control machine (where you run ansible-playbook)
    export VLLM_CONTAINER_IMAGE=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
@@ -432,7 +432,7 @@ The framework automatically detects and configures Red Hat AI images with the co
 
 In addition to performance testing, you can evaluate embedding quality using the **MTEB (Massive Text Embedding Benchmark)** framework.
 
-### Overview
+### MTEB Framework
 
 MTEB provides standardized benchmarks for evaluating embedding models across multiple task types:
 - **Classification** - Text categorization accuracy
