@@ -22,6 +22,8 @@
 #   --parallel              Run models in parallel (use with caution!)
 #   --dry-run               Show what would be run without executing
 #   --continue-on-error     Continue testing other models if one fails
+#   --container-image IMG   Container image to use (or set MTEB_CONTAINER_IMAGE)
+#                           Default: quay.io/vllm-cpu-perf-eval/vllm-mteb:latest
 #   -h, --help              Show this help message
 #
 # Examples:
@@ -43,6 +45,10 @@
 #     --vllm-mode external \
 #     --endpoint http://production-vllm:8000
 #
+#   # Use local container image instead of quay.io
+#   export MTEB_CONTAINER_IMAGE=vllm-mteb:latest
+#   ./run-mteb-model-sweep.sh --task-preset quick
+#
 # ==============================================================================
 
 set -euo pipefail
@@ -59,6 +65,8 @@ REQUESTED_CORES=4  # Use most efficient core count for quality tests
 CONTINUE_ON_ERROR=false
 DRY_RUN=false
 PARALLEL=false
+# Use environment variable or default to quay.io
+CONTAINER_IMAGE="${MTEB_CONTAINER_IMAGE:-quay.io/vllm-cpu-perf-eval/vllm-mteb:latest}"
 
 # All supported embedding models
 ALL_MODELS=(
@@ -139,6 +147,10 @@ while [[ $# -gt 0 ]]; do
             CONTINUE_ON_ERROR=true
             shift
             ;;
+        --container-image)
+            CONTAINER_IMAGE="$2"
+            shift 2
+            ;;
         -h|--help)
             show_help
             exit 0
@@ -189,6 +201,7 @@ fi
 log_info "MTEB Model Sweep Configuration"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "Task Preset:     ${TASK_PRESET}"
+echo "Container Image: ${CONTAINER_IMAGE}"
 echo "vLLM Mode:       ${VLLM_MODE}"
 if [[ "${VLLM_MODE}" == "external" ]]; then
     echo "Endpoint URL:    ${ENDPOINT_URL}"
@@ -252,7 +265,7 @@ run_mteb_test() {
 
     # Execute (change to playbook directory to ensure ansible.cfg is used)
     local start_time=$(date +%s)
-    if (cd "${PLAYBOOK_DIR}" && "${cmd[@]}") 2>&1 | tee -a "${RESULTS_FILE}"; then
+    if (cd "${PLAYBOOK_DIR}" && MTEB_CONTAINER_IMAGE="${CONTAINER_IMAGE}" "${cmd[@]}") 2>&1 | tee -a "${RESULTS_FILE}"; then
         local end_time=$(date +%s)
         local duration=$((end_time - start_time))
         log_success "✓ ${model} completed in ${duration}s"

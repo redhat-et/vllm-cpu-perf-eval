@@ -79,8 +79,9 @@ cd automation/test-execution/scripts
 | retrieval | 3 | 50-75 min |
 | classification | 3 | 25-50 min |
 | sts | 3 | 15-40 min |
-| clustering | 2 | 40-75 min |
 | comprehensive | 5 | 100-150 min |
+
+**Note:** Clustering tasks are currently disabled due to segmentation faults.
 
 **Full Documentation:**
 - Run `./bash/run-mteb-model-sweep.sh --help`

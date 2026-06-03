@@ -11,8 +11,9 @@ title: MTEB Timing Guide
 | **retrieval** | 3 | ~10-15 minutes | **50-75 minutes** |
 | **classification** | 3 | ~5-10 minutes | **25-50 minutes** |
 | **sts** | 3 | ~3-8 minutes | **15-40 minutes** |
-| **clustering** | 2 | ~8-15 minutes | **40-75 minutes** |
 | **comprehensive** | 5 | ~20-30 minutes | **100-150 minutes (1.7-2.5 hours)** |
+
+**Note:** Clustering tasks are currently disabled due to segmentation faults.
 
 **Model count:** 5 models in the test suite:
 - RedHatAI/all-MiniLM-L6-v2 (22.7M) - fastest
@@ -87,17 +88,8 @@ title: MTEB Timing Guide
 ---
 
 ### Clustering Preset
-```bash
-./run-mteb-model-sweep.sh --task-preset clustering
-```
 
-**Tasks:**
-1. ArxivClusteringP2P (5-10 min)
-2. TwentyNewsgroupsClustering (3-5 min)
-
-**Total Time:** ~40-75 minutes for all 5 models
-
-**Use Case:** Document clustering quality
+**Status:** Currently disabled due to segmentation faults with MTEB clustering tasks.
 
 ---
 
@@ -110,12 +102,14 @@ title: MTEB Timing Guide
 1. Banking77Classification (2-3 min)
 2. ArguAna (5-8 min)
 3. STS12 (1-2 min)
-4. ArxivClusteringP2P (5-10 min)
-5. EmotionClassification (1-2 min)
+4. EmotionClassification (1-2 min)
+5. NFCorpus (3-5 min)
 
 **Total Time:** ~100-150 minutes (1.7-2.5 hours) for all 5 models
 
 **Use Case:** Complete model evaluation, benchmarking reports
+
+**Note:** Clustering tasks removed due to segmentation faults.
 
 ---
 
@@ -241,8 +235,8 @@ export VLLM_ENDPOINT=http://localhost:8000
 
 ### Benchmarking Report
 ```bash
-# Full evaluation with all presets (~4-6 hours total)
-for preset in quick retrieval classification sts clustering comprehensive; do
+# Full evaluation with all presets (~3-5 hours total)
+for preset in quick retrieval classification sts comprehensive; do
   ./run-mteb-model-sweep.sh --task-preset "${preset}"
 done
 ```

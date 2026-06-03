@@ -46,17 +46,19 @@ TASK_PRESETS = {
         "STS15",
         "STS16",
     ],
-    "clustering": [
-        "ArxivClusteringP2P",
-        "TwentyNewsgroupsClustering",
-    ],
+    # Note: Clustering tasks disabled due to segmentation faults
+    # "clustering": [
+    #     "ArxivClusteringP2P",
+    #     "TwentyNewsgroupsClustering",
+    # ],
     "comprehensive": [
         # Mix of different task types for comprehensive evaluation
+        # Note: Clustering tasks (ArxivClusteringP2P) removed due to segfaults
         "Banking77Classification",
         "ArguAna",
         "STS12",
-        "ArxivClusteringP2P",
         "EmotionClassification",
+        "NFCorpus",  # Added retrieval task to maintain 5 tasks
     ],
 }
 
