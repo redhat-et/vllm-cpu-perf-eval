@@ -54,6 +54,17 @@
     requested_cores: "{{ lookup('env', 'REQUESTED_CORES') | default(16, true) | int }}"
 
   tasks:
+    - name: Set vllm_mode as fact
+      ansible.builtin.set_fact:
+        vllm_mode: "{{ vllm_mode }}"
+        test_model: "{{ test_model }}"
+        mteb_task_preset: "{{ mteb_task_preset }}"
+        mteb_tasks: "{{ mteb_tasks }}"
+        mteb_languages: "{{ mteb_languages }}"
+        mteb_container_image: "{{ mteb_container_image }}"
+        vllm_endpoint_url: "{{ vllm_endpoint_url }}"
+        requested_cores: "{{ requested_cores }}"
+
     - name: Validate test mode
       ansible.builtin.assert:
         that:
