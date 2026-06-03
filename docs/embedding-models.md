@@ -428,9 +428,110 @@ The framework automatically detects and configures Red Hat AI images with the co
 
 **Reference**: [Red Hat AI Inference Documentation](https://docs.redhat.com/en/documentation/red_hat_ai_inference/3.4/html/getting_started/about-cpu-inference_getting-started)
 
-## Results Collection
+## Quality Testing with MTEB
 
-Test results are collected in:
+In addition to performance testing, you can evaluate embedding quality using the **MTEB (Massive Text Embedding Benchmark)** framework.
+
+### Overview
+
+MTEB provides standardized benchmarks for evaluating embedding models across multiple task types:
+- **Classification** - Text categorization accuracy
+- **Retrieval** - Information retrieval performance (NDCG, MAP, MRR)
+- **Clustering** - Document clustering quality (V-measure)
+- **Semantic Textual Similarity (STS)** - Sentence similarity correlation
+
+### Quick Start
+
+```bash
+# Build MTEB container (one-time setup)
+cd automation/mteb-integration
+./build-container.sh vllm-mteb:latest
+
+# Run quick quality validation
+cd ../test-execution/ansible
+ansible-playbook -i inventory/hosts.yml mteb-benchmark.yml \
+  -e "test_model=RedHatAI/granite-embedding-english-r2" \
+  -e "mteb_task_preset=quick" \
+  -e "requested_cores=16"
+```
+
+### Task Presets
+
+| Preset | Tasks | Use Case | Duration |
+|--------|-------|----------|----------|
+| **quick** | Banking77, Emotion | Fast smoke test | ~5 min |
+| **retrieval** | ArguAna, NFCorpus, SCIDOCS | Retrieval performance | ~30 min |
+| **classification** | Banking77, Emotion, ToxicConversations | Classification accuracy | ~15 min |
+| **sts** | STS12, STS15, STS16 | Semantic similarity | ~20 min |
+| **comprehensive** | Mixed tasks | Full evaluation | ~45 min |
+
+### Testing All Models
+
+```bash
+# Quick validation for all 5 models
+for model in \
+  "RedHatAI/all-MiniLM-L6-v2" \
+  "RedHatAI/granite-embedding-english-r2" \
+  "RedHatAI/nomic-embed-text-v1.5" \
+  "RedHatAI/embeddinggemma-300m" \
+  "RedHatAI/Qwen3-Embedding-8B"
+do
+  ansible-playbook -i inventory/hosts.yml mteb-benchmark.yml \
+    -e "test_model=$model" \
+    -e "mteb_task_preset=quick" \
+    -e "requested_cores=16"
+done
+```
+
+### MTEB Results
+
+Quality test results are saved in:
+```
+results/mteb/<model-name>/<timestamp>/
+├── run_summary.json           # Test metadata
+├── Banking77Classification/   # Per-task results
+│   └── test.json              # Metrics: accuracy, f1, etc.
+├── ArguAna/
+│   └── test.json              # Metrics: ndcg@10, map, mrr
+└── ...
+```
+
+### Dashboard Visualization
+
+View quality metrics in the embedding dashboard:
+
+```bash
+cd automation/test-execution/dashboard-examples/vllm_dashboard
+streamlit run app.py
+```
+
+Navigate to **Embedding Metrics** → **MTEB Quality** tab to compare models across:
+- Classification accuracy and F1 scores
+- Retrieval metrics (NDCG, MAP, MRR)
+- Clustering quality (V-measure)
+- Semantic similarity correlations
+
+### Performance vs Quality Trade-offs
+
+| Model | Performance | Quality | Best For |
+|-------|-------------|---------|----------|
+| **all-MiniLM-L6-v2** | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ | High throughput |
+| **granite-english-r2** | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | Balanced |
+| **nomic-embed** | ⭐⭐⭐⭐ | ⭐⭐⭐⭐ | General purpose |
+| **embeddinggemma** | ⭐⭐⭐ | ⭐⭐⭐⭐ | Quality priority |
+| **Qwen3-8B** | ⭐⭐ | ⭐⭐⭐⭐⭐ | Maximum quality |
+
+### More Information
+
+See the [MTEB Integration README](https://github.com/redhat-et/vllm-cpu-perf-eval/tree/main/automation/mteb-integration) for:
+- Custom task selection
+- External endpoint testing
+- Detailed architecture
+- Troubleshooting guide
+
+## Performance Results Collection
+
+Performance test results are collected in:
 ```
 results/embedding/<model-name>/<timestamp>/
 ├── baseline/                # Created when scenario=baseline or all

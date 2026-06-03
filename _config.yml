@@ -16,8 +16,12 @@ nav_links:
     url: /
   - title: Getting Started
     url: /docs/getting-started
+  - title: Embedding Models
+    url: /docs/embedding-models
   - title: Ansible Automation
     url: /docs/ansible/test-execution
+  - title: Dashboards
+    url: /docs/dashboards-quickstart
   - title: MLflow Tracking
     url: /docs/mlflow
   - title: Methodology

@@ -1,0 +1,97 @@
+name: Build and Push MTEB Container
+
+on:
+  push:
+    branches:
+      - main
+      - container/**
+    paths:
+      - "automation/mteb-integration/**"
+      - ".github/workflows/build-mteb-container.yml"
+  pull_request:
+    paths:
+      - "automation/mteb-integration/**"
+      - ".github/workflows/build-mteb-container.yml"
+  workflow_dispatch:  # Allow manual trigger
+
+env:
+  IMAGE_REGISTRY: quay.io
+  IMAGE_REPOSITORY: vllm-cpu-perf-eval/vllm-mteb
+  IMAGE_TAG: latest
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Quay.io
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/container/'))
+        uses: redhat-actions/podman-login@v1
+        with:
+          registry: ${{ env.IMAGE_REGISTRY }}
+          username: ${{ secrets.REDHAT_REGISTRY_USERNAME }}
+          password: ${{ secrets.REDHAT_REGISTRY_PASSWORD }}
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_REPOSITORY }}
+          tags: |
+            type=raw,value=${{ env.IMAGE_TAG }}
+            type=raw,value=${{ env.IMAGE_TAG }}-{{sha}}
+            type=raw,value=${{ env.IMAGE_TAG }}-{{date 'YYYYMMDD'}}
+
+      - name: Build container image
+        uses: docker/build-push-action@v7
+        with:
+          context: ./automation/mteb-integration
+          push: false
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          load: true
+
+      - name: Test container image
+        run: |
+          docker run --rm ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_REPOSITORY }}:${{ env.IMAGE_TAG }} \
+            python -c "import mteb; print(f'MTEB version: {mteb.__version__}')"
+
+      - name: Push container image
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/container/'))
+        uses: docker/build-push-action@v5
+        with:
+          context: ./automation/mteb-integration
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+
+      - name: Display image info
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/container/'))
+        run: |
+          echo "✅ MTEB container image pushed successfully!"
+          echo ""
+          echo "Image: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_REPOSITORY }}:${{ env.IMAGE_TAG }}"
+          echo ""
+          echo "Additional tags:"
+          echo "${{ steps.meta.outputs.tags }}" | sed 's/^/  - /'
+          echo ""
+          echo "Usage:"
+          echo "  podman pull ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_REPOSITORY }}:${{ env.IMAGE_TAG }}"
+          echo "  podman run --rm --network host \\"
+          echo "    -v \$PWD/results:/results:z \\"
+          echo "    ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_REPOSITORY }}:${{ env.IMAGE_TAG }} \\"
+          echo "    python /opt/mteb/scripts/run_mteb_benchmark.py \\"
+          echo "      --endpoint-url http://localhost:8000 \\"
+          echo "      --model-name RedHatAI/granite-embedding-english-r2 \\"
+          echo "      --task-preset quick"

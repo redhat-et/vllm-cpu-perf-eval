@@ -181,6 +181,90 @@ def load_embedding_data(results_dir: str) -> pd.DataFrame:
     return pd.DataFrame(all_results)
 
 
+@st.cache_data(ttl=3600)
+def load_mteb_data(results_dir: str) -> pd.DataFrame:
+    """Load MTEB benchmark results from directory structure.
+
+    MTEB results structure:
+    results/mteb/
+    ├── RedHatAI__granite-embedding-english-r2/
+    │   └── 20260603-143025/
+    │       ├── run_summary.json          # Test metadata
+    │       ├── Banking77Classification/  # Per-task results
+    │       │   └── test.json
+    │       └── ...
+    """
+    results_path = Path(results_dir)
+    all_results = []
+
+    if not results_path.exists():
+        logger.warning(f"MTEB results directory not found: {results_path}")
+        return pd.DataFrame()
+
+    # Scan for all run_summary.json files
+    for summary_file in results_path.rglob("run_summary.json"):
+        try:
+            with open(summary_file) as f:
+                summary = json.load(f)
+
+            model = summary.get('model', 'unknown')
+            timestamp = summary.get('timestamp', 'unknown')
+            task_preset = summary.get('task_preset', 'custom')
+
+            # Get test run directory
+            test_run_dir = summary_file.parent
+
+            # Process each task subdirectory
+            for task_dir in test_run_dir.iterdir():
+                if not task_dir.is_dir():
+                    continue
+
+                test_file = task_dir / "test.json"
+                if not test_file.exists():
+                    continue
+
+                try:
+                    with open(test_file) as f:
+                        task_results = json.load(f)
+
+                    # Extract metrics from test split
+                    test_metrics = task_results.get('test', {})
+
+                    # Build row with all available metrics
+                    row = {
+                        'model': model,
+                        'timestamp': timestamp,
+                        'task_preset': task_preset,
+                        'task_name': task_dir.name,
+                        # Common metrics (not all tasks have all of these)
+                        'accuracy': test_metrics.get('accuracy'),
+                        'f1': test_metrics.get('f1'),
+                        'precision': test_metrics.get('precision'),
+                        'recall': test_metrics.get('recall'),
+                        'ndcg_at_10': test_metrics.get('ndcg_at_10'),
+                        'map': test_metrics.get('map'),
+                        'mrr': test_metrics.get('mrr'),
+                        'v_measure': test_metrics.get('v_measure'),
+                        'cosine_spearman': test_metrics.get('cosine_spearman'),
+                        'cosine_pearson': test_metrics.get('cosine_pearson'),
+                    }
+                    all_results.append(row)
+
+                except json.JSONDecodeError as e:
+                    logger.warning(f"Failed to parse {test_file}: {e}")
+                    continue
+
+        except json.JSONDecodeError as e:
+            logger.warning(f"Failed to parse {summary_file}: {e}")
+            continue
+        except Exception as e:
+            logger.error(f"Unexpected error loading {summary_file}: {e}")
+            raise
+
+    logger.info(f"MTEB data loading complete: {len(all_results)} task results loaded")
+    return pd.DataFrame(all_results)
+
+
 def plot_saturation_curve(df: pd.DataFrame):
     """Plot throughput and P99 latency vs load level, grouped by test configuration."""
     if df.empty:
@@ -563,6 +647,149 @@ def plot_model_comparison(df: pd.DataFrame, models: list, test_type: str):
     st.dataframe(comparison_display, use_container_width=True)
 
 
+def plot_mteb_quality_metrics(df: pd.DataFrame):
+    """Plot MTEB quality metrics across models and tasks."""
+    if df.empty:
+        st.warning("No MTEB quality data to display")
+        st.info("""
+        Run MTEB quality benchmarks first:
+
+        ```bash
+        ansible-playbook mteb-benchmark.yml \\
+          -e "test_model=RedHatAI/granite-embedding-english-r2" \\
+          -e "mteb_task_preset=quick"
+        ```
+        """)
+        return
+
+    # Get unique models and tasks
+    models = sorted(df['model'].unique())
+    all_tasks = sorted(df['task_name'].unique())
+
+    st.markdown("""
+    **MTEB (Massive Text Embedding Benchmark)** evaluates embedding quality across multiple dimensions:
+    - **Classification**: Text categorization accuracy
+    - **Retrieval**: Information retrieval performance (NDCG, MAP, MRR)
+    - **Clustering**: Document clustering quality (V-measure)
+    - **STS**: Semantic textual similarity correlation
+
+    Higher scores indicate better quality.
+    """)
+
+    # Task filter
+    selected_tasks = st.multiselect(
+        "Select Tasks to Display",
+        options=all_tasks,
+        default=all_tasks[:5] if len(all_tasks) > 5 else all_tasks,
+        help="Choose which MTEB tasks to show. Select fewer for clearer visualization."
+    )
+
+    if not selected_tasks:
+        st.warning("Please select at least one task")
+        return
+
+    filtered_df = df[df['task_name'].isin(selected_tasks)]
+
+    # Metric selector
+    available_metrics = []
+    metric_labels = {
+        'accuracy': 'Accuracy',
+        'f1': 'F1 Score',
+        'precision': 'Precision',
+        'recall': 'Recall',
+        'ndcg_at_10': 'NDCG@10',
+        'map': 'MAP',
+        'mrr': 'MRR',
+        'v_measure': 'V-Measure',
+        'cosine_spearman': 'Spearman Correlation',
+        'cosine_pearson': 'Pearson Correlation'
+    }
+
+    for metric_col in ['accuracy', 'f1', 'ndcg_at_10', 'map', 'mrr', 'v_measure', 'cosine_spearman']:
+        if metric_col in filtered_df.columns and filtered_df[metric_col].notna().any():
+            available_metrics.append(metric_col)
+
+    if not available_metrics:
+        st.warning("No metrics found in selected tasks")
+        return
+
+    st.subheader("Model Comparison by Task")
+
+    # For each metric, create a grouped bar chart
+    for metric in available_metrics:
+        # Filter to rows that have this metric
+        metric_df = filtered_df[filtered_df[metric].notna()].copy()
+
+        if metric_df.empty:
+            continue
+
+        # Create short model names
+        metric_df['model_short'] = metric_df['model'].apply(lambda x: x.split('/')[-1])
+
+        # Create grouped bar chart
+        fig = px.bar(
+            metric_df,
+            x='task_name',
+            y=metric,
+            color='model_short',
+            barmode='group',
+            title=f'{metric_labels.get(metric, metric)} by Task',
+            text=metric
+        )
+        fig.update_traces(texttemplate='%{text:.3f}', textposition='outside')
+        fig.update_layout(
+            xaxis_title="Task",
+            yaxis_title=metric_labels.get(metric, metric),
+            height=500,
+            legend_title="Model",
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=-0.35,
+                xanchor="center",
+                x=0.5,
+                font=dict(size=10)
+            ),
+            margin=dict(b=150)
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    # Overall quality summary table
+    st.subheader("Quality Metrics Summary")
+
+    # Pivot to show average scores per model
+    summary_data = []
+    for model in models:
+        model_df = filtered_df[filtered_df['model'] == model]
+        row = {'Model': model.split('/')[-1], 'Tasks': len(model_df)}
+
+        for metric in available_metrics:
+            metric_values = model_df[metric].dropna()
+            if not metric_values.empty:
+                row[metric_labels.get(metric, metric)] = metric_values.mean()
+
+        summary_data.append(row)
+
+    if summary_data:
+        summary_df = pd.DataFrame(summary_data)
+        summary_df = summary_df.round(3)
+        st.dataframe(summary_df, use_container_width=True, hide_index=True)
+
+    # Detailed results table
+    st.subheader("Detailed Task Results")
+
+    # Build detailed display
+    display_df = filtered_df.copy()
+    display_df['model_short'] = display_df['model'].apply(lambda x: x.split('/')[-1])
+
+    # Select columns to display
+    display_cols = ['model_short', 'task_name', 'task_preset'] + available_metrics
+    display_df = display_df[display_cols]
+    display_df.columns = ['Model', 'Task', 'Preset'] + [metric_labels.get(m, m) for m in available_metrics]
+    display_df = display_df.round(3)
+    st.dataframe(display_df, use_container_width=True)
+
+
 def main():
     """Main dashboard application."""
     st.title("📊 Embedding Model Performance")
@@ -574,222 +801,277 @@ def main():
 
         config = DashboardConfig()
         default_results_dir = str(Path(config.get_results_directory()).parent / "embedding")
+        default_mteb_dir = str(Path(config.get_results_directory()).parent / "mteb")
 
         results_dir_input = st.text_input(
-            "Results Directory",
+            "Performance Results Directory",
             value=default_results_dir,
-            help="Path to embedding results directory",
+            help="Path to embedding performance results directory",
             key="results_dir_embedding"
+        )
+
+        mteb_dir_input = st.text_input(
+            "MTEB Results Directory",
+            value=default_mteb_dir,
+            help="Path to MTEB quality results directory",
+            key="results_dir_mteb"
         )
 
         if st.button("🔄 Reload Data"):
             st.cache_data.clear()
 
         st.markdown("---")
-        st.markdown("**Embedding Metrics:**")
+        st.markdown("**Performance Metrics:**")
         st.markdown("""
         - Request Throughput (req/s)
         - End-to-End Latency (P50, P99)
         - Token Processing Speed
         - Concurrent Request Handling
         """)
+        st.markdown("**Quality Metrics (MTEB):**")
+        st.markdown("""
+        - Classification Accuracy
+        - Retrieval Performance (NDCG, MAP)
+        - Clustering Quality (V-measure)
+        - Semantic Similarity Correlation
+        """)
 
-    # Load data
+    # Load performance data
     df = load_embedding_data(results_dir_input)
 
-    if df.empty:
-        st.error(f"No embedding results found in {results_dir_input}")
+    # Load MTEB quality data
+    mteb_df = load_mteb_data(mteb_dir_input)
+
+    if df.empty and mteb_df.empty:
+        st.error(f"No results found in {results_dir_input} or {mteb_dir_input}")
         st.info("""
         Run embedding benchmarks first:
 
         ```bash
+        # Performance benchmarks
         ansible-playbook embedding-benchmark.yml \\
           -e "test_model=RedHatAI/all-MiniLM-L6-v2" \\
           -e "scenario=all"
+
+        # Quality benchmarks
+        ansible-playbook mteb-benchmark.yml \\
+          -e "test_model=RedHatAI/all-MiniLM-L6-v2" \\
+          -e "mteb_task_preset=quick"
         ```
         """)
         return
 
-    st.success(f"✓ Loaded {len(df)} test results from {results_dir_input}")
+    # Show loading status
+    status_parts = []
+    if not df.empty:
+        status_parts.append(f"{len(df)} performance test results")
+    if not mteb_df.empty:
+        status_parts.append(f"{len(mteb_df)} MTEB quality results")
 
-    # Filters Header
-    st.markdown("### 🔍 Filters")
+    if status_parts:
+        st.success(f"✓ Loaded {' and '.join(status_parts)}")
 
-    # Filters - Row 1: Primary filters
-    col1, col2, col3 = st.columns(3)
+    # Only show filters if we have performance data
+    if not df.empty:
+        # Filters Header
+        st.markdown("### 🔍 Performance Data Filters")
 
-    with col1:
-        models = sorted(df['model'].unique())
-        selected_models = st.multiselect(
-            "Models",
-            options=models,
-            default=models,  # Select all models by default
-            help="Select one or more models to compare"
-        )
+        # Filters - Row 1: Primary filters
+        col1, col2, col3 = st.columns(3)
 
-    with col2:
-        platforms = sorted(df['platform'].unique())
-        selected_platforms = st.multiselect(
-            "Platforms",
-            options=platforms,
-            default=platforms,
-            help="Filter by CPU platform"
-        )
-
-    with col3:
-        # vLLM Mode filter - radio buttons for mutually exclusive choice
-        vllm_modes = sorted(df['vllm_mode'].unique())
-        # Default to first mode (usually 'dut-only' or 'managed')
-        selected_vllm_mode = st.radio(
-            "vLLM Mode",
-            options=vllm_modes,
-            index=0,
-            horizontal=True,
-            help="Execution architecture: managed (2-node), dut-only (single-node), or external (existing endpoint)"
-        )
-
-    # Filters - Row 2: Configuration filters
-    col4, col5, col6 = st.columns(3)
-
-    with col4:
-        # Get unique core counts, filtering out None/NaN
-        core_counts = sorted([int(c) for c in df['requested_cores'].unique() if pd.notna(c)])
-        if core_counts:
-            selected_core_counts = st.multiselect(
-                "Core Count",
-                options=core_counts,
-                default=core_counts,
-                help="CPU cores allocated to vLLM"
+        with col1:
+            models = sorted(df['model'].unique())
+            selected_models = st.multiselect(
+                "Models",
+                options=models,
+                default=models,  # Select all models by default
+                help="Select one or more models to compare"
             )
-        else:
-            st.multiselect(
-                "Core Count",
-                options=[],
-                default=[],
-                disabled=True,
-                help="No core count data available"
+
+        with col2:
+            platforms = sorted(df['platform'].unique())
+            selected_platforms = st.multiselect(
+                "Platforms",
+                options=platforms,
+                default=platforms,
+                help="Filter by CPU platform"
             )
-            selected_core_counts = None
 
-    with col5:
-        # Input length filter
-        input_lengths = sorted([int(i) for i in df['input_length'].unique() if pd.notna(i)])
-        if input_lengths:
-            selected_input_lengths = st.multiselect(
-                "Input Length",
-                options=input_lengths,
-                default=input_lengths,
-                help="Random input token length"
+        with col3:
+            # vLLM Mode filter - radio buttons for mutually exclusive choice
+            vllm_modes = sorted(df['vllm_mode'].unique())
+            # Default to first mode (usually 'dut-only' or 'managed')
+            selected_vllm_mode = st.radio(
+                "vLLM Mode",
+                options=vllm_modes,
+                index=0,
+                horizontal=True,
+                help="Execution architecture: managed (2-node), dut-only (single-node), or external (existing endpoint)"
             )
-        else:
-            st.multiselect(
-                "Input Length",
-                options=[],
-                default=[],
-                disabled=True,
-                help="No input length data available"
+
+        # Filters - Row 2: Configuration filters
+        col4, col5, col6 = st.columns(3)
+
+        with col4:
+            # Get unique core counts, filtering out None/NaN
+            core_counts = sorted([int(c) for c in df['requested_cores'].unique() if pd.notna(c)])
+            if core_counts:
+                selected_core_counts = st.multiselect(
+                    "Core Count",
+                    options=core_counts,
+                    default=core_counts,
+                    help="CPU cores allocated to vLLM"
+                )
+            else:
+                st.multiselect(
+                    "Core Count",
+                    options=[],
+                    default=[],
+                    disabled=True,
+                    help="No core count data available"
+                )
+                selected_core_counts = None
+
+        with col5:
+            # Input length filter
+            input_lengths = sorted([int(i) for i in df['input_length'].unique() if pd.notna(i)])
+            if input_lengths:
+                selected_input_lengths = st.multiselect(
+                    "Input Length",
+                    options=input_lengths,
+                    default=input_lengths,
+                    help="Random input token length"
+                )
+            else:
+                st.multiselect(
+                    "Input Length",
+                    options=[],
+                    default=[],
+                    disabled=True,
+                    help="No input length data available"
+                )
+                selected_input_lengths = None
+
+        with col6:
+            # Scenario filter - remove empty strings and deduplicate
+            scenarios = sorted(set([s for s in df['scenario'].unique() if s and s.strip()]))
+            selected_scenarios = st.multiselect(
+                "Scenario",
+                options=scenarios,
+                default=scenarios,
+                help="Test scenario: baseline, latency, or all"
             )
-            selected_input_lengths = None
 
-    with col6:
-        # Scenario filter - remove empty strings and deduplicate
-        scenarios = sorted(set([s for s in df['scenario'].unique() if s and s.strip()]))
-        selected_scenarios = st.multiselect(
-            "Scenario",
-            options=scenarios,
-            default=scenarios,
-            help="Test scenario: baseline, latency, or all"
-        )
+        # Filters - Row 3: Version and test identification
+        col7, col8 = st.columns(2)
 
-    # Filters - Row 3: Version and test identification
-    col7, col8 = st.columns(2)
-
-    with col7:
-        # Filter out "unknown" and keep only real versions
-        vllm_versions = sorted([v for v in df['vllm_version'].unique() if v and v != 'unknown'])
-        selected_vllm_versions = st.multiselect(
-            "vLLM Version",
-            options=vllm_versions,
-            default=vllm_versions,
-            help="vLLM software version (detected automatically)"
-        )
-
-    with col8:
-        # Test name filter - only show if there are custom names
-        test_names = sorted([n for n in df['test_name'].unique() if n is not None and n.strip()])
-        if test_names:
-            selected_test_names = st.multiselect(
-                "Test Name",
-                options=test_names,
-                default=test_names,
-                help="Custom test configuration name"
+        with col7:
+            # Filter out "unknown" and keep only real versions
+            vllm_versions = sorted([v for v in df['vllm_version'].unique() if v and v != 'unknown'])
+            selected_vllm_versions = st.multiselect(
+                "vLLM Version",
+                options=vllm_versions,
+                default=vllm_versions,
+                help="vLLM software version (detected automatically)"
             )
-        else:
-            selected_test_names = None
 
-    if not selected_models:
-        st.warning("Please select at least one model")
-        return
+        with col8:
+            # Test name filter - only show if there are custom names
+            test_names = sorted([n for n in df['test_name'].unique() if n is not None and n.strip()])
+            if test_names:
+                selected_test_names = st.multiselect(
+                    "Test Name",
+                    options=test_names,
+                    default=test_names,
+                    help="Custom test configuration name"
+                )
+            else:
+                selected_test_names = None
 
-    # Apply filters
-    filtered_df = df[
-        (df['model'].isin(selected_models)) &
-        (df['platform'].isin(selected_platforms)) &
-        (df['vllm_mode'] == selected_vllm_mode)
-    ]
+        if not selected_models:
+            st.warning("Please select at least one model")
+            return
 
-    # Apply core count filter (only if data exists)
-    if selected_core_counts:
-        filtered_df = filtered_df[filtered_df['requested_cores'].isin(selected_core_counts)]
+        # Apply filters
+        filtered_df = df[
+            (df['model'].isin(selected_models)) &
+            (df['platform'].isin(selected_platforms)) &
+            (df['vllm_mode'] == selected_vllm_mode)
+        ]
 
-    # Apply input length filter (only if data exists)
-    if selected_input_lengths:
-        filtered_df = filtered_df[filtered_df['input_length'].isin(selected_input_lengths)]
+        # Apply core count filter (only if data exists)
+        if selected_core_counts:
+            filtered_df = filtered_df[filtered_df['requested_cores'].isin(selected_core_counts)]
 
-    # Apply scenario filter
-    if selected_scenarios:
-        filtered_df = filtered_df[filtered_df['scenario'].isin(selected_scenarios)]
+        # Apply input length filter (only if data exists)
+        if selected_input_lengths:
+            filtered_df = filtered_df[filtered_df['input_length'].isin(selected_input_lengths)]
 
-    # Apply vLLM version filter
-    if selected_vllm_versions:
-        filtered_df = filtered_df[filtered_df['vllm_version'].isin(selected_vllm_versions)]
+        # Apply scenario filter
+        if selected_scenarios:
+            filtered_df = filtered_df[filtered_df['scenario'].isin(selected_scenarios)]
 
-    # Apply test name filter (only if custom names exist)
-    if selected_test_names is not None:
-        filtered_df = filtered_df[filtered_df['test_name'].isin(selected_test_names)]
+        # Apply vLLM version filter
+        if selected_vllm_versions:
+            filtered_df = filtered_df[filtered_df['vllm_version'].isin(selected_vllm_versions)]
 
-    if filtered_df.empty:
-        st.warning("No data matches the selected filters.")
-        return
+        # Apply test name filter (only if custom names exist)
+        if selected_test_names is not None:
+            filtered_df = filtered_df[filtered_df['test_name'].isin(selected_test_names)]
 
-    # Show what's being displayed
-    unique_models = filtered_df['model'].unique()
-    unique_cores = sorted(filtered_df['requested_cores'].unique())
-    unique_test_runs = len(filtered_df['test_run_id'].unique())
+        if filtered_df.empty:
+            st.warning("No data matches the selected filters.")
+            return
 
-    st.info(f"📊 Displaying: **{len(unique_models)} model(s)** ({', '.join([m.split('/')[-1] for m in unique_models])}) | "
-            f"**{len(unique_cores)} core config(s)** ({', '.join([f'{c}c' for c in unique_cores])}) | "
-            f"**{unique_test_runs} test run(s)** | "
-            f"**{len(filtered_df)} data points**")
+        # Show what's being displayed
+        unique_models = filtered_df['model'].unique()
+        unique_cores = sorted(filtered_df['requested_cores'].unique())
+        unique_test_runs = len(filtered_df['test_run_id'].unique())
+
+        st.info(f"📊 Displaying: **{len(unique_models)} model(s)** ({', '.join([m.split('/')[-1] for m in unique_models])}) | "
+                f"**{len(unique_cores)} core config(s)** ({', '.join([f'{c}c' for c in unique_cores])}) | "
+                f"**{unique_test_runs} test run(s)** | "
+                f"**{len(filtered_df)} data points**")
+    else:
+        # No performance data available - skip filters
+        filtered_df = pd.DataFrame()
 
     # Main analysis tabs - show all filtered data together
     st.header("📊 Performance Analysis")
 
-    tab1, tab2 = st.tabs(["🔀 Concurrent Load", "📊 Saturation Analysis"])
+    # Determine which tabs to show
+    has_performance = not df.empty
+    has_quality = not mteb_df.empty
 
-    with tab1:
-        concurrent_data = filtered_df[filtered_df['test_type'] == 'concurrent']
-        if not concurrent_data.empty:
-            plot_concurrent_load(concurrent_data)
-        else:
-            st.info("No concurrent load data available for selected filters. Run latency tests to generate this data.")
+    if has_performance and has_quality:
+        tab1, tab2, tab3 = st.tabs(["🔀 Concurrent Load", "📊 Saturation Analysis", "🎯 MTEB Quality"])
+    elif has_performance:
+        tab1, tab2 = st.tabs(["🔀 Concurrent Load", "📊 Saturation Analysis"])
+    elif has_quality:
+        tab3 = st.container()
+        st.markdown("### 🎯 MTEB Quality Metrics")
+    else:
+        st.warning("No data available")
+        return
 
-    with tab2:
-        baseline_data = filtered_df[filtered_df['test_type'] == 'baseline']
-        if not baseline_data.empty:
-            plot_saturation_curve(baseline_data)
-        else:
-            st.info("No baseline saturation data available for selected filters. Run baseline tests to generate this data.")
+    if has_performance:
+        with tab1:
+            concurrent_data = filtered_df[filtered_df['test_type'] == 'concurrent']
+            if not concurrent_data.empty:
+                plot_concurrent_load(concurrent_data)
+            else:
+                st.info("No concurrent load data available for selected filters. Run latency tests to generate this data.")
+
+        with tab2:
+            baseline_data = filtered_df[filtered_df['test_type'] == 'baseline']
+            if not baseline_data.empty:
+                plot_saturation_curve(baseline_data)
+            else:
+                st.info("No baseline saturation data available for selected filters. Run baseline tests to generate this data.")
+
+    if has_quality:
+        with tab3:
+            plot_mteb_quality_metrics(mteb_df)
 
     st.markdown("---")
 

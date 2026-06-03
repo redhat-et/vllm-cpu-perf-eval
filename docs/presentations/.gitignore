@@ -1,8 +1,0 @@
-# Generated presentation files
-output/
-*.html
-*.pdf
-*.pptx
-
-# Except keep the source markdown
-!*.md

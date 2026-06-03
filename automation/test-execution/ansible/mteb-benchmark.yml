@@ -1,0 +1,179 @@
+---
+# ============================================================================
+# MTEB (Massive Text Embedding Benchmark) Quality Testing
+# ============================================================================
+# This playbook evaluates embedding model quality using the MTEB framework.
+# It complements performance benchmarks (throughput/latency) with quality
+# metrics (accuracy, retrieval performance, classification scores).
+#
+# Prerequisites:
+#   - vLLM server must be running (managed or external mode)
+#   - Model must be loaded and accessible via /v1/embeddings endpoint
+#   - MTEB container image must be built
+#
+# Usage:
+#   # Test with managed vLLM (starts vLLM on DUT)
+#   ansible-playbook -i inventory/hosts.yml mteb-benchmark.yml \
+#     -e "test_model=RedHatAI/granite-embedding-english-r2" \
+#     -e "mteb_task_preset=quick"
+#
+#   # Test with external vLLM endpoint
+#   ansible-playbook -i inventory/hosts.yml mteb-benchmark.yml \
+#     -e "vllm_mode=external" \
+#     -e "vllm_endpoint_url=http://production-vllm:8000" \
+#     -e "test_model=RedHatAI/granite-embedding-english-r2" \
+#     -e "mteb_task_preset=comprehensive"
+#
+# ============================================================================
+
+- name: MTEB Quality Benchmark for Embedding Models
+  hosts: localhost
+  gather_facts: true
+  vars:
+    # Test mode: managed (start vLLM), external (use existing endpoint)
+    vllm_mode: "{{ lookup('env', 'VLLM_MODE') | default('managed', true) }}"
+
+    # Model configuration
+    test_model: "{{ lookup('env', 'TEST_MODEL') | default('', true) }}"
+
+    # MTEB configuration
+    mteb_task_preset: "{{ lookup('env', 'MTEB_TASK_PRESET') | default('quick', true) }}"
+    mteb_tasks: "{{ lookup('env', 'MTEB_TASKS') | default('', true) }}"  # Custom task list (space-separated)
+    mteb_languages: "{{ lookup('env', 'MTEB_LANGUAGES') | default('en', true) }}"
+
+    # Container configuration
+    mteb_container_image: "{{ lookup('env', 'MTEB_CONTAINER_IMAGE') | default('vllm-mteb:latest', true) }}"
+    mteb_container_name: "mteb-benchmark"
+
+    # Results configuration
+    results_base_dir: "{{ playbook_dir }}/../../../results/mteb"
+    timestamp: "{{ ansible_date_time.date }}T{{ ansible_date_time.time }}"
+
+    # vLLM server configuration (managed mode)
+    vllm_server_host: "{{ lookup('env', 'DUT_HOSTNAME') | default('localhost', true) }}"
+    vllm_server_port: 8000
+
+    # External endpoint (external mode)
+    vllm_endpoint_url: "{{ lookup('env', 'VLLM_ENDPOINT_URL') | default('', true) }}"
+
+    # Resource configuration (for managed mode)
+    requested_cores: "{{ lookup('env', 'REQUESTED_CORES') | default(16, true) | int }}"
+
+  pre_tasks:
+    - name: Validate test mode
+      ansible.builtin.assert:
+        that:
+          - vllm_mode in ['managed', 'external']
+        fail_msg: "Invalid vllm_mode: {{ vllm_mode }}. Must be 'managed' or 'external'"
+
+    - name: Validate model is specified
+      ansible.builtin.assert:
+        that:
+          - test_model | length > 0
+        fail_msg: "test_model must be specified via -e or TEST_MODEL environment variable"
+
+    - name: Validate external endpoint is provided (external mode)
+      ansible.builtin.assert:
+        that:
+          - vllm_endpoint_url | length > 0
+        fail_msg: "vllm_endpoint_url must be set when vllm_mode=external"
+      when: vllm_mode == 'external'
+
+    - name: Display test configuration
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "MTEB Quality Benchmark Configuration"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Mode: {{ vllm_mode }}"
+          - "Model: {{ test_model }}"
+          - "Task Preset: {{ mteb_task_preset }}"
+          - "{% if mteb_tasks %}Custom Tasks: {{ mteb_tasks }}{% endif %}"
+          - "Languages: {{ mteb_languages }}"
+          - "Container: {{ mteb_container_image }}"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+  tasks:
+    # ========================================================================
+    # Managed Mode: Start vLLM Server
+    # ========================================================================
+
+    - name: Start vLLM server (managed mode)
+      when: vllm_mode == 'managed'
+      block:
+        - name: Include vLLM server startup
+          ansible.builtin.include_role:
+            name: vllm_server
+            tasks_from: start-embedding
+          vars:
+            embedding_max_model_len: null  # Use model default
+
+        - name: Set vLLM endpoint for managed mode
+          ansible.builtin.set_fact:
+            vllm_endpoint_url: "http://{{ vllm_server_host }}:{{ vllm_server_port }}"
+
+        - name: Wait for vLLM server to be ready
+          ansible.builtin.uri:
+            url: "{{ vllm_endpoint_url }}/v1/models"
+            method: GET
+            status_code: 200
+          register: vllm_health
+          until: vllm_health.status == 200
+          retries: 30
+          delay: 2
+
+    # ========================================================================
+    # Run MTEB Benchmark
+    # ========================================================================
+
+    - name: Create results directory
+      ansible.builtin.file:
+        path: "{{ results_base_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Build MTEB command
+      ansible.builtin.set_fact:
+        mteb_command: >-
+          python /opt/mteb/scripts/run_mteb_benchmark.py
+          --endpoint-url {{ vllm_endpoint_url }}
+          --model-name {{ test_model }}
+          --task-preset {{ mteb_task_preset }}
+          --output-dir /results
+          --languages {{ mteb_languages }}
+          {% if mteb_tasks %}--tasks {{ mteb_tasks }}{% endif %}
+
+    - name: Display MTEB command
+      ansible.builtin.debug:
+        msg: "{{ mteb_command }}"
+
+    - name: Run MTEB benchmark container
+      containers.podman.podman_container:
+        name: "{{ mteb_container_name }}"
+        image: "{{ mteb_container_image }}"
+        state: started
+        detach: false  # Wait for completion
+        rm: true       # Remove container after completion
+        network: host  # Access vLLM server via localhost
+        volumes:
+          - "{{ results_base_dir }}:/results:z"
+        command: "{{ mteb_command }}"
+      register: mteb_result
+      failed_when: mteb_result.rc != 0
+
+    - name: Display MTEB results
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "✓ MTEB Benchmark Complete"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Model: {{ test_model }}"
+          - "Results: {{ results_base_dir }}/{{ test_model | replace('/', '__') }}"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+  post_tasks:
+    - name: Stop vLLM server (managed mode)
+      when: vllm_mode == 'managed'
+      ansible.builtin.include_role:
+        name: vllm_server
+        tasks_from: stop
