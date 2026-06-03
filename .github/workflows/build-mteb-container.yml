@@ -6,11 +6,11 @@ on:
       - main
       - container/**
     paths:
-      - "automation/mteb-integration/**"
+      - "container-images/vllm-mteb/**"
       - ".github/workflows/build-mteb-container.yml"
   pull_request:
     paths:
-      - "automation/mteb-integration/**"
+      - "container-images/vllm-mteb/**"
       - ".github/workflows/build-mteb-container.yml"
   workflow_dispatch:  # Allow manual trigger
 
@@ -53,7 +53,7 @@ jobs:
       - name: Build container image
         uses: docker/build-push-action@v7
         with:
-          context: ./automation/mteb-integration
+          context: ./container-images/vllm-mteb
           push: false
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -70,7 +70,7 @@ jobs:
         if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/container/'))
         uses: docker/build-push-action@v5
         with:
-          context: ./automation/mteb-integration
+          context: ./container-images/vllm-mteb
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

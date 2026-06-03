@@ -21,7 +21,7 @@ Comprehensive performance evaluation framework for vLLM on CPU platforms, with s
 - **Core scaling analysis**: measure efficiency across different CPU configurations
 
 ### Quality Testing (MTEB)
-- **[MTEB Integration](https://github.com/redhat-et/vllm-cpu-perf-eval/tree/main/automation/mteb-integration)** - Embedding quality evaluation
+- **[MTEB Integration](https://github.com/redhat-et/vllm-cpu-perf-eval/tree/main/container-images/vllm-mteb)** - Embedding quality evaluation
 - **Classification, Retrieval, Clustering, STS** task types
 - **Pre-configured task presets** for quick validation or comprehensive analysis
 - **Container-based deployment** for easy integration with existing workflows

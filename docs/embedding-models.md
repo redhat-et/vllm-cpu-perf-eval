@@ -444,8 +444,8 @@ MTEB provides standardized benchmarks for evaluating embedding models across mul
 
 ```bash
 # Build MTEB container (one-time setup)
-cd automation/mteb-integration
-./build-container.sh vllm-mteb:latest
+cd container-images/vllm-mteb
+./build.sh
 
 # Run quick quality validation
 cd ../test-execution/ansible
@@ -523,7 +523,7 @@ Navigate to **Embedding Metrics** → **MTEB Quality** tab to compare models acr
 
 ### More Information
 
-See the [MTEB Integration README](https://github.com/redhat-et/vllm-cpu-perf-eval/tree/main/automation/mteb-integration) for:
+See the [MTEB Integration README](https://github.com/redhat-et/vllm-cpu-perf-eval/tree/main/container-images/vllm-mteb) for:
 - Custom task selection
 - External endpoint testing
 - Detailed architecture
