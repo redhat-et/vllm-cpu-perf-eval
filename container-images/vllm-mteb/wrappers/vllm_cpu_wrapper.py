@@ -75,20 +75,8 @@ class VllmCPUEncoderWrapper(AbsEncoder):
         self.revision = revision if revision else "main"
 
         # Set MTEB model metadata for proper result organization
-        try:
-            from mteb.model_meta import ModelMeta
-            self.mteb_model_meta = ModelMeta(
-                name=self.model_name,
-                revision=self.revision,
-                release_date=None,
-                languages=None,
-            )
-        except ImportError:
-            # Fallback: set as simple dict if ModelMeta not available
-            self.mteb_model_meta = {
-                "name": self.model_name,
-                "revision": self.revision,
-            }
+        # MTEB will construct mteb_model_meta from model_name and revision if not set
+        self.mteb_model_meta = None
 
         if use_instructions and instruction_template is None:
             raise ValueError(
