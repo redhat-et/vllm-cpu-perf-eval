@@ -118,6 +118,7 @@
       --port {{ vllm_server.port }}
       --dtype bfloat16
       {{ ('--max-model-len ' + (embedding_max_model_len | string)) if embedding_max_model_len is defined else '' }}
+      {{ '--trust-remote-code' if (trust_remote_code | default(false) | bool) else '' }}
     log_driver: journald
     log_opt:
       tag: "vllm-embedding-{{ core_cfg.cores | default('auto') }}c"
@@ -148,6 +149,7 @@
       --port {{ vllm_server.port }}
       --dtype bfloat16
       {{ ('--max-model-len ' + (embedding_max_model_len | string)) if embedding_max_model_len is defined else '' }}
+      {{ '--trust-remote-code' if (trust_remote_code | default(false) | bool) else '' }}
     log_driver: journald
     log_opt:
       tag: "vllm-embedding-auto"
