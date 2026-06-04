@@ -79,8 +79,8 @@ Automated test orchestration:
 #### 1. Build the Container
 
 ```bash
-cd automation/mteb-integration
-./build-container.sh vllm-mteb:latest
+cd container-images/vllm-mteb
+./build.sh vllm-mteb:latest
 ```
 
 #### 2. Test with Running vLLM Server
@@ -251,7 +251,7 @@ ansible-playbook -i inventory/hosts.yml mteb-benchmark.yml \
 | `TEST_MODEL` | Model to test | (required) |
 | `MTEB_TASK_PRESET` | Task preset to run | quick |
 | `MTEB_TASKS` | Custom task list (space-separated) | - |
-| `MTEB_LANGUAGES` | Languages to test | en |
+| `MTEB_LANGUAGES` | Languages to test (ISO 639-3) | eng |
 | `MTEB_CONTAINER_IMAGE` | Container image to use | vllm-mteb:latest |
 | `VLLM_ENDPOINT_URL` | vLLM server URL (external mode) | - |
 | `DUT_HOSTNAME` | DUT hostname (managed mode) | localhost |
@@ -299,7 +299,7 @@ podman build --no-cache -t vllm-mteb:latest -f Dockerfile .
 
 ### Next Steps
 
-1. **Build container:** `./build-container.sh`
+1. **Build container:** `./build.sh`
 2. **Test connection:** Run with `--test-connection`
 3. **Quick validation:** Use `quick` preset on one model
 4. **Full evaluation:** Use `comprehensive` preset on all models

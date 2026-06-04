@@ -434,6 +434,6 @@ class VllmCPULocalWrapper(AbsEncoder):
         # Get embeddings from vLLM
         # Note: This assumes vLLM has embedding support via encode() method
         outputs = self.llm.encode(prompts)
-        embeddings = torch.stack([output.outputs.data for output in outputs])
+        embeddings = torch.stack([output.outputs.embedding for output in outputs])
 
         return embeddings.cpu().numpy()

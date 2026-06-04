@@ -257,6 +257,11 @@ run_mteb_test() {
         cmd+=(-e "vllm_endpoint_url=${ENDPOINT_URL}")
     fi
 
+    # Add trust_remote_code only for models that require it
+    if [[ "${model}" == *"nomic-embed-text"* ]]; then
+        cmd+=(-e "trust_remote_code=true")
+    fi
+
     if [[ "${DRY_RUN}" == true ]]; then
         log_info "DRY RUN: Would execute:"
         echo "  cd ${PLAYBOOK_DIR} && ${cmd[*]}"

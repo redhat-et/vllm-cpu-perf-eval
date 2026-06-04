@@ -62,11 +62,14 @@ model_downloader_image: quay.io/vllm-cpu-perf-eval/model-downloader@sha256:ef8bf
 # Model Trust Configuration
 # ============================================================================
 # Some models contain custom code that requires explicit trust
-# Enable this for models like RedHatAI/nomic-embed-text-v1.5 that have
-# custom modeling code in their HuggingFace repository
+# Enable trust_remote_code for models that require custom code execution
+#
+# WARNING: Only enable for trusted models! This allows execution of arbitrary
+# Python code from HuggingFace repositories.
 #
 # Models requiring trust_remote_code:
 #   - RedHatAI/nomic-embed-text-v1.5
 #
-# Set to true to enable --trust-remote-code flag for vLLM
-trust_remote_code: true
+# Default: false (safer - only execute standard model code)
+# Override per-model using: -e trust_remote_code=true
+trust_remote_code: false

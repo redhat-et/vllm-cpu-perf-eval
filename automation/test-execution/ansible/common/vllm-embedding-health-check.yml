@@ -41,7 +41,7 @@
       ansible.builtin.set_fact:
         bench_config:
           vllm_host: "{{ external_endpoint_parsed.hostname }}"
-          vllm_port: "{{ external_endpoint_parsed.port | default(8000) | int }}"
+          vllm_port: "{{ external_endpoint_parsed.port | default(8000, true) | int }}"
       when: vllm_mode == 'external'
 
     - name: Run vLLM health check
