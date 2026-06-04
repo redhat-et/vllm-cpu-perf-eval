@@ -27,14 +27,15 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@b53206e2c24e5283caf23a2b4d0ae89060e02a5e  # v3.8.1
 
       - name: Log in to Quay.io
         if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/container/'))
-        uses: redhat-actions/podman-login@v1
+        uses: redhat-actions/podman-login@4934294ad0449894bcd1e9f191899d7292469603  # v1.7
+
         with:
           registry: ${{ env.IMAGE_REGISTRY }}
           username: ${{ secrets.REDHAT_REGISTRY_USERNAME }}
@@ -42,7 +43,7 @@ jobs:
 
       - name: Extract metadata (tags, labels)
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81  # v5.5.1
         with:
           images: ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_REPOSITORY }}
           tags: |
@@ -51,7 +52,7 @@ jobs:
             type=raw,value=${{ env.IMAGE_TAG }}-{{date 'YYYYMMDD'}}
 
       - name: Build container image
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@48aba3b46d1b1fec4febb7c5d0c644b249a11355  # v7.0.0
         with:
           context: ./container-images/vllm-mteb
           push: false
@@ -68,7 +69,7 @@ jobs:
 
       - name: Push container image
         if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/container/'))
-        uses: docker/build-push-action@v7
+        uses: docker/build-push-action@48aba3b46d1b1fec4febb7c5d0c644b249a11355  # v7.0.0
         with:
           context: ./container-images/vllm-mteb
           push: true

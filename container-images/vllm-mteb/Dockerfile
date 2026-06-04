@@ -20,18 +20,18 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /workspace
 
 # Install Python dependencies
-RUN pip install --upgrade pip setuptools wheel
+RUN pip install --upgrade pip==24.3.1 setuptools==75.6.0 wheel==0.45.1
 
-# Install PyTorch CPU version first
-RUN pip install torch --index-url https://download.pytorch.org/whl/cpu
+# Install PyTorch CPU version first (pinned for reproducibility)
+RUN pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cpu
 
-# Install MTEB and other dependencies from PyPI
+# Install MTEB and other dependencies from PyPI (pinned versions)
 RUN pip install \
-    mteb \
-    numpy \
-    pandas \
-    requests \
-    sentence-transformers
+    mteb==2.12.30 \
+    numpy==2.1.3 \
+    pandas==2.2.3 \
+    requests==2.32.3 \
+    sentence-transformers==3.3.1
 
 # Copy custom vLLM CPU wrapper
 COPY wrappers/vllm_cpu_wrapper.py /opt/mteb/vllm_cpu_wrapper.py
