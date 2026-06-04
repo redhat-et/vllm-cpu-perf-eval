@@ -51,14 +51,44 @@ TASK_PRESETS = {
     #     "ArxivClusteringP2P",
     #     "TwentyNewsgroupsClustering",
     # ],
+    "reranking": [
+        "AskUbuntuDupQuestions",
+        "MindSmallReranking",
+        "StackOverflowDupQuestions",
+    ],
+    "pair_classification": [
+        "SprintDuplicateQuestions",
+        "TwitterSemEval2015",
+    ],
     "comprehensive": [
         # Mix of different task types for comprehensive evaluation
         # Note: Clustering tasks (ArxivClusteringP2P) removed due to segfaults
+        "Banking77Classification",  # Classification
+        "ArguAna",                  # Retrieval
+        "STS12",                    # STS
+        "EmotionClassification",    # Classification
+        "NFCorpus",                 # Retrieval
+    ],
+    "full": [
+        # Maximum coverage across task categories (takes longer)
+        # Classification
         "Banking77Classification",
-        "ArguAna",
-        "STS12",
         "EmotionClassification",
-        "NFCorpus",  # Added retrieval task to maintain 5 tasks
+        "ToxicConversationsClassification",
+        # Retrieval
+        "ArguAna",
+        "NFCorpus",
+        "SCIDOCS",
+        # STS
+        "STS12",
+        "STS15",
+        "STS16",
+        # Reranking
+        "AskUbuntuDupQuestions",
+        "MindSmallReranking",
+        # Pair Classification
+        "SprintDuplicateQuestions",
+        "TwitterSemEval2015",
     ],
 }
 

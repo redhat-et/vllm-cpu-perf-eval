@@ -9,6 +9,7 @@ import logging
 import sys
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
@@ -242,18 +243,32 @@ def load_mteb_data(results_dir: str) -> pd.DataFrame:
                     with open(task_file) as f:
                         task_results = json.load(f)
 
-                    # Extract metrics based on format
-                    if file_format == 'format1':
-                        # Direct test metrics
-                        test_metrics = task_results.get('test', {})
-                    else:  # format2
-                        # MTEB format: scores.test[0] contains aggregated metrics
-                        test_scores = task_results.get('scores', {}).get('test', [])
-                        if test_scores and len(test_scores) > 0:
-                            test_metrics = test_scores[0]
-                        else:
-                            logger.warning(f"No test scores found in {task_file}")
-                            continue
+                    # Extract metrics - MTEB results have scores.test[0].scores_per_experiment[]
+                    test_scores = task_results.get('scores', {}).get('test', [])
+                    if not test_scores or len(test_scores) == 0:
+                        logger.warning(f"No test scores found in {task_file}")
+                        continue
+
+                    # Get experiments array
+                    scores_per_experiment = test_scores[0].get('scores_per_experiment', [])
+
+                    if not scores_per_experiment:
+                        # Try direct metrics (old format)
+                        test_metrics = test_scores[0]
+                    else:
+                        # Average across experiments (MTEB standard format)
+                        test_metrics = {}
+
+                        # List of all possible metrics
+                        metric_keys = ['accuracy', 'f1', 'precision', 'recall',
+                                     'ndcg_at_10', 'map', 'mrr', 'v_measure',
+                                     'cosine_spearman', 'cosine_pearson']
+
+                        for metric_key in metric_keys:
+                            values = [exp.get(metric_key) for exp in scores_per_experiment
+                                    if exp.get(metric_key) is not None]
+                            if values:
+                                test_metrics[metric_key] = np.mean(values)
 
                     # Build row with all available metrics
                     row = {
@@ -675,6 +690,167 @@ def plot_model_comparison(df: pd.DataFrame, models: list, test_type: str):
     st.dataframe(comparison_display, use_container_width=True)
 
 
+def plot_mteb_radar_chart(df: pd.DataFrame, models: list):
+    """Create radar chart showing model performance across task categories (MTEB leaderboard style)."""
+    if df.empty:
+        return
+
+    # Define task categories (like HuggingFace MTEB leaderboard)
+    task_categories = {
+        'Classification': ['Banking77Classification', 'EmotionClassification', 'ToxicConversationsClassification',
+                          'MTOPDomainClassification', 'MTOPIntentClassification'],
+        'Clustering': ['ArxivClusteringP2P', 'TwentyNewsgroupsClustering', 'RedditClustering',
+                      'StackExchangeClustering'],
+        'Pair Classification': ['TwitterSemEval2015', 'TwitterURLCorpus', 'SprintDuplicateQuestions'],
+        'Reranking': ['AskUbuntuDupQuestions', 'MindSmallReranking', 'SciDocsRR'],
+        'Retrieval': ['ArguAna', 'NFCorpus', 'SCIDOCS', 'FiQA2018', 'TRECCOVID',
+                     'Touche2020', 'DBPedia', 'HotpotQA', 'MSMARCO'],
+        'STS': ['STS12', 'STS13', 'STS14', 'STS15', 'STS16', 'STS17', 'STS22',
+               'STSBenchmark', 'SICKRelatedness'],
+        'Summarization': ['SummEval'],
+        'BitextMining': ['Tatoeba', 'BUCC']
+    }
+
+    # Primary metric per category
+    category_metrics = {
+        'Classification': 'accuracy',
+        'Clustering': 'v_measure',
+        'Pair Classification': 'accuracy',
+        'Reranking': 'map',
+        'Retrieval': 'ndcg_at_10',
+        'STS': 'cosine_spearman',
+        'Summarization': 'cosine_spearman',
+        'BitextMining': 'f1'
+    }
+
+    # Calculate average score per category per model
+    category_scores = []
+
+    for model in models:
+        model_df = df[df['model'] == model]
+        scores = {}
+
+        for category, tasks in task_categories.items():
+            # Find tasks in this category that we have data for
+            category_tasks = [t for t in tasks if t in model_df['task_name'].values]
+
+            if not category_tasks:
+                continue
+
+            # Get the appropriate metric for this category
+            metric = category_metrics.get(category)
+            if not metric:
+                continue
+
+            # Get values for this metric across category tasks
+            task_values = []
+            for task in category_tasks:
+                task_df = model_df[model_df['task_name'] == task]
+                if not task_df.empty:
+                    val = task_df[metric].iloc[0]
+                    if pd.notna(val):
+                        task_values.append(val)
+
+            # Average across tasks in category
+            if task_values:
+                scores[category] = np.mean(task_values)
+
+        if scores:
+            category_scores.append({
+                'model': model.split('/')[-1],
+                **scores
+            })
+
+    if not category_scores:
+        st.info("Not enough data across task categories for radar chart. Run more comprehensive MTEB tests.")
+        return
+
+    # Convert to dataframe
+    radar_df = pd.DataFrame(category_scores)
+
+    # Get categories that have data
+    categories = [col for col in radar_df.columns if col != 'model']
+
+    if len(categories) < 3:
+        st.info("Need at least 3 task categories for meaningful radar chart. Run more comprehensive MTEB tests.")
+        return
+
+    # Create radar chart
+    fig = go.Figure()
+
+    # Color palette
+    colors = px.colors.qualitative.Set2
+
+    for idx, row in radar_df.iterrows():
+        model_name = row['model']
+        values = [row.get(cat, 0) * 100 for cat in categories]  # Convert to percentage
+
+        # Close the radar chart by repeating first value
+        values.append(values[0])
+        cats = categories + [categories[0]]
+
+        fig.add_trace(go.Scatterpolar(
+            r=values,
+            theta=cats,
+            fill='toself',
+            name=model_name,
+            line=dict(color=colors[idx % len(colors)], width=2),
+            opacity=0.7
+        ))
+
+    fig.update_layout(
+        polar=dict(
+            radialaxis=dict(
+                visible=True,
+                range=[0, 100],
+                ticksuffix='%',
+                showline=False,
+                gridcolor='lightgray'
+            ),
+            angularaxis=dict(
+                gridcolor='lightgray'
+            )
+        ),
+        showlegend=True,
+        title="Model Performance Across Task Categories",
+        height=600,
+        legend=dict(
+            orientation="v",
+            yanchor="top",
+            y=1,
+            xanchor="left",
+            x=1.1
+        )
+    )
+
+    st.plotly_chart(fig, use_container_width=True)
+
+    # Show category details
+    with st.expander("📊 Category Scores Details", expanded=False):
+        st.markdown("""
+        **Task Categories:**
+        - **Classification**: Text categorization tasks (accuracy)
+        - **Clustering**: Document clustering quality (V-measure)
+        - **Pair Classification**: Binary classification of text pairs (accuracy)
+        - **Reranking**: Document reranking (MAP)
+        - **Retrieval**: Information retrieval (NDCG@10)
+        - **STS**: Semantic textual similarity (Spearman correlation)
+        - **Summarization**: Summary quality (Spearman correlation)
+        - **BitextMining**: Parallel sentence extraction (F1)
+
+        Scores shown are averages across all tasks in each category, normalized to 0-100%.
+        """)
+
+        # Show the data table
+        display_radar = radar_df.copy()
+        for cat in categories:
+            if cat in display_radar.columns:
+                display_radar[cat] = (display_radar[cat] * 100).round(1)
+
+        display_radar.columns = ['Model'] + [f"{cat} (%)" for cat in categories]
+        st.dataframe(display_radar, use_container_width=True, hide_index=True)
+
+
 def plot_mteb_quality_metrics(df: pd.DataFrame):
     """Plot MTEB quality metrics across models and tasks."""
     if df.empty:
@@ -834,6 +1010,10 @@ def plot_mteb_quality_metrics(df: pd.DataFrame):
     if not available_metrics:
         st.warning("No metrics found in selected tasks")
         return
+
+    # Radar chart by task category (HuggingFace MTEB leaderboard style)
+    st.subheader("📊 Model Performance by Task Category")
+    plot_mteb_radar_chart(df, models)
 
     st.subheader("Model Comparison by Task")
 

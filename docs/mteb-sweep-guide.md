@@ -89,13 +89,25 @@ streamlit run Home.py
 
 ## Task Presets
 
-| Preset | Tasks | Time (all 5 models) |
-|--------|-------|---------------------|
-| `quick` | 2 | 10-25 min |
-| `retrieval` | 3 | 50-75 min |
-| `classification` | 3 | 25-50 min |
-| `sts` | 3 | 15-40 min |
-| `comprehensive` | 5 | 100-150 min |
+| Preset | Tasks | Categories | Time (all 5 models) | Use Case |
+|--------|-------|------------|---------------------|----------|
+| `quick` | 2 | Classification | 10-25 min | Fast smoke test |
+| `retrieval` | 3 | Retrieval | 50-75 min | IR performance |
+| `classification` | 3 | Classification | 25-50 min | Text categorization |
+| `sts` | 3 | STS | 15-40 min | Similarity |
+| `reranking` | 3 | Reranking | 40-60 min | Document reranking |
+| `pair_classification` | 2 | Pair Classification | 20-30 min | Text pair classification |
+| `comprehensive` | 5 | 3 categories | 100-150 min | Balanced evaluation |
+| `full` | 14 | 5 categories | 250-400 min | Maximum coverage |
+
+**Categories Covered:**
+- **quick/classification**: Classification only
+- **retrieval**: Retrieval only
+- **sts**: Semantic Textual Similarity only
+- **reranking**: Reranking only
+- **pair_classification**: Pair Classification only
+- **comprehensive**: Classification, Retrieval, STS (3 categories)
+- **full**: Classification, Retrieval, STS, Reranking, Pair Classification (5 categories)
 
 **Note:** Clustering tasks are currently disabled due to segmentation faults with certain models.
 

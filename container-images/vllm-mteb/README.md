@@ -126,14 +126,25 @@ ansible-playbook -i inventory/hosts.yml mteb-benchmark.yml \
 
 Pre-configured task groups for different evaluation needs:
 
-| Preset | Tasks | Use Case | Duration |
-|--------|-------|----------|----------|
-| **quick** | Banking77, Emotion | Fast smoke test | ~5 min |
-| **retrieval** | ArguAna, NFCorpus, SCIDOCS | Retrieval performance | ~30 min |
-| **classification** | Banking77, Emotion, ToxicConversations | Classification accuracy | ~15 min |
-| **sts** | STS12, STS15, STS16 | Semantic similarity | ~20 min |
-| **clustering** | ArxivClustering, TwentyNewsgroups | Clustering quality | ~25 min |
-| **comprehensive** | Mixed tasks | Full evaluation | ~45 min |
+| Preset | Tasks | Categories | Duration | Use Case |
+|--------|-------|------------|----------|----------|
+| **quick** | 2 | Classification | ~5 min | Fast smoke test |
+| **retrieval** | 3 | Retrieval | ~30 min | IR performance |
+| **classification** | 3 | Classification | ~15 min | Text categorization |
+| **sts** | 3 | STS | ~20 min | Semantic similarity |
+| **reranking** | 3 | Reranking | ~25 min | Document reranking |
+| **pair_classification** | 2 | Pair Classification | ~10 min | Text pair classification |
+| **comprehensive** | 5 | 3 categories | ~45 min | Balanced evaluation |
+| **full** | 14 | 5 categories | ~90 min | Maximum coverage |
+
+**Task Categories:**
+- **Classification**: Banking77, Emotion, ToxicConversations
+- **Retrieval**: ArguAna, NFCorpus, SCIDOCS
+- **STS**: STS12, STS15, STS16
+- **Reranking**: AskUbuntuDupQuestions, MindSmallReranking
+- **Pair Classification**: SprintDuplicateQuestions, TwitterSemEval2015
+
+**Note:** Clustering tasks (ArxivClustering, TwentyNewsgroups) are disabled - too computationally intensive and caused segfaults with certain models.
 
 ### Custom Task Selection
 
