@@ -215,6 +215,28 @@
         mode: pull
         recursive: true
 
+    - name: Reorganize MTEB results (flatten nested structure)
+      ansible.builtin.shell: |
+        set -e
+        # Find all test run directories
+        for run_dir in {{ local_results_dir }}/*/2*; do
+          if [ ! -d "$run_dir" ]; then continue; fi
+
+          # Check if nested structure exists
+          nested_dir="$run_dir/no_model_name_available/no_revision_available"
+          if [ -d "$nested_dir" ]; then
+            echo "Reorganizing: $run_dir"
+
+            # Move JSON files to run directory root
+            mv "$nested_dir"/*.json "$run_dir/" 2>/dev/null || true
+
+            # Remove nested directories
+            rm -rf "$run_dir/no_model_name_available"
+          fi
+        done
+      delegate_to: localhost
+      changed_when: false
+
 # ===========================================================================
 # PHASE 5: Common Cleanup
 # ===========================================================================

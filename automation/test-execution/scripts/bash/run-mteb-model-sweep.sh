@@ -19,7 +19,6 @@
 #   --models LIST           Comma-separated list of models to test
 #                           Default: all models
 #   --skip-models LIST      Comma-separated list of models to skip
-#   --parallel              Run models in parallel (use with caution!)
 #   --dry-run               Show what would be run without executing
 #   --continue-on-error     Continue testing other models if one fails
 #   --container-image IMG   Container image to use (or set MTEB_CONTAINER_IMAGE)
@@ -64,7 +63,6 @@ ENDPOINT_URL=""
 REQUESTED_CORES=4  # Use most efficient core count for quality tests
 CONTINUE_ON_ERROR=false
 DRY_RUN=false
-PARALLEL=false
 # Use environment variable or default to quay.io
 CONTAINER_IMAGE="${MTEB_CONTAINER_IMAGE:-quay.io/vllm-cpu-perf-eval/vllm-mteb:latest}"
 
@@ -135,10 +133,6 @@ while [[ $# -gt 0 ]]; do
             IFS=',' read -ra MODELS_TO_SKIP <<< "$2"
             shift 2
             ;;
-        --parallel)
-            PARALLEL=true
-            shift
-            ;;
         --dry-run)
             DRY_RUN=true
             shift
@@ -208,7 +202,6 @@ if [[ "${VLLM_MODE}" == "external" ]]; then
 else
     echo "Cores:           ${REQUESTED_CORES}"
 fi
-echo "Parallel:        ${PARALLEL}"
 echo "Continue on err: ${CONTINUE_ON_ERROR}"
 echo "Dry Run:         ${DRY_RUN}"
 echo ""
@@ -289,44 +282,16 @@ run_mteb_test() {
 log_info "Starting MTEB model sweep at $(date)"
 echo ""
 
-if [[ "${PARALLEL}" == true ]]; then
-    log_warning "Parallel mode enabled - ensure your system has enough resources!"
+# Sequential execution
+for model in "${MODELS_TO_TEST[@]}"; do
+    if ! run_mteb_test "${model}"; then
+        if [[ "${CONTINUE_ON_ERROR}" == false ]]; then
+            log_error "Test failed for ${model}, aborting sweep"
+            exit 1
+        fi
+    fi
     echo ""
-
-    # Run all models in parallel
-    pids=()
-    for model in "${MODELS_TO_TEST[@]}"; do
-        run_mteb_test "${model}" &
-        pids+=($!)
-    done
-
-    # Wait for all background jobs
-    for pid in "${pids[@]}"; do
-        if wait "${pid}"; then
-            continue
-        else
-            if [[ "${CONTINUE_ON_ERROR}" == false ]]; then
-                log_error "A model test failed and continue-on-error is disabled"
-                # Kill remaining jobs
-                for p in "${pids[@]}"; do
-                    kill "${p}" 2>/dev/null || true
-                done
-                exit 1
-            fi
-        fi
-    done
-else
-    # Sequential execution
-    for model in "${MODELS_TO_TEST[@]}"; do
-        if ! run_mteb_test "${model}"; then
-            if [[ "${CONTINUE_ON_ERROR}" == false ]]; then
-                log_error "Test failed for ${model}, aborting sweep"
-                exit 1
-            fi
-        fi
-        echo ""
-    done
-fi
+done
 
 # Summary
 echo ""
