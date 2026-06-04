@@ -1120,6 +1120,7 @@ def plot_mteb_quality_metrics(df: pd.DataFrame):
 
     # Overall quality summary table
     st.subheader("Quality Metrics Summary")
+    st.markdown("Average performance across all selected tasks. Ratings based on the interpretation guide below.")
 
     # Pivot to show average scores per model
     summary_data = []
@@ -1135,9 +1136,53 @@ def plot_mteb_quality_metrics(df: pd.DataFrame):
         summary_data.append(row)
 
     if summary_data:
+        # Show numeric scores
         summary_df = pd.DataFrame(summary_data)
         summary_df = summary_df.round(3)
         st.dataframe(summary_df, use_container_width=True, hide_index=True)
+
+        # Show quality ratings below
+        st.markdown("**Quality Ratings** (based on interpretation guide)")
+
+        def classify_score(score):
+            """Classify score according to interpretation guide."""
+            if pd.isna(score):
+                return "N/A"
+
+            if score >= 0.90:
+                return "⭐ Excellent"
+            elif score >= 0.80:
+                return "✅ Very Good"
+            elif score >= 0.70:
+                return "👍 Good"
+            elif score >= 0.60:
+                return "👌 Fair"
+            elif score >= 0.50:
+                return "⚠️ Weak"
+            else:
+                return "❌ Poor"
+
+        classification_data = []
+        for row in summary_data:
+            class_row = {'Model': row['Model']}
+
+            # Classify each metric
+            for metric in available_metrics:
+                label = metric_labels.get(metric, metric)
+                if label in row:
+                    class_row[label] = classify_score(row[label])
+
+            classification_data.append(class_row)
+
+        if classification_data:
+            class_df = pd.DataFrame(classification_data)
+            st.dataframe(class_df, use_container_width=True, hide_index=True)
+
+            st.caption("""
+            **Rating Scale:**
+            ⭐ Excellent (0.90-1.00) | ✅ Very Good (0.80-0.89) | 👍 Good (0.70-0.79) |
+            👌 Fair (0.60-0.69) | ⚠️ Weak (0.50-0.59) | ❌ Poor (<0.50)
+            """)
 
     # Detailed results table
     st.subheader("Detailed Task Results")
