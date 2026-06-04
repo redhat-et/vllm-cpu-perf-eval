@@ -243,9 +243,17 @@ def load_mteb_data(results_dir: str) -> pd.DataFrame:
                     with open(task_file) as f:
                         task_results = json.load(f)
 
-                    # Extract metrics - MTEB results have scores.test[0].scores_per_experiment[]
-                    test_scores = task_results.get('scores', {}).get('test', [])
-                    if not test_scores or len(test_scores) == 0:
+                    # Extract metrics - handle both formats:
+                    # 1. Top-level 'test' key (normalized format)
+                    # 2. Nested 'scores.test' (MTEB default format)
+                    test_scores = task_results.get('test')
+                    if test_scores is None:
+                        test_scores = task_results.get('scores', {}).get('test', [])
+
+                    # Normalize to list format
+                    if isinstance(test_scores, dict):
+                        test_scores = [test_scores]
+                    elif not test_scores or len(test_scores) == 0:
                         logger.warning(f"No test scores found in {task_file}")
                         continue
 
@@ -723,11 +731,16 @@ def plot_mteb_radar_chart(df: pd.DataFrame, models: list):
         'BitextMining': 'f1'
     }
 
+    # Collapse to one row per (model, task_name) to ensure deterministic scores
+    # Use most recent run (latest timestamp) for each model+task combination
+    df_collapsed = (df.sort_values('timestamp', ascending=False)
+                     .drop_duplicates(subset=['model', 'task_name'], keep='first'))
+
     # Calculate average score per category per model
     category_scores = []
 
     for model in models:
-        model_df = df[df['model'] == model]
+        model_df = df_collapsed[df_collapsed['model'] == model]
         scores = {}
 
         for category, tasks in task_categories.items():
@@ -747,7 +760,7 @@ def plot_mteb_radar_chart(df: pd.DataFrame, models: list):
             for task in category_tasks:
                 task_df = model_df[model_df['task_name'] == task]
                 if not task_df.empty:
-                    val = task_df[metric].iloc[0]
+                    val = task_df[metric].iloc[0]  # Now deterministic - only one row per task
                     if pd.notna(val):
                         task_values.append(val)
 
