@@ -1198,6 +1198,42 @@ def plot_mteb_quality_metrics(df: pd.DataFrame):
     display_df = display_df.round(3)
     st.dataframe(display_df, use_container_width=True)
 
+    # Show quality ratings for detailed results
+    st.markdown("**Quality Ratings** (based on interpretation guide)")
+
+    def classify_score_detailed(score):
+        """Classify score according to interpretation guide."""
+        if pd.isna(score):
+            return "N/A"
+
+        if score >= 0.90:
+            return "⭐ Excellent"
+        elif score >= 0.80:
+            return "✅ Very Good"
+        elif score >= 0.70:
+            return "👍 Good"
+        elif score >= 0.60:
+            return "👌 Fair"
+        elif score >= 0.50:
+            return "⚠️ Weak"
+        else:
+            return "❌ Poor"
+
+    # Create ratings version of detailed results
+    ratings_df = filtered_df.copy()
+    ratings_df['model_short'] = ratings_df['model'].apply(lambda x: x.split('/')[-1])
+
+    # Apply classification to metric columns
+    for metric in available_metrics:
+        if metric in ratings_df.columns:
+            ratings_df[metric] = ratings_df[metric].apply(classify_score_detailed)
+
+    # Select columns and rename
+    ratings_cols = ['model_short', 'task_name', 'task_preset'] + available_metrics
+    ratings_df = ratings_df[ratings_cols]
+    ratings_df.columns = ['Model', 'Task', 'Preset'] + [metric_labels.get(m, m) for m in available_metrics]
+    st.dataframe(ratings_df, use_container_width=True)
+
 
 def main():
     """Main dashboard application."""
