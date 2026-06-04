@@ -839,19 +839,62 @@ def plot_mteb_radar_chart(df: pd.DataFrame, models: list):
     st.plotly_chart(fig, use_container_width=True)
 
     # Show category details
-    with st.expander("📊 Category Scores Details", expanded=False):
+    with st.expander("📖 What Do These Categories Mean?", expanded=False):
         st.markdown("""
-        **Task Categories:**
-        - **Classification**: Text categorization tasks (accuracy)
-        - **Clustering**: Document clustering quality (V-measure)
-        - **Pair Classification**: Binary classification of text pairs (accuracy)
-        - **Reranking**: Document reranking (MAP)
-        - **Retrieval**: Information retrieval (NDCG@10)
-        - **STS**: Semantic textual similarity (Spearman correlation)
-        - **Summarization**: Summary quality (Spearman correlation)
-        - **BitextMining**: Parallel sentence extraction (F1)
+        ### Task Categories Explained
 
-        Scores shown are averages across all tasks in each category, normalized to 0-100%.
+        **Classification** - Text Categorization
+        - *What it does:* Assigns text to predefined categories
+        - *Example:* "Is this email spam or not spam?" or "Which of 77 banking intents does this query match?"
+        - *Why it matters:* Essential for content filtering, intent detection, and organizing large text collections
+        - *Metric:* Accuracy (percentage of correctly classified texts)
+
+        **Retrieval** - Information Retrieval
+        - *What it does:* Finds relevant documents from a large collection
+        - *Example:* "Given this search query, rank 10,000 documents by relevance"
+        - *Why it matters:* Powers search engines, RAG systems, and document discovery
+        - *Metric:* NDCG@10 (quality of top 10 results, accounting for ranking order)
+
+        **STS** - Semantic Textual Similarity
+        - *What it does:* Measures how similar two sentences are in meaning
+        - *Example:* "The cat sat on the mat" vs "A feline rested on the rug" (high similarity)
+        - *Why it matters:* Duplicate detection, paraphrase identification, sentence comparison
+        - *Metric:* Spearman correlation (how well predicted similarity matches human judgment)
+
+        **Reranking** - Result Reordering
+        - *What it does:* Takes an initial list of results and improves the ranking
+        - *Example:* Search engine returns 100 results; reranker reorders to put best ones first
+        - *Why it matters:* Improves search quality, reduces time to find relevant information
+        - *Metric:* MAP (Mean Average Precision - rewards relevant docs appearing early)
+
+        **Pair Classification** - Text Pair Relationships
+        - *What it does:* Determines relationship between two text pieces
+        - *Example:* "Are these two questions duplicates?" or "Do these tweets discuss the same topic?"
+        - *Why it matters:* Deduplication, question answering, content matching
+        - *Metric:* Accuracy (percentage of correctly identified relationships)
+
+        **Clustering** - Automatic Grouping
+        - *What it does:* Groups similar documents together without predefined categories
+        - *Example:* "Group these 10,000 research papers by topic" (unsupervised)
+        - *Why it matters:* Topic discovery, data exploration, organizing unlabeled content
+        - *Metric:* V-measure (balance of homogeneity and completeness in clusters)
+
+        **Summarization** - Condensing Information
+        - *What it does:* Evaluates how well embeddings capture document meaning for summarization
+        - *Example:* "Does this summary capture the key points of the original article?"
+        - *Why it matters:* Quality assessment for automatic summarization systems
+        - *Metric:* Spearman correlation (summary-document similarity alignment)
+
+        **BitextMining** - Parallel Text Extraction
+        - *What it does:* Finds equivalent sentences across languages
+        - *Example:* "Which Spanish sentence is the translation of this English sentence?"
+        - *Why it matters:* Machine translation, building bilingual dictionaries, cross-lingual search
+        - *Metric:* F1 score (balance of precision and recall in finding parallel sentences)
+
+        ---
+
+        **Scores shown** are averages across all tasks in each category, normalized to 0-100%.
+        Higher is better. 80%+ is generally considered very good performance.
         """)
 
         # Show the data table
