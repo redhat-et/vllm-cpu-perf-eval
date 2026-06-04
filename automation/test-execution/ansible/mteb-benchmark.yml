@@ -96,7 +96,8 @@
           - "{% if mteb_tasks %}Custom Tasks: {{ mteb_tasks }}{% endif %}"
           - "Languages: {{ mteb_languages }}"
           - "Container: {{ mteb_container_image }}"
-          - "{% if vllm_mode == 'managed' %}DUT: {{ groups['dut'][0] }}{% endif %}"
+          - "{% if vllm_mode == 'managed' %}vLLM Server (DUT): {{ groups['dut'][0] }}{% endif %}"
+          - "MTEB Runner (Loadgen): {{ groups['load_generator'][0] }}"
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # ===========================================================================
@@ -112,7 +113,7 @@
 # PHASE 3: Run MTEB Benchmark
 # ===========================================================================
 - name: "Phase 3 - Run MTEB Benchmark"
-  hosts: dut
+  hosts: load_generator
   become: true
   gather_facts: true
   vars:
@@ -126,9 +127,15 @@
     results_base_dir: "/tmp/mteb-results"
 
   tasks:
-    - name: Build vLLM endpoint URL (localhost for single-node)
+    - name: Build vLLM endpoint URL (managed mode)
       ansible.builtin.set_fact:
-        vllm_endpoint_url: "http://localhost:{{ hostvars['localhost']['bench_config']['vllm_port'] }}"
+        vllm_endpoint_url: "http://{{ hostvars['vllm-server']['ansible_host'] }}:{{ hostvars['localhost']['bench_config']['vllm_port'] }}"
+      when: vllm_mode == 'managed'
+
+    - name: Use external vLLM endpoint (external mode)
+      ansible.builtin.set_fact:
+        vllm_endpoint_url: "{{ hostvars['localhost']['vllm_endpoint_url'] }}"
+      when: vllm_mode == 'external'
 
     - name: Display endpoint being tested
       ansible.builtin.debug:
@@ -155,10 +162,15 @@
       ansible.builtin.debug:
         msg: "{{ mteb_command }}"
 
+    - name: Determine pull policy
+      ansible.builtin.set_fact:
+        mteb_pull_policy: "{{ 'never' if mteb_container_image.startswith('localhost/') else 'missing' }}"
+
     - name: Run MTEB benchmark container
       containers.podman.podman_container:
         name: "{{ mteb_container_name }}"
         image: "{{ mteb_container_image }}"
+        pull: "{{ mteb_pull_policy }}"
         state: started
         detach: false  # Wait for completion
         rm: true       # Remove container after completion
@@ -182,7 +194,7 @@
 # PHASE 4: Fetch Results to Local Machine
 # ===========================================================================
 - name: "Phase 4 - Fetch MTEB Results"
-  hosts: dut
+  hosts: load_generator
   gather_facts: false
   vars:
     results_base_dir: "/tmp/mteb-results"

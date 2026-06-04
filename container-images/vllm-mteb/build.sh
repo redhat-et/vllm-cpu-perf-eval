@@ -15,13 +15,24 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-IMAGE_NAME="${1:-vllm-mteb:latest}"
+IMAGE_NAME="vllm-mteb:latest"
 PUSH_IMAGE=false
 
-# Check for --push flag
-if [[ "$2" == "--push" ]] || [[ "$1" == "--push" ]]; then
-    PUSH_IMAGE=true
-fi
+# Parse arguments
+for arg in "$@"; do
+    case "$arg" in
+        --push)
+            PUSH_IMAGE=true
+            ;;
+        -*)
+            echo "Unknown option: $arg"
+            exit 1
+            ;;
+        *)
+            IMAGE_NAME="$arg"
+            ;;
+    esac
+done
 
 echo "========================================="
 echo "Building MTEB Container"

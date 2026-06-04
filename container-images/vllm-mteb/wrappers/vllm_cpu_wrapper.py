@@ -198,6 +198,15 @@ class VllmCPUEncoderWrapper(AbsEncoder):
                 for item in result["data"]:
                     embeddings[item["index"]] = item["embedding"]
 
+                # Validate all embeddings were returned
+                missing_indices = [i for i, emb in enumerate(embeddings) if emb is None]
+                if missing_indices:
+                    raise RuntimeError(
+                        f"Incomplete embeddings from vLLM server: "
+                        f"expected {len(texts)} embeddings, got {len(texts) - len(missing_indices)}. "
+                        f"Missing indices: {missing_indices[:10]}"  # Show first 10
+                    )
+
                 # Convert to numpy array
                 return np.array(embeddings, dtype=np.float32)
 
@@ -263,7 +272,7 @@ class VllmCPUEncoderWrapper(AbsEncoder):
             and prompt_type == PromptType.document
         ):
             logger.info(
-                f"No instruction used, because prompt type = {prompt_type.document}"
+                f"No instruction used, because prompt type = {prompt_type}"
             )
             prompt = ""
         else:
