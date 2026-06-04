@@ -173,6 +173,6 @@ Large models (especially Qwen3-8B) require significant RAM:
 | File | Purpose |
 |------|---------|
 | `run-mteb-model-sweep.sh` | Main sweep script |
-| `../../../scripts/reorganize-mteb-results.sh` | Directory restructuring |
-| `../../../docs/mteb-timing-guide.md` | Detailed timing info |
-| `README-MTEB-SWEEP.md` | This file |
+| `docs/mteb-sweep-guide.md` | This guide |
+| `docs/mteb-timing-guide.md` | Detailed timing info |
+| `docs/mteb-troubleshooting.md` | Common issues and fixes |
