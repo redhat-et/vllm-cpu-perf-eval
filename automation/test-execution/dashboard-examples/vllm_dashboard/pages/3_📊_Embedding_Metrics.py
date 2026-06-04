@@ -731,16 +731,12 @@ def plot_mteb_radar_chart(df: pd.DataFrame, models: list):
         'BitextMining': 'f1'
     }
 
-    # Collapse to one row per (model, task_name) to ensure deterministic scores
-    # Use most recent run (latest timestamp) for each model+task combination
-    df_collapsed = (df.sort_values('timestamp', ascending=False)
-                     .drop_duplicates(subset=['model', 'task_name'], keep='first'))
-
     # Calculate average score per category per model
+    # Note: df is already deduplicated by calling code (one row per model+task)
     category_scores = []
 
     for model in models:
-        model_df = df_collapsed[df_collapsed['model'] == model]
+        model_df = df[df['model'] == model]
         scores = {}
 
         for category, tasks in task_categories.items():
@@ -1049,6 +1045,11 @@ def plot_mteb_quality_metrics(df: pd.DataFrame):
         return
 
     filtered_df = df[df['task_name'].isin(selected_tasks)]
+
+    # Deduplicate: Keep only most recent run for each (model, task_name)
+    # This ensures consistent results across all visualizations
+    filtered_df = (filtered_df.sort_values('timestamp', ascending=False)
+                   .drop_duplicates(subset=['model', 'task_name'], keep='first'))
 
     # Metric selector
     available_metrics = []
