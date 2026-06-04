@@ -941,51 +941,53 @@ def plot_mteb_quality_metrics(df: pd.DataFrame):
         ### Classification Metrics
 
         **Accuracy** (0-1, higher is better)
-        - Percentage of correctly classified text samples
-        - Example: 0.85 = 85% of samples classified correctly
+        - What it is: Percentage of correct guesses
+        - Example: 0.85 = got it right 85 times out of 100
         - Used in: Banking77Classification, EmotionClassification, ToxicConversations
 
         **F1 Score** (0-1, higher is better)
-        - Harmonic mean of precision and recall
-        - Balances false positives and false negatives
-        - Useful when class distribution is imbalanced
+        - What it is: Balanced measure of overall correctness
+        - Why it matters: Better than accuracy when some categories are rare (e.g., detecting rare diseases)
+        - Example: Spam filter with 0.90 F1 catches most spam without blocking real emails
 
         **Precision** (0-1, higher is better)
-        - Of all predicted positive cases, how many were actually positive
-        - High precision = fewer false positives
+        - What it is: When the model says "yes", how often is it right?
+        - Example: Spam filter with 0.95 precision → 95% of flagged emails really are spam
+        - High precision = fewer innocent emails in spam folder
 
         **Recall** (0-1, higher is better)
-        - Of all actual positive cases, how many were correctly identified
-        - High recall = fewer false negatives
+        - What it is: Of all the real "yes" cases, how many did we find?
+        - Example: Spam filter with 0.90 recall → catches 90% of actual spam
+        - High recall = fewer spam emails slip through to your inbox
 
         ---
 
         ### Retrieval Metrics
 
-        **NDCG@10** (Normalized Discounted Cumulative Gain at 10) (0-1, higher is better)
-        - Measures ranking quality of top 10 retrieved documents
-        - Accounts for position - relevant docs ranked higher score better
-        - 1.0 = perfect ranking, 0.0 = worst possible ranking
+        **NDCG@10** (0-1, higher is better)
+        - What it is: How good are the top 10 search results?
+        - Better ranking = higher score (relevant results at the top count more)
+        - Example: 0.80 = search results are 80% as good as a perfect ranking
         - Used in: ArguAna, NFCorpus, SCIDOCS retrieval tasks
 
         **MAP** (Mean Average Precision) (0-1, higher is better)
-        - Average precision across all recall levels
-        - Emphasizes retrieving relevant documents early in results
-        - Commonly used for search quality evaluation
+        - What it is: Do relevant results appear early in the list?
+        - Rewards putting good results near the top
+        - Example: 0.75 = relevant docs tend to appear in top positions
 
         **MRR** (Mean Reciprocal Rank) (0-1, higher is better)
-        - Average of reciprocal ranks of first relevant document
-        - Example: First relevant doc at position 3 → reciprocal rank = 1/3
-        - Focuses on "first good result" - important for search engines
+        - What it is: How far down do you scroll to find the first good result?
+        - Example: First good result at position 2 → score = 1/2 = 0.50
+        - High MRR = answer appears right away (like featured snippets in search)
 
         ---
 
         ### Clustering Metrics
 
         **V-Measure** (0-1, higher is better)
-        - Harmonic mean of homogeneity and completeness
-        - Homogeneity: Each cluster contains only members of a single class
-        - Completeness: All members of a class are in the same cluster
+        - What it is: How well did it group similar things together?
+        - Checks: Are all sports articles in one group? Did it keep all sports articles together?
+        - Example: 0.80 = groups are mostly pure, and related items are mostly together
         - Used in: ArxivClustering, TwentyNewsgroups
 
         ---
@@ -993,15 +995,15 @@ def plot_mteb_quality_metrics(df: pd.DataFrame):
         ### Semantic Similarity Metrics
 
         **Spearman Correlation** (-1 to 1, closer to 1 is better)
-        - Measures monotonic relationship between predicted and actual similarity
-        - Rank-based: Doesn't require linear relationship
-        - Robust to outliers
+        - What it is: Does it agree with human similarity judgments?
+        - If humans say A is more similar to B than to C, does the model agree?
+        - Example: 0.85 = model rankings match human rankings 85% of the time
         - Used in: STS12, STS15, STS16 tasks
 
         **Pearson Correlation** (-1 to 1, closer to 1 is better)
-        - Measures linear relationship between predicted and actual similarity
-        - More sensitive to outliers than Spearman
-        - Assumes normal distribution
+        - What it is: Similar to Spearman, but stricter about exact scores
+        - Checks if similarity scores are proportional to human ratings
+        - Example: 0.82 = strong agreement with human judgments
 
         ---
 
@@ -1016,17 +1018,21 @@ def plot_mteb_quality_metrics(df: pd.DataFrame):
         | **0.50-0.59** | Weak | Weak | Weak |
         | **<0.50** | Poor | Poor | Very Weak/None |
 
-        ### Example: Understanding a Score
+        ### Real Examples
 
-        **NDCG@10 = 0.72 on ArguAna**
-        - For every query, the top 10 retrieved documents are 72% as good as the perfect ranking
-        - This is a "Good" score - the model ranks relevant documents reasonably high
-        - Room for improvement, but performs well enough for many applications
+        **NDCG@10 = 0.72 on ArguAna (document search)**
+        - The search results are 72% as good as perfect
+        - "Good" score - relevant docs usually appear in top 10
+        - Works well for most real-world search applications
 
-        **Accuracy = 0.85 on Banking77Classification**
-        - The model correctly identifies the banking query intent 85% of the time
-        - This is "Very Good" - only 15% misclassification rate
-        - Suitable for production use in most scenarios
+        **Accuracy = 0.85 on Banking77 (classifying customer questions)**
+        - Gets the right category 85 out of 100 times
+        - "Very Good" - only 15% wrong
+        - Ready for production use in most cases
+
+        **F1 = 0.90 on spam detection**
+        - Catches 90% of spam while rarely blocking real email
+        - Great balance - high catch rate, low false alarms
         """)
 
 
