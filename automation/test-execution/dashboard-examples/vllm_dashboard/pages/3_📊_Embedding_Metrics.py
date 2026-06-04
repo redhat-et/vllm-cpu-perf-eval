@@ -1032,16 +1032,75 @@ def plot_mteb_quality_metrics(df: pd.DataFrame):
         """)
 
 
-    # Task filter
-    selected_tasks = st.multiselect(
-        "Select Tasks to Display",
-        options=all_tasks,
-        default=all_tasks[:5] if len(all_tasks) > 5 else all_tasks,
-        help="Choose which MTEB tasks to show. Select fewer for clearer visualization."
+    # Benchmark type categorization
+    human_benchmark_tasks = ['STS12', 'STS13', 'STS14', 'STS15', 'STS16', 'STS17',
+                            'STSBenchmark', 'SICKRelatedness']  # Tasks with human-annotated similarity scores
+
+    # Human Benchmark filter (matching MTEB leaderboard UI)
+    st.markdown("### 🔍 Filters")
+    include_human_benchmark = st.checkbox(
+        "Human Benchmark",
+        value=True,
+        help="Include tasks with human-annotated similarity scores (e.g., STS tasks)"
     )
 
+    # Apply human benchmark filter
+    benchmark_filtered_tasks = all_tasks.copy()
+    if not include_human_benchmark:
+        benchmark_filtered_tasks = [t for t in all_tasks if t not in human_benchmark_tasks]
+
+    # Domain-specific task categorization (matching MTEB leaderboard)
+    task_domains = {
+        'Code': ['StackOverflowDupQuestions', 'CodeSearchNet'],
+        'Legal': ['LegalBenchConsumerContractsQA', 'LegalBenchCorporateLobbying', 'LegalSummarization'],
+        'Medical': ['MedicalQARetrieval', 'PubMedQA', 'BioASQ'],
+        'Financial': ['Banking77Classification', 'FiQA2018'],
+        'Scientific': ['SCIDOCS', 'SciDocsRR', 'ArxivClusteringP2P', 'ArxivClusteringS2S'],
+        'Social Media': ['TwitterSemEval2015', 'TwitterURLCorpus', 'TweetSentimentExtraction'],
+        'News': ['TwentyNewsgroupsClustering'],
+        'General': ['ArguAna', 'NFCorpus', 'EmotionClassification', 'ToxicConversationsClassification',
+                   'STS12', 'STS13', 'STS14', 'STS15', 'STS16', 'STS17', 'STS22',
+                   'AskUbuntuDupQuestions', 'MindSmallReranking', 'SprintDuplicateQuestions',
+                   'STSBenchmark', 'SICKRelatedness']
+    }
+
+    # Create domain filter
+    st.markdown("### 🏷️ Task Selection")
+    col1, col2 = st.columns([1, 2])
+
+    with col1:
+        # Get domains that have tasks in our data (filtered by benchmark)
+        available_domains = []
+        for domain, tasks in task_domains.items():
+            if any(task in benchmark_filtered_tasks for task in tasks):
+                available_domains.append(domain)
+
+        selected_domains = st.multiselect(
+            "Domain",
+            options=available_domains,
+            default=available_domains,
+            help="Filter tasks by domain. Select multiple domains or leave all selected."
+        )
+
+    # Filter tasks by domain (use benchmark-filtered tasks)
+    if selected_domains:
+        domain_filtered_tasks = []
+        for domain in selected_domains:
+            domain_filtered_tasks.extend([t for t in task_domains[domain] if t in benchmark_filtered_tasks])
+        available_task_options = sorted(set(domain_filtered_tasks))
+    else:
+        available_task_options = benchmark_filtered_tasks
+
+    with col2:
+        selected_tasks = st.multiselect(
+            "Tasks",
+            options=available_task_options,
+            default=available_task_options[:5] if len(available_task_options) > 5 else available_task_options,
+            help="Choose which MTEB tasks to show. Filtered by domain selection above."
+        )
+
     if not selected_tasks:
-        st.warning("Please select at least one task")
+        st.warning("Please select at least one task (or choose a domain)")
         return
 
     filtered_df = df[df['task_name'].isin(selected_tasks)]
@@ -1074,9 +1133,19 @@ def plot_mteb_quality_metrics(df: pd.DataFrame):
         st.warning("No metrics found in selected tasks")
         return
 
+    # Show active filters
+    filter_info = []
+    if not include_human_benchmark:
+        filter_info.append("Excluding Human Benchmark tasks")
+    if selected_domains and len(selected_domains) < len(available_domains):
+        filter_info.append(f"Domains: {', '.join(selected_domains)}")
+
+    if filter_info:
+        st.info(f"📊 Showing {len(selected_tasks)} tasks | Filters: {' | '.join(filter_info)}")
+
     # Radar chart by task category (HuggingFace MTEB leaderboard style)
     st.subheader("📊 Model Performance by Task Category")
-    plot_mteb_radar_chart(df, models)
+    plot_mteb_radar_chart(filtered_df, models)
 
     st.subheader("Model Comparison by Task")
 
@@ -1188,14 +1257,22 @@ def plot_mteb_quality_metrics(df: pd.DataFrame):
     # Detailed results table
     st.subheader("Detailed Task Results")
 
+    # Helper function to get domain for a task
+    def get_task_domain(task_name):
+        for domain, tasks in task_domains.items():
+            if task_name in tasks:
+                return domain
+        return "Unknown"
+
     # Build detailed display
     display_df = filtered_df.copy()
     display_df['model_short'] = display_df['model'].apply(lambda x: x.split('/')[-1])
+    display_df['domain'] = display_df['task_name'].apply(get_task_domain)
 
-    # Select columns to display
-    display_cols = ['model_short', 'task_name', 'task_preset'] + available_metrics
+    # Select columns to display (add domain)
+    display_cols = ['model_short', 'task_name', 'domain', 'task_preset'] + available_metrics
     display_df = display_df[display_cols]
-    display_df.columns = ['Model', 'Task', 'Preset'] + [metric_labels.get(m, m) for m in available_metrics]
+    display_df.columns = ['Model', 'Task', 'Domain', 'Preset'] + [metric_labels.get(m, m) for m in available_metrics]
     display_df = display_df.round(3)
     st.dataframe(display_df, use_container_width=True)
 
@@ -1223,16 +1300,17 @@ def plot_mteb_quality_metrics(df: pd.DataFrame):
     # Create ratings version of detailed results
     ratings_df = filtered_df.copy()
     ratings_df['model_short'] = ratings_df['model'].apply(lambda x: x.split('/')[-1])
+    ratings_df['domain'] = ratings_df['task_name'].apply(get_task_domain)
 
     # Apply classification to metric columns
     for metric in available_metrics:
         if metric in ratings_df.columns:
             ratings_df[metric] = ratings_df[metric].apply(classify_score_detailed)
 
-    # Select columns and rename
-    ratings_cols = ['model_short', 'task_name', 'task_preset'] + available_metrics
+    # Select columns and rename (add domain)
+    ratings_cols = ['model_short', 'task_name', 'domain', 'task_preset'] + available_metrics
     ratings_df = ratings_df[ratings_cols]
-    ratings_df.columns = ['Model', 'Task', 'Preset'] + [metric_labels.get(m, m) for m in available_metrics]
+    ratings_df.columns = ['Model', 'Task', 'Domain', 'Preset'] + [metric_labels.get(m, m) for m in available_metrics]
     st.dataframe(ratings_df, use_container_width=True)
 
 
