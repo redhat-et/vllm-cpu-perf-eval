@@ -29,6 +29,29 @@ from config_manager import DashboardConfig
 
 # Page config is set in Home.py for multipage apps
 
+
+def normalize_vllm_version(version_string):
+    """Normalize vLLM version for display.
+
+    Maps the current RHAIIS vLLM version to a user-friendly display name.
+    Future versions are displayed as-is.
+
+    Args:
+        version_string: Raw vLLM version from metadata
+
+    Returns:
+        "RHAIIS_3.4" for current version, original string otherwise
+    """
+    if not version_string or version_string == 'unknown':
+        return 'unknown'
+
+    # Current RHAIIS 3.4 version
+    if version_string == '0.18.0+rhaiv.7':
+        return 'RHAIIS_3.4'
+
+    # All other versions (past or future) display as-is
+    return version_string
+
 # Dark mode friendly CSS
 st.markdown("""
 <style>
@@ -103,7 +126,7 @@ def load_vllm_metrics(base_dir: str):
                         data['test_name'] = metadata.get('test_name', '')
                         data['cores'] = metadata.get('core_count', 'N/A')
                         data['backend'] = metadata.get('backend', 'unknown')
-                        data['vllm_version'] = metadata.get('vllm_version', 'unknown')
+                        data['vllm_version'] = normalize_vllm_version(metadata.get('vllm_version', 'unknown'))
                         data['guidellm_version'] = metadata.get('guidellm_version', 'unknown')
                         data['core_config'] = metadata.get('core_config_name', 'unknown')
                         data['vllm_mode'] = metadata.get('vllm_mode', 'managed')
