@@ -5,12 +5,14 @@ Quick script to complete the MTEB model sweep by running only the tests that fai
 ## Tests Included
 
 1. **RedHatAI/embeddinggemma-300m** - reranking (~15-20 min)
-2. **RedHatAI/nomic-embed-text-v1.5** - reranking (~15-20 min)
-3. **RedHatAI/nomic-embed-text-v1.5** - pair_classification (~10-15 min)
+2. **RedHatAI/nomic-embed-text-v1.5** - reranking (~15-20 min) *requires trust_remote_code*
+3. **RedHatAI/nomic-embed-text-v1.5** - pair_classification (~10-15 min) *requires trust_remote_code*
 4. **RedHatAI/Qwen3-Embedding-8B** - reranking (~80-90 min)
 5. **RedHatAI/Qwen3-Embedding-8B** - pair_classification (~45-60 min)
 
 **Total estimated time: ~2.5-3 hours**
+
+**Note:** The script automatically handles `trust_remote_code=true` for models that require custom code execution (nomic-embed-text-v1.5).
 
 ## Usage
 

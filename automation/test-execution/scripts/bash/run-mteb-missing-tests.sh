@@ -21,13 +21,13 @@ echo "Cores: $CORES"
 echo "Dry run: $DRY_RUN"
 echo ""
 
-# Test configurations: model, preset, estimated_time
+# Test configurations: model|preset|estimated_time|trust_remote_code
 TESTS=(
-    "RedHatAI/embeddinggemma-300m|reranking|15-20 min"
-    "RedHatAI/nomic-embed-text-v1.5|reranking|15-20 min"
-    "RedHatAI/nomic-embed-text-v1.5|pair_classification|10-15 min"
-    "RedHatAI/Qwen3-Embedding-8B|reranking|80-90 min"
-    "RedHatAI/Qwen3-Embedding-8B|pair_classification|45-60 min"
+    "RedHatAI/embeddinggemma-300m|reranking|15-20 min|false"
+    "RedHatAI/nomic-embed-text-v1.5|reranking|15-20 min|true"
+    "RedHatAI/nomic-embed-text-v1.5|pair_classification|10-15 min|true"
+    "RedHatAI/Qwen3-Embedding-8B|reranking|80-90 min|false"
+    "RedHatAI/Qwen3-Embedding-8B|pair_classification|45-60 min|false"
 )
 
 total_tests=${#TESTS[@]}
@@ -35,8 +35,12 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "Tests to run: $total_tests"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 for test in "${TESTS[@]}"; do
-    IFS='|' read -r model preset time <<< "$test"
-    echo "  - $(basename $model): $preset (~$time)"
+    IFS='|' read -r model preset time trust_code <<< "$test"
+    if [ "$trust_code" = "true" ]; then
+        echo "  - $(basename $model): $preset (~$time) [trust-remote-code]"
+    else
+        echo "  - $(basename $model): $preset (~$time)"
+    fi
 done
 echo ""
 echo "Estimated total time: ~2.5-3 hours"
@@ -55,13 +59,16 @@ failed_tests=()
 
 # Run each test
 for i in "${!TESTS[@]}"; do
-    IFS='|' read -r model preset time <<< "${TESTS[$i]}"
+    IFS='|' read -r model preset time trust_code <<< "${TESTS[$i]}"
     test_num=$((i + 1))
 
     echo ""
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo "Test $test_num/$total_tests: $(basename $model) - $preset"
     echo "Estimated time: ~$time"
+    if [ "$trust_code" = "true" ]; then
+        echo "Trust remote code: enabled"
+    fi
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
 
@@ -71,7 +78,8 @@ for i in "${!TESTS[@]}"; do
         echo "  ansible-playbook -i inventory/hosts.yml mteb-benchmark.yml \\"
         echo "    -e test_model=$model \\"
         echo "    -e mteb_task_preset=$preset \\"
-        echo "    -e requested_cores=$CORES"
+        echo "    -e requested_cores=$CORES \\"
+        echo "    -e trust_remote_code=$trust_code"
         echo ""
         continue
     fi
@@ -83,7 +91,8 @@ for i in "${!TESTS[@]}"; do
         ansible-playbook -i inventory/hosts.yml mteb-benchmark.yml \
             -e "test_model=$model" \
             -e "mteb_task_preset=$preset" \
-            -e "requested_cores=$CORES"); then
+            -e "requested_cores=$CORES" \
+            -e "trust_remote_code=$trust_code"); then
 
         end_time=$(date +%s)
         duration=$((end_time - start_time))
