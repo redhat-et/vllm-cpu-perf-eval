@@ -68,8 +68,8 @@
     - name: Validate test mode
       ansible.builtin.assert:
         that:
-          - vllm_mode in ['managed', 'external']
-        fail_msg: "Invalid vllm_mode: {{ vllm_mode }}. Must be 'managed' or 'external'"
+          - vllm_mode in ['managed', 'dut-only', 'external']
+        fail_msg: "Invalid vllm_mode: {{ vllm_mode }}. Must be 'managed', 'dut-only', or 'external'"
 
     - name: Validate model is specified
       ansible.builtin.assert:
@@ -84,21 +84,41 @@
         fail_msg: "vllm_endpoint_url must be set when vllm_mode=external"
       when: vllm_mode == 'external'
 
-    - name: Display test configuration
-      ansible.builtin.debug:
-        msg:
+    - name: Build test configuration message
+      ansible.builtin.set_fact:
+        config_msg:
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           - "MTEB Quality Benchmark Configuration"
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           - "Mode: {{ vllm_mode }}"
           - "Model: {{ test_model }}"
           - "Task Preset: {{ mteb_task_preset }}"
-          - "{% if mteb_tasks %}Custom Tasks: {{ mteb_tasks }}{% endif %}"
+          - "{{ 'Custom Tasks: ' + mteb_tasks if mteb_tasks else '' }}"
           - "Languages: {{ mteb_languages }}"
           - "Container: {{ mteb_container_image }}"
-          - "{% if vllm_mode == 'managed' %}vLLM Server (DUT): {{ groups['dut'][0] }}{% endif %}"
-          - "MTEB Runner (Loadgen): {{ groups['load_generator'][0] }}"
-          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+    - name: Add dut-only mode info
+      ansible.builtin.set_fact:
+        config_msg: "{{ config_msg + ['Host (vLLM + MTEB): ' + groups['dut'][0]] }}"
+      when: vllm_mode == 'dut-only'
+
+    - name: Add managed mode info
+      ansible.builtin.set_fact:
+        config_msg: "{{ config_msg + ['vLLM Server (DUT): ' + groups['dut'][0], 'MTEB Runner: ' + groups['load_generator'][0]] }}"
+      when: vllm_mode == 'managed'
+
+    - name: Add external mode info
+      ansible.builtin.set_fact:
+        config_msg: "{{ config_msg + ['MTEB Runner: ' + groups['load_generator'][0], 'External Endpoint: ' + vllm_endpoint_url] }}"
+      when: vllm_mode == 'external'
+
+    - name: Finalize config message
+      ansible.builtin.set_fact:
+        config_msg: "{{ (config_msg | reject('equalto', '')) + ['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'] }}"
+
+    - name: Display test configuration
+      ansible.builtin.debug:
+        msg: "{{ config_msg }}"
 
 # ===========================================================================
 # PHASE 1-2: Common vLLM Lifecycle (Startup & Health Check)
@@ -110,9 +130,92 @@
   ansible.builtin.import_playbook: common/vllm-embedding-health-check.yml
 
 # ===========================================================================
-# PHASE 3: Run MTEB Benchmark
+# PHASE 3a: Run MTEB Benchmark (DUT-only mode)
 # ===========================================================================
-- name: "Phase 3 - Run MTEB Benchmark"
+- name: "Phase 3a - Run MTEB Benchmark (DUT-only mode)"
+  hosts: dut
+  become: true
+  gather_facts: true
+  vars:
+    vllm_mode: "{{ hostvars['localhost']['vllm_mode'] }}"
+    test_model: "{{ hostvars['localhost']['test_model'] }}"
+    mteb_task_preset: "{{ hostvars['localhost']['mteb_task_preset'] }}"
+    mteb_tasks: "{{ hostvars['localhost']['mteb_tasks'] }}"
+    mteb_languages: "{{ hostvars['localhost']['mteb_languages'] }}"
+    mteb_container_image: "{{ hostvars['localhost']['mteb_container_image'] }}"
+    mteb_container_name: "mteb-benchmark"
+    results_base_dir: "/tmp/mteb-results"
+
+  tasks:
+    - name: Build vLLM endpoint URL (dut-only mode)
+      ansible.builtin.set_fact:
+        vllm_endpoint_url: "http://localhost:{{ hostvars['localhost']['bench_config']['vllm_port'] }}"
+      when: vllm_mode == 'dut-only'
+
+    - name: Display endpoint being tested
+      ansible.builtin.debug:
+        msg: "Testing vLLM endpoint: {{ vllm_endpoint_url }}"
+      when: vllm_mode == 'dut-only'
+
+    - name: Create results directory
+      ansible.builtin.file:
+        path: "{{ results_base_dir }}"
+        state: directory
+        mode: "0755"
+      when: vllm_mode == 'dut-only'
+
+    - name: Build MTEB command
+      ansible.builtin.set_fact:
+        mteb_command: >-
+          python /opt/mteb/scripts/run_mteb_benchmark.py
+          --endpoint-url {{ vllm_endpoint_url }}
+          --model-name {{ test_model }}
+          --task-preset {{ mteb_task_preset }}
+          --output-dir /results
+          --languages {{ mteb_languages }}
+          {% if mteb_tasks %}--tasks {{ mteb_tasks }}{% endif %}
+      when: vllm_mode == 'dut-only'
+
+    - name: Display MTEB command
+      ansible.builtin.debug:
+        msg: "{{ mteb_command }}"
+      when: vllm_mode == 'dut-only'
+
+    - name: Determine pull policy
+      ansible.builtin.set_fact:
+        mteb_pull_policy: "{{ 'never' if mteb_container_image.startswith('localhost/') else 'missing' }}"
+      when: vllm_mode == 'dut-only'
+
+    - name: Run MTEB benchmark container
+      containers.podman.podman_container:
+        name: "{{ mteb_container_name }}"
+        image: "{{ mteb_container_image }}"
+        pull: "{{ mteb_pull_policy }}"
+        state: started
+        detach: false  # Wait for completion
+        rm: true       # Remove container after completion
+        network: host  # Access vLLM server via localhost
+        volumes:
+          - "{{ results_base_dir }}:/results:z"
+        command: "{{ mteb_command }}"
+      register: mteb_result
+      when: vllm_mode == 'dut-only'
+
+    - name: Display MTEB results
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "✓ MTEB Benchmark Complete"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Model: {{ test_model }}"
+          - "Results: {{ results_base_dir }}/{{ test_model | replace('/', '__') }}"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      when: vllm_mode == 'dut-only'
+
+# ===========================================================================
+# PHASE 3b: Run MTEB Benchmark (Managed/External modes)
+# ===========================================================================
+- name: "Phase 3b - Run MTEB Benchmark (Managed/External modes)"
   hosts: load_generator
   become: true
   gather_facts: true
@@ -140,12 +243,14 @@
     - name: Display endpoint being tested
       ansible.builtin.debug:
         msg: "Testing vLLM endpoint: {{ vllm_endpoint_url }}"
+      when: vllm_mode in ['managed', 'external']
 
     - name: Create results directory
       ansible.builtin.file:
         path: "{{ results_base_dir }}"
         state: directory
         mode: "0755"
+      when: vllm_mode in ['managed', 'external']
 
     - name: Build MTEB command
       ansible.builtin.set_fact:
@@ -157,14 +262,17 @@
           --output-dir /results
           --languages {{ mteb_languages }}
           {% if mteb_tasks %}--tasks {{ mteb_tasks }}{% endif %}
+      when: vllm_mode in ['managed', 'external']
 
     - name: Display MTEB command
       ansible.builtin.debug:
         msg: "{{ mteb_command }}"
+      when: vllm_mode in ['managed', 'external']
 
     - name: Determine pull policy
       ansible.builtin.set_fact:
         mteb_pull_policy: "{{ 'never' if mteb_container_image.startswith('localhost/') else 'missing' }}"
+      when: vllm_mode in ['managed', 'external']
 
     - name: Run MTEB benchmark container
       containers.podman.podman_container:
@@ -179,6 +287,7 @@
           - "{{ results_base_dir }}:/results:z"
         command: "{{ mteb_command }}"
       register: mteb_result
+      when: vllm_mode in ['managed', 'external']
 
     - name: Display MTEB results
       ansible.builtin.debug:
@@ -189,14 +298,16 @@
           - "Model: {{ test_model }}"
           - "Results: {{ results_base_dir }}/{{ test_model | replace('/', '__') }}"
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      when: vllm_mode in ['managed', 'external']
 
 # ===========================================================================
-# PHASE 4: Fetch Results to Local Machine
+# PHASE 4a: Fetch Results to Local Machine (DUT-only mode)
 # ===========================================================================
-- name: "Phase 4 - Fetch MTEB Results"
-  hosts: load_generator
+- name: "Phase 4a - Fetch MTEB Results (DUT-only mode)"
+  hosts: dut
   gather_facts: false
   vars:
+    vllm_mode: "{{ hostvars['localhost']['vllm_mode'] }}"
     results_base_dir: "/tmp/mteb-results"
     local_results_dir: "{{ playbook_dir }}/../../../results/mteb"
 
@@ -207,6 +318,7 @@
         state: directory
         mode: "0755"
       delegate_to: localhost
+      when: vllm_mode == 'dut-only'
 
     - name: Fetch results to local machine
       ansible.posix.synchronize:
@@ -214,6 +326,7 @@
         dest: "{{ local_results_dir }}/"
         mode: pull
         recursive: true
+      when: vllm_mode == 'dut-only'
 
     - name: Reorganize MTEB results (create TaskName/test.json structure)
       ansible.builtin.shell: |
@@ -270,6 +383,92 @@
           done
         done
       delegate_to: localhost
+      when: vllm_mode == 'dut-only'
+
+# ===========================================================================
+# PHASE 4b: Fetch Results to Local Machine (Managed/External modes)
+# ===========================================================================
+- name: "Phase 4b - Fetch MTEB Results (Managed/External modes)"
+  hosts: load_generator
+  gather_facts: false
+  vars:
+    vllm_mode: "{{ hostvars['localhost']['vllm_mode'] }}"
+    results_base_dir: "/tmp/mteb-results"
+    local_results_dir: "{{ playbook_dir }}/../../../results/mteb"
+
+  tasks:
+    - name: Ensure local results directory exists
+      ansible.builtin.file:
+        path: "{{ local_results_dir }}"
+        state: directory
+        mode: "0755"
+      delegate_to: localhost
+      when: vllm_mode in ['managed', 'external']
+
+    - name: Fetch results to local machine
+      ansible.posix.synchronize:
+        src: "{{ results_base_dir }}/"
+        dest: "{{ local_results_dir }}/"
+        mode: pull
+        recursive: true
+      when: vllm_mode in ['managed', 'external']
+
+    - name: Reorganize MTEB results (create TaskName/test.json structure)
+      ansible.builtin.shell: |
+        set -e
+        # Find all test run directories
+        for run_dir in {{ local_results_dir }}/*/2*; do
+          if [ ! -d "$run_dir" ]; then continue; fi
+
+          # Check if nested structure exists
+          nested_dir="$run_dir/no_model_name_available/no_revision_available"
+          if [ -d "$nested_dir" ]; then
+            echo "Reorganizing: $run_dir"
+
+            # Move each JSON file to TaskName/test.json structure
+            for json_file in "$nested_dir"/*.json; do
+              if [ ! -f "$json_file" ]; then continue; fi
+
+              # Get task name (filename without .json)
+              task_name=$(basename "$json_file" .json)
+
+              # Skip metadata files
+              if [ "$task_name" = "model_meta" ]; then
+                mv "$json_file" "$run_dir/" 2>/dev/null || true
+                continue
+              fi
+
+              # Create TaskName directory and move to test.json
+              mkdir -p "$run_dir/$task_name"
+              mv "$json_file" "$run_dir/$task_name/test.json"
+            done
+
+            # Remove nested directories
+            rm -rf "$run_dir/no_model_name_available"
+          fi
+
+          # Also fix files already at root level (from previous reorganization)
+          for json_file in "$run_dir"/*.json; do
+            if [ ! -f "$json_file" ]; then continue; fi
+
+            # Get task name
+            task_name=$(basename "$json_file" .json)
+
+            # Skip summary and metadata files
+            if [ "$task_name" = "run_summary" ] || [ "$task_name" = "model_meta" ]; then
+              continue
+            fi
+
+            # Create TaskName directory and move to test.json
+            if [ ! -d "$run_dir/$task_name" ]; then
+              echo "Fixing root-level file: $task_name"
+              mkdir -p "$run_dir/$task_name"
+              mv "$json_file" "$run_dir/$task_name/test.json"
+            fi
+          done
+        done
+      delegate_to: localhost
+      when: vllm_mode in ['managed', 'external']
       changed_when: false
 
 # ===========================================================================
