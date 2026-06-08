@@ -66,3 +66,26 @@ class DashboardConfig:
 
         self.config['Paths']['results_directory'] = path
         self._save_config()
+
+
+def normalize_vllm_version(version_string):
+    """Normalize vLLM version for display.
+
+    Maps the current RHAIIS vLLM version to a user-friendly display name.
+    Future versions are displayed as-is.
+
+    Args:
+        version_string: Raw vLLM version from metadata
+
+    Returns:
+        "RHAIIS_3.4" for current version, original string otherwise
+    """
+    if not version_string or version_string == 'unknown':
+        return 'unknown'
+
+    # Current RHAIIS 3.4 version
+    if version_string == '0.18.0+rhaiv.7':
+        return 'RHAIIS_3.4'
+
+    # All other versions (past or future) display as-is
+    return version_string
