@@ -213,6 +213,7 @@ for section_name in section_list:
 if current_section == "📈 Performance Plots":
     # Single test mode - filters in main area
     st.markdown("### 🔍 Filter Test Data")
+    st.info("ℹ️ **Server Metrics shows ONE test run at a time.** Use filters to narrow down, then select a specific test run if multiple match. For comparing multiple tests, use the 'Compare Test Configurations' section below.")
 
     if test_mode == 'managed':
         # Managed mode filters
@@ -390,12 +391,13 @@ if current_section == "📈 Performance Plots":
     # Show test run selector if multiple runs match
     available_test_runs = sorted(set(r.get('test_run_id', 'unknown') for r in filtered_pre))
     if len(available_test_runs) > 1:
+        st.warning(f"⚠️ {len(available_test_runs)} test runs match your filters. Please select which one to display:")
         col7, _, _ = st.columns(3)
         with col7:
             selected_test_run = st.selectbox(
-                "Test Run",
+                "Select Test Run to Display",
                 available_test_runs,
-                help=f"{len(available_test_runs)} test runs match"
+                help=f"Choose one of {len(available_test_runs)} matching test runs"
             )
         filtered = [r for r in filtered_pre if r.get('test_run_id') == selected_test_run]
     else:
