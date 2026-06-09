@@ -73,7 +73,7 @@ The test suite includes 5 quantized models:
 | `RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w4a16` | Llama 3.1 8B | w4a16 | 131072 | ✅ All workloads |
 | `RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w8a8` | Llama 3.1 8B | w8a8 | 131072 | ✅ All workloads |
 | `RedHatAI/TinyLlama-1.1B-Chat-v1.0-pruned2.4` | TinyLlama 1.1B | Pruned | **2048** | ⚠️ **Chat only** |
-| `RedHatAI/Qwen3-8B-W8A8-INT8` | Qwen3 8B | W8A8-INT8 | 32768 | ✅ All workloads |
+| `RedHatAI/Qwen3-8B-W8A8-INT8` | Qwen3 8B | W8A8-INT8 | 32768 | ⚠️ **Skip - Known Issue** |
 
 ### TinyLlama Context Window Limitation
 
@@ -144,6 +144,54 @@ pydantic_core._pydantic_core.ValidationError: 1 validation error for ModelConfig
 ```
 
 **Bottom line:** This is a **fundamental model limitation**, not a bug or misconfiguration. TinyLlama (1.1B parameters, 2K context) is designed for lightweight chat applications, not long-context workloads like summarization or RAG.
+
+---
+
+### Qwen3-8B-W8A8-INT8 Quantization Issue
+
+**⚠️ CRITICAL:** The `RedHatAI/Qwen3-8B-W8A8-INT8` model **fails to load** in RHAIIS 3.4.0 due to a quantization configuration validation error.
+
+#### Error Details
+
+**Error message:**
+```
+pydantic_core._pydantic_core.ValidationError: 1 validation error for VllmConfig
+  Value error, Must use group quantization strategy in order to apply activation ordering
+```
+
+**Root cause:**
+- Model's quantization config has `'actorder': 'weight'`
+- RHAIIS vLLM 0.18.0+rhaiv.7 requires **group quantization** when activation ordering is used
+- The model's quantization scheme is incompatible with this vLLM version
+
+**Impact:**
+- ❌ Model fails during initialization before any workload can run
+- ❌ Affects all workloads (chat, code, summarization, rag)
+- ❌ Cannot be worked around with configuration changes
+
+**Workaround:**
+Skip this model when running test suites:
+```bash
+./run-rhaiis-concurrent-load.sh \
+  --models all \
+  --skip-models "RedHatAI/Qwen3-8B-W8A8-INT8" \
+  --continue-on-error
+```
+
+Or use the other Qwen3 model which works fine:
+```bash
+./run-rhaiis-concurrent-load.sh \
+  --models "RedHatAI/Qwen3-8B-quantized.w4a16"  # ✅ Works
+```
+
+**Status:**
+- **Tested with:** RHAIIS 3.4.0 (`registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0`)
+- **Platform:** AWS EC2 c8i.metal-48xl (eu-west-1)
+- **Date:** 2026-06-08
+
+This is a **known compatibility issue** between the model's quantization scheme and the RHAIIS vLLM version. It may be resolved in future RHAIIS releases.
+
+---
 
 ## NUMA/Socket Configuration
 
