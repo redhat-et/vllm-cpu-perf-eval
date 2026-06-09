@@ -80,8 +80,19 @@ trap 'echo -e "\n\nInterrupted by user. Exiting..."; exit 130' SIGINT SIGTERM
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLAYBOOK_DIR="${SCRIPT_DIR}/../../ansible"
 
-# Stay in script directory (like embedding script does)
-# Use relative paths to playbook files
+# Find repository root (where .git directory is)
+REPO_ROOT="${SCRIPT_DIR}"
+while [[ ! -d "${REPO_ROOT}/.git" ]] && [[ "${REPO_ROOT}" != "/" ]]; do
+    REPO_ROOT="$(dirname "${REPO_ROOT}")"
+done
+
+if [[ ! -d "${REPO_ROOT}/.git" ]]; then
+    echo "ERROR: Could not find repository root (no .git directory found)"
+    exit 1
+fi
+
+# Change to repository root for consistent relative paths
+cd "${REPO_ROOT}"
 
 # Force Ansible to use consistent output formatting
 export ANSIBLE_STDOUT_CALLBACK=default
