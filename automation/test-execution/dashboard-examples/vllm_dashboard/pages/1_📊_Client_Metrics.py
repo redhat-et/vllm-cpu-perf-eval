@@ -645,17 +645,17 @@ def render_performance_plots(df: pd.DataFrame):
         height=600,
         hovermode='closest',
         legend=dict(
-            orientation="v",
-            yanchor="top",
-            y=1,
-            xanchor="left",
-            x=1.02,  # Position outside the plot area
+            orientation="h",
+            yanchor="bottom",
+            y=-0.25,
+            xanchor="center",
+            x=0.5,
             bgcolor="white",
             bordercolor="rgba(0, 0, 0, 0.3)",
             borderwidth=1,
-            font=dict(size=9, color="rgb(0, 0, 0)")
+            font=dict(size=10, color="rgb(0, 0, 0)")
         ),
-        margin=dict(r=400)  # Add right margin for legend panel
+        margin=dict(b=400)  # Add bottom margin for legend
     )
 
     st.plotly_chart(fig, use_container_width=True)
