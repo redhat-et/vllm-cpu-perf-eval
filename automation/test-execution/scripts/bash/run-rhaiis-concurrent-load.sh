@@ -94,10 +94,6 @@ fi
 # Change to repository root for consistent relative paths
 cd "${REPO_ROOT}"
 
-# Force Ansible to use consistent output formatting
-export ANSIBLE_STDOUT_CALLBACK=default
-export ANSIBLE_FORCE_COLOR=false
-
 # All supported RHAIIS LLM models
 ALL_MODELS=(
     "RedHatAI/Qwen3-8B-quantized.w4a16"
