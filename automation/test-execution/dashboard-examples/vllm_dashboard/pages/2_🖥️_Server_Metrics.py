@@ -76,6 +76,31 @@ if st.sidebar.button("🔄 Reload Data", key="reload_btn_server"):
     st.cache_data.clear()
     st.rerun()
 
+# Workload reference table
+with st.sidebar.expander("📋 Workload Reference", expanded=False):
+    st.markdown("**Token Configuration by Workload**")
+    workload_data = {
+        "Workload": ["chat", "chat_lite", "rag", "code", "summarization", "reasoning"],
+        "ISL": [512, 128, 7680, 1024, 2048, 256],
+        "OSL": [512, 128, 512, 1024, 256, 2048],
+        "Total": [1024, 256, 8192, 2048, 2304, 2304],
+        "max_model_len": [2048, 2048, 8320, 4096, 4096, 4096],
+    }
+    workload_df = pd.DataFrame(workload_data)
+    st.dataframe(
+        workload_df,
+        hide_index=True,
+        use_container_width=True,
+        column_config={
+            "Workload": st.column_config.TextColumn("Workload", width="small"),
+            "ISL": st.column_config.NumberColumn("ISL", help="Input Sequence Length", width="small"),
+            "OSL": st.column_config.NumberColumn("OSL", help="Output Sequence Length", width="small"),
+            "Total": st.column_config.NumberColumn("Total", help="ISL + OSL", width="small"),
+            "max_model_len": st.column_config.NumberColumn("max_model_len", help="vLLM context limit", width="small"),
+        }
+    )
+    st.caption("ISL = Input Sequence Length | OSL = Output Sequence Length")
+
 # Load vLLM metrics
 @st.cache_data
 def load_vllm_metrics(base_dir: str):

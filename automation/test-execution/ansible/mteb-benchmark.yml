@@ -114,7 +114,7 @@
 
     - name: Finalize config message
       ansible.builtin.set_fact:
-        config_msg: "{{ (config_msg | reject('equalto', '')) + ['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'] }}"
+        config_msg: "{{ (config_msg | reject('equalto', '') | list) + ['━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'] }}"
 
     - name: Display test configuration
       ansible.builtin.debug:

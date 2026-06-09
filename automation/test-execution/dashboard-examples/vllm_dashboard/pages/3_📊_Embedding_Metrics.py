@@ -1557,14 +1557,6 @@ def main():
             st.warning("No data matches the selected filters.")
             return
 
-        # Debug info disabled - uncomment if needed for troubleshooting
-        # unique_models = filtered_df['model'].unique()
-        # unique_cores = sorted(filtered_df['requested_cores'].unique())
-        # unique_test_runs = len(filtered_df['test_run_id'].unique())
-        # st.info(f"📊 Displaying: **{len(unique_models)} model(s)** ({', '.join([m.split('/')[-1] for m in unique_models])}) | "
-        #         f"**{len(unique_cores)} core config(s)** ({', '.join([f'{c}c' for c in unique_cores])}) | "
-        #         f"**{unique_test_runs} test run(s)** | "
-        #         f"**{len(filtered_df)} data points**")
     else:
         # No performance data available - skip filters
         filtered_df = pd.DataFrame()

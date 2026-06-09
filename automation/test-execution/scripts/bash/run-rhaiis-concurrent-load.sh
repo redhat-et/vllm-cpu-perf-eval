@@ -296,13 +296,20 @@ if [ -z "${LD_PRELOAD:-}" ]; then
     log_error ""
     log_error "Without this, you will see significantly degraded latency (5-10x slower)."
     log_error ""
-    read -p "Continue anyway? [y/N] " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        log_info "Aborted. Please set LD_PRELOAD and try again."
-        exit 0
+
+    # Skip prompt in non-interactive mode or when CI/NONINTERACTIVE is set
+    if [[ -t 0 ]] && [[ "${NONINTERACTIVE:-}" != "true" ]] && [[ "${CI:-}" != "true" ]]; then
+        read -p "Continue anyway? [y/N] " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            log_info "Aborted. Please set LD_PRELOAD and try again."
+            exit 0
+        fi
+        log_warning "Continuing without LD_PRELOAD - performance will be poor!"
+    else
+        log_error "Aborting in non-interactive mode. Set LD_PRELOAD or NONINTERACTIVE=true to override."
+        exit 1
     fi
-    log_warning "Continuing without LD_PRELOAD - performance will be poor!"
     echo ""
 fi
 
@@ -365,11 +372,16 @@ echo ""
 
 # Confirm execution
 if [[ "${DRY_RUN}" == false ]]; then
-    read -p "Proceed with test suite? [y/N] " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        log_info "Aborted by user"
-        exit 0
+    # Skip prompt in non-interactive mode or when CI/NONINTERACTIVE is set
+    if [[ -t 0 ]] && [[ "${NONINTERACTIVE:-}" != "true" ]] && [[ "${CI:-}" != "true" ]]; then
+        read -p "Proceed with test suite? [y/N] " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            log_info "Aborted by user"
+            exit 0
+        fi
+    else
+        log_info "Running in non-interactive mode, proceeding automatically..."
     fi
 fi
 
@@ -381,7 +393,7 @@ FAILED_LIST=()
 START_TIME=$(date +%s)
 
 # Results log - save to dedicated logs directory
-LOGS_DIR="${SCRIPT_DIR}/../../../../logs"
+LOGS_DIR="${REPO_ROOT}/logs"
 mkdir -p "${LOGS_DIR}"
 RESULTS_LOG="${LOGS_DIR}/rhaiis-concurrent-load-$(date +%Y%m%d-%H%M%S).log"
 
@@ -431,8 +443,8 @@ for model in "${MODELS[@]}"; do
             # Build ansible command
             cmd=(
                 ansible-playbook
-                -i "automation/test-execution/ansible/inventory/hosts.yml"
-                "automation/test-execution/ansible/llm-benchmark-concurrent-load.yml"
+                -i "${PLAYBOOK_DIR}/inventory/hosts.yml"
+                "${PLAYBOOK_DIR}/llm-benchmark-concurrent-load.yml"
                 -e "test_model=${model}"
                 -e "base_workload=${workload}"
                 -e "requested_cores=${cores}"

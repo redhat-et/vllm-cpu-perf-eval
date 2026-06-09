@@ -61,7 +61,7 @@ This guide covers running concurrent load tests on RHAIIS (Red Hat AI Inference 
    export GUIDELLM_REQUEST_TIMEOUT=180
    ```
 
-   **Why this matters:** See `/tmp/test-duration-impact.md` for detailed analysis of how test duration affects warmup, sample size, GC artifacts, and percentile stability.
+   **Why this matters:** Shorter tests show erratic P95/P99 due to: (1) warmup effects dominating samples, (2) insufficient request count for statistical stability, (3) GC pauses causing visible spikes.
 
 ## RHAIIS Models to Test
 
@@ -545,8 +545,6 @@ export GUIDELLM_MAX_SECONDS=600   # 10 minutes (default)
 - For **production benchmarks**: Use 600s (default)
 - For **development testing**: Use 300s minimum
 - For **smoke tests only**: 180s acceptable (but ignore P95/P99 spikes)
-
-See `/tmp/test-duration-impact.md` for detailed analysis.
 
 ### ⚠️ CRITICAL: Poor Latency / Performance Issues
 
