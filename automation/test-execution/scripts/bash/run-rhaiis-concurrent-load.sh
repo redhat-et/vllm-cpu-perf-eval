@@ -159,45 +159,66 @@ log_error() {
 }
 
 show_help() {
-    sed -n '/^# ===/,/^# ===/p' "$0" | sed 's/^# //; s/^#//'
+    sed -n '/^# ===/,/^set -/p' "$0" | sed '$d' | sed '1,3d;$d' | sed 's/^# //; s/^#//'
+}
+
+# Validate flag value helper
+validate_flag_value() {
+    local flag="$1"
+    local value="${2:-}"
+
+    if [[ -z "${value}" ]] || [[ "${value}" == -* ]]; then
+        log_error "Flag ${flag} requires a value"
+        show_help
+        exit 1
+    fi
 }
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
         --models)
+            validate_flag_value "$1" "${2:-}"
             MODELS_INPUT="$2"
             shift 2
             ;;
         --cores)
+            validate_flag_value "$1" "${2:-}"
             CORES_INPUT="$2"
             shift 2
             ;;
         --workloads)
+            validate_flag_value "$1" "${2:-}"
             WORKLOADS_INPUT="$2"
             shift 2
             ;;
         --phase)
+            validate_flag_value "$1" "${2:-}"
             PHASE="$2"
             shift 2
             ;;
         --vllm-cpu-start)
+            validate_flag_value "$1" "${2:-}"
             VLLM_CPU_START="$2"
             shift 2
             ;;
         --vllm-numa-node)
+            validate_flag_value "$1" "${2:-}"
             VLLM_NUMA_NODE="$2"
             shift 2
             ;;
         --guidellm-cpus)
+            validate_flag_value "$1" "${2:-}"
             GUIDELLM_CPUS="$2"
             shift 2
             ;;
         --guidellm-numa-node)
+            validate_flag_value "$1" "${2:-}"
             GUIDELLM_NUMA_NODE="$2"
             shift 2
             ;;
         --skip-models)
+            validate_flag_value "$1" "${2:-}"
             SKIP_MODELS_INPUT="$2"
             shift 2
             ;;

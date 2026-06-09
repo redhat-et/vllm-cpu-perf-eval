@@ -267,11 +267,11 @@ the derived max_model_len (max_position_embeddings=2048.0)
 
 | Workload | ISL | OSL | Total Tokens | max_model_len | TinyLlama Support |
 |----------|-----|-----|--------------|---------------|-------------------|
-| **Chat** | 512 | 512 | 1024 | 2048 | ✅ **Compatible** |
-| **Code** | 1024 | 1024 | 2048 | 4096 | ❌ **ISL at model limit** |
-| **Summarization** | **2048** | 256 | 2304 | 4096 | ❌ **ISL fills entire context** |
-| **RAG** | **8192** | 512 | 8704 | 16384 | ❌ **ISL exceeds model 4x** |
-| **Reasoning** | 256 | 2048 | 2304 | 4096 | ❌ **OSL exceeds model** |
+| **Chat** | 512 | 512 | 1024 | 2048 | ✅ **Compatible** (2048 ≤ 2048) |
+| **Code** | 1024 | 1024 | 2048 | 4096 | ❌ **max_model_len > model limit** (4096 > 2048) |
+| **Summarization** | **2048** | 256 | 2304 | 4096 | ❌ **max_model_len > model limit** (4096 > 2048) |
+| **RAG** | **8192** | 512 | 8704 | 16384 | ❌ **max_model_len > model limit** (16384 > 2048) |
+| **Reasoning** | 256 | 2048 | 2304 | 4096 | ❌ **max_model_len > model limit** (4096 > 2048) |
 
 #### Why Summarization and RAG Fail
 
@@ -292,7 +292,7 @@ Context overflow:             6144 tokens (8192 - 2048)
 Result:                       Input exceeds model capacity by 4x ❌
 ```
 
-**Key Insight:** The **Input Sequence Length (ISL) alone** determines compatibility. If ISL ≥ `max_position_embeddings`, the model cannot even load the input, regardless of output requirements.
+**Key Insight:** vLLM validates that `max_model_len ≤ max_position_embeddings`. The workload's configured `max_model_len` (e.g., Code uses 4096) must not exceed the model's architectural limit (`max_position_embeddings=2048` for TinyLlama). This validation happens **before** any tokens are processed, making ISL/OSL values irrelevant if the workload's `max_model_len` already exceeds the model's capacity.
 
 #### Recommendations
 
