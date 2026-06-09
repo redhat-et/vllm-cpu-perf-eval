@@ -391,14 +391,41 @@ if current_section == "📈 Performance Plots":
     # Show test run selector if multiple runs match
     available_test_runs = sorted(set(r.get('test_run_id', 'unknown') for r in filtered_pre))
     if len(available_test_runs) > 1:
-        st.warning(f"⚠️ {len(available_test_runs)} test runs match your filters. Please select which one to display:")
+        st.warning(f"⚠️ {len(available_test_runs)} test runs match your filters. Narrow down filters or select a specific test run:")
+
+        # Create human-readable options for the selectbox
+        # Map test_run_id to a more readable format: "Model | Workload | Cores | Date"
+        test_run_options = {}
+        for test_id in available_test_runs:
+            # Find the test data for this run
+            test = next((r for r in filtered_pre if r.get('test_run_id') == test_id), None)
+            if test:
+                if test_mode == 'managed':
+                    model_short = test.get('model', 'unknown').split('/')[-1]
+                    workload = test.get('workload', 'N/A')
+                    cores = test.get('cores', 'N/A')
+                    # Extract date from test_run_id (format: YYYYMMDD-HHMMSS or similar)
+                    date_part = test_id[:8] if len(test_id) >= 8 else test_id
+                    label = f"{model_short} | {workload} | {cores}c | {date_part}"
+                else:  # external
+                    model_short = test.get('model', 'unknown').split('/')[-1]
+                    workload = test.get('workload', 'N/A')
+                    endpoint = test.get('vllm_endpoint_url', 'N/A')
+                    endpoint_short = endpoint.split('//')[-1].split('/')[0].split(':')[0]  # Just hostname
+                    date_part = test_id[:8] if len(test_id) >= 8 else test_id
+                    label = f"{model_short} | {workload} | {endpoint_short} | {date_part}"
+
+                test_run_options[label] = test_id
+
         col7, _, _ = st.columns(3)
         with col7:
-            selected_test_run = st.selectbox(
+            selected_label = st.selectbox(
                 "Select Test Run to Display",
-                available_test_runs,
+                list(test_run_options.keys()),
                 help=f"Choose one of {len(available_test_runs)} matching test runs"
             )
+            selected_test_run = test_run_options[selected_label]
+
         filtered = [r for r in filtered_pre if r.get('test_run_id') == selected_test_run]
     else:
         filtered = filtered_pre

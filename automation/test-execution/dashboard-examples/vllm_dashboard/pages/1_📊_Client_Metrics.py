@@ -642,20 +642,20 @@ def render_performance_plots(df: pd.DataFrame):
         title=f"{selected_metric_family} vs {selected_x_axis}",
         xaxis_title=selected_x_axis,
         yaxis_title=selected_metric_family,
-        height=600,
+        height=700,
         hovermode='closest',
         legend=dict(
             orientation="h",
-            yanchor="bottom",
-            y=-0.25,
+            yanchor="top",
+            y=-0.15,
             xanchor="center",
             x=0.5,
             bgcolor="white",
             bordercolor="rgba(0, 0, 0, 0.3)",
             borderwidth=1,
-            font=dict(size=10, color="rgb(0, 0, 0)")
+            font=dict(size=9, color="rgb(0, 0, 0)")
         ),
-        margin=dict(b=400)  # Add bottom margin for legend
+        margin=dict(b=250, t=80)  # Bottom margin for legend, top margin for title
     )
 
     st.plotly_chart(fig, use_container_width=True)
