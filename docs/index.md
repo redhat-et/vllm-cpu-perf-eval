@@ -61,6 +61,9 @@ See [Methodology](methodology/overview.md) for details.
 - [Overview](methodology/overview.md)
 - [Embedding Models Presentation](presentations/embedding-models-methodology-results.md)
 
+### Configuration
+- [vLLM KV Cache Configuration Guide](vllm-kv-cache-configuration.md) - Understanding max_model_len, KV cache size, and block_size for optimal CPU performance
+
 ## Container Images
 
 Pre-built containers available on Quay.io:

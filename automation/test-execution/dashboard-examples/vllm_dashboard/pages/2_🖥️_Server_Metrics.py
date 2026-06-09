@@ -71,6 +71,11 @@ with col2:
         else:
             st.sidebar.info("No changes")
 
+# Reload data button
+if st.sidebar.button("🔄 Reload Data", key="reload_btn_server"):
+    st.cache_data.clear()
+    st.rerun()
+
 # Load vLLM metrics
 @st.cache_data
 def load_vllm_metrics(base_dir: str):

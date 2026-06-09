@@ -1137,6 +1137,11 @@ def render_dashboard():
             else:
                 st.sidebar.info("No changes")
 
+    # Reload data button
+    if st.sidebar.button("🔄 Reload Data", key="reload_btn_client"):
+        st.cache_data.clear()
+        st.rerun()
+
     with st.spinner("Loading benchmark data..."):
         df = load_guidellm_data(results_dir)
 
@@ -1204,6 +1209,50 @@ def render_dashboard():
     if filtered_df.empty:
         st.warning("⚠️ No runs match the selected filters.")
         return
+
+    st.markdown("---")
+
+    # Concurrent Load Metrics Table (collapsed by default)
+    with st.expander("📊 Concurrent Load Metrics (All Configurations)", expanded=False):
+        display_df = filtered_df.copy()
+
+        # Create configuration column combining key attributes
+        display_df['config'] = display_df.apply(
+            lambda row: f"{row['model_short']} | {row['cores']}c | {row['workload']} | run {row['test_run_id'][-8:]}",
+            axis=1
+        )
+
+        # Convert E2E latencies from seconds to milliseconds
+        display_df['e2e_mean_ms'] = display_df['e2e_mean'] * 1000
+        display_df['e2e_p50_ms'] = display_df['e2e_p50'] * 1000
+        display_df['e2e_p99_ms'] = display_df['e2e_p99'] * 1000
+
+        # Select columns for display
+        metrics_display = display_df[[
+            'config', 'concurrency', 'request_rate', 'throughput_mean',
+            'efficiency', 'e2e_mean_ms', 'e2e_p50_ms', 'e2e_p99_ms'
+        ]].copy()
+
+        # Rename columns for clarity
+        metrics_display.columns = [
+            'Configuration', 'Concurrency', 'RPS', 'Tokens/s',
+            'Tokens/s/Core', 'Mean (ms)', 'Median (ms)', 'P99 (ms)'
+        ]
+
+        # Round numeric values
+        metrics_display = metrics_display.round(2)
+
+        st.dataframe(metrics_display, use_container_width=True)
+
+        # Download button for metrics table
+        csv = metrics_display.to_csv(index=False)
+        st.download_button(
+            label="Download Metrics as CSV",
+            data=csv,
+            file_name="concurrent_load_metrics.csv",
+            mime="text/csv",
+            key="download_metrics_table"
+        )
 
     st.markdown("---")
 

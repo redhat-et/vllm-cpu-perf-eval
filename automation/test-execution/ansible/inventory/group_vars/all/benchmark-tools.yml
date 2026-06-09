@@ -65,9 +65,11 @@ benchmark_tool:
     rate: [1, 2, 4, 8, 16, 32]
 
     # Runtime constraints (apply to all profiles)
-    max_seconds: 600            # Maximum benchmark duration (10 minutes for enhanced methodology)
+    # Override with: export GUIDELLM_MAX_SECONDS=300 for shorter tests
+    max_seconds: "{{ lookup('env', 'GUIDELLM_MAX_SECONDS') | default('600', true) | int }}"  # Maximum benchmark duration (10 minutes default)
     max_requests: 1000          # Maximum number of requests (fallback if max_seconds not reached)
-    request_timeout: 600        # Request timeout (matches max_seconds for CPU testing)
+    # Override with: export GUIDELLM_REQUEST_TIMEOUT=300 (should match max_seconds)
+    request_timeout: "{{ lookup('env', 'GUIDELLM_REQUEST_TIMEOUT') | default('600', true) | int }}"  # Request timeout (matches max_seconds for CPU testing)
     warmup: 0.1                 # Warmup as percentage (10% of time for time-based tests)
     max_concurrency: 128        # Max concurrent requests (CPU testing)
     saturation_threshold: 0.98  # Saturation detection threshold (0-1)

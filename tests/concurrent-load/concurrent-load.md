@@ -169,6 +169,28 @@ See specifically:
 
 This test suite focuses exclusively on **generative LLM models**.
 
+## RHAIIS Quantized Models
+
+**Note:** Testing RHAIIS (Red Hat AI Inference Service) quantized models is
+supported with the dedicated [RHAIIS Testing Guide](rhaiis-testing.md).
+
+**Quick Start:**
+```bash
+cd ../../automation/test-execution/scripts/bash
+export VLLM_CONTAINER_IMAGE=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
+./run-rhaiis-concurrent-load.sh
+```
+
+**Models included:**
+- RedHatAI/Qwen3-8B-quantized.w4a16
+- RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w4a16
+- RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w8a8
+- RedHatAI/TinyLlama-1.1B-Chat-v1.0-pruned2.4
+- RedHatAI/Qwen3-8B-W8A8-INT8
+
+See the [RHAIIS Testing Guide](rhaiis-testing.md) for detailed instructions,
+NUMA configuration, and deployment options.
+
 ## Testing Strategy: 3-Phase Approach
 
 This test suite implements the

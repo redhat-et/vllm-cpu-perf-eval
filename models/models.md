@@ -240,6 +240,104 @@ Models for scalability testing and high parameter counts:
 
 **Best for**: CPU scalability testing, long-context RAG (128k), tensor parallelism validation
 
+---
+
+## Model Limitations and Context Window Constraints
+
+### TinyLlama Context Window Limitation
+
+**⚠️ CRITICAL:** TinyLlama-1.1B-Chat has a **hard architectural limit** of **2048 tokens** (`max_position_embeddings=2048`) which restricts which workloads it can support.
+
+#### Technical Background
+
+The `max_position_embeddings` parameter is hardcoded in the model's architecture during pre-training. This defines the absolute maximum number of tokens (input + output) that can be in the model's context window simultaneously. **This cannot be overridden via vLLM configuration.**
+
+When vLLM initializes a model, it validates:
+```
+max_model_len ≤ max_position_embeddings
+```
+
+If the workload requires `--max-model-len` greater than the model's `max_position_embeddings`, vLLM will fail during initialization with:
+```
+ValidationError: User-specified max_model_len (X) is greater than 
+the derived max_model_len (max_position_embeddings=2048.0)
+```
+
+#### TinyLlama Workload Compatibility
+
+| Workload | ISL | OSL | Total Tokens | max_model_len | TinyLlama Support |
+|----------|-----|-----|--------------|---------------|-------------------|
+| **Chat** | 512 | 512 | 1024 | 2048 | ✅ **Compatible** |
+| **Code** | 1024 | 1024 | 2048 | 4096 | ❌ **ISL at model limit** |
+| **Summarization** | **2048** | 256 | 2304 | 4096 | ❌ **ISL fills entire context** |
+| **RAG** | **8192** | 512 | 8704 | 16384 | ❌ **ISL exceeds model 4x** |
+| **Reasoning** | 256 | 2048 | 2304 | 4096 | ❌ **OSL exceeds model** |
+
+#### Why Summarization and RAG Fail
+
+**Summarization (ISL=2048):**
+```
+ISL (document to summarize):  2048 tokens
+TinyLlama max context:        2048 tokens
+Space for output generation:  0 tokens (2048 - 2048 = 0)
+OSL required:                 256 tokens
+Result:                       IMPOSSIBLE - input fills entire context ❌
+```
+
+**RAG (ISL=8192):**
+```
+ISL (retrieved context):      8192 tokens
+TinyLlama max context:        2048 tokens
+Context overflow:             6144 tokens (8192 - 2048)
+Result:                       Input exceeds model capacity by 4x ❌
+```
+
+**Key Insight:** The **Input Sequence Length (ISL) alone** determines compatibility. If ISL ≥ `max_position_embeddings`, the model cannot even load the input, regardless of output requirements.
+
+#### Recommendations
+
+**For TinyLlama testing:**
+- ✅ Use for **chat workload only** (ISL=512, well within 2048 limit)
+- ✅ Excellent for lightweight validation and quick smoke tests
+- ❌ Skip for comprehensive workload testing (code, summarization, RAG, reasoning)
+
+**For comprehensive workload testing:**
+- ✅ Use **Llama-3.2-1B** (8192 context) or **Llama-3.2-3B** (8192 context)
+- ✅ Use **Qwen3-0.6B** (8192 context) or **Qwen2.5-3B** (8192 context)
+- ✅ Use **granite-3.2-2b** (4096 context) - supports all except RAG
+
+**Command examples:**
+```bash
+# ✅ GOOD: TinyLlama with chat only
+./run-concurrent-load.sh --models TinyLlama-1.1B-Chat --workloads chat
+
+# ❌ WILL FAIL: TinyLlama with summarization/RAG
+./run-concurrent-load.sh --models TinyLlama-1.1B-Chat --workloads summarization
+
+# ✅ GOOD: Use --continue-on-error to test other models despite TinyLlama failures
+./run-concurrent-load.sh --models all --continue-on-error
+```
+
+#### Other Model Context Limits
+
+| Model | max_position_embeddings | Incompatible Workloads |
+|-------|------------------------|------------------------|
+| TinyLlama-1.1B-Chat | 2048 | Code, Summarization, RAG, Reasoning |
+| granite-3.2-2b-instruct | 4096 | RAG (needs 16384) |
+| Llama-3.2-1B-Instruct | 8192 | None (supports all standard workloads) |
+| Llama-3.2-3B-Instruct | 8192 | None (supports all standard workloads) |
+| Qwen3-0.6B | 8192 | None (supports all standard workloads) |
+| Qwen2.5-3B-Instruct | 8192 | None (supports all standard workloads) |
+| openai/gpt-oss-20b | 128000 | None (extreme long context support) |
+
+**Important Notes:**
+- This is a **model architecture limitation**, not a configuration issue
+- Cannot be fixed by adjusting vLLM parameters
+- Cannot be worked around without changing the workload definition (reducing ISL/OSL)
+- Model must be retrained with larger positional embeddings to support longer contexts
+
+---
+
 ## LLM Test Suite Coverage
 
 ### Test Suite 1: Concurrent Load

@@ -38,9 +38,22 @@
       {%- endif -%}
     guidellm_image_default: ghcr.io/vllm-project/guidellm:v0.6.0
 
-- name: Display detected architecture
+- name: Get actual vLLM image to be used
+  ansible.builtin.set_fact:
+    vllm_actual_image: "{{ lookup('env', 'VLLM_CONTAINER_IMAGE') | default(vllm_server_image_default, true) }}"
+
+- name: Display detected architecture and container images
   ansible.builtin.debug:
     msg:
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      - "Architecture Detection"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       - "Detected architecture: {{ system_arch.stdout }}"
-      - "Default vLLM image: {{ vllm_server_image_default }}"
-      - "Default GuideLLM image: {{ guidellm_image_default }}"
+      - ""
+      - "Container Images:"
+      - "  vLLM image (default): {{ vllm_server_image_default }}"
+      - "  vLLM image (actual):  {{ vllm_actual_image }}"
+      - "  {% if vllm_actual_image != vllm_server_image_default %}✓ Using custom image from VLLM_CONTAINER_IMAGE{% else %}Using architecture default{% endif %}"
+      - ""
+      - "  GuideLLM image: {{ guidellm_image_default }}"
+      - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

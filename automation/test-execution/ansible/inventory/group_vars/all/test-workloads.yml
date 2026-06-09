@@ -64,6 +64,7 @@ test_configs:
       - "--dtype=auto"                  # Fallback dtype - overridden by model-specific dtype
       - "--no-enable-prefix-caching"    # Baseline mode: no prefix caching
       - "--max-model-len=2048"          # Limit model context to workload needs (2x total tokens for headroom)
+      - "--block-size=128"              # CPU optimal: multiples of 32 for SIMD alignment (AVX2/AVX512/NEON)
     kv_cache_space: "40GiB"             # Fallback value - should be overridden by model-specific kv_cache_sizes
 
   # Chat lite workload (lighter version with shorter sequences)
@@ -77,6 +78,7 @@ test_configs:
       - "--dtype=auto"                  # Fallback dtype - overridden by model-specific dtype
       - "--no-enable-prefix-caching"    # Baseline mode: no prefix caching
       - "--max-model-len=2048"          # Limit model context to workload needs (2x total tokens for headroom)
+      - "--block-size=128"              # CPU optimal: multiples of 32 for SIMD alignment (AVX2/AVX512/NEON)
     kv_cache_space: "10GiB"             # Fallback value - 256 total tokens (vs 1024 for chat)
 
   # RAG workload (very long input, medium output)
@@ -89,7 +91,8 @@ test_configs:
     vllm_args:
       - "--dtype=auto"                  # Fallback dtype - overridden by model-specific dtype
       - "--no-enable-prefix-caching"    # Baseline mode: no prefix caching
-      - "--max-model-len=16384"         # Limit model context to workload needs (8192 tokens)
+      - "--max-model-len=8192"          # Limit model context to workload needs (8192 tokens)
+      - "--block-size=128"              # CPU optimal: multiples of 32 for SIMD alignment (AVX2/AVX512/NEON)
     kv_cache_space: "40GiB"             # Fallback value - should be overridden by model-specific kv_cache_sizes
 
   # Code generation workload (medium input, practical CPU ceiling output)
@@ -103,6 +106,7 @@ test_configs:
       - "--dtype=auto"                  # Fallback dtype - overridden by model-specific dtype
       - "--no-enable-prefix-caching"    # Baseline mode: no prefix caching
       - "--max-model-len=4096"          # Limit model context to workload needs (2048 tokens)
+      - "--block-size=128"              # CPU optimal: multiples of 32 for SIMD alignment (AVX2/AVX512/NEON)
     kv_cache_space: "40GiB"             # Fallback value - should be overridden by model-specific kv_cache_sizes
 
   # Summarization workload (long input, short output)
@@ -116,6 +120,7 @@ test_configs:
       - "--dtype=auto"                  # Fallback dtype - overridden by model-specific dtype
       - "--no-enable-prefix-caching"    # Baseline mode: no prefix caching
       - "--max-model-len=4096"          # Limit model context to workload needs (2304 tokens)
+      - "--block-size=128"              # CPU optimal: multiples of 32 for SIMD alignment (AVX2/AVX512/NEON)
     kv_cache_space: "40GiB"             # Fallback value - should be overridden by model-specific kv_cache_sizes
 
   # Reasoning workload (short input, long output)
@@ -129,6 +134,7 @@ test_configs:
       - "--dtype=auto"                  # Fallback dtype - overridden by model-specific dtype
       - "--no-enable-prefix-caching"    # Baseline mode: no prefix caching
       - "--max-model-len=4096"          # Limit model context to workload needs (2304 tokens)
+      - "--block-size=128"              # CPU optimal: multiples of 32 for SIMD alignment (AVX2/AVX512/NEON)
     kv_cache_space: "40GiB"             # Fallback value - should be overridden by model-specific kv_cache_sizes
 
   # ============================================================================
@@ -152,6 +158,7 @@ test_configs:
       - "--dtype=auto"                  # Fallback dtype - overridden by model-specific dtype
       - "--no-enable-prefix-caching"    # Baseline mode: no prefix caching
       - "--max-model-len=4096"          # Limit model context to workload needs (max 2048 tokens)
+      - "--block-size=128"              # CPU optimal: multiples of 32 for SIMD alignment (AVX2/AVX512/NEON)
     kv_cache_space: "40GiB"             # Fallback value - should be overridden by model-specific kv_cache_sizes
 
   # Code generation workload with variability (realistic output variance)
@@ -171,6 +178,7 @@ test_configs:
       - "--dtype=auto"                  # Fallback dtype - overridden by model-specific dtype
       - "--no-enable-prefix-caching"    # Baseline mode: no prefix caching
       - "--max-model-len=8192"          # Limit model context to workload needs (max 4096 tokens)
+      - "--block-size=128"              # CPU optimal: multiples of 32 for SIMD alignment (AVX2/AVX512/NEON)
     kv_cache_space: "40GiB"             # Fallback value - should be overridden by model-specific kv_cache_sizes
 
 
@@ -190,6 +198,7 @@ test_configs:
     vllm_args:
       - "--dtype=bfloat16"
       - "--no-enable-prefix-caching"    # Baseline mode: no prefix caching
+      - "--block-size=128"              # CPU optimal: multiples of 32 for SIMD alignment (AVX2/AVX512/NEON)
     kv_cache_space: "40GiB"             # ~1280 avg tokens * ~32 concurrent
 
 # ============================================================================
