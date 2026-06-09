@@ -23,11 +23,10 @@ Three configuration parameters have **critical impact** on vLLM CPU inference pe
 2. [max_model_len: Context Length Configuration](#max_model_len-context-length-configuration)
 3. [KV Cache Size: Memory Budget](#kv-cache-size-memory-budget)
 4. [block_size: Cache Alignment](#block_size-cache-alignment)
-5. [Parameter Interactions](#parameter-interactions)
-6. [Practical Recommendations](#practical-recommendations)
-7. [Common Pitfalls](#common-pitfalls)
-8. [Performance Tuning Guide](#performance-tuning-guide)
-9. [References](#references)
+5. [Practical Recommendations](#practical-recommendations)
+6. [Common Pitfalls](#common-pitfalls)
+7. [Quick Decision Tree](#quick-decision-tree)
+8. [References](#references)
 
 ---
 
@@ -79,7 +78,7 @@ For example, **Llama-3.2-1B** with 8192 context (bfloat16):
 
 ## max_model_len: Context Length Configuration
 
-### What It Does
+### How max_model_len Works
 
 `--max-model-len` sets the **maximum sequence length** (prompt + output) that vLLM will process.
 
@@ -93,7 +92,7 @@ vllm serve model-name \
 - If not specified: Uses model's native maximum context length
 - `--max-model-len -1` or `auto`: Auto-selects largest that fits in memory
 
-### Performance Impact
+### Performance Impact of max_model_len
 
 #### 1. **Memory Allocation (PRIMARY IMPACT)**
 
@@ -132,7 +131,7 @@ total_kv_memory = kv_cache_blocks × block_memory_size
 
 ## KV Cache Size: Memory Budget
 
-### What It Does
+### How KV Cache Size Works
 
 `VLLM_CPU_KVCACHE_SPACE` (environment variable) or `--kv-cache-memory-bytes` sets the **total memory budget** for KV cache.
 
@@ -166,7 +165,7 @@ vllm serve model-name \
 
 ## block_size: Cache Alignment
 
-### What It Does
+### How block_size Works
 
 `--block-size` sets the **granularity** of KV cache block allocation.
 
@@ -178,7 +177,7 @@ vllm serve model-name \
 
 **Default:** 128 (for CPU)
 
-### Performance Impact
+### Performance Impact of block_size
 
 #### 1. **Memory Alignment (CRITICAL FOR CPU)**
 
@@ -401,30 +400,30 @@ RESULT: Copy commands from "Practical Recommendations" section above
 
 ### vLLM Source Code
 
-1. **CPU Platform Configuration:**  
+1. **CPU Platform Configuration:**
    [`vllm/platforms/cpu.py`](https://github.com/vllm-project/vllm/blob/main/vllm/platforms/cpu.py)
    - Lines 124-131: Block size validation
    - Lines 133-137: KV cache space configuration
 
-2. **Model Configuration:**  
+2. **Model Configuration:**
    [`vllm/config/model.py`](https://github.com/vllm-project/vllm/blob/main/vllm/config/model.py)
    - Lines 189-200: max_model_len definition
 
-3. **Cache Configuration:**  
+3. **Cache Configuration:**
    [`vllm/config/cache.py`](https://github.com/vllm-project/vllm/blob/main/vllm/config/cache.py)
    - KV cache memory sizing and block configuration
 
-4. **Environment Variables:**  
+4. **Environment Variables:**
    [`vllm/envs.py`](https://github.com/vllm-project/vllm/blob/main/vllm/envs.py)
    - `VLLM_CPU_KVCACHE_SPACE` definition
 
 ### Documentation
 
-1. **vLLM CPU Installation:**  
+1. **vLLM CPU Installation:**
    [CPU Installation Guide](https://docs.vllm.ai/en/latest/getting_started/cpu-installation.html)
 
-2. **Memory Configuration:**  
+2. **Memory Configuration:**
    [Engine Arguments - Memory](https://docs.vllm.ai/en/latest/serving/engine_args.html#memory)
 
-3. **Performance Optimization:**  
+3. **Performance Optimization:**
    [Engine Arguments - Performance](https://docs.vllm.ai/en/latest/serving/engine_args.html#performance)

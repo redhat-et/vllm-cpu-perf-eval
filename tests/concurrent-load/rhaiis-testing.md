@@ -25,13 +25,13 @@ This guide covers running concurrent load tests on RHAIIS (Red Hat AI Inference 
    ```bash
    export LD_PRELOAD=/usr/lib64/libomp.so
    ```
-   
+
    This enables Intel OpenMP for best inference performance with RHAIIS images. **Without this, you will see significantly degraded latency.**
 
 5. **Optional: Configure test duration (default 600 seconds):**
-   
+
    **⚠️ IMPORTANT:** Test duration significantly impacts result stability. Shorter tests (< 300s) will show **erratic spikes** in P95/P99 metrics due to warmup effects and insufficient sample size.
-   
+
    **Recommended durations:**
    - **600 seconds (10 min)** - DEFAULT, use for production benchmarks ✅
      - Stable P95/P99 metrics (< 5% variance)
@@ -45,22 +45,22 @@ This guide covers running concurrent load tests on RHAIIS (Red Hat AI Inference 
      - Unstable P95/P99 (25-50% variance between runs)
      - Warmup dominates (17-33% of test time)
      - Only use for smoke tests, not performance comparison
-   
+
    **Configuration examples:**
    ```bash
    # Development testing (5 minutes)
    export GUIDELLM_MAX_SECONDS=300
    export GUIDELLM_REQUEST_TIMEOUT=300
-   
+
    # Production benchmarks (10 minutes - default, most stable)
    export GUIDELLM_MAX_SECONDS=600
    export GUIDELLM_REQUEST_TIMEOUT=600
-   
+
    # Quick smoke test only (3 minutes - expect spikes!)
    export GUIDELLM_MAX_SECONDS=180
    export GUIDELLM_REQUEST_TIMEOUT=180
    ```
-   
+
    **Why this matters:** See `/tmp/test-duration-impact.md` for detailed analysis of how test duration affects warmup, sample size, GC artifacts, and percentile stability.
 
 ## RHAIIS Models to Test
@@ -120,7 +120,7 @@ Result:                       Input exceeds model capacity by 3.75x ❌
 **Error message you'll see:**
 ```
 pydantic_core._pydantic_core.ValidationError: 1 validation error for ModelConfig
-  Value error, User-specified max_model_len (4096) is greater than the 
+  Value error, User-specified max_model_len (4096) is greater than the
   derived max_model_len (max_position_embeddings=2048.0)
 ```
 
@@ -574,7 +574,19 @@ If models fail to load, ensure:
 - Sufficient memory for model + KV cache
 
 ### RAG Workload Context Length
-RAG workload requires models with context length >= 8192. The configuration automatically sets `--max-model-len=8192` for RAG tests.
+
+**Issue:** RAG workload was failing with all requests getting HTTP 400 errors due to tokenization overhead.
+
+**Root Cause:**
+- RAG configuration: ISL=7680, OSL=512, max_model_len=8192
+- Actual tokenized prompt: 7681 tokens (not 7680)
+- Total required: 7681 + 512 = **8193 tokens**
+- Maximum allowed: 8192 tokens
+- Result: All requests rejected with `VLLMValidationError`
+
+**Fix:** Increased `max-model-len` to **8320** to account for tokenization overhead and provide headroom.
+
+RAG workload requires models with context length >= 8192. The configuration automatically sets `--max-model-len=8320` for RAG tests (increased from 8192 to handle tokenization overhead).
 
 ### Container Image
 The script will warn if `VLLM_CONTAINER_IMAGE` is not set. For RHAIIS testing, always set:

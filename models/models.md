@@ -259,7 +259,7 @@ max_model_len ≤ max_position_embeddings
 
 If the workload requires `--max-model-len` greater than the model's `max_position_embeddings`, vLLM will fail during initialization with:
 ```
-ValidationError: User-specified max_model_len (X) is greater than 
+ValidationError: User-specified max_model_len (X) is greater than
 the derived max_model_len (max_position_embeddings=2048.0)
 ```
 

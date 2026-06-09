@@ -91,7 +91,7 @@ test_configs:
     vllm_args:
       - "--dtype=auto"                  # Fallback dtype - overridden by model-specific dtype
       - "--no-enable-prefix-caching"    # Baseline mode: no prefix caching
-      - "--max-model-len=8192"          # Limit model context to workload needs (8192 tokens)
+      - "--max-model-len=8320"          # Increased from 8192 to account for tokenization overhead (actual: 7681+512=8193)
       - "--block-size=128"              # CPU optimal: multiples of 32 for SIMD alignment (AVX2/AVX512/NEON)
     kv_cache_space: "40GiB"             # Fallback value - should be overridden by model-specific kv_cache_sizes
 
