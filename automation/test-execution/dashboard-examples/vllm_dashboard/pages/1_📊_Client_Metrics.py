@@ -219,6 +219,16 @@ def render_filters(df: pd.DataFrame, test_mode: str) -> pd.DataFrame:
             )
 
         with col5:
+            tp_values = sorted(df['tensor_parallel'].unique())
+            selected_tp = st.multiselect(
+                "Tensor Parallel",
+                tp_values,
+                default=tp_values,
+                key="tp_filter_managed",
+                help="Tensor parallelism configuration (number of model shards)"
+            )
+
+        with col6:
             versions = sorted(df['vllm_version'].unique())
             selected_versions = st.multiselect(
                 "vLLM Version",
@@ -227,14 +237,13 @@ def render_filters(df: pd.DataFrame, test_mode: str) -> pd.DataFrame:
                 key="version_filter_managed"
             )
 
-        with col6:
-            guidellm_versions = sorted(df['guidellm_version'].unique())
-            selected_guidellm_versions = st.multiselect(
-                "GuideLLM Version",
-                guidellm_versions,
-                default=guidellm_versions,
-                key="guidellm_version_filter_managed"
-            )
+        guidellm_versions = sorted(df['guidellm_version'].unique())
+        selected_guidellm_versions = st.multiselect(
+            "GuideLLM Version",
+            guidellm_versions,
+            default=guidellm_versions,
+            key="guidellm_version_filter_managed"
+        )
 
         # Test name filter (separate row if any tests have custom names)
         has_empty_test_names = df['test_name'].astype(str).eq('').any()
@@ -270,6 +279,7 @@ def render_filters(df: pd.DataFrame, test_mode: str) -> pd.DataFrame:
             df['model_short'].isin(selected_models) &
             df['workload'].isin(selected_workloads) &
             df['cores'].isin(selected_cores) &
+            df['tensor_parallel'].isin(selected_tp) &
             df['vllm_version'].isin(selected_versions) &
             df['guidellm_version'].isin(selected_guidellm_versions)
         ]
