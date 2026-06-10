@@ -108,7 +108,7 @@
       MODEL_NAME: "{{ test_model }}"
       HF_TOKEN: "{{ hf_token }}"
       HF_HOME: "/cache"
-    command: "/usr/local/bin/download_model.py {{ test_model }}"
+    command: "/usr/local/bin/download.py model {{ test_model }}"
   when: not model_cache_exists.stat.exists or (force_model_download | default(false) | bool)
   register: model_download_result
   retries: "{{ model_download_retries | default(3) }}"
@@ -152,7 +152,7 @@
         podman run --rm -v "{{ model_cache_dir }}:/cache:z" \
           -e HF_TOKEN=$HF_TOKEN -e HF_HOME=/cache \
           {{ model_downloader_image | default('quay.io/vllm-cpu-perf-eval/model-downloader@sha256:ef8bf0075415a18be6757e8a72fdfc88ed3d967b2744f1663991126884af6dc2') }} \
-          /usr/local/bin/download_model.py {{ test_model }}
+          /usr/local/bin/download.py model {{ test_model }}
   when:
     - (not model_cache_exists.stat.exists or (force_model_download | default(false) | bool))
     - model_download_result is failed
