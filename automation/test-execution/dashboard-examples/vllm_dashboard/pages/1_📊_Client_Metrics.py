@@ -1335,12 +1335,26 @@ def render_dashboard():
         # Download button for metrics table
         csv = metrics_display.to_csv(index=False)
         st.download_button(
-            label="Download Metrics as CSV",
+            label="Download Metrics Table as CSV",
             data=csv,
             file_name="concurrent_load_metrics.csv",
             mime="text/csv",
             key="download_metrics_table"
         )
+
+    # Full data export (all columns)
+    with st.expander("📥 Export All Data", expanded=False):
+        st.markdown("**Download complete dataset with all columns**")
+        full_csv = filtered_df.to_csv(index=False)
+        st.download_button(
+            label="Download Full Dataset as CSV",
+            data=full_csv,
+            file_name="client_metrics_full_data.csv",
+            mime="text/csv",
+            key="download_full_data"
+        )
+        st.caption(f"📊 Dataset contains {len(filtered_df)} rows and {len(filtered_df.columns)} columns")
+        st.dataframe(filtered_df, use_container_width=True)
 
     st.markdown("---")
 
