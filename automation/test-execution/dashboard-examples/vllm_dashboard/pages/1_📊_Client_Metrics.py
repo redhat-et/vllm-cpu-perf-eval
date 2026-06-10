@@ -237,14 +237,21 @@ def render_filters(df: pd.DataFrame, test_mode: str) -> pd.DataFrame:
             )
 
         # Test name filter (separate row if any tests have custom names)
+        has_empty_test_names = df['test_name'].astype(str).eq('').any()
         if df['test_name'].astype(str).ne('').any():
             test_names = sorted([n for n in df['test_name'].unique() if n])
+            # Add option for tests with no custom name if any exist
+            if has_empty_test_names:
+                test_names_with_empty = ["(No custom name)"] + test_names
+            else:
+                test_names_with_empty = test_names
+
             if test_names:
                 st.markdown("**Test Name Filter:**")
                 selected_test_names = st.multiselect(
                     "Custom Test Names",
-                    test_names,
-                    default=test_names,
+                    test_names_with_empty,
+                    default=test_names_with_empty,
                     key="test_name_filter_managed",
                     help="Filter by custom test names (if provided during test run)"
                 )
@@ -269,7 +276,23 @@ def render_filters(df: pd.DataFrame, test_mode: str) -> pd.DataFrame:
 
         # Apply test name filter if available (None means no filter, empty list means no results)
         if selected_test_names is not None:
-            filtered_df = filtered_df[filtered_df['test_name'].isin(selected_test_names)]
+            # Check if "(No custom name)" is selected
+            include_empty = "(No custom name)" in selected_test_names
+            # Remove the special option from the list for filtering
+            actual_names = [n for n in selected_test_names if n != "(No custom name)"]
+
+            # Filter: include selected custom names OR empty names if that option is selected
+            if include_empty and actual_names:
+                filtered_df = filtered_df[
+                    filtered_df['test_name'].isin(actual_names) |
+                    (filtered_df['test_name'].astype(str) == '')
+                ]
+            elif include_empty:
+                # Only empty names selected
+                filtered_df = filtered_df[filtered_df['test_name'].astype(str) == '']
+            else:
+                # Only custom names selected
+                filtered_df = filtered_df[filtered_df['test_name'].isin(actual_names)]
 
     else:  # external mode
         # External mode filters - endpoint-based filtering
@@ -334,14 +357,21 @@ def render_filters(df: pd.DataFrame, test_mode: str) -> pd.DataFrame:
             )
 
         # Test name filter (separate row if any tests have custom names)
+        has_empty_test_names = df['test_name'].astype(str).eq('').any()
         if df['test_name'].astype(str).ne('').any():
             test_names = sorted([n for n in df['test_name'].unique() if n])
+            # Add option for tests with no custom name if any exist
+            if has_empty_test_names:
+                test_names_with_empty = ["(No custom name)"] + test_names
+            else:
+                test_names_with_empty = test_names
+
             if test_names:
                 st.markdown("**Test Name Filter:**")
                 selected_test_names = st.multiselect(
                     "Custom Test Names",
-                    test_names,
-                    default=test_names,
+                    test_names_with_empty,
+                    default=test_names_with_empty,
                     key="test_name_filter_external",
                     help="Filter by custom test names (if provided during test run)"
                 )
@@ -366,7 +396,23 @@ def render_filters(df: pd.DataFrame, test_mode: str) -> pd.DataFrame:
 
         # Apply test name filter if available (None means no filter, empty list means no results)
         if selected_test_names is not None:
-            filtered_df = filtered_df[filtered_df['test_name'].isin(selected_test_names)]
+            # Check if "(No custom name)" is selected
+            include_empty = "(No custom name)" in selected_test_names
+            # Remove the special option from the list for filtering
+            actual_names = [n for n in selected_test_names if n != "(No custom name)"]
+
+            # Filter: include selected custom names OR empty names if that option is selected
+            if include_empty and actual_names:
+                filtered_df = filtered_df[
+                    filtered_df['test_name'].isin(actual_names) |
+                    (filtered_df['test_name'].astype(str) == '')
+                ]
+            elif include_empty:
+                # Only empty names selected
+                filtered_df = filtered_df[filtered_df['test_name'].astype(str) == '']
+            else:
+                # Only custom names selected
+                filtered_df = filtered_df[filtered_df['test_name'].isin(actual_names)]
 
     return filtered_df
 
@@ -785,10 +831,15 @@ def render_compare_versions(df: pd.DataFrame):
 
         # Get available test runs for this configuration
         baseline_test_runs = baseline_df[['test_run_id', 'vllm_version', 'workload', 'tensor_parallel']].drop_duplicates()
-        baseline_test_run_options = {
-            f"{row['test_run_id'][-12:] if len(row['test_run_id']) >= 12 else row['test_run_id']} | {row['vllm_version']} | {row['workload']} | TP={row['tensor_parallel']}": row['test_run_id']
-            for _, row in baseline_test_runs.iterrows()
-        }
+        baseline_test_run_options = {}
+        for _, row in baseline_test_runs.iterrows():
+            label = f"{row['test_run_id'][-12:] if len(row['test_run_id']) >= 12 else row['test_run_id']} | {row['vllm_version']} | {row['workload']} | TP={row['tensor_parallel']}"
+            # Ensure label uniqueness by appending suffix if collision detected
+            unique_label = label
+            if unique_label in baseline_test_run_options:
+                suffix = row['test_run_id'][-6:] if len(row['test_run_id']) >= 6 else row['test_run_id']
+                unique_label = f"{label} [{suffix}]"
+            baseline_test_run_options[unique_label] = row['test_run_id']
 
         if baseline_test_run_options:
             baseline_test_run_label = st.selectbox(
@@ -830,10 +881,15 @@ def render_compare_versions(df: pd.DataFrame):
 
         # Get available test runs for this configuration
         compare_test_runs = compare_df[['test_run_id', 'vllm_version', 'workload', 'tensor_parallel']].drop_duplicates()
-        compare_test_run_options = {
-            f"{row['test_run_id'][-12:] if len(row['test_run_id']) >= 12 else row['test_run_id']} | {row['vllm_version']} | {row['workload']} | TP={row['tensor_parallel']}": row['test_run_id']
-            for _, row in compare_test_runs.iterrows()
-        }
+        compare_test_run_options = {}
+        for _, row in compare_test_runs.iterrows():
+            label = f"{row['test_run_id'][-12:] if len(row['test_run_id']) >= 12 else row['test_run_id']} | {row['vllm_version']} | {row['workload']} | TP={row['tensor_parallel']}"
+            # Ensure label uniqueness by appending suffix if collision detected
+            unique_label = label
+            if unique_label in compare_test_run_options:
+                suffix = row['test_run_id'][-6:] if len(row['test_run_id']) >= 6 else row['test_run_id']
+                unique_label = f"{label} [{suffix}]"
+            compare_test_run_options[unique_label] = row['test_run_id']
 
         if compare_test_run_options:
             compare_test_run_label = st.selectbox(

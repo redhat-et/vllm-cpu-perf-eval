@@ -440,7 +440,13 @@ if current_section == "📈 Performance Plots":
                     date_part = test_id[:8] if len(test_id) >= 8 else test_id
                     label = f"{model_short} | {workload} | {endpoint_short} | {date_part}"
 
-                test_run_options[label] = test_id
+                # Ensure label uniqueness by appending suffix if collision detected
+                unique_label = label
+                if unique_label in test_run_options:
+                    # Append last 6 chars of test_id to make it unique
+                    suffix = test_id[-6:] if len(test_id) >= 6 else test_id
+                    unique_label = f"{label} [{suffix}]"
+                test_run_options[unique_label] = test_id
 
         col7, _, _ = st.columns(3)
         with col7:
