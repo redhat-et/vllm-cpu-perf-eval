@@ -1345,7 +1345,21 @@ def render_dashboard():
     # Full data export (all columns)
     with st.expander("📥 Export All Data", expanded=False):
         st.markdown("**Download complete dataset with all columns**")
-        full_csv = filtered_df.to_csv(index=False)
+
+        # Add ISL/OSL columns for workload reference
+        export_df = filtered_df.copy()
+        workload_params = {
+            'chat': {'isl': 512, 'osl': 512},
+            'chat_lite': {'isl': 128, 'osl': 128},
+            'rag': {'isl': 7680, 'osl': 512},
+            'code': {'isl': 1024, 'osl': 1024},
+            'summarization': {'isl': 2048, 'osl': 256},
+            'reasoning': {'isl': 256, 'osl': 2048},
+        }
+        export_df['isl'] = export_df['workload'].map(lambda w: workload_params.get(w, {}).get('isl', 'N/A'))
+        export_df['osl'] = export_df['workload'].map(lambda w: workload_params.get(w, {}).get('osl', 'N/A'))
+
+        full_csv = export_df.to_csv(index=False)
         st.download_button(
             label="Download Full Dataset as CSV",
             data=full_csv,
@@ -1353,8 +1367,8 @@ def render_dashboard():
             mime="text/csv",
             key="download_full_data"
         )
-        st.caption(f"📊 Dataset contains {len(filtered_df)} rows and {len(filtered_df.columns)} columns")
-        st.dataframe(filtered_df, use_container_width=True)
+        st.caption(f"📊 Dataset contains {len(export_df)} rows and {len(export_df.columns)} columns (includes ISL/OSL reference columns)")
+        st.dataframe(export_df, use_container_width=True)
 
     st.markdown("---")
 
