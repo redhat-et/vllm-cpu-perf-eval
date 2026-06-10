@@ -296,12 +296,20 @@ if current_section == "📈 Performance Plots":
 
         # Test name filter (separate row if any tests have custom names)
         test_names = sorted(set(r.get('test_name', '') for r in results if r.get('test_name', '').strip()))
+        has_empty_test_names = any(not r.get('test_name', '').strip() for r in results)
+
         if test_names:
+            # Add option for tests with no custom name if any exist
+            if has_empty_test_names:
+                test_names_with_empty = ["(No custom name)"] + test_names
+            else:
+                test_names_with_empty = test_names
+
             st.markdown("**Test Name Filter:**")
             selected_test_names = st.multiselect(
                 "Custom Test Names",
-                test_names,
-                default=test_names,
+                test_names_with_empty,
+                default=test_names_with_empty,
                 key="test_name_filter_server_managed",
                 help="Filter by custom test names (if provided during test run)"
             )
@@ -321,7 +329,23 @@ if current_section == "📈 Performance Plots":
 
         # Apply test name filter if available (None means no filter, empty list means no results)
         if selected_test_names is not None:
-            filtered_pre = [r for r in filtered_pre if r.get('test_name', '') in selected_test_names]
+            # Check if "(No custom name)" is selected
+            include_empty = "(No custom name)" in selected_test_names
+            # Remove the special option from the list for filtering
+            actual_names = [n for n in selected_test_names if n != "(No custom name)"]
+
+            # Filter: include selected custom names OR empty names if that option is selected
+            if include_empty and actual_names:
+                filtered_pre = [
+                    r for r in filtered_pre
+                    if r.get('test_name', '') in actual_names or not r.get('test_name', '').strip()
+                ]
+            elif include_empty:
+                # Only empty names selected
+                filtered_pre = [r for r in filtered_pre if not r.get('test_name', '').strip()]
+            else:
+                # Only custom names selected
+                filtered_pre = [r for r in filtered_pre if r.get('test_name', '') in actual_names]
 
     else:  # external mode
         # External mode filters
@@ -382,12 +406,20 @@ if current_section == "📈 Performance Plots":
 
         # Test name filter (separate row if any tests have custom names)
         test_names = sorted(set(r.get('test_name', '') for r in results if r.get('test_name', '').strip()))
+        has_empty_test_names = any(not r.get('test_name', '').strip() for r in results)
+
         if test_names:
+            # Add option for tests with no custom name if any exist
+            if has_empty_test_names:
+                test_names_with_empty = ["(No custom name)"] + test_names
+            else:
+                test_names_with_empty = test_names
+
             st.markdown("**Test Name Filter:**")
             selected_test_names = st.multiselect(
                 "Custom Test Names",
-                test_names,
-                default=test_names,
+                test_names_with_empty,
+                default=test_names_with_empty,
                 key="test_name_filter_server_external",
                 help="Filter by custom test names (if provided during test run)"
             )
@@ -406,8 +438,24 @@ if current_section == "📈 Performance Plots":
         ]
 
         # Apply test name filter if available (None means no filter, empty list means no results)
-        if selected_test_names is not None:
-            filtered_pre = [r for r in filtered_pre if r.get('test_name', '') in selected_test_names]
+        if selected_test_names is not None and len(selected_test_names) > 0:
+            # Check if "(No custom name)" is selected
+            include_empty = "(No custom name)" in selected_test_names
+            # Remove the special option from the list for filtering
+            actual_names = [n for n in selected_test_names if n != "(No custom name)"]
+
+            # Filter: include selected custom names OR empty names if that option is selected
+            if include_empty and actual_names:
+                filtered_pre = [
+                    r for r in filtered_pre
+                    if r.get('test_name', '') in actual_names or not r.get('test_name', '').strip()
+                ]
+            elif include_empty:
+                # Only empty names selected
+                filtered_pre = [r for r in filtered_pre if not r.get('test_name', '').strip()]
+            else:
+                # Only custom names selected
+                filtered_pre = [r for r in filtered_pre if r.get('test_name', '') in actual_names]
 
     if not filtered_pre:
         st.warning("No results match the selected filters")
