@@ -844,11 +844,16 @@ def render_compare_versions(df: pd.DataFrame):
         baseline_test_run_options = {}
         for _, row in baseline_test_runs.iterrows():
             label = f"{row['test_run_id'][-12:] if len(row['test_run_id']) >= 12 else row['test_run_id']} | {row['vllm_version']} | {row['workload']} | TP={row['tensor_parallel']}"
-            # Ensure label uniqueness by appending suffix if collision detected
+            # Ensure label uniqueness by looping until unique key is found
             unique_label = label
-            if unique_label in baseline_test_run_options:
-                suffix = row['test_run_id'][-6:] if len(row['test_run_id']) >= 6 else row['test_run_id']
-                unique_label = f"{label} [{suffix}]"
+            counter = 0
+            while unique_label in baseline_test_run_options:
+                if counter == 0:
+                    suffix = row['test_run_id'][-6:] if len(row['test_run_id']) >= 6 else row['test_run_id']
+                    unique_label = f"{label} [{suffix}]"
+                else:
+                    unique_label = f"{label} [{suffix}-{counter}]"
+                counter += 1
             baseline_test_run_options[unique_label] = row['test_run_id']
 
         if baseline_test_run_options:
@@ -894,11 +899,16 @@ def render_compare_versions(df: pd.DataFrame):
         compare_test_run_options = {}
         for _, row in compare_test_runs.iterrows():
             label = f"{row['test_run_id'][-12:] if len(row['test_run_id']) >= 12 else row['test_run_id']} | {row['vllm_version']} | {row['workload']} | TP={row['tensor_parallel']}"
-            # Ensure label uniqueness by appending suffix if collision detected
+            # Ensure label uniqueness by looping until unique key is found
             unique_label = label
-            if unique_label in compare_test_run_options:
-                suffix = row['test_run_id'][-6:] if len(row['test_run_id']) >= 6 else row['test_run_id']
-                unique_label = f"{label} [{suffix}]"
+            counter = 0
+            while unique_label in compare_test_run_options:
+                if counter == 0:
+                    suffix = row['test_run_id'][-6:] if len(row['test_run_id']) >= 6 else row['test_run_id']
+                    unique_label = f"{label} [{suffix}]"
+                else:
+                    unique_label = f"{label} [{suffix}-{counter}]"
+                counter += 1
             compare_test_run_options[unique_label] = row['test_run_id']
 
         if compare_test_run_options:
@@ -1346,29 +1356,42 @@ def render_dashboard():
     with st.expander("📥 Export All Data", expanded=False):
         st.markdown("**Download complete dataset with all columns**")
 
-        # Add ISL/OSL columns for workload reference
-        export_df = filtered_df.copy()
-        workload_params = {
-            'chat': {'isl': 512, 'osl': 512},
-            'chat_lite': {'isl': 128, 'osl': 128},
-            'rag': {'isl': 7680, 'osl': 512},
-            'code': {'isl': 1024, 'osl': 1024},
-            'summarization': {'isl': 2048, 'osl': 256},
-            'reasoning': {'isl': 256, 'osl': 2048},
-        }
-        export_df['isl'] = export_df['workload'].map(lambda w: workload_params.get(w, {}).get('isl', 'N/A'))
-        export_df['osl'] = export_df['workload'].map(lambda w: workload_params.get(w, {}).get('osl', 'N/A'))
+        # Lazy evaluation: only compute when user clicks prepare button
+        if st.button("Prepare Export Data", key="prepare_export_button"):
+            # Add ISL/OSL columns for workload reference
+            export_df = filtered_df.copy()
+            workload_params = {
+                'chat': {'isl': 512, 'osl': 512},
+                'chat_lite': {'isl': 128, 'osl': 128},
+                'rag': {'isl': 7680, 'osl': 512},
+                'code': {'isl': 1024, 'osl': 1024},
+                'summarization': {'isl': 2048, 'osl': 256},
+                'reasoning': {'isl': 256, 'osl': 2048},
+            }
+            export_df['isl'] = export_df['workload'].map(lambda w: workload_params.get(w, {}).get('isl', 'N/A'))
+            export_df['osl'] = export_df['workload'].map(lambda w: workload_params.get(w, {}).get('osl', 'N/A'))
 
-        full_csv = export_df.to_csv(index=False)
-        st.download_button(
-            label="Download Full Dataset as CSV",
-            data=full_csv,
-            file_name="client_metrics_full_data.csv",
-            mime="text/csv",
-            key="download_full_data"
-        )
-        st.caption(f"📊 Dataset contains {len(export_df)} rows and {len(export_df.columns)} columns (includes ISL/OSL reference columns)")
-        st.dataframe(export_df, use_container_width=True)
+            # Store in session state
+            st.session_state['export_df_ready'] = True
+            st.session_state['export_df'] = export_df
+            st.session_state['export_csv'] = export_df.to_csv(index=False)
+
+        # Show download button and preview only if data is prepared
+        if st.session_state.get('export_df_ready', False):
+            export_df = st.session_state['export_df']
+            full_csv = st.session_state['export_csv']
+
+            st.download_button(
+                label="Download Full Dataset as CSV",
+                data=full_csv,
+                file_name="client_metrics_full_data.csv",
+                mime="text/csv",
+                key="download_full_data"
+            )
+            st.caption(f"📊 Dataset contains {len(export_df)} rows and {len(export_df.columns)} columns (includes ISL/OSL reference columns)")
+            st.dataframe(export_df, use_container_width=True)
+        else:
+            st.info("👆 Click 'Prepare Export Data' to generate the export dataset")
 
     st.markdown("---")
 

@@ -424,7 +424,7 @@ if current_section == "📈 Performance Plots":
                 help="Filter by custom test names (if provided during test run)"
             )
         else:
-            selected_test_names = []
+            selected_test_names = None
 
         # Filter results (before test run selection)
         filtered_pre = [
@@ -438,7 +438,7 @@ if current_section == "📈 Performance Plots":
         ]
 
         # Apply test name filter if available (None means no filter, empty list means no results)
-        if selected_test_names is not None and len(selected_test_names) > 0:
+        if selected_test_names is not None:
             # Check if "(No custom name)" is selected
             include_empty = "(No custom name)" in selected_test_names
             # Remove the special option from the list for filtering
