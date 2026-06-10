@@ -1306,24 +1306,31 @@ def render_dashboard():
         # Convert E2E latencies from seconds to milliseconds
         display_df['e2e_mean_ms'] = display_df['e2e_mean'] * 1000
         display_df['e2e_p50_ms'] = display_df['e2e_p50'] * 1000
+        display_df['e2e_p95_ms'] = display_df['e2e_p95'] * 1000
         display_df['e2e_p99_ms'] = display_df['e2e_p99'] * 1000
 
-        # Select columns for display
+        # Select columns for display (TTFT and ITL already in ms)
         metrics_display = display_df[[
             'config', 'concurrency', 'request_rate', 'throughput_mean',
-            'efficiency', 'e2e_mean_ms', 'e2e_p50_ms', 'e2e_p99_ms'
+            'efficiency',
+            'e2e_mean_ms', 'e2e_p50_ms', 'e2e_p95_ms', 'e2e_p99_ms',
+            'ttft_mean', 'ttft_p50', 'ttft_p95', 'ttft_p99',
+            'itl_mean', 'itl_p50', 'itl_p95', 'itl_p99'
         ]].copy()
 
         # Rename columns for clarity
         metrics_display.columns = [
-            'Configuration', 'Concurrency', 'RPS', 'Tokens/s',
-            'Tokens/s/Core', 'Mean (ms)', 'Median (ms)', 'P99 (ms)'
+            'Configuration', 'Concurrency', 'RPS', 'Tokens/s', 'Tokens/s/Core',
+            'E2E Mean', 'E2E P50', 'E2E P95', 'E2E P99',
+            'TTFT Mean', 'TTFT P50', 'TTFT P95', 'TTFT P99',
+            'ITL Mean', 'ITL P50', 'ITL P95', 'ITL P99'
         ]
 
         # Round numeric values
         metrics_display = metrics_display.round(2)
 
         st.dataframe(metrics_display, use_container_width=True)
+        st.caption("📊 **Latency Metrics (all in milliseconds)**: E2E = End-to-End request latency | TTFT = Time to First Token | ITL = Inter-Token Latency")
 
         # Download button for metrics table
         csv = metrics_display.to_csv(index=False)
