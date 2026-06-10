@@ -1332,16 +1332,6 @@ def render_dashboard():
         st.dataframe(metrics_display, use_container_width=True)
         st.caption("📊 **Latency Metrics (all in milliseconds)**: E2E = End-to-End request latency | TTFT = Time to First Token | ITL = Inter-Token Latency")
 
-        # Download button for metrics table
-        csv = metrics_display.to_csv(index=False)
-        st.download_button(
-            label="Download Metrics Table as CSV",
-            data=csv,
-            file_name="concurrent_load_metrics.csv",
-            mime="text/csv",
-            key="download_metrics_table"
-        )
-
     # Full data export (all columns)
     with st.expander("📥 Export All Data", expanded=False):
         st.markdown("**Download complete dataset with all columns**")
