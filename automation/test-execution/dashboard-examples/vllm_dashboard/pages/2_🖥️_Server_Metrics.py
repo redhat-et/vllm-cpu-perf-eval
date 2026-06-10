@@ -488,12 +488,16 @@ if current_section == "📈 Performance Plots":
                     date_part = test_id[:8] if len(test_id) >= 8 else test_id
                     label = f"{model_short} | {workload} | {endpoint_short} | {date_part}"
 
-                # Ensure label uniqueness by appending suffix if collision detected
+                # Ensure label uniqueness by looping until unique key is found
                 unique_label = label
-                if unique_label in test_run_options:
-                    # Append last 6 chars of test_id to make it unique
-                    suffix = test_id[-6:] if len(test_id) >= 6 else test_id
-                    unique_label = f"{label} [{suffix}]"
+                counter = 0
+                while unique_label in test_run_options:
+                    if counter == 0:
+                        suffix = test_id[-6:] if len(test_id) >= 6 else test_id
+                        unique_label = f"{label} [{suffix}]"
+                    else:
+                        unique_label = f"{label} [{suffix}-{counter}]"
+                    counter += 1
                 test_run_options[unique_label] = test_id
 
         col7, _, _ = st.columns(3)
@@ -1033,10 +1037,21 @@ elif current_section == "⚖️ Compare Configurations":
 
         # Get available test runs for this configuration
         if baseline_filtered:
-            baseline_test_run_options = {
-                f"{r.get('test_run_id', 'unknown')[-12:] if len(r.get('test_run_id', 'unknown')) >= 12 else r.get('test_run_id', 'unknown')} | {r.get('backend', 'unknown')}": r
-                for r in baseline_filtered
-            }
+            baseline_test_run_options = {}
+            for r in baseline_filtered:
+                test_id = r.get('test_run_id', 'unknown')
+                label = f"{test_id[-12:] if len(test_id) >= 12 else test_id} | {r.get('backend', 'unknown')}"
+                # Ensure label uniqueness by looping until unique key is found
+                unique_label = label
+                counter = 0
+                while unique_label in baseline_test_run_options:
+                    if counter == 0:
+                        suffix = test_id[-6:] if len(test_id) >= 6 else test_id
+                        unique_label = f"{label} [{suffix}]"
+                    else:
+                        unique_label = f"{label} [{suffix}-{counter}]"
+                    counter += 1
+                baseline_test_run_options[unique_label] = r
 
             baseline_test_run_label = st.selectbox(
                 "Test Run",
@@ -1098,10 +1113,21 @@ elif current_section == "⚖️ Compare Configurations":
 
         # Get available test runs for this configuration
         if compare_filtered:
-            compare_test_run_options = {
-                f"{r.get('test_run_id', 'unknown')[:8]} | {r.get('backend', 'unknown')}": r
-                for r in compare_filtered
-            }
+            compare_test_run_options = {}
+            for r in compare_filtered:
+                test_id = r.get('test_run_id', 'unknown')
+                label = f"{test_id[:8]} | {r.get('backend', 'unknown')}"
+                # Ensure label uniqueness by looping until unique key is found
+                unique_label = label
+                counter = 0
+                while unique_label in compare_test_run_options:
+                    if counter == 0:
+                        suffix = test_id[-6:] if len(test_id) >= 6 else test_id
+                        unique_label = f"{label} [{suffix}]"
+                    else:
+                        unique_label = f"{label} [{suffix}-{counter}]"
+                    counter += 1
+                compare_test_run_options[unique_label] = r
 
             compare_test_run_label = st.selectbox(
                 "Test Run",
