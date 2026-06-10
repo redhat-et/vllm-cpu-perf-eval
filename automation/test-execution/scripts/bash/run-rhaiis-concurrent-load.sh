@@ -21,6 +21,8 @@
 #                           Default: 8,16,32
 #   --workloads LIST        Comma-separated workloads (chat|code|summarization|rag)
 #                           Default: chat,code,summarization,rag
+#   --tensor-parallel NUM   Tensor parallelism (1|2|4|8)
+#                           Default: auto-calculated based on NUMA topology
 #   --phase PHASE           Test phase (1|2|3|all)
 #                           Default: 1 (Phase 1: baseline tests only)
 #   --vllm-cpu-start NUM    Starting CPU for vLLM (for socket separation)
@@ -68,6 +70,13 @@
 #     --vllm-numa-node 1 \
 #     --guidellm-cpus 0-31 \
 #     --guidellm-numa-node 0
+#
+#   # Test with TP=2 (cores auto-split across 2 NUMA nodes)
+#   ./run-rhaiis-concurrent-load.sh \
+#     --models qwen \
+#     --cores 32 \
+#     --workloads "rag,summarization" \
+#     --tensor-parallel 2
 #
 # ==============================================================================
 
@@ -123,6 +132,7 @@ MODELS_INPUT="all"
 CORES_INPUT="8,16,32"
 WORKLOADS_INPUT="chat,code,summarization,rag"
 PHASE="1"
+TENSOR_PARALLEL=""  # Empty = auto-calculate based on NUMA topology
 CONTINUE_ON_ERROR=false
 DRY_RUN=false
 SKIP_MODELS_INPUT=""
@@ -190,6 +200,11 @@ while [[ $# -gt 0 ]]; do
         --workloads)
             validate_flag_value "$1" "${2:-}"
             WORKLOADS_INPUT="$2"
+            shift 2
+            ;;
+        --tensor-parallel|--tp)
+            validate_flag_value "$1" "${2:-}"
+            TENSOR_PARALLEL="$2"
             shift 2
             ;;
         --phase)
@@ -308,6 +323,15 @@ for workload in "${WORKLOADS[@]}"; do
     fi
 done
 
+# Validate tensor_parallel if specified
+if [[ -n "${TENSOR_PARALLEL}" ]]; then
+    if [[ ! "${TENSOR_PARALLEL}" =~ ^[1248]$ ]]; then
+        log_error "Invalid tensor_parallel: ${TENSOR_PARALLEL}"
+        log_error "Valid values: 1, 2, 4, 8"
+        exit 1
+    fi
+fi
+
 # Check for LD_PRELOAD (CRITICAL for RHAIIS performance)
 if [ -z "${LD_PRELOAD:-}" ]; then
     log_error "LD_PRELOAD is not set!"
@@ -358,6 +382,11 @@ echo ""
 echo "Core counts: ${CORE_COUNTS[*]}"
 echo "Workloads: ${WORKLOADS[*]}"
 echo "Phase: ${PHASE}"
+if [[ -n "${TENSOR_PARALLEL}" ]]; then
+    echo "Tensor Parallel: ${TENSOR_PARALLEL}"
+else
+    echo "Tensor Parallel: auto-detect (based on NUMA topology)"
+fi
 echo ""
 echo "NUMA/CPU Configuration:"
 if [[ -n "${VLLM_CPU_START}" ]]; then
@@ -494,6 +523,11 @@ for model in "${MODELS[@]}"; do
             fi
             if [[ "${SKIP_PHASE_3}" == true ]]; then
                 cmd+=(-e "skip_phase_3=true")
+            fi
+
+            # Add tensor_parallel parameter if specified
+            if [[ -n "${TENSOR_PARALLEL}" ]]; then
+                cmd+=(-e "requested_tensor_parallel=${TENSOR_PARALLEL}")
             fi
 
             # For RAG workload, ensure max-model-len >= 8192
