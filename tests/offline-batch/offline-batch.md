@@ -51,12 +51,12 @@ Real-world scenarios implemented in `run-offline-batch-suite.sh`:
 
 | Use Case | Description | Parameters | Command |
 |----------|-------------|------------|---------|
-| **📝 Summarization** | Bulk document summarization | sonnet, 1000 prompts | `use-case-sweep summarization` |
-| **🏷️ Classification** | Article tagging/classification | 512→64 tokens, 1000 prompts | `use-case-sweep classification` |
-| **🌐 Translation** | Documentation translation | 1024→1024 tokens, 500 prompts | `use-case-sweep translation` |
-| **🧬 Entity Extraction** | Extract entities from docs | 1500→128 tokens, 1000 prompts | `use-case-sweep entity-extraction` |
-| **🎲 Dataset Generation** | Generate synthetic examples | 256→256 tokens, 5000 prompts | `use-case-sweep dataset-generation` |
-| **💻 Code Generation** | Generate test code | 512→512 tokens, 500 prompts | `use-case-sweep code-generation` |
+| **📝 Summarization** | Bulk document summarization | cnn_dailymail, 1000 prompts | `use-case-sweep summarization` |
+| **🏷️ Classification** | Article tagging/classification | sharegpt, output=64 tokens, 1000 prompts | `use-case-sweep classification` |
+| **🌐 Translation** | Documentation translation | sharegpt, output=1024 tokens, 500 prompts | `use-case-sweep translation` |
+| **🧬 Entity Extraction** | Extract entities from docs | cnn_dailymail, output=128 tokens, 1000 prompts | `use-case-sweep entity-extraction` |
+| **🎲 Dataset Generation** | Generate synthetic examples | random, 256→256 tokens, 5000 prompts | `use-case-sweep dataset-generation` |
+| **💻 Code Generation** | Generate test code | random, 512→512 tokens, 500 prompts | `use-case-sweep code-generation` |
 | **🔄 ETL Pipelines** | Batch inference workflows | sonnet, 500 prompts, core scaling | `use-case-sweep etl` |
 
 ### 2. Technical Benchmarks
@@ -169,21 +169,21 @@ meta-llama/Llama-3.1-8B-Instruct
 
 ## Standard Datasets
 
-**Sonnet** - Default baseline dataset
-- Classic poetry text, ~50 prompts
-- Use for: Reproducible throughput measurements
-
-**Random** - Synthetic dataset
-- Controlled input/output lengths
-- Use for: Batch scaling, I/O variation experiments
-
-**ShareGPT** - Real conversations
-- Variable length prompts (100-2000 tokens)
-- Use for: Chat/conversational workloads
-
-**CNN/DailyMail** - News articles
+**CNN/DailyMail** (`cnn_dailymail`) - News articles
 - Long documents (400-1500 tokens)
-- Use for: Summarization benchmarking
+- Use for: Summarization, entity extraction (real-world text with entities)
+
+**ShareGPT** (`sharegpt`) - Real conversations
+- Variable length prompts (100-2000 tokens)
+- Use for: Classification/tagging, translation (natural language patterns)
+
+**Sonnet** (`sonnet`) - Baseline dataset
+- Classic poetry text, ~50 prompts
+- Use for: ETL pipelines, reproducible baseline measurements
+
+**Random** (`random`) - Synthetic dataset
+- Controlled input/output lengths
+- Use for: Dataset generation, code generation, technical benchmarks (batch/I/O scaling)
 
 ## Example Results
 

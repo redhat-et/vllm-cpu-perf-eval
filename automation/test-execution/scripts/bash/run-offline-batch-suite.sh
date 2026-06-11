@@ -313,13 +313,13 @@ use_cases_suite() {
     # 1. BULK DOCUMENT PROCESSING
     echo -e "${GREEN}📄 [1/7] Bulk Document Processing (Summarization)${NC}"
     echo "Use case: Summarize 10,000 support tickets overnight"
-    echo "Parameters: 1000 prompts, sonnet dataset, 16 cores"
+    echo "Parameters: 1000 prompts, cnn_dailymail dataset (news articles), 16 cores"
     echo
     for model in "${MODELS[@]}"; do
         echo "  Model: $model"
         for run in $(seq 1 $runs); do
             echo "    Run $run/$runs..."
-            if ! run_test "$model" "sonnet" 1000 16; then
+            if ! run_test "$model" "cnn_dailymail" 1000 16; then
                 failed_tests+=("Document Processing - $model - Run $run")
             fi
         done
@@ -330,13 +330,13 @@ use_cases_suite() {
     # 2. CLASSIFICATION / TAGGING
     echo -e "${GREEN}🏷️ [2/7] Classification/Tagging${NC}"
     echo "Use case: Classify 50,000 articles for tagging"
-    echo "Parameters: 1000 prompts, 512→64 tokens, 16 cores"
+    echo "Parameters: 1000 prompts, sharegpt dataset (real conversations), 16 cores, output=64 tokens"
     echo
     for model in "${MODELS[@]}"; do
         echo "  Model: $model"
         for run in $(seq 1 $runs); do
             echo "    Run $run/$runs..."
-            if ! run_test "$model" "random" 1000 16 -e "input_len=512" -e "output_len=64"; then
+            if ! run_test "$model" "sharegpt" 1000 16 -e "output_len=64"; then
                 failed_tests+=("Classification - $model - Run $run")
             fi
         done
@@ -347,13 +347,13 @@ use_cases_suite() {
     # 3. TRANSLATION
     echo -e "${GREEN}🌐 [3/7] Translation${NC}"
     echo "Use case: Translate documentation corpus"
-    echo "Parameters: 500 prompts, 1024→1024 tokens, 16 cores"
+    echo "Parameters: 500 prompts, sharegpt dataset (real text), output=1024 tokens"
     echo
     for model in "${MODELS[@]}"; do
         echo "  Model: $model"
         for run in $(seq 1 $runs); do
             echo "    Run $run/$runs..."
-            if ! run_test "$model" "random" 500 16 -e "input_len=1024" -e "output_len=1024"; then
+            if ! run_test "$model" "sharegpt" 500 16 -e "output_len=1024"; then
                 failed_tests+=("Translation - $model - Run $run")
             fi
         done
@@ -364,13 +364,13 @@ use_cases_suite() {
     # 4. ENTITY EXTRACTION
     echo -e "${GREEN}🧬 [4/7] Entity Extraction${NC}"
     echo "Use case: Extract entities from document batches"
-    echo "Parameters: 1000 prompts, 1500→128 tokens, 16 cores"
+    echo "Parameters: 1000 prompts, cnn_dailymail dataset (news articles with real entities), output=128 tokens"
     echo
     for model in "${MODELS[@]}"; do
         echo "  Model: $model"
         for run in $(seq 1 $runs); do
             echo "    Run $run/$runs..."
-            if ! run_test "$model" "random" 1000 16 -e "input_len=1500" -e "output_len=128"; then
+            if ! run_test "$model" "cnn_dailymail" 1000 16 -e "output_len=128"; then
                 failed_tests+=("Entity Extraction - $model - Run $run")
             fi
         done
@@ -684,31 +684,35 @@ use_case_sweep() {
     case "$use_case" in
         summarization|summary|sum)
             use_case_name="📝 Summarization"
-            dataset="sonnet"
+            dataset="cnn_dailymail"
             num_prompts=1000
             extra_args=""
             echo "Use case: Summarize 10,000 support tickets overnight"
+            echo "Dataset: cnn_dailymail (news articles)"
             ;;
         classification|class|tag)
             use_case_name="🏷️ Classification/Tagging"
-            dataset="random"
+            dataset="sharegpt"
             num_prompts=1000
-            extra_args="-e input_len=512 -e output_len=64"
+            extra_args="-e output_len=64"
             echo "Use case: Classify 50,000 articles for tagging"
+            echo "Dataset: sharegpt (real conversations)"
             ;;
         translation|trans)
             use_case_name="🌐 Translation"
-            dataset="random"
+            dataset="sharegpt"
             num_prompts=500
-            extra_args="-e input_len=1024 -e output_len=1024"
+            extra_args="-e output_len=1024"
             echo "Use case: Translate documentation corpus"
+            echo "Dataset: sharegpt (real text)"
             ;;
         entity-extraction|entity|extract)
             use_case_name="🧬 Entity Extraction"
-            dataset="random"
+            dataset="cnn_dailymail"
             num_prompts=1000
-            extra_args="-e input_len=1500 -e output_len=128"
+            extra_args="-e output_len=128"
             echo "Use case: Extract entities from document batches"
+            echo "Dataset: cnn_dailymail (news articles with real entities)"
             ;;
         dataset-generation|dataset|datagen)
             use_case_name="🎲 Dataset Generation"
@@ -716,6 +720,7 @@ use_case_sweep() {
             num_prompts=5000
             extra_args="-e input_len=256 -e output_len=256"
             echo "Use case: Generate 100k synthetic training examples"
+            echo "Dataset: random (synthetic data)"
             ;;
         code-generation|code|codegen)
             use_case_name="💻 Code Generation"
@@ -723,6 +728,7 @@ use_case_sweep() {
             num_prompts=500
             extra_args="-e input_len=512 -e output_len=512"
             echo "Use case: Generate tests for 1,000 functions"
+            echo "Dataset: random (no code-specific dataset available)"
             ;;
         etl|pipeline)
             use_case_name="🔄 ETL Pipelines"
@@ -730,6 +736,7 @@ use_case_sweep() {
             num_prompts=500
             extra_args=""
             echo "Use case: Batch inference in data workflows"
+            echo "Dataset: sonnet (baseline)"
             ;;
         *)
             echo -e "${RED}Error: Unknown use case: $use_case${NC}"
@@ -738,7 +745,7 @@ use_case_sweep() {
             return 1
             ;;
     esac
-    echo "Parameters: $num_prompts prompts, $dataset dataset"
+    echo "Parameters: $num_prompts prompts"
     echo
 
     # Run tests for each model and core count

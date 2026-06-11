@@ -206,6 +206,7 @@
       ansible.builtin.set_fact:
         benchmark_cmd: |
           podman run --rm \
+            --name vllm-batch-{{ dataset_name }}-{{ requested_cores }}c \
             --cpuset-cpus=0-{{ requested_cores | int - 1 }} \
             -v "{{ hostvars['localhost']['dut_cache_dir'] }}:/root/.cache/huggingface:z" \
             -v "{{ hostvars['localhost']['datasets_dir'] }}:/datasets:z" \
@@ -224,6 +225,7 @@
       ansible.builtin.set_fact:
         benchmark_cmd: |
           podman run --rm \
+            --name vllm-batch-random-{{ requested_cores }}c \
             --cpuset-cpus=0-{{ requested_cores | int - 1 }} \
             -v "{{ hostvars['localhost']['dut_cache_dir'] }}:/root/.cache/huggingface:z" \
             -e LD_PRELOAD=/usr/lib64/libomp.so \

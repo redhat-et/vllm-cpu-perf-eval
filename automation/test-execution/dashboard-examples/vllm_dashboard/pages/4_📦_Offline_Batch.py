@@ -50,13 +50,13 @@ def infer_use_case(test_metadata: dict) -> str:
     Infer the use case from test metadata parameters.
 
     Maps to the 7 use cases from run-offline-batch-suite.sh:
-    1. Summarization (sonnet, 1000 prompts)
-    2. Classification/Tagging (512→64 tokens, 1000 prompts)
-    3. Translation (1024→1024 tokens, 500 prompts)
-    4. Entity Extraction (1500→128 tokens, 1000 prompts)
-    5. Dataset Generation (256→256 tokens, 5000 prompts)
-    6. ETL Pipelines (sonnet, 500 prompts, variable cores)
-    7. Code Generation (512→512 tokens, 500 prompts)
+    1. Summarization (cnn_dailymail, 1000 prompts)
+    2. Classification/Tagging (sharegpt, 1000 prompts, output=64)
+    3. Translation (sharegpt, 500 prompts, output=1024)
+    4. Entity Extraction (cnn_dailymail, 1000 prompts, output=128)
+    5. Dataset Generation (random, 256→256 tokens, 5000 prompts)
+    6. Code Generation (random, 512→512 tokens, 500 prompts)
+    7. ETL Pipelines (sonnet, 500 prompts, variable cores)
 
     Args:
         test_metadata: Dictionary containing test configuration
@@ -69,58 +69,59 @@ def infer_use_case(test_metadata: dict) -> str:
     num_prompts = config.get('num_prompts', 0)
     cores = config.get('cores', 0)
     dataset_config = config.get('dataset_config', {})
+    output_len = dataset_config.get('output_len', 0)
+
+    # CNN/DailyMail dataset cases
+    if dataset == 'cnn_dailymail':
+        # Summarization: cnn_dailymail, 1000 prompts
+        if num_prompts == 1000 and (output_len == 0 or output_len >= 100):
+            return "📝 Summarization"
+        # Entity Extraction: cnn_dailymail, 1000 prompts, output=128
+        elif num_prompts == 1000 and output_len > 0 and output_len <= 150:
+            return "🧬 Entity Extraction"
+        else:
+            return "📝 Summarization"  # Default for cnn_dailymail
+
+    # ShareGPT dataset cases
+    if dataset == 'sharegpt':
+        # Translation: sharegpt, 500 prompts, output=1024
+        if num_prompts == 500 and output_len >= 900:
+            return "🌐 Translation"
+        # Classification/Tagging: sharegpt, 1000 prompts, output=64
+        elif num_prompts == 1000 and output_len > 0 and output_len <= 100:
+            return "🏷️ Classification/Tagging"
+        # Fallback: short output = classification, long output = translation
+        elif output_len > 0 and output_len <= 100:
+            return "🏷️ Classification/Tagging"
+        elif output_len > 900:
+            return "🌐 Translation"
+        else:
+            return "🏷️ Classification/Tagging"  # Default for sharegpt
 
     # Sonnet dataset cases
     if dataset == 'sonnet':
         # ETL Pipelines: sonnet, 500 prompts, variable cores (8/16/32)
         if num_prompts == 500 and cores in [8, 16, 32]:
             return "🔄 ETL Pipelines"
-        # Summarization: sonnet, 1000 prompts
-        elif num_prompts == 1000:
-            return "📝 Summarization"
         else:
-            return "📝 Summarization"  # Default for sonnet
+            return "🔄 ETL Pipelines"  # Default for sonnet
 
     # Random dataset - infer from token lengths
     if dataset == 'random':
         input_len = dataset_config.get('input_len', 0)
         output_len = dataset_config.get('output_len', 0)
 
-        # Classification/Tagging: 512→64 tokens, 1000 prompts
-        if input_len == 512 and output_len == 64 and num_prompts == 1000:
-            return "🏷️ Classification/Tagging"
-
-        # Translation: 1024→1024 tokens, 500 prompts
-        elif input_len == 1024 and output_len == 1024 and num_prompts == 500:
-            return "🌐 Translation"
-
-        # Entity Extraction: 1500→128 tokens, 1000 prompts
-        elif input_len == 1500 and output_len == 128 and num_prompts == 1000:
-            return "🧬 Entity Extraction"
-
         # Dataset Generation: 256→256 tokens, 5000 prompts
-        elif input_len == 256 and output_len == 256 and num_prompts == 5000:
+        if input_len == 256 and output_len == 256 and num_prompts == 5000:
             return "🎲 Dataset Generation"
 
         # Code Generation: 512→512 tokens, 500 prompts
         elif input_len == 512 and output_len == 512 and num_prompts == 500:
             return "💻 Code Generation"
 
-        # Fallback for random with pattern matching (less strict)
-        # Classification: short input, very short output
-        elif input_len <= 600 and output_len <= 100:
-            return "🏷️ Classification/Tagging"
-
-        # Translation: balanced moderate lengths
-        elif 900 <= input_len <= 1200 and 900 <= output_len <= 1200:
-            return "🌐 Translation"
-
-        # Entity Extraction: long input, short output
-        elif input_len >= 1200 and output_len <= 200:
-            return "🧬 Entity Extraction"
-
+        # Fallback for random with pattern matching
         # Code Generation: moderate balanced
-        elif 400 <= input_len <= 600 and 400 <= output_len <= 600:
+        elif 400 <= input_len <= 600 and 400 <= output_len <= 600 and num_prompts <= 1000:
             return "💻 Code Generation"
 
         # Dataset Generation: high volume
@@ -256,8 +257,8 @@ def main():
             use_case_data = {
                 "Use Case": ["📝 Summarization", "🏷️ Classification", "🌐 Translation",
                             "🧬 Entity Extraction", "🎲 Dataset Gen", "💻 Code Gen", "🔄 ETL"],
-                "Dataset": ["sonnet", "random", "random", "random", "random", "random", "sonnet"],
-                "Input→Output": ["~500→~150", "512→64", "1024→1024", "1500→128", "256→256", "512→512", "~500→~150"],
+                "Dataset": ["cnn_dailymail", "sharegpt", "sharegpt", "cnn_dailymail", "random", "random", "sonnet"],
+                "Output Tokens": ["~150", "64", "1024", "128", "256", "512", "~150"],
                 "Unit": ["docs", "items", "docs", "docs", "examples", "functions", "records"]
             }
             use_case_df = pd.DataFrame(use_case_data)
@@ -267,12 +268,12 @@ def main():
                 use_container_width=True,
                 column_config={
                     "Use Case": st.column_config.TextColumn("Use Case", width="medium"),
-                    "Dataset": st.column_config.TextColumn("Dataset", width="small"),
-                    "Input→Output": st.column_config.TextColumn("Tokens", width="small"),
+                    "Dataset": st.column_config.TextColumn("Dataset", width="medium"),
+                    "Output Tokens": st.column_config.TextColumn("Output", width="small"),
                     "Unit": st.column_config.TextColumn("Unit", width="small"),
                 }
             )
-            st.caption("sonnet=variable text lengths, random=exact token counts")
+            st.caption("Real datasets: cnn_dailymail (news), sharegpt (conversations), sonnet (baseline)")
 
     # Load all results
     df = load_benchmark_results(results_dir_input)
