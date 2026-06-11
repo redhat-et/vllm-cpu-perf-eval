@@ -38,7 +38,7 @@ Complete reference for environment variables used in vLLM CPU Performance Evalua
 | Variable | Description | Default | Example |
 |----------|-------------|---------|---------|
 | `VLLM_ENDPOINT_URL` | External vLLM endpoint | None (auto-detect) | `http://192.168.1.100:8000` |
-| `VLLM_HEALTH_TIMEOUT` | Health check timeout (seconds) | `300` | `600` (for ZenDNN) |
+| `VLLM_HEALTH_TIMEOUT` | Health check timeout (seconds) | `600` | `900` (for slow-starting containers) |
 | `VLLM_CPU_START` | Starting CPU for vLLM | Auto | `64` |
 | `VLLM_NUMA_NODE` | NUMA node for vLLM | Auto | `1` |
 
@@ -169,7 +169,7 @@ ansible-playbook llm-benchmark-auto.yml \
 ```bash
 export VLLM_CONTAINER_IMAGE="amd-vllm-zendnn:latest"
 export VLLM_CONTAINER_ENTRYPOINT="/opt/zendnn/activate.sh && vllm serve"
-export VLLM_HEALTH_TIMEOUT=600  # ZenDNN takes longer to initialize
+export VLLM_HEALTH_TIMEOUT=900  # ZenDNN takes longer to initialize (default 600s)
 ansible-playbook llm-benchmark-auto.yml
 ```
 

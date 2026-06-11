@@ -1,37 +1,15 @@
 <nav class="sidebar-nav">
-  <h3>Quick Links</h3>
+  <h3>Navigation</h3>
   <ul>
-    <li><a href="{{ '/' | relative_url }}">Home</a></li>
-    <li><a href="{{ '/docs/getting-started' | relative_url }}">Getting Started</a></li>
-    <li><a href="{{ '/docs/dashboards-quickstart' | relative_url }}">Dashboards Guide</a></li>
-  </ul>
-
-  <h3>Methodology</h3>
-  <ul>
-    <li><a href="{{ '/docs/methodology/overview' | relative_url }}">Overview</a></li>
-    <li><a href="{{ '/docs/methodology/testing-phases' | relative_url }}">3-Phase Testing</a></li>
-    <li><a href="{{ '/docs/methodology/metrics' | relative_url }}">Metrics Guide</a></li>
-    <li><a href="{{ '/docs/metrics-collection' | relative_url }}">Metrics Collection</a></li>
-    <li><a href="{{ '/docs/methodology/reporting' | relative_url }}">Test Reporting</a></li>
-  </ul>
-
-  <h3>Test Suites</h3>
-  <ul>
-    <li><a href="{{ '/tests/tests' | relative_url }}">Test Suites Overview</a></li>
-    <li><a href="{{ '/tests/concurrent-load/concurrent-load' | relative_url }}">Concurrent Load</a></li>
-    <li><a href="{{ '/tests/scalability/scalability' | relative_url }}">Scalability</a></li>
-    <li><a href="{{ '/tests/embedding-models/embedding-models' | relative_url }}">Embedding Models</a></li>
-    <li><a href="{{ '/tests/resource-contention/resource-contention' | relative_url }}">Resource Contention</a></li>
-  </ul>
-
-  <h3>Models</h3>
-  <ul>
-    <li><a href="{{ '/models/models' | relative_url }}">Model Catalog</a></li>
-  </ul>
-
-  <h3>Platform Setup</h3>
-  <ul>
-    <li><a href="{{ '/docs/platform-setup/x86/intel/deterministic-benchmarking' | relative_url }}">Intel Platform</a></li>
+    {% for link in site.nav_links %}
+      <li>
+        {% if link.url contains 'http' %}
+          <a href="{{ link.url }}" target="_blank" rel="noopener">{{ link.title }}</a>
+        {% else %}
+          <a href="{{ link.url | relative_url }}">{{ link.title }}</a>
+        {% endif %}
+      </li>
+    {% endfor %}
   </ul>
 </nav>
 
@@ -48,6 +26,11 @@ document.addEventListener('DOMContentLoaded', function() {
   const navLinks = document.querySelectorAll('.sidebar-nav a');
 
   navLinks.forEach(link => {
+    // Skip external links
+    if (link.getAttribute('target') === '_blank') {
+      return;
+    }
+
     const linkPath = normalizePath(link.getAttribute('href'));
 
     // For home link, only match exact path
