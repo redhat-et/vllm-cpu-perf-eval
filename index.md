@@ -95,13 +95,19 @@ This site provides complete testing methodology, automation tools, and platform 
 
 ## Model Coverage
 
-### LLM Models (9 total)
+### LLM Models (11 total)
+
+**Base Models (7):**
 - **Llama-3.2** (1B, 3B) - Meta's efficient small language models
 - **TinyLlama-1.1B** - Compact Llama architecture
-- **OPT** (125M, 1.3B) - Facebook's open pre-trained transformers
 - **Granite-3.2-2B** - IBM's enterprise model
 - **Qwen3-0.6B, Qwen2.5-3B** - Alibaba's efficient models
 - **GPT-OSS-20B** - 21B parameter Mixture-of-Experts model
+
+**RHAIIS Quantized (4):**
+- **Qwen3-8B-quantized.w4a16** - 4-bit quantized Qwen
+- **Llama-3.1-8B-quantized** (w4a16, w8a8) - Quantized Llama variants
+- **TinyLlama-pruned2.4** - Pruned compact model
 
 ### Embedding Models (2 total)
 - **granite-embedding-english-r2** - English-optimized embeddings

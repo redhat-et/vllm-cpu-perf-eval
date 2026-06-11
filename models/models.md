@@ -125,7 +125,9 @@ To maintain the focus on establishing stable, predictable baselines for core arc
 
 This section covers Large Language Model (LLM) selection and testing across all test suites.
 
-## Current LLM Models (7 total)
+## Current LLM Models (11 total)
+
+### Base Models (7 total)
 
 | Architecture | Model | Parameters | Primary Focus | Context Length |
 |--------------|-------|------------|---------------|----------------|
@@ -137,7 +139,30 @@ This section covers Large Language Model (LLM) selection and testing across all 
 | Qwen 2.5 | Qwen/Qwen2.5-3B-Instruct | 3B | Balanced (Efficient) | 8192 |
 | Transformer MoE | openai/gpt-oss-20b | 21B (3.6B active) | Scalability Testing | 128000 |
 
+### RHAIIS Quantized Models (4 total)
+
+| Architecture | Model | Parameters | Quantization | Primary Focus | Context Length |
+|--------------|-------|------------|--------------|---------------|----------------|
+| Qwen 3 | RedHatAI/Qwen3-8B-quantized.w4a16 | 8B | W4A16 | Production-Ready (Quantized) | 8192 |
+| Llama 3.1 | RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w4a16 | 8B | W4A16 | Production-Ready (Quantized) | 128000 |
+| Llama 3.1 | RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w8a8 | 8B | W8A8 | Production-Ready (Quantized) | 128000 |
+| Llama 2 | RedHatAI/TinyLlama-1.1B-Chat-v1.0-pruned2.4 | 1.1B | Pruned | Compact (Pruned) | 2048 |
+
 ## LLM Model Selection Rationale
+
+### RHAIIS Quantized Models
+- **Production-ready quantized models** from Red Hat AI Innovation Studio
+- **W4A16 quantization** - 4-bit weights, 16-bit activations for optimal performance/accuracy balance
+- **W8A8 quantization** - 8-bit weights and activations for higher accuracy with compression
+- **Pruned models** - Reduced parameters while maintaining performance
+- **RHAIIS 3.4.0 container** - Optimized vLLM container with quantization support
+- **Tested with `run-rhaiis-concurrent-load.sh`** - Dedicated test script for RHAIIS models
+
+**Use Cases:**
+- Production deployments requiring smaller memory footprint
+- Cost optimization for cloud/edge deployments
+- Validating quantized model performance vs. full precision
+- Testing RHAIIS-optimized vLLM container
 
 ### Llama 3 Family
 - **Latest generation** Llama architecture from Meta
