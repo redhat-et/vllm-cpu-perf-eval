@@ -4,11 +4,8 @@ import pytest
 import sys
 from pathlib import Path
 
-# Add filter_plugins to path for cpu_utils
-sys.path.insert(
-    0,
-    str(Path(__file__).parent.parent.parent / "filter_plugins")
-)
+# Add filter_plugins to path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "filter_plugins"))
 
 from cpu_utils import allocate_cores_multi_numa  # noqa: E402
 

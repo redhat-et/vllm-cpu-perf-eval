@@ -11,7 +11,7 @@
 #   WORKLOAD     - Workload type (e.g., "chat")
 #   TEST_RUN_ID  - Test run identifier (e.g., "20260303-155156")
 #   RESULTS_DIR  - Base directory containing results
-#   SCRIPTS_DIR  - Directory containing extract_benchmark_timings.py script
+#   SCRIPTS_DIR  - Base scripts directory (defaults to automation/test-execution/scripts)
 
 set -euo pipefail
 
@@ -37,7 +37,7 @@ echo "Extracting benchmark timings..."
 echo "  Results path: ${RESULTS_PATH}"
 
 # Check if Python script exists
-EXTRACTOR_SCRIPT="${SCRIPTS_DIR}/extract_benchmark_timings.py"
+EXTRACTOR_SCRIPT="${SCRIPTS_DIR}/ansible/extract_benchmark_timings.py"
 if [[ ! -f "$EXTRACTOR_SCRIPT" ]]; then
   echo "Error: Script not found: $EXTRACTOR_SCRIPT"
   exit 1

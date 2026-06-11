@@ -100,7 +100,7 @@
     - name: Log test to MLflow
       ansible.builtin.command:
         cmd: >-
-          python3 {{ playbook_dir }}/scripts/log_to_mlflow.py
+          python3 {{ playbook_dir }}/../scripts/ansible/log_to_mlflow.py
           {{ benchmarks_file }}
           {{ metadata_file }}
           {% if experiment_name is defined %}-e "{{ experiment_name }}"{% endif %}
@@ -177,7 +177,7 @@
     - name: Log each test to MLflow
       ansible.builtin.command:
         cmd: >-
-          python3 {{ playbook_dir }}/scripts/log_to_mlflow.py
+          python3 {{ playbook_dir }}/../scripts/ansible/log_to_mlflow.py
           {{ item }}
           {{ item | dirname }}/test-metadata.json
           {% if mlflow_tracking_uri is defined %}-u "{{ mlflow_tracking_uri }}"{% endif %}

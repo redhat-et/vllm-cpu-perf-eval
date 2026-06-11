@@ -76,7 +76,7 @@
     # This data is added to test-metadata.json for easy access
     - name: Extract per-benchmark timings for all configurations
       ansible.builtin.script:
-        cmd: "{{ playbook_dir }}/scripts/extract-all-timings.sh '{{ test_model }}' '{{ workload_type }}' '{{ test_run_id }}' '{{ playbook_dir }}/../../../results/llm' '{{ playbook_dir }}/scripts'"
+        cmd: "{{ playbook_dir }}/scripts/extract-all-timings.sh '{{ test_model }}' '{{ workload_type }}' '{{ test_run_id }}' '{{ playbook_dir }}/../../../results/llm' '{{ playbook_dir }}/../scripts'"
       delegate_to: localhost
       register: timing_extraction
       changed_when: false

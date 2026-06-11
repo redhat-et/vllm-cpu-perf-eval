@@ -138,7 +138,7 @@
     - name: Extract per-benchmark timings from benchmarks.json
       ansible.builtin.command:
         cmd: >-
-          python3 {{ playbook_dir }}/scripts/extract_benchmark_timings.py
+          python3 {{ playbook_dir }}/../scripts/ansible/extract_benchmark_timings.py
           {{ hostvars['localhost']['local_results_base'] }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/benchmarks.json
           {{ hostvars['localhost']['local_results_base'] }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/test-metadata.json
       delegate_to: localhost

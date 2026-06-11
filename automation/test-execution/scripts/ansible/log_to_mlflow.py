@@ -13,6 +13,13 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+# Add shared library to path
+_script_dir = Path(__file__).parent
+_shared_dir = _script_dir.parent.parent / "shared"
+sys.path.insert(0, str(_shared_dir))
+
+from io_utils import load_json_file  # noqa: E402
+
 try:
     import mlflow
 except ImportError:
@@ -21,12 +28,6 @@ except ImportError:
         file=sys.stderr
     )
     sys.exit(1)
-
-
-def load_json_file(file_path: Path) -> Dict[str, Any]:
-    """Load and parse a JSON file."""
-    with open(file_path, 'r', encoding='utf-8') as f:
-        return json.load(f)
 
 
 def extract_parameters(

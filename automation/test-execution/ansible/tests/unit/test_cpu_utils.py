@@ -8,7 +8,7 @@ Or without pytest: python3 test_cpu_utils.py
 import sys
 from pathlib import Path
 
-# Add filter_plugins to path so we can import cpu_utils
+# Add filter_plugins to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'filter_plugins'))
 
 try:
