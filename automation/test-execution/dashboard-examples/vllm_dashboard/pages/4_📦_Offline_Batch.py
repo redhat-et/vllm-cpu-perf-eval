@@ -234,7 +234,7 @@ def main():
         st.header("Configuration")
 
         config = DashboardConfig()
-        default_results_dir = str(Path(config.get_results_directory()).parent / "llm")
+        default_results_dir = str(Path(config.get_results_directory()) / "llm")
 
         results_dir_input = st.text_input(
             "Results Directory",
@@ -276,7 +276,7 @@ def main():
                     "Unit": st.column_config.TextColumn("Unit", width="small"),
                 }
             )
-            st.caption("sonnet = variable lengths from text file, random = exact synthetic prompts")
+            st.caption("Default configurations for use-cases suite. sonnet=variable lengths, random=exact tokens. Cores are configurable.")
 
     # Load all results
     df = load_benchmark_results(results_dir_input)
