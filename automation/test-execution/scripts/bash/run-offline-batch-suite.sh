@@ -72,6 +72,14 @@ TIMEOUT_PER_PROMPT="${OFFLINE_BATCH_TIMEOUT_PER_PROMPT:-$DEFAULT_TIMEOUT_PER_PRO
 MAX_RETRIES="${OFFLINE_BATCH_MAX_RETRIES:-1}"  # Retry once on timeout/failure
 RETRY_DELAY=30  # Seconds to wait between retries
 
+# Detect timeout command (GNU timeout on Linux, gtimeout from coreutils on macOS)
+TIMEOUT_CMD=""
+if command -v timeout &> /dev/null; then
+    TIMEOUT_CMD="timeout"
+elif command -v gtimeout &> /dev/null; then
+    TIMEOUT_CMD="gtimeout"
+fi
+
 # Colors
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -179,16 +187,37 @@ run_ansible_with_timeout() {
     local max_attempts=$((MAX_RETRIES + 1))
 
     while [ $attempt -le $max_attempts ]; do
-        echo -e "${BLUE}Attempt $attempt/$max_attempts (timeout: ${timeout_seconds}s)${NC}"
+        if [ -n "$TIMEOUT_CMD" ]; then
+            echo -e "${BLUE}Attempt $attempt/$max_attempts (timeout: ${timeout_seconds}s)${NC}"
+        else
+            echo -e "${BLUE}Attempt $attempt/$max_attempts (no timeout - install coreutils for timeout support)${NC}"
+        fi
 
-        # Run with timeout
-        if timeout "${timeout_seconds}s" ansible-playbook -i "$INVENTORY" "$PLAYBOOK" \
-            -e "test_model=$model" \
-            -e "dataset_name=$dataset" \
-            -e "num_prompts=$num_prompts" \
-            -e "requested_cores=$cores" \
-            -e "vllm_container_image=$VLLM_CONTAINER_IMAGE" \
-            "$@"; then
+        # Run with timeout if available, otherwise run directly
+        local run_success=false
+        if [ -n "$TIMEOUT_CMD" ]; then
+            if "$TIMEOUT_CMD" "${timeout_seconds}s" ansible-playbook -i "$INVENTORY" "$PLAYBOOK" \
+                -e "test_model=$model" \
+                -e "dataset_name=$dataset" \
+                -e "num_prompts=$num_prompts" \
+                -e "requested_cores=$cores" \
+                -e "vllm_container_image=$VLLM_CONTAINER_IMAGE" \
+                "$@"; then
+                run_success=true
+            fi
+        else
+            if ansible-playbook -i "$INVENTORY" "$PLAYBOOK" \
+                -e "test_model=$model" \
+                -e "dataset_name=$dataset" \
+                -e "num_prompts=$num_prompts" \
+                -e "requested_cores=$cores" \
+                -e "vllm_container_image=$VLLM_CONTAINER_IMAGE" \
+                "$@"; then
+                run_success=true
+            fi
+        fi
+
+        if [ "$run_success" = true ]; then
             return 0  # Success
         fi
 
