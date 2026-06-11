@@ -9,14 +9,14 @@ import json
 import sys
 from pathlib import Path
 from typing import Dict
-import pandas as pd
 
+import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
 # Add parent directory to path for config_manager import
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from config_manager import DashboardConfig
+from config_manager import DashboardConfig  # noqa: E402
 
 
 def get_use_case_units(use_case: str) -> Dict[str, str]:
@@ -257,9 +257,9 @@ def main():
                 "Use Case": ["📝 Summarization", "🏷️ Classification", "🌐 Translation",
                             "🧬 Entity Extraction", "🎲 Dataset Gen", "💻 Code Gen", "🔄 ETL"],
                 "Dataset": ["sonnet", "random", "random", "random", "random", "random", "sonnet"],
-                "Input": [508, 512, 1024, 1500, 256, 512, 508],
-                "Output": [150, 64, 1024, 128, 256, 512, 150],
-                "Prompts": [1000, 1000, 500, 1000, 5000, 500, 500],
+                "Input→Output": ["~500→~150", "512→64", "1024→1024", "1500→128", "256→256", "512→512", "~500→~150"],
+                "Batch": [1000, 1000, 500, 1000, 5000, 500, 500],
+                "Cores": [16, 16, 16, 16, 32, 16, "8/16/32"],
                 "Unit": ["docs", "items", "docs", "docs", "examples", "functions", "records"]
             }
             use_case_df = pd.DataFrame(use_case_data)
@@ -270,13 +270,13 @@ def main():
                 column_config={
                     "Use Case": st.column_config.TextColumn("Use Case", width="medium"),
                     "Dataset": st.column_config.TextColumn("Dataset", width="small"),
-                    "Input": st.column_config.NumberColumn("Input Tokens", width="small"),
-                    "Output": st.column_config.NumberColumn("Output Tokens", width="small"),
-                    "Prompts": st.column_config.NumberColumn("Batch Size", width="small"),
+                    "Input→Output": st.column_config.TextColumn("Input→Output Tokens", width="small"),
+                    "Batch": st.column_config.NumberColumn("Batch Size", width="small"),
+                    "Cores": st.column_config.TextColumn("Cores", width="small"),
                     "Unit": st.column_config.TextColumn("Unit", width="small"),
                 }
             )
-            st.caption("Typical configurations for each use case")
+            st.caption("sonnet = variable lengths from text file, random = exact synthetic prompts")
 
     # Load all results
     df = load_benchmark_results(results_dir_input)
