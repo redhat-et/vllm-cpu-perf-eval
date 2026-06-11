@@ -61,6 +61,17 @@ MODEL_QUANTIZED_W4A16="$MODEL_LLAMA_W4A16"
 DEFAULT_VLLM_CONTAINER_IMAGE="vllm/vllm-openai:latest"
 VLLM_CONTAINER_IMAGE="${VLLM_CONTAINER_IMAGE:-$DEFAULT_VLLM_CONTAINER_IMAGE}"
 
+# Timeout configuration (can be overridden via environment variable)
+# Base timeout in seconds + per-prompt overhead
+DEFAULT_BASE_TIMEOUT=600  # 10 minutes base
+DEFAULT_TIMEOUT_PER_PROMPT=2  # 2 seconds per prompt
+BASE_TIMEOUT="${OFFLINE_BATCH_BASE_TIMEOUT:-$DEFAULT_BASE_TIMEOUT}"
+TIMEOUT_PER_PROMPT="${OFFLINE_BATCH_TIMEOUT_PER_PROMPT:-$DEFAULT_TIMEOUT_PER_PROMPT}"
+
+# Retry configuration
+MAX_RETRIES="${OFFLINE_BATCH_MAX_RETRIES:-1}"  # Retry once on timeout/failure
+RETRY_DELAY=30  # Seconds to wait between retries
+
 # Colors
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -135,6 +146,63 @@ EOF
     exit 1
 }
 
+# Calculate timeout based on batch size
+calculate_timeout() {
+    local num_prompts=$1
+    local timeout=$((BASE_TIMEOUT + (num_prompts * TIMEOUT_PER_PROMPT)))
+    echo $timeout
+}
+
+# Run Ansible playbook with timeout and retry
+run_ansible_with_timeout() {
+    local timeout_seconds=$1
+    local model=$2
+    local dataset=$3
+    local num_prompts=$4
+    local cores=$5
+    shift 5
+
+    local attempt=1
+    local max_attempts=$((MAX_RETRIES + 1))
+
+    while [ $attempt -le $max_attempts ]; do
+        echo -e "${BLUE}Attempt $attempt/$max_attempts (timeout: ${timeout_seconds}s)${NC}"
+
+        # Run with timeout
+        if timeout "${timeout_seconds}s" ansible-playbook -i "$INVENTORY" "$PLAYBOOK" \
+            -e "test_model=$model" \
+            -e "dataset_name=$dataset" \
+            -e "num_prompts=$num_prompts" \
+            -e "requested_cores=$cores" \
+            -e "vllm_container_image=$VLLM_CONTAINER_IMAGE" \
+            "$@"; then
+            return 0  # Success
+        fi
+
+        local exit_code=$?
+
+        if [ $exit_code -eq 124 ]; then
+            echo -e "${RED}✗ TIMEOUT after ${timeout_seconds}s${NC}"
+        else
+            echo -e "${RED}✗ FAILED with exit code $exit_code${NC}"
+        fi
+
+        # Cleanup any hung containers on DUT
+        echo -e "${YELLOW}Cleaning up any hung containers...${NC}"
+        ansible dut -i "$INVENTORY" -m shell -a "podman ps -q | xargs -r podman stop" -b || true
+        ansible dut -i "$INVENTORY" -m shell -a "podman ps -aq | xargs -r podman rm" -b || true
+
+        if [ $attempt -lt $max_attempts ]; then
+            echo -e "${YELLOW}Retrying in ${RETRY_DELAY}s...${NC}"
+            sleep $RETRY_DELAY
+            ((attempt++))
+        else
+            echo -e "${RED}✗ All $max_attempts attempts failed${NC}"
+            return 1
+        fi
+    done
+}
+
 # Run Ansible playbook
 run_test() {
     local model_list=$1
@@ -148,19 +216,16 @@ run_test() {
         model_list="$ALL_MODELS"
     fi
 
+    # Calculate timeout based on batch size
+    local timeout_seconds=$(calculate_timeout $num_prompts)
+
     # Check if comma-separated list (multiple models)
     if [[ "$model_list" == *","* ]]; then
         IFS=',' read -ra MODELS <<< "$model_list"
         local failed=0
         for model in "${MODELS[@]}"; do
             echo -e "${YELLOW}Testing model: $model${NC}"
-            if ! ansible-playbook -i "$INVENTORY" "$PLAYBOOK" \
-                -e "test_model=$model" \
-                -e "dataset_name=$dataset" \
-                -e "num_prompts=$num_prompts" \
-                -e "requested_cores=$cores" \
-                -e "vllm_container_image=$VLLM_CONTAINER_IMAGE" \
-                "$@"; then
+            if ! run_ansible_with_timeout "$timeout_seconds" "$model" "$dataset" "$num_prompts" "$cores" "$@"; then
                 echo -e "${RED}✗ Failed: $model${NC}"
                 ((failed++))
             else
@@ -171,13 +236,7 @@ run_test() {
     fi
 
     # Single model
-    ansible-playbook -i "$INVENTORY" "$PLAYBOOK" \
-        -e "test_model=$model_list" \
-        -e "dataset_name=$dataset" \
-        -e "num_prompts=$num_prompts" \
-        -e "requested_cores=$cores" \
-        -e "vllm_container_image=$VLLM_CONTAINER_IMAGE" \
-        "$@"
+    run_ansible_with_timeout "$timeout_seconds" "$model_list" "$dataset" "$num_prompts" "$cores" "$@"
 }
 
 # ==============================================================================
