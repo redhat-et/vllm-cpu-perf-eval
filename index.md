@@ -25,19 +25,19 @@ This site provides complete testing methodology, automation tools, and platform 
   <div class="link-card">
     <h3>🧪 Test Suites</h3>
     <p>Explore concurrent load, scalability, and embedding model tests</p>
-    <a href="https://github.com/redhat-et/vllm-cpu-perf-eval/tree/main/tests">Test Suites Overview →</a>
+    <a href="docs/ansible/test-execution">Test Execution Guide →</a>
   </div>
 
   <div class="link-card">
     <h3>🤖 Models</h3>
-    <p>View supported models and selection rationale</p>
-    <a href="https://github.com/redhat-et/vllm-cpu-perf-eval/blob/main/models/models.md">Model Catalog →</a>
+    <p>View supported LLM and embedding models</p>
+    <a href="docs/embedding-models">Embedding Models →</a>
   </div>
 
   <div class="link-card">
     <h3>📊 Visualization</h3>
-    <p>Monitor tests live with Grafana or analyze results with Streamlit</p>
-    <a href="https://github.com/redhat-et/vllm-cpu-perf-eval/tree/main/automation/test-execution/grafana">Grafana & Streamlit →</a>
+    <p>Analyze results with interactive dashboards</p>
+    <a href="docs/dashboards-quickstart">Dashboards Guide →</a>
   </div>
 </div>
 
