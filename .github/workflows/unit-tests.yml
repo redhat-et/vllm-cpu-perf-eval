@@ -43,14 +43,14 @@ jobs:
           cd automation/test-execution
           python -m pytest shared/loadgens/tests/ -v
 
-      - name: Run offline batch dashboard tests
+      - name: Run dashboard tests
         run: |
-          cd automation/test-execution/tests/offline-batch
-          python -m pytest test_offline_batch_dashboard.py -v
+          cd automation/test-execution/tests/dashboard
+          python -m pytest test_offline_batch_page.py -v
 
-      - name: Run offline batch script tests
+      - name: Run script tests
         run: |
-          cd automation/test-execution/tests/offline-batch
+          cd automation/test-execution/tests/scripts
           bash test_run_offline_batch_suite.sh
 
       - name: Test results summary

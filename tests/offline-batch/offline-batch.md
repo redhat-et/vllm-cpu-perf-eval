@@ -89,8 +89,8 @@ The test scenarios are implemented in:
 - Visualizes results: processing capacity, time estimates, scaling curves
 
 **Unit Tests:**
-- `automation/test-execution/tests/offline-batch/test_offline_batch_dashboard.py`
-- `automation/test-execution/tests/offline-batch/test_run_offline_batch_suite.sh`
+- `automation/test-execution/tests/dashboard/test_offline_batch_page.py` - Dashboard page tests
+- `automation/test-execution/tests/scripts/test_run_offline_batch_suite.sh` - Bash script tests
 
 ## Quick Start
 
