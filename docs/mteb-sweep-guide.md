@@ -11,6 +11,8 @@ title: MTEB Quality Testing - Quick Start Guide
 
 See [MTEB Timing Guide](mteb-timing-guide.md) for detailed timing information.
 
+Having issues? Check the [MTEB Troubleshooting Guide](mteb-troubleshooting.md).
+
 ## Quick Start
 
 ### Run All Models (Quick Test)

@@ -25,19 +25,19 @@ This site provides complete testing methodology, automation tools, and platform 
   <div class="link-card">
     <h3>🧪 Test Suites</h3>
     <p>Explore concurrent load, scalability, and embedding model tests</p>
-    <a href="tests/tests">Test Suites Overview →</a>
+    <a href="https://github.com/redhat-et/vllm-cpu-perf-eval/tree/main/tests">Test Suites Overview →</a>
   </div>
 
   <div class="link-card">
     <h3>🤖 Models</h3>
     <p>View supported models and selection rationale</p>
-    <a href="models/models">Model Catalog →</a>
+    <a href="https://github.com/redhat-et/vllm-cpu-perf-eval/blob/main/models/models.md">Model Catalog →</a>
   </div>
 
   <div class="link-card">
     <h3>📊 Visualization</h3>
     <p>Monitor tests live with Grafana or analyze results with Streamlit</p>
-    <a href="automation/test-execution/grafana/README">Grafana & Streamlit →</a>
+    <a href="https://github.com/redhat-et/vllm-cpu-perf-eval/tree/main/automation/test-execution/grafana">Grafana & Streamlit →</a>
   </div>
 </div>
 
@@ -48,7 +48,7 @@ This site provides complete testing methodology, automation tools, and platform 
 - **Phase 2**: Realistic variability simulation
 - **Phase 3**: Production conditions with caching
 
-> Currently implemented for [Concurrent Load Tests](tests/concurrent-load/concurrent-load)
+> Currently implemented for [Concurrent Load Tests](https://github.com/redhat-et/vllm-cpu-perf-eval/blob/main/tests/concurrent-load/concurrent-load.md)
 
 ### 🔧 Comprehensive Automation
 - **Ansible playbooks** for platform setup and test execution
@@ -60,9 +60,9 @@ This site provides complete testing methodology, automation tools, and platform 
 
 | Test Suite | Status | Focus |
 |------------|--------|-------|
-| [Concurrent Load](tests/concurrent-load/concurrent-load) | ✅ Validated | P95 latency scaling with concurrent requests |
-| [Scalability](tests/scalability/scalability) | 🚧 WIP | Maximum throughput and load-latency curves |
-| [Embedding Models](tests/embedding-models/embedding-models) | 🚧 WIP | Embedding-specific performance |
+| [Concurrent Load](https://github.com/redhat-et/vllm-cpu-perf-eval/blob/main/tests/concurrent-load/concurrent-load.md) | ✅ Validated | P95 latency scaling with concurrent requests |
+| [Scalability](https://github.com/redhat-et/vllm-cpu-perf-eval/blob/main/tests/scalability/scalability.md) | 🚧 WIP | Maximum throughput and load-latency curves |
+| [Embedding Models](https://github.com/redhat-et/vllm-cpu-perf-eval/blob/main/tests/embedding-models/embedding-models.md) |  ✅ Validated  | Embedding-specific performance |
 | Resource Contention | 📋 Planned | Multi-tenant and resource sharing |
 
 ### 🏗️ Multi-Platform Support
@@ -79,19 +79,19 @@ This site provides complete testing methodology, automation tools, and platform 
 - **[Test Reporting](docs/methodology/reporting)** - Report structure and formats
 
 ### Test Suites
-- **[Concurrent Load](tests/concurrent-load/concurrent-load)** - Concurrent request testing ✅
-- **[Scalability](tests/scalability/scalability)** - Throughput and sweep testing 🚧
-- **[Embedding Models](tests/embedding-models/embedding-models)** - Embedding performance 🚧
-- **[Resource Contention](tests/resource-contention/resource-contention)** - Multi-tenant testing 📋
+- **[Concurrent Load](https://github.com/redhat-et/vllm-cpu-perf-eval/blob/main/tests/concurrent-load/concurrent-load.md)** - Concurrent request testing ✅
+- **[Scalability](https://github.com/redhat-et/vllm-cpu-perf-eval/blob/main/tests/scalability/scalability.md)** - Throughput and sweep testing 🚧
+- **[Embedding Models](https://github.com/redhat-et/vllm-cpu-perf-eval/blob/main/tests/embedding-models/embedding-models.md)** - Embedding performance  ✅
+- **[Resource Contention](https://github.com/redhat-et/vllm-cpu-perf-eval/blob/main/tests/resource-contention/resource-contention.md)** - Multi-tenant testing 📋
 
 ### Automation & Setup
 - **[Getting Started](docs/getting-started)** - Quick start guide with Ansible
 - **[Platform Setup](docs/platform-setup/x86/intel/deterministic-benchmarking)** - Intel platform configuration
-- **[Models](models/models)** - Model definitions and selection
+- **[Models](https://github.com/redhat-et/vllm-cpu-perf-eval/blob/main/models/models.md)** - Model definitions and selection
 
 ### Visualization & Monitoring
-- **[Grafana Monitoring](automation/test-execution/grafana/README)** - Real-time metrics with Prometheus and Grafana
-- **[Streamlit Dashboard](automation/test-execution/dashboard-examples/README)** - Post-test analysis and comparison
+- **[Grafana Monitoring](https://github.com/redhat-et/vllm-cpu-perf-eval/tree/main/automation/test-execution/grafana)** - Real-time metrics with Prometheus and Grafana
+- **[Streamlit Dashboard](https://github.com/redhat-et/vllm-cpu-perf-eval/tree/main/automation/test-execution/dashboard-examples)** - Post-test analysis and comparison
 
 ## Model Coverage
 
@@ -107,7 +107,9 @@ This site provides complete testing methodology, automation tools, and platform 
 - **granite-embedding-english-r2** - English-optimized embeddings
 - **granite-embedding-278m-multilingual** - Multilingual support
 
-See [Model Catalog](models/models) for complete specifications.
+Quality testing available via MTEB integration (see [MTEB Quick Start](docs/mteb-sweep-guide)).
+
+See [Model Catalog](https://github.com/redhat-et/vllm-cpu-perf-eval/blob/main/models/models.md) for complete specifications.
 
 ## Workload Types
 

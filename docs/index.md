@@ -47,10 +47,15 @@ See [Methodology](methodology/overview.md) for details.
 - [Quick Start Tutorial](getting-started.md#quick-start)
 - [Embedding Models Testing](embedding-models.md)
 
+### MTEB Quality Testing
+- [MTEB Quick Start Guide](mteb-sweep-guide.md) - Run quality tests quickly
+- [MTEB Timing Reference](mteb-timing-guide.md) - Understand test duration and planning
+- [MTEB Troubleshooting](mteb-troubleshooting.md) - Resolve common issues
+
 ### Testing
 - [Ansible Automation](ansible/test-execution.md)
-- [Test Suites Overview](../tests/tests.md)
-- [Model Support](../models/models.md)
+- [Test Suites Overview](https://github.com/redhat-et/vllm-cpu-perf-eval/tree/main/tests)
+- [Model Support](https://github.com/redhat-et/vllm-cpu-perf-eval/blob/main/models/models.md)
 
 ### Analysis
 - [Dashboard Quickstart](dashboards-quickstart.md)
@@ -59,7 +64,9 @@ See [Methodology](methodology/overview.md) for details.
 
 ### Methodology
 - [Overview](methodology/overview.md)
-- [Embedding Models Presentation](presentations/embedding-models-methodology-results.md)
+- [Testing Phases](methodology/testing-phases.md)
+- [Metrics Guide](methodology/metrics.md)
+- [Reporting](methodology/reporting.md)
 
 ### Configuration
 - [vLLM KV Cache Configuration Guide](vllm-kv-cache-configuration.md) - Understanding max_model_len, KV cache size, and block_size for optimal CPU performance

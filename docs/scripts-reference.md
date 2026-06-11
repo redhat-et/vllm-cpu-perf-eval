@@ -87,6 +87,7 @@ cd automation/test-execution/scripts
 - Run `./bash/run-mteb-model-sweep.sh --help`
 - [MTEB Sweep Guide](mteb-sweep-guide.md)
 - [MTEB Timing Guide](mteb-timing-guide.md)
+- [MTEB Troubleshooting](mteb-troubleshooting.md)
 
 ---
 

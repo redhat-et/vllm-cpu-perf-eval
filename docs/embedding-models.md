@@ -430,6 +430,11 @@ The framework automatically detects and configures Red Hat AI images with the co
 
 ## Quality Testing with MTEB
 
+For comprehensive MTEB testing guidance, see:
+- **[MTEB Quick Start Guide](mteb-sweep-guide.md)** - Run quality tests quickly
+- **[MTEB Timing Guide](mteb-timing-guide.md)** - Understand test duration and planning
+- **[MTEB Troubleshooting](mteb-troubleshooting.md)** - Resolve common issues
+
 In addition to performance testing, you can evaluate embedding quality using the **MTEB (Massive Text Embedding Benchmark)** framework.
 
 ### MTEB Framework
