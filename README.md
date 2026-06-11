@@ -37,8 +37,8 @@ vllm-cpu-perf-eval/
 │   │   └── *.yaml                     # Test scenario definitions (planned)
 │   └── embedding-models/               # Embedding model test scenarios
 │       ├── embedding-models.md        # Embedding test documentation
-│       ├── baseline-sweep.yaml        # Baseline performance tests
-│       └── latency-concurrent.yaml    # Latency tests
+│       ├── baseline-sweep.md          # Baseline performance tests
+│       └── latency-concurrent.md      # Latency tests
 │
 ├── automation/                         # Automation framework
 │   ├── test-execution/                 # Test orchestration

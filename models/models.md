@@ -139,14 +139,17 @@ This section covers Large Language Model (LLM) selection and testing across all 
 | Qwen 2.5 | Qwen/Qwen2.5-3B-Instruct | 3B | Balanced (Efficient) | 8192 |
 | Transformer MoE | openai/gpt-oss-20b | 21B (3.6B active) | Scalability Testing | 128000 |
 
-### RHAIIS Quantized Models (4 total)
+### RHAIIS Quantized Models (5 total)
 
 | Architecture | Model | Parameters | Quantization | Primary Focus | Context Length |
 |--------------|-------|------------|--------------|---------------|----------------|
 | Qwen 3 | RedHatAI/Qwen3-8B-quantized.w4a16 | 8B | W4A16 | Production-Ready (Quantized) | 8192 |
+| Qwen 3 | RedHatAI/Qwen3-8B-W8A8-INT8 | 8B | W8A8-INT8 | ⚠️ Skip - Known Issue¹ | 32768 |
 | Llama 3.1 | RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w4a16 | 8B | W4A16 | Production-Ready (Quantized) | 128000 |
 | Llama 3.1 | RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w8a8 | 8B | W8A8 | Production-Ready (Quantized) | 128000 |
 | Llama 2 | RedHatAI/TinyLlama-1.1B-Chat-v1.0-pruned2.4 | 1.1B | Pruned | Compact (Pruned) | 2048 |
+
+¹ **Known Issue:** RedHatAI/Qwen3-8B-W8A8-INT8 fails quantization validation and should be skipped in test automation. See [RHAIIS Testing Guide](../tests/concurrent-load/rhaiis-testing.md) for details.
 
 ## LLM Model Selection Rationale
 
@@ -592,8 +595,6 @@ Calculated with **32 concurrent requests** (MAX concurrency across all workloads
 | llama-3.2-1b-instruct | 0.0625 GB | 3.00 GB | 3 GiB |
 | llama-3.2-3b-instruct | 0.2188 GB | 10.5 GB | 11 GiB |
 | tinyllama-1.1b-chat | 0.0430 GB | 2.06 GB | 3 GiB |
-| opt-125m | 0.0452 GB | 2.17 GB | 4 GiB |
-| opt-1.3b | 0.0954 GB | 4.58 GB | 8 GiB |
 | granite-3.2-2b-instruct | 0.1042 GB | 5.00 GB | 8 GiB |
 | qwen3-0.6b | 0.0730 GB | 3.50 GB | 6 GiB |
 | qwen2.5-3b-instruct | 0.0358 GB | 1.72 GB | 4 GiB |
@@ -608,8 +609,6 @@ Calculated with **32 concurrent requests** (MAX concurrency across all workloads
 | llama-3.2-1b-instruct | 0.125 GB | 6.00 GB | 6 GiB |
 | llama-3.2-3b-instruct | 0.438 GB | 21.0 GB | 21 GiB |
 | tinyllama-1.1b-chat | 0.086 GB | 4.12 GB | 5 GiB |
-| opt-125m | 0.090 GB | 4.32 GB | 7 GiB |
-| opt-1.3b | 0.191 GB | 9.17 GB | 15 GiB |
 | granite-3.2-2b-instruct | 0.208 GB | 10.0 GB | 15 GiB |
 | qwen3-0.6b | 0.146 GB | 7.01 GB | 11 GiB |
 | qwen2.5-3b-instruct | 0.072 GB | 3.46 GB | 7 GiB |

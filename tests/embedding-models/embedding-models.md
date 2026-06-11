@@ -853,12 +853,12 @@ ansible-playbook playbooks/embedding/run-tests.yml \
 
 #### 2. Test Scenarios
 
-- **baseline-sweep.yaml**: Baseline performance test configuration
+- **baseline-sweep.md**: Baseline performance test configuration
   - Find maximum throughput (`--request-rate inf`)
   - Test at 25%, 50%, 75% of max load
   - Measures request throughput and latency curves
 
-- **latency-concurrent.yaml**: Latency scaling test configuration
+- **latency-concurrent.md**: Latency scaling test configuration
   - Concurrency levels: 16, 32, 64, 128, 196
   - Measures P99 latency under load
   - Identifies sweet spot and degradation point

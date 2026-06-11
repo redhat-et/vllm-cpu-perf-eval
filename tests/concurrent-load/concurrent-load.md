@@ -163,7 +163,7 @@ Concurrency levels: **{1, 2, 4, 8, 16, 32}** (when implemented)
 **Note:** Embedding model concurrent load testing is covered in the
 dedicated [Embedding Models Test Suite](../embedding-models/embedding-models.md).
 See specifically:
-- [Latency Concurrent Testing](../embedding-models/latency-concurrent.yaml) -
+- [Latency Concurrent Testing](../embedding-models/latency-concurrent.md) -
   Concurrency levels {16, 32, 64, 128, 196}
 - Comprehensive embedding-specific metrics and analysis
 

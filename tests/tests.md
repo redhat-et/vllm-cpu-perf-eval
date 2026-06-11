@@ -18,8 +18,8 @@ tests/
 ├── resource-contention/       # Resource sharing tests (planned)
 └── embedding-models/          # Embedding model performance tests
     ├── embedding-models.md    # Detailed embedding test documentation
-    ├── baseline-sweep.yaml    # Baseline sweep test scenario
-    └── latency-concurrent.yaml # Latency concurrent test scenario
+    ├── baseline-sweep.md      # Baseline sweep test scenario
+    └── latency-concurrent.md  # Latency concurrent test scenario
 ```
 
 ## Test ID Naming Convention
