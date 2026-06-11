@@ -45,13 +45,13 @@ jobs:
 
       - name: Run offline batch dashboard tests
         run: |
-          cd automation/test-execution
-          python -m pytest tests/dashboard/test_offline_batch_page.py -v
+          cd automation/test-execution/tests/offline-batch
+          python -m pytest test_offline_batch_dashboard.py -v
 
       - name: Run offline batch script tests
         run: |
-          cd automation/test-execution
-          bash tests/scripts/test_run_offline_batch_suite.sh
+          cd automation/test-execution/tests/offline-batch
+          bash test_run_offline_batch_suite.sh
 
       - name: Test results summary
         if: always()

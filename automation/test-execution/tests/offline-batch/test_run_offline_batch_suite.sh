@@ -9,7 +9,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SUITE_SCRIPT="$SCRIPT_DIR/../../automation/test-execution/scripts/bash/run-offline-batch-suite.sh"
+SUITE_SCRIPT="$SCRIPT_DIR/../../scripts/bash/run-offline-batch-suite.sh"
 
 # Colors for test output
 GREEN='\033[0;32m'
@@ -128,7 +128,7 @@ test_usage_message() {
 
     assert_contains "$usage_output" "vLLM Offline Batch Benchmark Suite" "Usage shows title"
     assert_contains "$usage_output" "use-cases" "Usage shows use-cases mode"
-    assert_contains "$usage_output" "run-test" "Usage shows run-test mode"
+    assert_contains "$usage_output" "use-case-sweep" "Usage shows use-case-sweep mode"
     assert_contains "$usage_output" "VLLM_CONTAINER_IMAGE" "Usage shows environment variable"
 }
 

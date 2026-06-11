@@ -13,7 +13,7 @@ from pathlib import Path
 import sys
 
 # Add dashboard to path
-dashboard_path = Path(__file__).parent / "../../automation/test-execution/dashboard-examples/vllm_dashboard"
+dashboard_path = Path(__file__).parent / "../../dashboard-examples/vllm_dashboard"
 sys.path.insert(0, str(dashboard_path / "pages"))
 
 # Import functions from the dashboard
