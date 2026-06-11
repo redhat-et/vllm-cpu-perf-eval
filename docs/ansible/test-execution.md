@@ -55,6 +55,29 @@ ansible-playbook llm-benchmark-auto.yml \
 | `llm-benchmark-auto.yml` | Single LLM test | Auto (core count) |
 | `llm-benchmark-concurrent-load.yml` | 3-phase concurrent load test | Auto |
 | `llm-core-sweep-auto.yml` | Multi-core sweep | Auto |
+| `start-vllm-server.yml` | Start vLLM server without benchmark | Manual |
+
+### Embedding Model Testing
+
+| Playbook | Purpose | Configuration |
+|----------|---------|---------------|
+| `embedding-benchmark.yml` | Embedding model performance test | Manual |
+| `mteb-benchmark.yml` | MTEB quality benchmarks | Manual |
+
+### Results Management
+
+| Playbook | Purpose |
+|----------|---------|
+| `collect-sweep-results.yml` | Consolidate core sweep results |
+| `log-to-mlflow.yml` | Log benchmark results to MLflow (single or batch) |
+| `publish-existing-results.yml` | Republish GuideLLM results to Prometheus |
+
+### Monitoring & Visualization
+
+| Playbook | Purpose |
+|----------|---------|
+| `start-grafana.yml` | Start Grafana dashboard with Prometheus |
+| `stop-grafana.yml` | Stop Grafana and Prometheus services |
 
 ### Platform Setup
 
@@ -174,6 +197,64 @@ podman inspect <container-id> | grep -A 2 cpuset
 - Socket pinning requires `vllm_numa_node` to be set
 - When pinning to single NUMA node, `tensor_parallel` must equal 1
 - The automation validates requested cores fit within specified socket
+
+### Tensor Parallel (TP) for Model Sharding
+
+Tensor parallelism splits model layers across multiple NUMA nodes to improve performance on high-latency workloads.
+
+**When to Use:**
+- **Large input contexts:** RAG (8K tokens), Summarization (2K tokens)
+- **2+ socket systems:** Distribute model across NUMA nodes
+- **Memory-bound workloads:** Split large models to utilize more memory bandwidth
+
+**Supported Values:** 1 (disabled), 2, 4, or 8
+
+**Requirements:**
+- Core count must be evenly divisible by TP value
+- Example: 32 cores with TP=2 → 16 cores per NUMA node
+
+**Examples:**
+
+```bash
+# Test with TP=2 on 32 cores (auto-distributes across 2 NUMA nodes)
+ansible-playbook llm-benchmark-auto.yml \
+  -e "test_model=meta-llama/Llama-3.2-3B-Instruct" \
+  -e "workload_type=rag" \
+  -e "requested_cores=32" \
+  -e "requested_tensor_parallel=2"
+
+# Concurrent load test with TP=2
+ansible-playbook llm-benchmark-concurrent-load.yml \
+  -e "test_model=meta-llama/Llama-3.2-3B-Instruct" \
+  -e "base_workload=summarization" \
+  -e "requested_cores=64" \
+  -e "requested_tensor_parallel=2"
+
+# TP=4 for very large models on 4-socket systems
+ansible-playbook llm-benchmark-auto.yml \
+  -e "test_model=meta-llama/Llama-3.2-3B-Instruct" \
+  -e "workload_type=rag" \
+  -e "requested_cores=64" \
+  -e "requested_tensor_parallel=4"
+```
+
+**Auto-Calculation:**
+If `requested_tensor_parallel` is not specified, the automation calculates an optimal value based on:
+- Number of available NUMA nodes
+- Requested core count
+- System topology
+
+**Dashboard Filtering:**
+Results from TP tests can be filtered in the Client Metrics dashboard using the "Tensor Parallel" dropdown.
+
+**Performance Impact:**
+- ✅ **Improves:** Large context processing (RAG, summarization)
+- ✅ **Improves:** Memory bandwidth utilization on multi-socket systems
+- ⚠️ **May degrade:** Small context workloads (chat, code) due to inter-node communication overhead
+
+**Compatibility:**
+- Cannot combine with single-NUMA socket pinning (use multi-NUMA or auto)
+- Best results on systems with fast inter-node links (UPI on Intel, Infinity Fabric on AMD)
 
 ### 3-Phase Concurrent Load Testing
 

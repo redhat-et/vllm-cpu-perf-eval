@@ -35,6 +35,8 @@ nav_links:
     url: /docs/methodology/overview
   - title: vLLM KV Cache Config
     url: /docs/vllm-kv-cache-configuration
+  - title: Environment Variables
+    url: /docs/environment-variables
   - title: Platform Setup (Intel)
     url: /docs/platform-setup/x86/intel/deterministic-benchmarking
   - title: Scripts Reference

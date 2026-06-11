@@ -110,6 +110,134 @@ cd automation/test-execution/scripts
 
 ---
 
+### [fix-mteb-results-structure.sh](../automation/test-execution/scripts/bash/fix-mteb-results-structure.sh)
+
+**Purpose:** Fix MTEB results directory structure for dashboard compatibility.
+
+**Location:** `automation/test-execution/scripts/bash/fix-mteb-results-structure.sh`
+
+**What it does:**
+- Converts nested `no_model_name_available/no_revision_available/*.json` to `TaskName/test.json`
+- Fixes root-level JSON files from incorrect reorganization
+- Preserves `run_summary.json` and `model_meta.json` metadata files
+- Shows count of fixed files and expected structure
+
+**Usage:**
+```bash
+cd automation/test-execution/scripts
+
+# Fix default results directory (results/mteb/)
+./bash/fix-mteb-results-structure.sh
+
+# Fix custom directory
+RESULTS_DIR=/path/to/results/mteb ./bash/fix-mteb-results-structure.sh
+```
+
+**When to use:**
+- After running MTEB benchmarks with the vLLM MTEB container
+- When MTEB results don't appear in the dashboard
+- When you see nested `no_model_name_available` directories
+
+**Expected structure after fix:**
+```
+results/mteb/MODEL/TIMESTAMP/
+├── run_summary.json
+├── model_meta.json
+├── Banking77Classification/
+│   └── test.json
+├── EmotionClassification/
+│   └── test.json
+└── ...
+```
+
+---
+
+### [run-rhaiis-concurrent-load.sh](../automation/test-execution/scripts/bash/run-rhaiis-concurrent-load.sh)
+
+**Purpose:** Run concurrent load benchmarks on RHAIIS quantized LLM models across different core counts and workload types.
+
+**Location:** `automation/test-execution/scripts/bash/run-rhaiis-concurrent-load.sh`
+
+**Prerequisites:**
+- RHAIIS vLLM container image pulled on DUT:
+  ```bash
+  podman pull registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
+  ```
+- Set `VLLM_CONTAINER_IMAGE` to use custom image
+
+**Quick Examples:**
+```bash
+cd automation/test-execution/scripts
+
+# Run all models, all workloads, all core counts (Phase 1 only)
+./bash/run-rhaiis-concurrent-load.sh
+
+# Test specific models with specific workloads
+./bash/run-rhaiis-concurrent-load.sh \
+  --models "RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w4a16" \
+  --workloads "chat,rag" \
+  --cores "16,32"
+
+# Quick test on 8 cores
+./bash/run-rhaiis-concurrent-load.sh --models tiny --cores 8 --workloads chat
+
+# Test Llama models only
+./bash/run-rhaiis-concurrent-load.sh --models llama --cores 16
+
+# Socket separation for 2-socket systems (recommended)
+./bash/run-rhaiis-concurrent-load.sh \
+  --vllm-cpu-start 64 \
+  --vllm-numa-node 1 \
+  --guidellm-cpus 0-31 \
+  --guidellm-numa-node 0
+
+# Test with Tensor Parallel (TP=2 for improved high-latency performance)
+./bash/run-rhaiis-concurrent-load.sh \
+  --models qwen \
+  --cores 32 \
+  --workloads "rag,summarization" \
+  --tensor-parallel 2
+```
+
+**Model Presets:**
+- `all` - All 5 RHAIIS quantized models
+- `llama` - Llama models (3.1-8B w4a16, w8a8)
+- `qwen` - Qwen models (8B w4a16, W8A8-INT8)
+- `tiny` - TinyLlama pruned model
+
+**Supported Workloads:**
+- `chat` - 512:512 tokens (interactive conversations)
+- `code` - 1024:1024 tokens (code generation)
+- `summarization` - 2048:256 tokens (document summarization)
+- `rag` - 8192:512 tokens (retrieval-augmented generation)
+
+**Key Options:**
+- `--models LIST` - Comma-separated models or preset (all|llama|qwen|tiny)
+- `--cores LIST` - Comma-separated core counts (default: 8,16,32)
+- `--workloads LIST` - Comma-separated workloads (default: chat,code,summarization,rag)
+- `--phase PHASE` - Test phase (1|2|3|all, default: 1)
+- `--tensor-parallel NUM` - Tensor parallelism (1|2|4|8, auto-calculated by default)
+- `--vllm-cpu-start NUM` - Starting CPU for vLLM (socket separation)
+- `--vllm-numa-node NUM` - NUMA node for vLLM
+- `--guidellm-cpus RANGE` - CPU range for GuideLLM (e.g., 0-31)
+- `--guidellm-numa-node NUM` - NUMA node for GuideLLM
+- `--skip-models LIST` - Models to skip
+- `--continue-on-error` - Continue if a model/workload fails
+- `--dry-run` - Show what would run without executing
+
+**Tensor Parallel (TP) Support:**
+
+Tensor parallelism splits model layers across multiple NUMA nodes for improved performance on high-latency workloads (RAG, summarization).
+
+- **Values:** 1 (no parallelism), 2, 4, or 8
+- **Default:** Auto-calculated based on NUMA topology
+- **When to use TP=2:** Large input contexts (RAG 8K, Summarization 2K) on 2-socket systems
+- **Cores requirement:** Must be evenly divisible by TP value
+
+**Full Documentation:** Run `./bash/run-rhaiis-concurrent-load.sh --help`
+
+---
+
 ### [convert-embedding-results.py](../automation/test-execution/scripts/python/convert-embedding-results.py)
 
 **Purpose:** Convert embedding benchmark JSON results to CSV format.

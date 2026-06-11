@@ -70,6 +70,8 @@ See [Methodology](methodology/overview.md) for details.
 
 ### Configuration
 - [vLLM KV Cache Configuration Guide](vllm-kv-cache-configuration.md) - Understanding max_model_len, KV cache size, and block_size for optimal CPU performance
+- [Environment Variables Reference](environment-variables.md) - Complete guide to configuration via environment variables
+- [Scripts Reference](scripts-reference.md) - All test execution and utility scripts
 
 ## Container Images
 
