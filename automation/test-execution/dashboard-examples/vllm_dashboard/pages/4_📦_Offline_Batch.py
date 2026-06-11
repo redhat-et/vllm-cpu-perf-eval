@@ -259,7 +259,6 @@ def main():
                 "Dataset": ["sonnet", "random", "random", "random", "random", "random", "sonnet"],
                 "Input→Output": ["~500→~150", "512→64", "1024→1024", "1500→128", "256→256", "512→512", "~500→~150"],
                 "Batch": [1000, 1000, 500, 1000, 5000, 500, 500],
-                "Cores": [16, 16, 16, 16, 32, 16, "8/16/32"],
                 "Unit": ["docs", "items", "docs", "docs", "examples", "functions", "records"]
             }
             use_case_df = pd.DataFrame(use_case_data)
@@ -272,11 +271,10 @@ def main():
                     "Dataset": st.column_config.TextColumn("Dataset", width="small"),
                     "Input→Output": st.column_config.TextColumn("Input→Output Tokens", width="small"),
                     "Batch": st.column_config.NumberColumn("Batch Size", width="small"),
-                    "Cores": st.column_config.TextColumn("Cores", width="small"),
                     "Unit": st.column_config.TextColumn("Unit", width="small"),
                 }
             )
-            st.caption("Default configurations for use-cases suite. sonnet=variable lengths, random=exact tokens. Cores are configurable.")
+            st.caption("sonnet=variable lengths, random=exact synthetic prompts")
 
     # Load all results
     df = load_benchmark_results(results_dir_input)
