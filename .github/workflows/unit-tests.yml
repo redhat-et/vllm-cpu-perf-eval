@@ -26,9 +26,9 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest ansible pyyaml
+          pip install pytest ansible pyyaml streamlit plotly pandas
 
-      - name: Run unit tests
+      - name: Run Ansible unit tests
         run: |
           cd automation/test-execution/ansible/tests
           python -m pytest unit/ -v -m unit
@@ -42,6 +42,16 @@ jobs:
         run: |
           cd automation/test-execution
           python -m pytest shared/loadgens/tests/ -v
+
+      - name: Run offline batch dashboard tests
+        run: |
+          cd automation/test-execution
+          python -m pytest tests/dashboard/test_offline_batch_page.py -v
+
+      - name: Run offline batch script tests
+        run: |
+          cd automation/test-execution
+          bash tests/scripts/test_run_offline_batch_suite.sh
 
       - name: Test results summary
         if: always()
