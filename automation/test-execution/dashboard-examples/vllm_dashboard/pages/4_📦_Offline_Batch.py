@@ -252,13 +252,12 @@ def main():
 
         # Use case configurations
         with st.expander("📋 Task Configurations", expanded=False):
-            st.markdown("**Use Cases and Parameters**")
+            st.markdown("**Use Case Characteristics**")
             use_case_data = {
                 "Use Case": ["📝 Summarization", "🏷️ Classification", "🌐 Translation",
                             "🧬 Entity Extraction", "🎲 Dataset Gen", "💻 Code Gen", "🔄 ETL"],
                 "Dataset": ["sonnet", "random", "random", "random", "random", "random", "sonnet"],
                 "Input→Output": ["~500→~150", "512→64", "1024→1024", "1500→128", "256→256", "512→512", "~500→~150"],
-                "Batch": [1000, 1000, 500, 1000, 5000, 500, 500],
                 "Unit": ["docs", "items", "docs", "docs", "examples", "functions", "records"]
             }
             use_case_df = pd.DataFrame(use_case_data)
@@ -269,12 +268,11 @@ def main():
                 column_config={
                     "Use Case": st.column_config.TextColumn("Use Case", width="medium"),
                     "Dataset": st.column_config.TextColumn("Dataset", width="small"),
-                    "Input→Output": st.column_config.TextColumn("Input→Output Tokens", width="small"),
-                    "Batch": st.column_config.NumberColumn("Batch Size", width="small"),
+                    "Input→Output": st.column_config.TextColumn("Tokens", width="small"),
                     "Unit": st.column_config.TextColumn("Unit", width="small"),
                 }
             )
-            st.caption("sonnet=variable lengths, random=exact synthetic prompts")
+            st.caption("sonnet=variable text lengths, random=exact token counts")
 
     # Load all results
     df = load_benchmark_results(results_dir_input)
