@@ -1,0 +1,144 @@
+---
+# Input/Output Length Variation Test
+# Characterizes performance across different token length configurations
+
+test_scenario:
+  name: "input-output-variation"
+  type: "offline-batch"
+  description: "Measure how prefill and decode performance varies with input/output lengths"
+
+  mode: "offline"
+  task: "generic"
+
+  sampling:
+    temperature: 0.7
+    top_p: 0.9
+    max_tokens: 256  # Will be overridden per stage
+
+  llm_config:
+    dtype: "bfloat16"
+    device: "cpu"
+    max_model_len: 8192  # Higher for long input tests
+    cpu_offload_gb: 0
+    trust_remote_code: true
+    env_vars:
+      VLLM_CPU_KVCACHE_SPACE: "4GiB"
+
+  # Input length sweep (fixed batch size, fixed output, vary input)
+  stages:
+    - name: "input-128-tokens"
+      description: "Very short input"
+      batch_size: 100
+      input_length: 128
+      output_length: 256
+      result_filename: "input-length-128"
+
+    - name: "input-256-tokens"
+      description: "Short input"
+      batch_size: 100
+      input_length: 256
+      output_length: 256
+      result_filename: "input-length-256"
+
+    - name: "input-512-tokens"
+      description: "Medium input"
+      batch_size: 100
+      input_length: 512
+      output_length: 256
+      result_filename: "input-length-512"
+
+    - name: "input-1024-tokens"
+      description: "Long input"
+      batch_size: 100
+      input_length: 1024
+      output_length: 256
+      result_filename: "input-length-1024"
+
+    - name: "input-2048-tokens"
+      description: "Very long input"
+      batch_size: 100
+      input_length: 2048
+      output_length: 256
+      result_filename: "input-length-2048"
+
+    - name: "input-4096-tokens"
+      description: "Extreme long input"
+      batch_size: 100
+      input_length: 4096
+      output_length: 256
+      result_filename: "input-length-4096"
+
+    # Output length sweep (fixed batch size, fixed input, vary output)
+    - name: "output-64-tokens"
+      description: "Very short output"
+      batch_size: 100
+      input_length: 512
+      output_length: 64
+      result_filename: "output-length-64"
+
+    - name: "output-128-tokens"
+      description: "Short output"
+      batch_size: 100
+      input_length: 512
+      output_length: 128
+      result_filename: "output-length-128"
+
+    - name: "output-256-tokens"
+      description: "Medium output"
+      batch_size: 100
+      input_length: 512
+      output_length: 256
+      result_filename: "output-length-256"
+
+    - name: "output-512-tokens"
+      description: "Long output"
+      batch_size: 100
+      input_length: 512
+      output_length: 512
+      result_filename: "output-length-512"
+
+    - name: "output-1024-tokens"
+      description: "Very long output"
+      batch_size: 100
+      input_length: 512
+      output_length: 1024
+      result_filename: "output-length-1024"
+
+  dataset:
+    type: "synthetic"
+    synthetic_config:
+      source: "random"
+      seed: 42
+
+  prompt_template: |
+    Continue the following text:
+
+    {prompt}
+
+  metrics:
+    primary:
+      - "total_time_sec"
+      - "throughput_tokens_per_sec"
+      - "prefill_time_sec"
+      - "decode_time_sec"
+    analysis:
+      - "prefill_to_decode_ratio"
+      - "tokens_per_sec_input"
+      - "tokens_per_sec_output"
+
+  success_criteria:
+    - "Characterize prefill vs decode performance"
+    - "Identify optimal input/output configurations"
+
+  results:
+    format: "json"
+    location: "results/llm/{model}/offline-batch/io-variation/"
+    graphs:
+      - type: "prefill_scaling"
+        title: "Throughput vs Input Length"
+        x_axis: "Input Length (tokens)"
+        y_axis: "Tokens/Second"
+      - type: "decode_scaling"
+        title: "Throughput vs Output Length"
+        x_axis: "Output Length (tokens)"
+        y_axis: "Tokens/Second"

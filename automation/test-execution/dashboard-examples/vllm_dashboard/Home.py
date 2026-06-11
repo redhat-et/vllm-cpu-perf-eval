@@ -51,6 +51,7 @@ vLLM CPU benchmark results:
 📊 **Client-Side Metrics** - End-user performance (GuideLLM - LLM models)
 🖥️ **Server-Side Metrics** - Internal server (vLLM metrics - LLM models)
 📊 **Embedding Metrics** - Embedding model performance (vLLM bench serve)
+📦 **Offline Batch** - Batch processing performance (vLLM bench throughput)
 
 **👈 Use the sidebar to navigate between dashboards**
 """)
@@ -58,7 +59,7 @@ vLLM CPU benchmark results:
 st.markdown("---")
 
 # Dashboard overview cards
-col1, col2, col3 = st.columns(3)
+col1, col2 = st.columns(2)
 
 with col1:
     st.markdown("### 📊 Client-Side")
@@ -95,6 +96,8 @@ with col2:
     - Summary statistics
     """)
 
+col3, col4 = st.columns(2)
+
 with col3:
     st.markdown("### 📊 Embedding")
     st.info("""
@@ -110,6 +113,24 @@ with col3:
     - Saturation curves
     - Model comparison
     - CSV data export
+    """)
+
+with col4:
+    st.markdown("### 📦 Offline Batch")
+    st.info("""
+    **What**: vLLM bench throughput results (Batch processing)
+
+    **Metrics**:
+    - Processing capacity (items/hour)
+    - Processing time estimates
+    - Core scaling efficiency
+    - Batch size impact
+
+    **Features**:
+    - Use case analysis (7 scenarios)
+    - Model comparison
+    - Resource efficiency metrics
+    - Environment tracking
     """)
 
 st.markdown("---")
@@ -167,6 +188,25 @@ with tab1:
 
     **Embedding results are saved to:** `results/embedding/`
 
+    **Offline Batch Tests:**
+    ```bash
+    # Run all 7 use cases with all 4 RedHatAI models (5 iterations each)
+    cd automation/test-execution/scripts/bash
+    ./run-offline-batch-suite.sh use-cases 5 all
+
+    # Run single test configuration
+    ./run-offline-batch-suite.sh run_test all sonnet 1000 16
+
+    # Test specific models (comma-separated or single)
+    ./run-offline-batch-suite.sh run_test "RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w8a8" sonnet 1000 16
+
+    # Use different container
+    export VLLM_CONTAINER_IMAGE=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
+    ./run-offline-batch-suite.sh run_test all sonnet 1000 16
+    ```
+
+    **Offline batch results are saved to:** `results/llm/`
+
     Each dashboard loads from its respective directory - just run a test and refresh!
 
     **Note**: External endpoint runs always show client metrics. Server-side metrics are
@@ -216,8 +256,16 @@ with tab3:
     - 📊 Model-to-model comparison
     - 💾 CSV export
 
+    **Offline Batch Dashboard adds:**
+    - 📦 Processing capacity visualization (items/hour)
+    - ⏱️ Time estimates for batch sizes
+    - 🔄 Core scaling analysis
+    - 📈 Batch size scaling curves
+    - 🐳 Container/version tracking
+
     **Analysis Workflow:**
-    - LLM: Start with Client Metrics, then Server Metrics
+    - LLM (Online): Start with Client Metrics, then Server Metrics
+    - LLM (Offline Batch): Use Offline Batch for throughput workloads
     - Embedding: Use saturation curves to find optimal load
     - Compare metrics between models for performance analysis
     """)

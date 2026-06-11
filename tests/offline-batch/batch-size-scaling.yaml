@@ -1,0 +1,135 @@
+---
+# Batch Size Scaling Test Scenario
+# Finds optimal batch size for offline processing
+
+test_scenario:
+  name: "batch-size-scaling"
+  type: "offline-batch"
+  description: "Measure how performance scales with different batch sizes"
+
+  # Test configuration
+  mode: "offline"
+  task: "generic"  # Generic completion task
+
+  # Sampling parameters
+  sampling:
+    temperature: 0.7
+    top_p: 0.9
+    max_tokens: 256
+
+  # vLLM offline configuration
+  llm_config:
+    dtype: "bfloat16"
+    device: "cpu"
+    max_model_len: 4096
+    cpu_offload_gb: 0
+    trust_remote_code: true
+    env_vars:
+      VLLM_CPU_KVCACHE_SPACE: "2GiB"
+
+  # Test stages - sweep batch sizes
+  stages:
+    - name: "batch-1"
+      description: "Single request baseline"
+      batch_size: 1
+      input_length: 512
+      output_length: 256
+      result_filename: "batch-size-001"
+
+    - name: "batch-10"
+      description: "Small batch"
+      batch_size: 10
+      input_length: 512
+      output_length: 256
+      result_filename: "batch-size-010"
+
+    - name: "batch-25"
+      description: "Small-medium batch"
+      batch_size: 25
+      input_length: 512
+      output_length: 256
+      result_filename: "batch-size-025"
+
+    - name: "batch-50"
+      description: "Medium batch"
+      batch_size: 50
+      input_length: 512
+      output_length: 256
+      result_filename: "batch-size-050"
+
+    - name: "batch-100"
+      description: "Medium-large batch"
+      batch_size: 100
+      input_length: 512
+      output_length: 256
+      result_filename: "batch-size-100"
+
+    - name: "batch-250"
+      description: "Large batch"
+      batch_size: 250
+      input_length: 512
+      output_length: 256
+      result_filename: "batch-size-250"
+
+    - name: "batch-500"
+      description: "Very large batch"
+      batch_size: 500
+      input_length: 512
+      output_length: 256
+      result_filename: "batch-size-500"
+
+    - name: "batch-1000"
+      description: "Extreme batch"
+      batch_size: 1000
+      input_length: 512
+      output_length: 256
+      result_filename: "batch-size-1000"
+
+  # Prompt generation
+  dataset:
+    type: "synthetic"
+    synthetic_config:
+      source: "random"
+      seed: 42  # For reproducibility
+
+  prompt_template: |
+    Complete the following text:
+
+    {prompt}
+
+  # Metrics to collect
+  metrics:
+    primary:
+      - "total_time_sec"
+      - "throughput_requests_per_sec"
+      - "throughput_tokens_per_sec"
+      - "avg_time_per_request_sec"
+    detailed:
+      - "prefill_time_sec"
+      - "decode_time_sec"
+      - "memory_peak_gb"
+      - "cpu_utilization_avg_pct"
+      - "tokens_per_sec_per_core"  # Efficiency metric
+
+  # Success criteria
+  success_criteria:
+    - "Identify batch size with best throughput/memory tradeoff"
+    - "All batch sizes complete successfully"
+
+  # Results output
+  results:
+    format: "json"
+    location: "results/llm/{model}/offline-batch/batch-scaling/"
+    graphs:
+      - type: "throughput_vs_batch_size"
+        title: "Throughput vs Batch Size"
+        x_axis: "Batch Size"
+        y_axis: "Tokens/Second"
+      - type: "efficiency_curve"
+        title: "Efficiency vs Batch Size"
+        x_axis: "Batch Size"
+        y_axis: "Tokens/Sec per Core"
+      - type: "memory_scaling"
+        title: "Memory Usage vs Batch Size"
+        x_axis: "Batch Size"
+        y_axis: "Peak Memory (GB)"

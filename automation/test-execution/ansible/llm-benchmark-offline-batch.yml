@@ -1,0 +1,429 @@
+---
+# Offline Batch Benchmarking with vLLM
+# Uses vLLM's native LLM() API (via vllm bench throughput) for batch processing
+#
+# Usage:
+#   ansible-playbook -i inventory/hosts.yml llm-benchmark-offline-batch.yml \
+#     -e "test_model=RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w8a8" \
+#     -e "dataset_name=sonnet" \
+#     -e "num_prompts=100" \
+#     -e "requested_cores=32"
+#
+# Optional parameters:
+#   -e "dataset_path=/path/to/dataset.txt"  # Custom dataset file
+#   -e "input_len=512"                       # For random dataset
+#   -e "output_len=256"                      # For random dataset
+#   -e "vllm_container_image=vllm/vllm-openai:latest"  # Default (upstream vLLM)
+#   -e "vllm_container_image=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0"  # RHAIIS optimized
+#
+# Dataset types: sonnet, random, sharegpt, hf
+#   - sonnet: Classic sonnet text (needs dataset_path)
+#   - random: Synthetic random tokens (needs input_len, output_len)
+#   - sharegpt: ShareGPT format (needs dataset_path)
+#   - hf: HuggingFace dataset (needs dataset_name_hf)
+
+- name: "Offline Batch Benchmark - Setup"
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: Validate required variables
+      ansible.builtin.assert:
+        that:
+          - test_model is defined
+          - dataset_name is defined
+          - num_prompts is defined
+          - requested_cores is defined
+        fail_msg: |
+          Missing required variables. Please provide:
+          -e "test_model=<model>"
+          -e "dataset_name=<sonnet|random|sharegpt|hf>"
+          -e "num_prompts=<100|1000|...>"
+          -e "requested_cores=<8|16|32|64>"
+
+    - name: Set default values
+      ansible.builtin.set_fact:
+        vllm_container_image: "{{ vllm_container_image | default('vllm/vllm-openai:latest') }}"
+        cache_dir: "{{ lookup('env', 'HOME') }}/.cache/huggingface"
+        datasets_dir: "{{ lookup('env', 'HOME') }}/datasets"
+        results_base: "{{ playbook_dir }}/../../../results/llm"
+        test_run_id: "{{ lookup('pipe', 'date +%Y%m%d_%H%M%S') }}"
+        test_timestamp: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
+
+    - name: Sanitize model name for filesystem
+      ansible.builtin.set_fact:
+        model_safe: "{{ test_model | replace('/', '__') }}"
+
+    - name: Create test configuration identifier
+      ansible.builtin.set_fact:
+        config_id: "{{ requested_cores }}cores-{{ dataset_name }}-{{ num_prompts }}prompts"
+
+    - name: Create results directory structure
+      ansible.builtin.file:
+        path: "{{ results_base }}/{{ model_safe }}/offline-batch-{{ test_timestamp }}/{{ config_id }}"
+        state: directory
+        mode: "0755"
+
+    - name: Display test configuration
+      ansible.builtin.debug:
+        msg:
+          - "Offline Batch Benchmark Configuration:"
+          - "  Model: {{ test_model }}"
+          - "  Dataset: {{ dataset_name }}"
+          - "  Num prompts: {{ num_prompts }}"
+          - "  Cores: {{ requested_cores }}"
+          - "  Container: {{ vllm_container_image }}"
+          - "  Results: {{ results_base }}/{{ model_safe }}/offline-batch-{{ test_timestamp }}/{{ config_id }}/"
+
+- name: "Offline Batch Benchmark - Download Model"
+  hosts: dut
+  gather_facts: false
+  become: true
+
+  tasks:
+    - name: Check if hf CLI is installed
+      ansible.builtin.command: which hf
+      register: hf_check
+      failed_when: false
+      changed_when: false
+
+    - name: Install pip3 if needed
+      ansible.builtin.dnf:
+        name: python3-pip
+        state: present
+      when: hf_check.rc != 0
+
+    - name: Install HuggingFace CLI if needed
+      ansible.builtin.pip:
+        name: huggingface_hub[cli]
+        state: present
+        executable: pip3
+      when: hf_check.rc != 0
+
+    - name: Get DUT user home directory
+      ansible.builtin.shell: "echo $HOME"
+      register: dut_home
+      changed_when: false
+      become: false
+
+    - name: Set cache directory on DUT
+      ansible.builtin.set_fact:
+        dut_cache_dir: "{{ dut_home.stdout }}/.cache/huggingface"
+      become: false
+
+    - name: Check if model is already cached on DUT
+      ansible.builtin.stat:
+        path: "{{ dut_cache_dir }}/models--{{ test_model | replace('/', '--') }}"
+      register: model_cache_check
+      become: false
+
+    - name: Display cache status
+      ansible.builtin.debug:
+        msg: "Model {{ test_model }} {{ 'found in cache' if model_cache_check.stat.exists else 'not found, will download' }}"
+      become: false
+
+    - name: Download model if not cached
+      ansible.builtin.shell: |
+        python3 -c "from huggingface_hub import snapshot_download; snapshot_download('{{ test_model }}', cache_dir='{{ dut_cache_dir }}', token='{{ lookup('env', 'HF_TOKEN') }}')"
+      when: not model_cache_check.stat.exists
+      register: model_download
+      changed_when: model_download.rc == 0
+      become: false
+
+    - name: Get model snapshot path
+      ansible.builtin.shell: |
+        ls -d {{ dut_cache_dir }}/models--{{ test_model | replace('/', '--') }}/snapshots/* | head -1
+      register: model_snapshot_path
+      changed_when: false
+      become: false
+
+    - name: Set model snapshot fact for localhost
+      ansible.builtin.set_fact:
+        model_snapshot: "{{ model_snapshot_path.stdout }}"
+        model_snapshot_hash: "{{ model_snapshot_path.stdout | basename }}"
+        model_repo_name: "models--{{ test_model | replace('/', '--') }}"
+        dut_cache_dir: "{{ dut_cache_dir }}"
+      delegate_to: localhost
+      delegate_facts: true
+
+    - name: Display model location
+      ansible.builtin.debug:
+        msg:
+          - "Model cached at: {{ model_snapshot_path.stdout }}"
+          - "Snapshot hash: {{ model_snapshot_path.stdout | basename }}"
+          - "Will mount to container: /root/.cache/huggingface/models--{{ test_model | replace('/', '--') }}/snapshots/{{ model_snapshot_path.stdout | basename }}"
+
+- name: "Offline Batch Benchmark - Prepare Dataset"
+  hosts: dut
+  gather_facts: false
+
+  tasks:
+    - name: Get DUT datasets directory
+      ansible.builtin.shell: "echo $HOME/datasets"
+      register: dut_datasets_dir_raw
+      changed_when: false
+
+    - name: Set datasets directory fact
+      ansible.builtin.set_fact:
+        dut_datasets_dir: "{{ dut_datasets_dir_raw.stdout }}"
+
+    - name: Save datasets dir to localhost
+      ansible.builtin.set_fact:
+        datasets_dir: "{{ dut_datasets_dir }}"
+      delegate_to: localhost
+      delegate_facts: true
+
+    - name: Create datasets directory
+      ansible.builtin.file:
+        path: "{{ dut_datasets_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Download sonnet dataset if needed
+      ansible.builtin.get_url:
+        url: https://raw.githubusercontent.com/vllm-project/vllm/main/benchmarks/sonnet.txt
+        dest: "{{ dut_datasets_dir }}/sonnet.txt"
+        mode: "0644"
+      when: dataset_name == 'sonnet' and dataset_path is not defined
+
+    - name: Set dataset path for sonnet
+      ansible.builtin.set_fact:
+        dataset_file: "{{ dut_datasets_dir }}/sonnet.txt"
+      when: dataset_name == 'sonnet' and dataset_path is not defined
+
+    - name: Use custom dataset path if provided
+      ansible.builtin.set_fact:
+        dataset_file: "{{ dataset_path }}"
+      when: dataset_path is defined
+
+- name: "Offline Batch Benchmark - Run Benchmark"
+  hosts: dut
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Build benchmark command (with dataset file)
+      ansible.builtin.set_fact:
+        benchmark_cmd: |
+          podman run --rm \
+            --cpuset-cpus=0-{{ requested_cores | int - 1 }} \
+            -v "{{ hostvars['localhost']['dut_cache_dir'] }}:/root/.cache/huggingface:z" \
+            -v "{{ hostvars['localhost']['datasets_dir'] }}:/datasets:z" \
+            -e LD_PRELOAD=/usr/lib64/libomp.so \
+            -e HF_HUB_OFFLINE=1 \
+            --entrypoint vllm \
+            {{ hostvars['localhost']['vllm_container_image'] }} \
+            bench throughput \
+              --model /root/.cache/huggingface/{{ hostvars['localhost']['model_repo_name'] }}/snapshots/{{ hostvars['localhost']['model_snapshot_hash'] }} \
+              --dataset-name {{ dataset_name }} \
+              --dataset-path /datasets/{{ dataset_file | basename }} \
+              --num-prompts {{ num_prompts }}
+      when: dataset_name in ['sonnet', 'sharegpt'] or dataset_file is defined
+
+    - name: Build benchmark command (random dataset)
+      ansible.builtin.set_fact:
+        benchmark_cmd: |
+          podman run --rm \
+            --cpuset-cpus=0-{{ requested_cores | int - 1 }} \
+            -v "{{ hostvars['localhost']['dut_cache_dir'] }}:/root/.cache/huggingface:z" \
+            -e LD_PRELOAD=/usr/lib64/libomp.so \
+            -e HF_HUB_OFFLINE=1 \
+            --entrypoint vllm \
+            {{ hostvars['localhost']['vllm_container_image'] }} \
+            bench throughput \
+              --model /root/.cache/huggingface/{{ hostvars['localhost']['model_repo_name'] }}/snapshots/{{ hostvars['localhost']['model_snapshot_hash'] }} \
+              --dataset-name random \
+              --num-prompts {{ num_prompts }} \
+              --input-len {{ input_len | default(512) }} \
+              --output-len {{ output_len | default(256) }}
+      when: dataset_name == 'random'
+
+    - name: Run offline batch benchmark
+      ansible.builtin.shell: "{{ benchmark_cmd }}"
+      register: benchmark_output
+      changed_when: false
+
+    - name: Display benchmark output
+      ansible.builtin.debug:
+        msg: "{{ benchmark_output.stdout_lines }}"
+
+    - name: Save raw benchmark output
+      ansible.builtin.copy:
+        content: "{{ benchmark_output.stdout }}"
+        dest: "{{ hostvars['localhost']['results_base'] }}/{{ hostvars['localhost']['model_safe'] }}/offline-batch-{{ hostvars['localhost']['test_timestamp'] }}/{{ hostvars['localhost']['config_id'] }}/benchmark.log"
+      delegate_to: localhost
+
+- name: "Offline Batch Benchmark - Parse Results"
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: Extract throughput metrics from output
+      ansible.builtin.set_fact:
+        throughput_line: "{{ hostvars[groups['dut'][0]]['benchmark_output'].stdout_lines | select('search', 'Throughput:') | first }}"
+      when: hostvars[groups['dut'][0]]['benchmark_output'].stdout_lines | select('search', 'Throughput:') | list | length > 0
+
+    - name: Extract token counts from output
+      ansible.builtin.set_fact:
+        prompt_tokens_line: "{{ hostvars[groups['dut'][0]]['benchmark_output'].stdout_lines | select('search', 'Total num prompt tokens:') | first }}"
+        output_tokens_line: "{{ hostvars[groups['dut'][0]]['benchmark_output'].stdout_lines | select('search', 'Total num output tokens:') | first }}"
+      when:
+        - hostvars[groups['dut'][0]]['benchmark_output'].stdout_lines | select('search', 'Total num prompt tokens:') | list | length > 0
+        - hostvars[groups['dut'][0]]['benchmark_output'].stdout_lines | select('search', 'Total num output tokens:') | list | length > 0
+
+    - name: Parse throughput values
+      ansible.builtin.set_fact:
+        requests_per_sec: "{{ throughput_line | regex_search('([0-9.]+) requests/s', '\\1') | first }}"
+        total_tokens_per_sec: "{{ throughput_line | regex_search('([0-9.]+) total tokens/s', '\\1') | first }}"
+        output_tokens_per_sec: "{{ throughput_line | regex_search('([0-9.]+) output tokens/s', '\\1') | first }}"
+      when: throughput_line is defined
+
+    - name: Parse token counts
+      ansible.builtin.set_fact:
+        total_prompt_tokens: "{{ prompt_tokens_line | regex_search('([0-9]+)', '\\1') | first }}"
+        total_output_tokens: "{{ output_tokens_line | regex_search('([0-9]+)', '\\1') | first }}"
+      when:
+        - prompt_tokens_line is defined
+        - output_tokens_line is defined
+
+    - name: Extract streaming metrics from logs (prefill/decode throughput, KV cache, prefix cache)
+      ansible.builtin.set_fact:
+        engine_logs: "{{ hostvars[groups['dut'][0]]['benchmark_output'].stdout_lines | select('search', 'Engine 000:') | list }}"
+
+    - name: Parse average prefill throughput from streaming logs
+      ansible.builtin.set_fact:
+        prefill_throughput_samples: "{{ engine_logs | map('regex_search', 'Avg prompt throughput: ([0-9.]+)', '\\1') | select('string') | map('first') | list }}"
+      when: engine_logs | length > 0
+
+    - name: Parse average decode throughput from streaming logs
+      ansible.builtin.set_fact:
+        decode_throughput_samples: "{{ engine_logs | map('regex_search', 'Avg generation throughput: ([0-9.]+)', '\\1') | select('string') | map('first') | list }}"
+      when: engine_logs | length > 0
+
+    - name: Parse KV cache usage from streaming logs
+      ansible.builtin.set_fact:
+        kv_cache_samples: "{{ engine_logs | map('regex_search', 'GPU KV cache usage: ([0-9.]+)%', '\\1') | select('string') | map('first') | list }}"
+      when: engine_logs | length > 0
+
+    - name: Parse prefix cache hit rate from streaming logs
+      ansible.builtin.set_fact:
+        prefix_cache_samples: "{{ engine_logs | map('regex_search', 'Prefix cache hit rate: ([0-9.]+)%', '\\1') | select('string') | map('first') | list }}"
+      when: engine_logs | length > 0
+
+    - name: Calculate average streaming metrics
+      ansible.builtin.set_fact:
+        avg_prefill_throughput: "{{ (prefill_throughput_samples | map('float') | list | sum / (prefill_throughput_samples | length)) | round(2) if prefill_throughput_samples | length > 0 else 0 }}"
+        avg_decode_throughput: "{{ (decode_throughput_samples | map('float') | list | sum / (decode_throughput_samples | length)) | round(2) if decode_throughput_samples | length > 0 else 0 }}"
+        max_kv_cache_usage: "{{ (kv_cache_samples | map('float') | list | max) | round(2) if kv_cache_samples | length > 0 else 0 }}"
+        avg_prefix_cache_hit_rate: "{{ (prefix_cache_samples | map('float') | list | sum / (prefix_cache_samples | length)) | round(2) if prefix_cache_samples | length > 0 else 0 }}"
+      when: engine_logs | length > 0
+
+    - name: Calculate derived metrics
+      ansible.builtin.set_fact:
+        avg_input_tokens: "{{ (total_prompt_tokens | float / num_prompts | float) | round(2) }}"
+        avg_output_tokens: "{{ (total_output_tokens | float / num_prompts | float) | round(2) }}"
+        avg_time_per_request_sec: "{{ (1.0 / requests_per_sec | float) | round(3) }}"
+        total_time_sec: "{{ (num_prompts | float / requests_per_sec | float) | round(2) }}"
+      when:
+        - total_prompt_tokens is defined
+        - total_output_tokens is defined
+        - requests_per_sec is defined
+
+    - name: Create test-metadata.json
+      ansible.builtin.copy:
+        content: |
+          {
+            "test_run_id": "{{ test_run_id }}",
+            "timestamp": "{{ lookup('pipe', 'date -u +%Y-%m-%dT%H:%M:%SZ') }}",
+            "test_type": "offline-batch",
+            "model": "{{ test_model }}",
+            "workload": "offline-batch",
+            "configuration": {
+              "cores": {{ requested_cores }},
+              "dataset": "{{ dataset_name }}",
+              "num_prompts": {{ num_prompts }},
+              "dataset_config": {
+                {% if dataset_name == 'random' %}
+                "input_len": {{ input_len | default(512) }},
+                "output_len": {{ output_len | default(256) }}
+                {% else %}
+                "dataset_file": "{{ dataset_file | default('') | basename }}"
+                {% endif %}
+              }
+            },
+            "environment": {
+              "container_image": "{{ vllm_container_image }}",
+              "vllm_version": "0.18.0+rhaiv.7"
+            }
+          }
+        dest: "{{ results_base }}/{{ model_safe }}/offline-batch-{{ test_timestamp }}/{{ config_id }}/test-metadata.json"
+
+    - name: Create results.json with enhanced metrics
+      ansible.builtin.copy:
+        content: |
+          {
+            "test_run_id": "{{ test_run_id }}",
+            "timestamp": "{{ lookup('pipe', 'date -u +%Y-%m-%dT%H:%M:%SZ') }}",
+            "test_type": "offline-batch",
+            "model": "{{ test_model }}",
+            "dataset": "{{ dataset_name }}",
+            "num_prompts": {{ num_prompts }},
+            "cores": {{ requested_cores }},
+            "container_image": "{{ vllm_container_image }}",
+            "metrics": {
+              "throughput_requests_per_sec": {{ requests_per_sec | default(0) }},
+              "throughput_total_tokens_per_sec": {{ total_tokens_per_sec | default(0) }},
+              "throughput_output_tokens_per_sec": {{ output_tokens_per_sec | default(0) }},
+              "prefill_throughput_tokens_per_sec": {{ avg_prefill_throughput | default(0) }},
+              "decode_throughput_tokens_per_sec": {{ avg_decode_throughput | default(0) }},
+              "total_prompt_tokens": {{ total_prompt_tokens | default(0) }},
+              "total_output_tokens": {{ total_output_tokens | default(0) }},
+              "avg_input_tokens": {{ avg_input_tokens | default(0) }},
+              "avg_output_tokens": {{ avg_output_tokens | default(0) }},
+              "avg_time_per_request_sec": {{ avg_time_per_request_sec | default(0) }},
+              "total_time_sec": {{ total_time_sec | default(0) }},
+              "max_kv_cache_usage_percent": {{ max_kv_cache_usage | default(0) }},
+              "avg_prefix_cache_hit_rate_percent": {{ avg_prefix_cache_hit_rate | default(0) }}
+            },
+            "dataset_config": {
+              {% if dataset_name == 'random' %}
+              "input_len": {{ input_len | default(512) }},
+              "output_len": {{ output_len | default(256) }}
+              {% else %}
+              "dataset_file": "{{ dataset_file | default('') | basename }}"
+              {% endif %}
+            }
+          }
+        dest: "{{ results_base }}/{{ model_safe }}/offline-batch-{{ test_timestamp }}/{{ config_id }}/results.json"
+
+    - name: Display results summary
+      ansible.builtin.debug:
+        msg:
+          - "=========================================="
+          - "Offline Batch Benchmark Results"
+          - "=========================================="
+          - "Model: {{ test_model }}"
+          - "Dataset: {{ dataset_name }}"
+          - "Prompts: {{ num_prompts }}"
+          - "Cores: {{ requested_cores }}"
+          - ""
+          - "=== Throughput Metrics ==="
+          - "Requests: {{ requests_per_sec | default('N/A') }} requests/sec"
+          - "Total tokens: {{ total_tokens_per_sec | default('N/A') }} tokens/sec"
+          - "Output tokens: {{ output_tokens_per_sec | default('N/A') }} tokens/sec"
+          - "Prefill (avg): {{ avg_prefill_throughput | default('N/A') }} tokens/sec"
+          - "Decode (avg): {{ avg_decode_throughput | default('N/A') }} tokens/sec"
+          - ""
+          - "=== System Metrics ==="
+          - "Max KV cache usage: {{ max_kv_cache_usage | default('N/A') }}%"
+          - "Avg prefix cache hit rate: {{ avg_prefix_cache_hit_rate | default('N/A') }}%"
+          - ""
+          - "=== Capacity Planning ==="
+          - "Avg time/request: {{ avg_time_per_request_sec | default('N/A') }} sec"
+          - "For {{ num_prompts }} docs: {{ total_time_sec | default('N/A') }} seconds"
+          - "For 1,000 docs: ~{{ (1000 / requests_per_sec | float) | round(0) | default('N/A') }} seconds"
+          - "For 10,000 docs: ~{{ (10000 / requests_per_sec | float) | round(0) | default('N/A') }} seconds"
+          - ""
+          - "Results saved to:"
+          - "  {{ results_base }}/{{ model_safe }}/offline-batch-{{ test_timestamp }}/{{ config_id }}/"
+          - "=========================================="
