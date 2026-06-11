@@ -92,10 +92,9 @@ The framework supports three execution modes to accommodate different testing sc
 ```text
 embedding-models/
 ├── embedding-models.md           # This comprehensive guide
-├── model-matrix.yaml             # Model definitions and test mappings
-└── test-scenarios/               # Test scenario configurations
-    ├── baseline-sweep.yaml       # Baseline throughput test scenario
-    └── latency-concurrent.yaml   # Concurrent latency test scenario
+├── baseline-sweep.md             # Baseline throughput test methodology
+├── latency-concurrent.md         # Concurrent latency test methodology
+└── model-matrix.yaml             # Model definitions and test mappings (in ../../models/embedding-models/)
 
 automation/test-execution/
 ├── ansible/                      # Ansible automation (recommended)
@@ -131,23 +130,43 @@ See [model-matrix.yaml](model-matrix.yaml) for complete model definitions and co
 
 ## Test Cases and Scenarios
 
+## Test Methodologies
+
+### Baseline Sweep Test
+Establishes maximum throughput and performance scaling across different load levels.
+
+**See:** [Baseline Sweep Methodology](baseline-sweep.md) for detailed test procedures, metrics, and interpretation.
+
+**Quick Summary:**
+- 4-stage test: Max throughput → 25% → 50% → 75% load
+- Primary metrics: Request throughput, P99 latency
+- Duration: ~20-30 minutes per model
+
+### Latency Concurrent Test
+Measures latency scaling under increasing concurrent requests to find optimal concurrency.
+
+**See:** [Latency Concurrent Methodology](latency-concurrent.md) for detailed test procedures, metrics, and interpretation.
+
+**Quick Summary:**
+- 5 concurrency levels: 16 → 32 → 64 → 128 → 196
+- Primary metric: P99 latency vs concurrency
+- Duration: ~25-40 minutes per model
+- Identifies sweet spot and degradation point
+
+## Test Cases
+
 ### Test Case 1.1: Baseline Performance and Scalability (English Model)
 
 **Test ID**: `EMB-BASELINE-GRANITE-EN-EMB512`
 
 **Objective**: Establish maximum Request Throughput (RPS) and analyze performance scaling.
 
-- **Test Type**: vllm bench serve (sweep)
+- **Methodology**: [Baseline Sweep](baseline-sweep.md)
 - **Model**: RedHatAI/granite-embedding-english-r2
 - **Workload**: Embedding (512:1)
 - **KV Cache**: 1GiB
 - **Quantization**: OFF
 - **Primary Metric**: Enterprise English Embedding Throughput (RPS)
-
-**Test Steps**:
-1. Find max throughput with `--request-rate inf`
-2. Run at 25%, 50%, 75% of max throughput
-3. Measure latency curves at each rate
 
 **Expected Outputs**:
 - Maximum sustained RPS
