@@ -30,7 +30,7 @@ repos:
   - repo: https://github.com/DavidAnson/markdownlint-cli2
     rev: v0.22.1
     hooks:
-      - id: markdownlint-cli2-rules-docker
+      - id: markdownlint-cli2
   - repo: https://github.com/Yelp/detect-secrets
     rev: v1.5.0
     hooks:
