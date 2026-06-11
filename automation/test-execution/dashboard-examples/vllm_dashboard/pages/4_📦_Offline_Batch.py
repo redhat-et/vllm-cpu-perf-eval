@@ -126,6 +126,7 @@ def infer_use_case(test_metadata: dict) -> str:
     return "⚙️ General"
 
 
+@st.cache_data
 def load_benchmark_results(results_base_dir: str) -> pd.DataFrame:
     """
     Load all offline batch benchmark results from the results directory.
@@ -223,8 +224,14 @@ def main():
     This tests batch processing performance (like processing thousands of documents at once).
     """)
 
-    # Results directory
-    results_base = Path.home() / "git-workspace/vllm-cpu-perf-eval/results/llm"
+    # Results directory and reload button
+    col1, col2 = st.columns([5, 1])
+    with col1:
+        results_base = Path.home() / "git-workspace/vllm-cpu-perf-eval/results/llm"
+    with col2:
+        if st.button("🔄 Reload Data", help="Reload benchmark results from disk"):
+            load_benchmark_results.clear()
+            st.rerun()
 
     # Load all results
     df = load_benchmark_results(str(results_base))
