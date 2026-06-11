@@ -111,6 +111,9 @@ cd automation/test-execution/scripts/bash
 # Technical benchmarks
 ./run-offline-batch-suite.sh batch-scaling <model> 16
 ./run-offline-batch-suite.sh core-scaling <model>
+
+# View full usage
+./run-offline-batch-suite.sh
 ```
 
 ## Metrics
@@ -232,6 +235,6 @@ export HF_TOKEN=hf_your_token_here
 
 ## Related Documentation
 
-- [Automation README](../../automation/test-execution/README.md) - All test types
-- [Bash Suite README](../../automation/test-execution/scripts/bash/README-offline-batch.md) - Detailed usage
-- [Dashboard README](../../automation/test-execution/dashboard-examples/vllm_dashboard/README.md) - Visualization
+- [Automation README](../../automation/test-execution/README.md) - All test types overview
+- [Dashboard README](../../automation/test-execution/dashboard-examples/vllm_dashboard/README.md) - Visualization guide
+- [Main Tests Overview](../tests.md) - All test suites

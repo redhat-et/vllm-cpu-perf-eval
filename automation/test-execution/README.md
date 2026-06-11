@@ -52,7 +52,7 @@ Tests vLLM in offline batch mode (vllm bench throughput).
 
 **Dashboard:** `pages/4_📦_Offline_Batch.py`
 
-**Documentation:** See [README-offline-batch.md](scripts/bash/README-offline-batch.md)
+**Documentation:** See [../../tests/offline-batch/offline-batch.md](../../tests/offline-batch/offline-batch.md)
 
 ### 3. Embedding Models
 
@@ -221,8 +221,7 @@ automation/test-execution/
 │   └── roles/                  # Ansible roles
 ├── scripts/
 │   └── bash/
-│       ├── run-offline-batch-suite.sh
-│       └── README-offline-batch.md
+│       └── run-offline-batch-suite.sh
 ├── dashboard-examples/
 │   └── vllm_dashboard/
 │       ├── Home.py
@@ -236,7 +235,10 @@ automation/test-execution/
 
 ## Documentation
 
-- **Offline Batch**: [scripts/bash/README-offline-batch.md](scripts/bash/README-offline-batch.md)
+- **Test Scenarios**: See [../../tests/](../../tests/) for detailed test documentation
+  - [Offline Batch](../../tests/offline-batch/offline-batch.md)
+  - [Concurrent Load](../../tests/concurrent-load/concurrent-load.md)
+  - [Embedding Models](../../tests/embedding-models/embedding-models.md)
 - **Test Scenarios**: [../../tests/offline-batch/README.md](../../tests/offline-batch/README.md)
 - **Ansible**: [ansible/README.md](ansible/README.md)
 - **Scripts**: [scripts/README.md](scripts/README.md)
