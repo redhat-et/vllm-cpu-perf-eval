@@ -284,7 +284,7 @@ done
 
 ### Throughput Pattern
 - **16 → 32**: 15-20% increase
-- **32 → 64**: 5-10% increase  
+- **32 → 64**: 5-10% increase
 - **64 → 128**: 0-5% increase
 - **128 → 196**: < 2% increase
 
