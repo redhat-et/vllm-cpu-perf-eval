@@ -101,6 +101,14 @@ MODES:
 
       Models: Single model or comma-separated list. Use 'all' for all 4 RedHatAI models.
 
+    use-case-sweep <use-case> [models] [cores] [runs]
+      Run a specific use case with core sweep
+      Use cases: summarization, classification, translation, entity-extraction,
+                 dataset-generation, code-generation, etl
+      Models: 'all' or comma-separated list (default: all)
+      Cores: comma-separated list (default: 8,16,32)
+      Runs: number of iterations (default: 3)
+
   Technical Benchmarks (Performance analysis):
     baseline [cores] [prompts]       Baseline throughput across 4 RedHatAI models
     batch-scaling <model> [cores]    Batch size scaling (10, 50, 100, 250, 500, 1000)
@@ -116,6 +124,11 @@ EXAMPLES:
   ./run-offline-batch-suite.sh use-cases 3                    # 3 runs, TinyLlama pruned only
   ./run-offline-batch-suite.sh use-cases 5 all                # 5 runs, all 4 RedHatAI models
   ./run-offline-batch-suite.sh use-cases 1 "$MODEL_LLAMA_W8A8,$MODEL_QWEN_W4A16"  # Specific models
+
+  # Focused use case testing
+  ./run-offline-batch-suite.sh use-case-sweep summarization all 8,16,32,64 3
+  ./run-offline-batch-suite.sh use-case-sweep classification all
+  ./run-offline-batch-suite.sh use-case-sweep translation "$MODEL_LLAMA_W8A8" 16,32 5
 
   # Technical benchmarks
   ./run-offline-batch-suite.sh baseline 32 100
@@ -607,6 +620,130 @@ test_quantization() {
     [ ${#failed[@]} -eq 0 ]
 }
 
+# Run a specific use case with core sweep
+use_case_sweep() {
+    local use_case="$1"
+    local model_list="${2:-all}"
+    local cores_list="${3:-8,16,32}"
+    local runs="${4:-3}"
+
+    # Handle "all" keyword for models
+    if [[ "$model_list" == "all" ]]; then
+        model_list="$ALL_MODELS"
+    fi
+
+    # Parse comma-separated lists
+    IFS=',' read -ra MODELS <<< "$model_list"
+    IFS=',' read -ra CORES <<< "$cores_list"
+
+    echo -e "${BLUE}========================================${NC}"
+    echo -e "${BLUE}Use Case: $use_case (Core Sweep)${NC}"
+    echo -e "${BLUE}========================================${NC}"
+    echo -e "Models: ${#MODELS[@]}"
+    for model in "${MODELS[@]}"; do
+        echo -e "  - $model"
+    done
+    echo -e "Core counts: ${CORES[*]}"
+    echo -e "Runs per config: $runs"
+    echo -e "${BLUE}========================================${NC}"
+    echo
+
+    local failed_tests=()
+
+    # Define use case parameters
+    local dataset num_prompts extra_args use_case_name
+    case "$use_case" in
+        summarization|summary|sum)
+            use_case_name="📝 Summarization"
+            dataset="sonnet"
+            num_prompts=1000
+            extra_args=""
+            echo "Use case: Summarize 10,000 support tickets overnight"
+            ;;
+        classification|class|tag)
+            use_case_name="🏷️ Classification/Tagging"
+            dataset="random"
+            num_prompts=1000
+            extra_args="-e input_len=512 -e output_len=64"
+            echo "Use case: Classify 50,000 articles for tagging"
+            ;;
+        translation|trans)
+            use_case_name="🌐 Translation"
+            dataset="random"
+            num_prompts=500
+            extra_args="-e input_len=1024 -e output_len=1024"
+            echo "Use case: Translate documentation corpus"
+            ;;
+        entity-extraction|entity|extract)
+            use_case_name="🧬 Entity Extraction"
+            dataset="random"
+            num_prompts=1000
+            extra_args="-e input_len=1500 -e output_len=128"
+            echo "Use case: Extract entities from document batches"
+            ;;
+        dataset-generation|dataset|datagen)
+            use_case_name="🎲 Dataset Generation"
+            dataset="random"
+            num_prompts=5000
+            extra_args="-e input_len=256 -e output_len=256"
+            echo "Use case: Generate 100k synthetic training examples"
+            ;;
+        code-generation|code|codegen)
+            use_case_name="💻 Code Generation"
+            dataset="random"
+            num_prompts=500
+            extra_args="-e input_len=512 -e output_len=512"
+            echo "Use case: Generate tests for 1,000 functions"
+            ;;
+        etl|pipeline)
+            use_case_name="🔄 ETL Pipelines"
+            dataset="sonnet"
+            num_prompts=500
+            extra_args=""
+            echo "Use case: Batch inference in data workflows"
+            ;;
+        *)
+            echo -e "${RED}Error: Unknown use case: $use_case${NC}"
+            echo "Valid use cases: summarization, classification, translation,"
+            echo "                 entity-extraction, dataset-generation, code-generation, etl"
+            return 1
+            ;;
+    esac
+    echo "Parameters: $num_prompts prompts, $dataset dataset"
+    echo
+
+    # Run tests for each model and core count
+    for model in "${MODELS[@]}"; do
+        echo -e "${GREEN}Model: $model${NC}"
+        for cores in "${CORES[@]}"; do
+            echo "  Cores: $cores"
+            for run in $(seq 1 $runs); do
+                echo "    Run $run/$runs..."
+                if ! run_test "$model" "$dataset" "$num_prompts" "$cores" $extra_args; then
+                    failed_tests+=("$use_case_name - $model - $cores cores - Run $run")
+                fi
+            done
+        done
+        echo
+    done
+
+    # Summary
+    echo -e "${BLUE}========================================${NC}"
+    echo -e "${BLUE}Use Case Sweep Complete${NC}"
+    echo -e "${BLUE}========================================${NC}"
+
+    if [ ${#failed_tests[@]} -eq 0 ]; then
+        echo -e "${GREEN}✓✓✓ All tests completed successfully! ✓✓✓${NC}"
+        return 0
+    else
+        echo -e "${RED}✗ ${#failed_tests[@]} test(s) failed:${NC}"
+        for test in "${failed_tests[@]}"; do
+            echo -e "${RED}  - $test${NC}"
+        done
+        return 1
+    fi
+}
+
 test_all() {
     local model="$1"
     local cores="${2:-32}"
@@ -687,6 +824,13 @@ main() {
             ;;
         use-cases)
             use_cases_suite "$@"
+            ;;
+        use-case-sweep)
+            if [ $# -lt 1 ]; then
+                echo "Error: use-case-sweep requires <use-case> [model-list] [cores-list] [runs]"
+                exit 1
+            fi
+            use_case_sweep "$@"
             ;;
         baseline)
             test_baseline "$@"
