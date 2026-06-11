@@ -224,14 +224,13 @@ def main():
     This tests batch processing performance (like processing thousands of documents at once).
     """)
 
-    # Results directory and reload button
-    col1, col2 = st.columns([5, 1])
-    with col1:
-        results_base = Path.home() / "git-workspace/vllm-cpu-perf-eval/results/llm"
-    with col2:
-        if st.button("🔄 Reload Data", help="Reload benchmark results from disk"):
-            load_benchmark_results.clear()
-            st.rerun()
+    # Sidebar - Reload button
+    if st.sidebar.button("🔄 Reload Data", key="reload_btn_offline"):
+        st.cache_data.clear()
+        st.rerun()
+
+    # Results directory
+    results_base = Path.home() / "git-workspace/vllm-cpu-perf-eval/results/llm"
 
     # Load all results
     df = load_benchmark_results(str(results_base))
