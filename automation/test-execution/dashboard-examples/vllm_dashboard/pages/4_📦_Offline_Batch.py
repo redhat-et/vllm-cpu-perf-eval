@@ -6,12 +6,17 @@ Displays results from vLLM offline batch benchmarking (vllm bench throughput).
 """
 
 import json
+import sys
 from pathlib import Path
 from typing import Dict
 import pandas as pd
 
 import plotly.graph_objects as go
 import streamlit as st
+
+# Add parent directory to path for config_manager import
+sys.path.insert(0, str(Path(__file__).parent.parent))
+from config_manager import DashboardConfig
 
 
 def get_use_case_units(use_case: str) -> Dict[str, str]:
@@ -224,16 +229,57 @@ def main():
     This tests batch processing performance (like processing thousands of documents at once).
     """)
 
-    # Sidebar - Reload button
-    if st.sidebar.button("🔄 Reload Data", key="reload_btn_offline"):
-        st.cache_data.clear()
-        st.rerun()
+    # Sidebar configuration
+    with st.sidebar:
+        st.header("Configuration")
 
-    # Results directory
-    results_base = Path.home() / "git-workspace/vllm-cpu-perf-eval/results/llm"
+        config = DashboardConfig()
+        default_results_dir = str(Path(config.get_results_directory()).parent / "llm")
+
+        results_dir_input = st.text_input(
+            "Results Directory",
+            value=default_results_dir,
+            help="Path to offline batch results directory",
+            key="results_dir_offline"
+        )
+
+        if st.button("🔄 Reload Data"):
+            st.cache_data.clear()
+            st.rerun()
+
+        st.markdown("---")
+        st.markdown("**Use Case Reference:**")
+
+        # Use case configurations
+        with st.expander("📋 Task Configurations", expanded=False):
+            st.markdown("**Use Cases and Parameters**")
+            use_case_data = {
+                "Use Case": ["📝 Summarization", "🏷️ Classification", "🌐 Translation",
+                            "🧬 Entity Extraction", "🎲 Dataset Gen", "💻 Code Gen", "🔄 ETL"],
+                "Dataset": ["sonnet", "random", "random", "random", "random", "random", "sonnet"],
+                "Input": [508, 512, 1024, 1500, 256, 512, 508],
+                "Output": [150, 64, 1024, 128, 256, 512, 150],
+                "Prompts": [1000, 1000, 500, 1000, 5000, 500, 500],
+                "Unit": ["docs", "items", "docs", "docs", "examples", "functions", "records"]
+            }
+            use_case_df = pd.DataFrame(use_case_data)
+            st.dataframe(
+                use_case_df,
+                hide_index=True,
+                use_container_width=True,
+                column_config={
+                    "Use Case": st.column_config.TextColumn("Use Case", width="medium"),
+                    "Dataset": st.column_config.TextColumn("Dataset", width="small"),
+                    "Input": st.column_config.NumberColumn("Input Tokens", width="small"),
+                    "Output": st.column_config.NumberColumn("Output Tokens", width="small"),
+                    "Prompts": st.column_config.NumberColumn("Batch Size", width="small"),
+                    "Unit": st.column_config.TextColumn("Unit", width="small"),
+                }
+            )
+            st.caption("Typical configurations for each use case")
 
     # Load all results
-    df = load_benchmark_results(str(results_base))
+    df = load_benchmark_results(results_dir_input)
 
     if df.empty:
         st.warning("No benchmark results found. Run some benchmarks first!")
