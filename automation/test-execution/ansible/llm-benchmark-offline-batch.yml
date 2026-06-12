@@ -12,15 +12,15 @@
 # Optional parameters:
 #   -e "dataset_path=/path/to/dataset.txt"  # Custom dataset file
 #   -e "input_len=512"                       # For random dataset
-#   -e "output_len=256"                      # For random dataset
+#   -e "output_len=256"                      # For random/sharegpt/cnn_dailymail datasets
 #   -e "vllm_container_image=vllm/vllm-openai:latest"  # Default (upstream vLLM)
 #   -e "vllm_container_image=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0"  # RHAIIS optimized
 #
-# Dataset types: sonnet, random, sharegpt, hf
+# Dataset types: sonnet, random, sharegpt, cnn_dailymail
 #   - sonnet: Classic sonnet text (needs dataset_path)
 #   - random: Synthetic random tokens (needs input_len, output_len)
-#   - sharegpt: ShareGPT format (needs dataset_path)
-#   - hf: HuggingFace dataset (needs dataset_name_hf)
+#   - sharegpt: ShareGPT conversations (built-in HuggingFace dataset)
+#   - cnn_dailymail: CNN/DailyMail news articles (loaded via HuggingFace 'hf' loader)
 
 - name: "Offline Batch Benchmark - Setup"
   hosts: localhost
@@ -226,7 +226,7 @@
               --num-prompts {{ num_prompts }}
       when: dataset_name == 'sonnet' or dataset_file is defined
 
-    - name: Build benchmark command (HuggingFace datasets)
+    - name: Build benchmark command (sharegpt dataset)
       ansible.builtin.set_fact:
         benchmark_cmd: |
           podman run --rm \
@@ -239,10 +239,30 @@
             {{ hostvars['localhost']['vllm_container_image'] }} \
             bench throughput \
               --model /root/.cache/huggingface/{{ hostvars['localhost']['model_repo_name'] }}/snapshots/{{ hostvars['localhost']['model_snapshot_hash'] }} \
-              --dataset-name {{ dataset_name }} \
+              --dataset-name sharegpt \
               --num-prompts {{ num_prompts }} \
               {% if output_len is defined %}--output-len {{ output_len }}{% endif %}
-      when: dataset_name in ['cnn_dailymail', 'sharegpt']
+      when: dataset_name == 'sharegpt'
+
+    - name: Build benchmark command (cnn_dailymail via HuggingFace)
+      ansible.builtin.set_fact:
+        benchmark_cmd: |
+          podman run --rm \
+            --name vllm-batch-cnn_dailymail-{{ requested_cores }}c \
+            --cpuset-cpus=0-{{ requested_cores | int - 1 }} \
+            -v "{{ hostvars['localhost']['dut_cache_dir'] }}:/root/.cache/huggingface:z" \
+            -e LD_PRELOAD=/usr/lib64/libomp.so \
+            -e HF_TOKEN={{ lookup('env', 'HF_TOKEN') }} \
+            --entrypoint vllm \
+            {{ hostvars['localhost']['vllm_container_image'] }} \
+            bench throughput \
+              --model /root/.cache/huggingface/{{ hostvars['localhost']['model_repo_name'] }}/snapshots/{{ hostvars['localhost']['model_snapshot_hash'] }} \
+              --dataset-name hf \
+              --dataset-path ccdv/cnn_dailymail \
+              --hf-split train \
+              --num-prompts {{ num_prompts }} \
+              {% if output_len is defined %}--output-len {{ output_len }}{% endif %}
+      when: dataset_name == 'cnn_dailymail'
 
     - name: Build benchmark command (random dataset)
       ansible.builtin.set_fact:
