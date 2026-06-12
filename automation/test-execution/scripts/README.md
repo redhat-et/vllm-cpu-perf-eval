@@ -83,13 +83,26 @@ python3 convert_single.py <benchmark.json> -m <metadata.json> -o <output.csv>
 
 Common utilities are available in `automation/test-execution/shared/`:
 
-- **io_utils.py**: JSON loading, file I/O, time formatting
+- **io_utils.py**: JSON loading (`load_json_file`), saving (`save_json_file`), time formatting (`format_duration`)
 - **vllm_metrics.py**: vLLM Prometheus metrics parsing helpers
 
-**Example usage:**
+**Importing shared utilities:**
+
+Due to the hyphen in `test-execution`, standard dotted imports don't work. Scripts use sys.path manipulation:
+
 ```python
-from automation.test_execution.shared.io_utils import load_json_file, save_json_file
+import sys
+from pathlib import Path
+
+# Add shared library to path
+_script_dir = Path(__file__).parent
+_shared_dir = _script_dir.parent.parent / "shared"
+sys.path.insert(0, str(_shared_dir))
+
+from io_utils import load_json_file, save_json_file, format_duration  # noqa: E402
 ```
+
+**For pytest tests:** The root `conftest.py` adds the project root to sys.path automatically, enabling imports to work without manual path manipulation.
 
 ## Development
 
