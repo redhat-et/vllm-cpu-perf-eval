@@ -75,83 +75,40 @@
           - "  Container: {{ vllm_container_image }}"
           - "  Results: {{ results_base }}/{{ model_safe }}/offline-batch-{{ test_timestamp }}/{{ config_id }}/"
 
-- name: "Offline Batch Benchmark - Download Model"
+- name: "Offline Batch Benchmark - Setup Cache"
   hosts: dut
   gather_facts: false
-  become: true
+  become: false
 
   tasks:
-    - name: Check if hf CLI is installed
-      ansible.builtin.command: which hf
-      register: hf_check
-      failed_when: false
-      changed_when: false
-
-    - name: Install pip3 if needed
-      ansible.builtin.dnf:
-        name: python3-pip
-        state: present
-      when: hf_check.rc != 0
-
-    - name: Install HuggingFace CLI if needed
-      ansible.builtin.pip:
-        name: huggingface_hub[cli]
-        state: present
-        executable: pip3
-      when: hf_check.rc != 0
-
     - name: Get DUT user home directory
       ansible.builtin.shell: "echo $HOME"
       register: dut_home
       changed_when: false
-      become: false
 
     - name: Set cache directory on DUT
       ansible.builtin.set_fact:
         dut_cache_dir: "{{ dut_home.stdout }}/.cache/huggingface"
-      become: false
 
-    - name: Check if model is already cached on DUT
-      ansible.builtin.stat:
-        path: "{{ dut_cache_dir }}/models--{{ test_model | replace('/', '--') }}"
-      register: model_cache_check
-      become: false
+    - name: Ensure cache directory exists
+      ansible.builtin.file:
+        path: "{{ dut_cache_dir }}"
+        state: directory
+        mode: "0755"
 
-    - name: Display cache status
-      ansible.builtin.debug:
-        msg: "Model {{ test_model }} {{ 'found in cache' if model_cache_check.stat.exists else 'not found, will download' }}"
-      become: false
-
-    - name: Download model if not cached
-      ansible.builtin.shell: |
-        python3 -c "from huggingface_hub import snapshot_download; snapshot_download('{{ test_model }}', cache_dir='{{ dut_cache_dir }}', token='{{ lookup('env', 'HF_TOKEN') }}')"
-      when: not model_cache_check.stat.exists
-      register: model_download
-      changed_when: model_download.rc == 0
-      become: false
-
-    - name: Get model snapshot path
-      ansible.builtin.shell: |
-        ls -d {{ dut_cache_dir }}/models--{{ test_model | replace('/', '--') }}/snapshots/* | head -1
-      register: model_snapshot_path
-      changed_when: false
-      become: false
-
-    - name: Set model snapshot fact for localhost
+    - name: Set cache facts for localhost
       ansible.builtin.set_fact:
-        model_snapshot: "{{ model_snapshot_path.stdout }}"
-        model_snapshot_hash: "{{ model_snapshot_path.stdout | basename }}"
-        model_repo_name: "models--{{ test_model | replace('/', '--') }}"
         dut_cache_dir: "{{ dut_cache_dir }}"
+        model_repo_name: "models--{{ test_model | replace('/', '--') }}"
       delegate_to: localhost
       delegate_facts: true
 
-    - name: Display model location
+    - name: Display model info
       ansible.builtin.debug:
         msg:
-          - "Model cached at: {{ model_snapshot_path.stdout }}"
-          - "Snapshot hash: {{ model_snapshot_path.stdout | basename }}"
-          - "Will mount to container: /root/.cache/huggingface/models--{{ test_model | replace('/', '--') }}/snapshots/{{ model_snapshot_path.stdout | basename }}"
+          - "Model: {{ test_model }}"
+          - "Cache directory: {{ dut_cache_dir }}"
+          - "Container will download model on first run if not already cached"
 
 - name: "Offline Batch Benchmark - Prepare Dataset"
   hosts: dut
@@ -198,7 +155,7 @@
 
     - name: Note for HuggingFace datasets
       ansible.builtin.debug:
-        msg: "Using HuggingFace dataset: {{ dataset_name }} (will be downloaded by vLLM)"
+        msg: "Using HuggingFace dataset: {{ dataset_name }} (will download on first run if not cached)"
       when: dataset_name in ['cnn_dailymail', 'sharegpt']
 
 - name: "Offline Batch Benchmark - Run Benchmark"
@@ -253,12 +210,13 @@
             -v "{{ hostvars['localhost']['dut_cache_dir'] }}:/root/.cache/huggingface:z" \
             -e LD_PRELOAD=/usr/lib64/libomp.so \
             -e HF_TOKEN={{ lookup('env', 'HF_TOKEN') }} \
+            -e HF_HOME=/root/.cache/huggingface \
             --entrypoint vllm \
             {{ hostvars['localhost']['vllm_container_image'] }} \
             bench throughput \
               --model /root/.cache/huggingface/{{ hostvars['localhost']['model_repo_name'] }}/snapshots/{{ hostvars['localhost']['model_snapshot_hash'] }} \
               --dataset-name hf \
-              --dataset-path ccdv/cnn_dailymail \
+              --hf-name ccdv/cnn_dailymail \
               --hf-split train \
               --num-prompts {{ num_prompts }} \
               {% if output_len is defined %}--output-len {{ output_len }}{% endif %}
