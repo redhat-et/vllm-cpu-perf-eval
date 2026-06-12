@@ -51,10 +51,10 @@ Real-world scenarios implemented in `run-offline-batch-suite.sh`:
 
 | Use Case | Description | Parameters | Command |
 |----------|-------------|------------|---------|
-| **📝 Summarization** | Bulk document summarization | cnn_dailymail, 1000 prompts | `use-case-sweep summarization` |
+| **📝 Summarization** | Bulk document summarization | sharegpt, 1000 prompts | `use-case-sweep summarization` |
 | **🏷️ Classification** | Article tagging/classification | sharegpt, output=64 tokens, 1000 prompts | `use-case-sweep classification` |
 | **🌐 Translation** | Documentation translation | sharegpt, output=1024 tokens, 500 prompts | `use-case-sweep translation` |
-| **🧬 Entity Extraction** | Extract entities from docs | cnn_dailymail, output=128 tokens, 1000 prompts | `use-case-sweep entity-extraction` |
+| **🧬 Entity Extraction** | Extract entities from docs | sharegpt, output=128 tokens, 1000 prompts | `use-case-sweep entity-extraction` |
 | **🎲 Dataset Generation** | Generate synthetic examples | random, 256→256 tokens, 5000 prompts | `use-case-sweep dataset-generation` |
 | **💻 Code Generation** | Generate test code | random, 512→512 tokens, 500 prompts | `use-case-sweep code-generation` |
 | **🔄 ETL Pipelines** | Batch inference workflows | sonnet, 500 prompts, core scaling | `use-case-sweep etl` |
@@ -169,13 +169,10 @@ meta-llama/Llama-3.1-8B-Instruct
 
 ## Standard Datasets
 
-**CNN/DailyMail** (`cnn_dailymail`) - News articles
-- Long documents (400-1500 tokens)
-- Use for: Summarization, entity extraction (real-world text with entities)
-
 **ShareGPT** (`sharegpt`) - Real conversations
 - Variable length prompts (100-2000 tokens)
-- Use for: Classification/tagging, translation (natural language patterns)
+- Use for: Summarization, classification, translation, entity extraction (realistic text with natural language patterns)
+- Built-in dataset, no download required
 
 **Sonnet** (`sonnet`) - Baseline dataset
 - Classic poetry text, ~50 prompts

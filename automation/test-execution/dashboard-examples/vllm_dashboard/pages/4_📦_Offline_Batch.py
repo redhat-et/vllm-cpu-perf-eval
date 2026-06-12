@@ -50,10 +50,10 @@ def infer_use_case(test_metadata: dict) -> str:
     Infer the use case from test metadata parameters.
 
     Maps to the 7 use cases from run-offline-batch-suite.sh:
-    1. Summarization (cnn_dailymail, 1000 prompts)
+    1. Summarization (sharegpt, 1000 prompts, no output_len set)
     2. Classification/Tagging (sharegpt, 1000 prompts, output=64)
     3. Translation (sharegpt, 500 prompts, output=1024)
-    4. Entity Extraction (cnn_dailymail, 1000 prompts, output=128)
+    4. Entity Extraction (sharegpt, 1000 prompts, output=128)
     5. Dataset Generation (random, 256→256 tokens, 5000 prompts)
     6. Code Generation (random, 512→512 tokens, 500 prompts)
     7. ETL Pipelines (sonnet, 500 prompts, variable cores)
@@ -71,32 +71,29 @@ def infer_use_case(test_metadata: dict) -> str:
     dataset_config = config.get('dataset_config', {})
     output_len = dataset_config.get('output_len', 0)
 
-    # CNN/DailyMail dataset cases
-    if dataset == 'cnn_dailymail':
-        # Summarization: cnn_dailymail, 1000 prompts
-        if num_prompts == 1000 and (output_len == 0 or output_len >= 100):
-            return "📝 Summarization"
-        # Entity Extraction: cnn_dailymail, 1000 prompts, output=128
-        elif num_prompts == 1000 and output_len > 0 and output_len <= 150:
-            return "🧬 Entity Extraction"
-        else:
-            return "📝 Summarization"  # Default for cnn_dailymail
-
     # ShareGPT dataset cases
     if dataset == 'sharegpt':
-        # Translation: sharegpt, 500 prompts, output=1024
-        if num_prompts == 500 and output_len >= 900:
-            return "🌐 Translation"
+        # Summarization: sharegpt, 1000 prompts, no output_len (variable output)
+        if num_prompts == 1000 and output_len == 0:
+            return "📝 Summarization"
+        # Entity Extraction: sharegpt, 1000 prompts, output=128
+        elif num_prompts == 1000 and output_len > 0 and output_len <= 150:
+            return "🧬 Entity Extraction"
         # Classification/Tagging: sharegpt, 1000 prompts, output=64
         elif num_prompts == 1000 and output_len > 0 and output_len <= 100:
             return "🏷️ Classification/Tagging"
+        # Translation: sharegpt, 500 prompts, output=1024
+        elif num_prompts == 500 and output_len >= 900:
+            return "🌐 Translation"
         # Fallback: short output = classification, long output = translation
         elif output_len > 0 and output_len <= 100:
             return "🏷️ Classification/Tagging"
         elif output_len > 900:
             return "🌐 Translation"
+        elif output_len > 100 and output_len <= 200:
+            return "🧬 Entity Extraction"
         else:
-            return "🏷️ Classification/Tagging"  # Default for sharegpt
+            return "📝 Summarization"  # Default for sharegpt
 
     # Sonnet dataset cases
     if dataset == 'sonnet':
@@ -257,8 +254,8 @@ def main():
             use_case_data = {
                 "Use Case": ["📝 Summarization", "🏷️ Classification", "🌐 Translation",
                             "🧬 Entity Extraction", "🎲 Dataset Gen", "💻 Code Gen", "🔄 ETL"],
-                "Dataset": ["cnn_dailymail", "sharegpt", "sharegpt", "cnn_dailymail", "random", "random", "sonnet"],
-                "Output Tokens": ["~150", "64", "1024", "128", "256", "512", "~150"],
+                "Dataset": ["sharegpt", "sharegpt", "sharegpt", "sharegpt", "random", "random", "sonnet"],
+                "Output Tokens": ["variable", "64", "1024", "128", "256", "512", "~150"],
                 "Unit": ["docs", "items", "docs", "docs", "examples", "functions", "records"]
             }
             use_case_df = pd.DataFrame(use_case_data)
@@ -273,7 +270,7 @@ def main():
                     "Unit": st.column_config.TextColumn("Unit", width="small"),
                 }
             )
-            st.caption("Real datasets: cnn_dailymail (news), sharegpt (conversations), sonnet (baseline)")
+            st.caption("Datasets: sharegpt (conversations), random (synthetic), sonnet (baseline)")
 
     # Load all results
     df = load_benchmark_results(results_dir_input)
