@@ -16,11 +16,10 @@
 #   -e "vllm_container_image=vllm/vllm-openai:latest"  # Default (upstream vLLM)
 #   -e "vllm_container_image=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0"  # RHAIIS optimized
 #
-# Dataset types: sonnet, random, sharegpt, cnn_dailymail
+# Dataset types: sonnet, random, sharegpt
 #   - sonnet: Classic sonnet text (needs dataset_path)
 #   - random: Synthetic random tokens (needs input_len, output_len)
-#   - sharegpt: ShareGPT conversations (built-in HuggingFace dataset)
-#   - cnn_dailymail: CNN/DailyMail news articles (loaded via HuggingFace 'hf' loader)
+#   - sharegpt: ShareGPT conversations (built-in dataset)
 
 - name: "Offline Batch Benchmark - Setup"
   hosts: localhost
@@ -75,7 +74,7 @@
           - "  Container: {{ vllm_container_image }}"
           - "  Results: {{ results_base }}/{{ model_safe }}/offline-batch-{{ test_timestamp }}/{{ config_id }}/"
 
-- name: "Offline Batch Benchmark - Setup Cache"
+- name: "Offline Batch Benchmark - Download Model"
   hosts: dut
   gather_facts: false
   become: false
@@ -96,19 +95,48 @@
         state: directory
         mode: "0755"
 
-    - name: Set cache facts for localhost
+    - name: Check if model is already cached
+      ansible.builtin.stat:
+        path: "{{ dut_cache_dir }}/models--{{ test_model | replace('/', '--') }}"
+      register: model_cache_check
+
+    - name: Display cache status
+      ansible.builtin.debug:
+        msg: "Model {{ test_model }} {{ 'found in cache' if model_cache_check.stat.exists else 'not found, will download using container' }}"
+
+    - name: Download model using container
+      ansible.builtin.shell: |
+        podman run --rm \
+          -v "{{ dut_cache_dir }}:/root/.cache/huggingface:z" \
+          -e HF_TOKEN={{ lookup('env', 'HF_TOKEN') }} \
+          --entrypoint python3 \
+          {{ hostvars['localhost']['vllm_container_image'] }} \
+          -c "from huggingface_hub import snapshot_download; snapshot_download('{{ test_model }}', cache_dir='/root/.cache/huggingface')"
+      when: not model_cache_check.stat.exists
+      register: model_download
+      changed_when: model_download.rc == 0
+
+    - name: Get model snapshot path
+      ansible.builtin.shell: |
+        ls -d {{ dut_cache_dir }}/models--{{ test_model | replace('/', '--') }}/snapshots/* | head -1
+      register: model_snapshot_path
+      changed_when: false
+
+    - name: Set model facts for localhost
       ansible.builtin.set_fact:
         dut_cache_dir: "{{ dut_cache_dir }}"
         model_repo_name: "models--{{ test_model | replace('/', '--') }}"
+        model_snapshot_hash: "{{ model_snapshot_path.stdout | basename }}"
       delegate_to: localhost
       delegate_facts: true
 
-    - name: Display model info
+    - name: Display model location
       ansible.builtin.debug:
         msg:
           - "Model: {{ test_model }}"
           - "Cache directory: {{ dut_cache_dir }}"
-          - "Container will download model on first run if not already cached"
+          - "Snapshot hash: {{ model_snapshot_path.stdout | basename }}"
+          - "Full path: {{ model_snapshot_path.stdout }}"
 
 - name: "Offline Batch Benchmark - Prepare Dataset"
   hosts: dut
@@ -155,8 +183,8 @@
 
     - name: Note for HuggingFace datasets
       ansible.builtin.debug:
-        msg: "Using HuggingFace dataset: {{ dataset_name }} (will download on first run if not cached)"
-      when: dataset_name in ['cnn_dailymail', 'sharegpt']
+        msg: "Using HuggingFace dataset: {{ dataset_name }} (built-in)"
+      when: dataset_name == 'sharegpt'
 
 - name: "Offline Batch Benchmark - Run Benchmark"
   hosts: dut
@@ -177,7 +205,7 @@
             --entrypoint vllm \
             {{ hostvars['localhost']['vllm_container_image'] }} \
             bench throughput \
-              --model {{ test_model }} \
+              --model /root/.cache/huggingface/{{ hostvars['localhost']['model_repo_name'] }}/snapshots/{{ hostvars['localhost']['model_snapshot_hash'] }} \
               --dataset-name {{ dataset_name }} \
               --dataset-path /datasets/{{ dataset_file | basename }} \
               --num-prompts {{ num_prompts }}
@@ -195,32 +223,11 @@
             --entrypoint vllm \
             {{ hostvars['localhost']['vllm_container_image'] }} \
             bench throughput \
-              --model {{ test_model }} \
+              --model /root/.cache/huggingface/{{ hostvars['localhost']['model_repo_name'] }}/snapshots/{{ hostvars['localhost']['model_snapshot_hash'] }} \
               --dataset-name sharegpt \
               --num-prompts {{ num_prompts }} \
               {% if output_len is defined %}--output-len {{ output_len }}{% endif %}
       when: dataset_name == 'sharegpt'
-
-    - name: Build benchmark command (cnn_dailymail via HuggingFace)
-      ansible.builtin.set_fact:
-        benchmark_cmd: |
-          podman run --rm \
-            --name vllm-batch-cnn_dailymail-{{ requested_cores }}c \
-            --cpuset-cpus=0-{{ requested_cores | int - 1 }} \
-            -v "{{ hostvars['localhost']['dut_cache_dir'] }}:/root/.cache/huggingface:z" \
-            -e LD_PRELOAD=/usr/lib64/libomp.so \
-            -e HF_TOKEN={{ lookup('env', 'HF_TOKEN') }} \
-            -e HF_HOME=/root/.cache/huggingface \
-            --entrypoint vllm \
-            {{ hostvars['localhost']['vllm_container_image'] }} \
-            bench throughput \
-              --model {{ test_model }} \
-              --dataset-name hf \
-              --hf-name ccdv/cnn_dailymail \
-              --hf-split train \
-              --num-prompts {{ num_prompts }} \
-              {% if output_len is defined %}--output-len {{ output_len }}{% endif %}
-      when: dataset_name == 'cnn_dailymail'
 
     - name: Build benchmark command (random dataset)
       ansible.builtin.set_fact:
@@ -234,7 +241,7 @@
             --entrypoint vllm \
             {{ hostvars['localhost']['vllm_container_image'] }} \
             bench throughput \
-              --model {{ test_model }} \
+              --model /root/.cache/huggingface/{{ hostvars['localhost']['model_repo_name'] }}/snapshots/{{ hostvars['localhost']['model_snapshot_hash'] }} \
               --dataset-name random \
               --num-prompts {{ num_prompts }} \
               --input-len {{ input_len | default(512) }} \

@@ -313,13 +313,13 @@ use_cases_suite() {
     # 1. BULK DOCUMENT PROCESSING
     echo -e "${GREEN}📄 [1/7] Bulk Document Processing (Summarization)${NC}"
     echo "Use case: Summarize 10,000 support tickets overnight"
-    echo "Parameters: 1000 prompts, cnn_dailymail dataset (news articles), 16 cores"
+    echo "Parameters: 1000 prompts, sharegpt dataset (conversations), 16 cores"
     echo
     for model in "${MODELS[@]}"; do
         echo "  Model: $model"
         for run in $(seq 1 $runs); do
             echo "    Run $run/$runs..."
-            if ! run_test "$model" "cnn_dailymail" 1000 16; then
+            if ! run_test "$model" "sharegpt" 1000 16; then
                 failed_tests+=("Document Processing - $model - Run $run")
             fi
         done
@@ -364,13 +364,13 @@ use_cases_suite() {
     # 4. ENTITY EXTRACTION
     echo -e "${GREEN}🧬 [4/7] Entity Extraction${NC}"
     echo "Use case: Extract entities from document batches"
-    echo "Parameters: 1000 prompts, cnn_dailymail dataset (news articles with real entities), output=128 tokens"
+    echo "Parameters: 1000 prompts, sharegpt dataset (conversations with real entities), output=128 tokens"
     echo
     for model in "${MODELS[@]}"; do
         echo "  Model: $model"
         for run in $(seq 1 $runs); do
             echo "    Run $run/$runs..."
-            if ! run_test "$model" "cnn_dailymail" 1000 16 -e "output_len=128"; then
+            if ! run_test "$model" "sharegpt" 1000 16 -e "output_len=128"; then
                 failed_tests+=("Entity Extraction - $model - Run $run")
             fi
         done
@@ -684,11 +684,11 @@ use_case_sweep() {
     case "$use_case" in
         summarization|summary|sum)
             use_case_name="📝 Summarization"
-            dataset="cnn_dailymail"
+            dataset="sharegpt"
             num_prompts=1000
             extra_args=""
             echo "Use case: Summarize 10,000 support tickets overnight"
-            echo "Dataset: cnn_dailymail (news articles)"
+            echo "Dataset: sharegpt (conversations)"
             ;;
         classification|class|tag)
             use_case_name="🏷️ Classification/Tagging"
@@ -708,11 +708,11 @@ use_case_sweep() {
             ;;
         entity-extraction|entity|extract)
             use_case_name="🧬 Entity Extraction"
-            dataset="cnn_dailymail"
+            dataset="sharegpt"
             num_prompts=1000
             extra_args="-e output_len=128"
             echo "Use case: Extract entities from document batches"
-            echo "Dataset: cnn_dailymail (news articles with real entities)"
+            echo "Dataset: sharegpt (conversations with real entities)"
             ;;
         dataset-generation|dataset|datagen)
             use_case_name="🎲 Dataset Generation"
