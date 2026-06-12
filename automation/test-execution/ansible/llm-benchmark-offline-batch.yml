@@ -196,13 +196,18 @@
         dataset_file: "{{ dataset_path }}"
       when: dataset_path is defined
 
+    - name: Note for HuggingFace datasets
+      ansible.builtin.debug:
+        msg: "Using HuggingFace dataset: {{ dataset_name }} (will be downloaded by vLLM)"
+      when: dataset_name in ['cnn_dailymail', 'sharegpt']
+
 - name: "Offline Batch Benchmark - Run Benchmark"
   hosts: dut
   become: true
   gather_facts: false
 
   tasks:
-    - name: Build benchmark command (with dataset file)
+    - name: Build benchmark command (sonnet dataset with file)
       ansible.builtin.set_fact:
         benchmark_cmd: |
           podman run --rm \
@@ -219,7 +224,25 @@
               --dataset-name {{ dataset_name }} \
               --dataset-path /datasets/{{ dataset_file | basename }} \
               --num-prompts {{ num_prompts }}
-      when: dataset_name in ['sonnet', 'sharegpt'] or dataset_file is defined
+      when: dataset_name == 'sonnet' or dataset_file is defined
+
+    - name: Build benchmark command (HuggingFace datasets)
+      ansible.builtin.set_fact:
+        benchmark_cmd: |
+          podman run --rm \
+            --name vllm-batch-{{ dataset_name }}-{{ requested_cores }}c \
+            --cpuset-cpus=0-{{ requested_cores | int - 1 }} \
+            -v "{{ hostvars['localhost']['dut_cache_dir'] }}:/root/.cache/huggingface:z" \
+            -e LD_PRELOAD=/usr/lib64/libomp.so \
+            -e HF_TOKEN={{ lookup('env', 'HF_TOKEN') }} \
+            --entrypoint vllm \
+            {{ hostvars['localhost']['vllm_container_image'] }} \
+            bench throughput \
+              --model /root/.cache/huggingface/{{ hostvars['localhost']['model_repo_name'] }}/snapshots/{{ hostvars['localhost']['model_snapshot_hash'] }} \
+              --dataset-name {{ dataset_name }} \
+              --num-prompts {{ num_prompts }} \
+              {% if output_len is defined %}--output-len {{ output_len }}{% endif %}
+      when: dataset_name in ['cnn_dailymail', 'sharegpt']
 
     - name: Build benchmark command (random dataset)
       ansible.builtin.set_fact:
