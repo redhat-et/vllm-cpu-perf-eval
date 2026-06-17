@@ -535,6 +535,13 @@ def render_performance_plots(df: pd.DataFrame):
         st.warning("No data available for selected filters.")
         return
 
+    # Check required columns
+    required_cols = ['model_short', 'platform', 'workload', 'concurrency', 'request_rate']
+    missing_cols = [col for col in required_cols if col not in df.columns]
+    if missing_cols:
+        st.error(f"❌ Missing required columns for plotting: {missing_cols}")
+        return
+
     # Detect test mode from dataframe
     test_mode = df['vllm_mode'].iloc[0] if not df.empty else 'managed'
 
@@ -618,8 +625,19 @@ def render_performance_plots(df: pd.DataFrame):
         # For metrics without percentiles, use the base column
         selected_percentiles = [None]
 
+    # Fill NaN values in groupby columns to prevent empty groups
+    groupby_cols = ['platform', 'model_short', 'workload', 'vllm_version',
+                    'cores', 'tensor_parallel', 'test_name', 'test_run_id']
+    df_clean = df.copy()
+    for col in groupby_cols:
+        if col in df_clean.columns:
+            if df_clean[col].dtype == 'object':
+                df_clean[col] = df_clean[col].fillna('unknown')
+            else:
+                df_clean[col] = df_clean[col].fillna(0)
+
     # Group by test configuration (include test_name to separate named tests)
-    grouped = df.groupby([
+    grouped = df_clean.groupby([
         'platform', 'model_short', 'workload', 'vllm_version',
         'cores', 'tensor_parallel', 'test_name', 'test_run_id'
     ])
@@ -637,6 +655,7 @@ def render_performance_plots(df: pd.DataFrame):
     }
 
     color_idx = 0
+    traces_added = 0
 
     for (platform, model, workload, vllm_version, cores, tp, test_name, test_id), group_df in grouped:
         # Sort by selected x-axis
@@ -691,8 +710,13 @@ def render_performance_plots(df: pd.DataFrame):
                     "<extra></extra>"
                 )
             ))
+            traces_added += 1
 
         color_idx += 1
+
+    if traces_added == 0:
+        st.warning("No data to plot. Please adjust filters or check data.")
+        return
 
     fig.update_layout(
         title=f"{selected_metric_family} vs {selected_x_axis}",
@@ -1218,6 +1242,56 @@ def render_dashboard():
         st.cache_data.clear()
         st.rerun()
 
+    # CSV Import section
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("📥 Import CSV")
+
+    uploaded_file = st.sidebar.file_uploader(
+        "Upload LLM results CSV",
+        type=['csv'],
+        help="Upload CSV with LLM benchmark results",
+        key="csv_uploader_llm"
+    )
+
+    if uploaded_file is not None:
+        try:
+            imported_df = pd.read_csv(uploaded_file)
+
+            st.sidebar.write(f"📄 **File:** {uploaded_file.name}")
+            st.sidebar.write(f"📊 **Rows:** {len(imported_df)}")
+
+            # Check required columns
+            required_cols = ['model', 'platform', 'workload', 'concurrency']
+            missing_cols = [col for col in required_cols if col not in imported_df.columns]
+
+            if missing_cols:
+                st.sidebar.error(f"❌ Missing: {missing_cols}")
+            else:
+                st.session_state['imported_llm_performance'] = imported_df
+                st.sidebar.success(f"✓ Loaded {len(imported_df)} rows")
+
+                # Show what's in the data
+                with st.sidebar.expander("📋 CSV Preview"):
+                    st.write(f"**Models:** {imported_df['model'].nunique()}")
+                    st.write(f"**Platforms:** {imported_df['platform'].nunique()}")
+                    st.write(f"**Workloads:** {imported_df['workload'].nunique()}")
+                    st.dataframe(imported_df.head(2))
+
+                st.cache_data.clear()
+                st.sidebar.info("⚠️ Scroll down to see data!")
+
+        except Exception as e:
+            st.sidebar.error(f"❌ Error: {e}")
+            import traceback
+            st.sidebar.code(traceback.format_exc())
+
+    if 'imported_llm_performance' in st.session_state:
+        if st.sidebar.button("❌ Clear imported CSV"):
+            del st.session_state['imported_llm_performance']
+            st.rerun()
+
+    st.sidebar.markdown("---")
+
     # Workload reference table
     with st.sidebar.expander("📋 Workload Reference", expanded=False):
         st.markdown("**Token Configuration by Workload**")
@@ -1245,6 +1319,54 @@ def render_dashboard():
 
     with st.spinner("Loading benchmark data..."):
         df = load_guidellm_data(results_dir)
+
+    # Check for imported CSV data in session state
+    if 'imported_llm_performance' in st.session_state:
+        imported_df = st.session_state['imported_llm_performance'].copy()
+        if not imported_df.empty:
+            # Add derived columns that the dashboard expects
+            if 'model_short' not in imported_df.columns:
+                imported_df['model_short'] = imported_df['model'].apply(lambda x: x.split('/')[-1] if pd.notna(x) else 'unknown')
+
+            # Ensure required columns exist with defaults if missing
+            defaults = {
+                'test_name': '',
+                'backend': 'unknown',
+                'guidellm_version': 'unknown',
+                'core_config': 'unknown',
+                'tensor_parallel': 1,
+                'vllm_mode': 'managed',
+                'vllm_endpoint_url': 'n/a',
+                'model_source': 'specified',
+                'total_requests': 0,
+                'successful_requests': 0,
+                'isl': 0,
+                'osl': 0
+            }
+
+            for col, default_val in defaults.items():
+                if col not in imported_df.columns:
+                    imported_df[col] = default_val
+
+            # Calculate derived metrics if missing
+            if 'success_rate' not in imported_df.columns:
+                if 'successful_requests' in imported_df.columns and 'total_requests' in imported_df.columns:
+                    imported_df['success_rate'] = (
+                        imported_df['successful_requests'] / imported_df['total_requests'] * 100
+                    ).fillna(100.0)
+                else:
+                    imported_df['success_rate'] = 100.0
+
+            if 'efficiency' not in imported_df.columns:
+                if 'throughput_mean' in imported_df.columns and 'cores' in imported_df.columns:
+                    imported_df['efficiency'] = (
+                        imported_df['throughput_mean'] / imported_df['cores']
+                    ).fillna(0)
+
+            # Merge imported CSV with loaded data
+            original_count = len(df)
+            df = pd.concat([df, imported_df], ignore_index=True)
+            st.success(f"✓ Imported {len(imported_df)} CSV records (merged with {original_count} from directory)")
 
     if df.empty:
         st.error("No benchmark data found!")

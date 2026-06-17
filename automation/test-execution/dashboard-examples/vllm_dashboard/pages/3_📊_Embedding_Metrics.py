@@ -1355,6 +1355,53 @@ def main():
             st.cache_data.clear()
 
         st.markdown("---")
+        st.subheader("📥 Import CSV")
+
+        uploaded_file = st.file_uploader(
+            "Upload embedding results CSV",
+            type=['csv'],
+            help="Upload CSV with embedding benchmark results",
+            key="csv_uploader_embedding"
+        )
+
+        if uploaded_file is not None:
+            try:
+                imported_df = pd.read_csv(uploaded_file)
+
+                # Show what we're importing
+                st.write(f"📄 **Importing:** {uploaded_file.name}")
+                st.write(f"📊 **Rows:** {len(imported_df)}")
+                st.write(f"📋 **Columns:** {len(imported_df.columns)}")
+
+                # Check for required columns
+                required_cols = ['test_type', 'model', 'platform']
+                missing_cols = [col for col in required_cols if col not in imported_df.columns]
+
+                if missing_cols:
+                    st.error(f"❌ Missing required columns: {missing_cols}")
+                    st.write("**Available columns:**", list(imported_df.columns))
+                else:
+                    st.session_state['imported_embedding_performance'] = imported_df
+                    st.success(f"✓ Loaded {len(imported_df)} rows")
+
+                    # Show a sample
+                    with st.expander("Preview imported data"):
+                        st.dataframe(imported_df.head(3))
+
+                    st.cache_data.clear()
+                    st.info("⚠️ **Data loaded!** Scroll down to see charts or click '🔄 Reload Data' to refresh.")
+
+            except Exception as e:
+                st.error(f"Failed to load CSV: {e}")
+                import traceback
+                st.code(traceback.format_exc())
+
+        if 'imported_embedding_performance' in st.session_state:
+            if st.button("❌ Clear imported CSV"):
+                del st.session_state['imported_embedding_performance']
+                st.rerun()
+
+        st.markdown("---")
         st.markdown("**Performance Metrics:**")
         st.markdown("""
         - Request Throughput (req/s)
@@ -1372,6 +1419,30 @@ def main():
 
     # Load performance data
     df = load_embedding_data(results_dir_input)
+
+    # Check for imported CSV data in session state
+    if 'imported_embedding_performance' in st.session_state:
+        imported_df = st.session_state['imported_embedding_performance'].copy()
+        if not imported_df.empty:
+            # Ensure data types match expected format
+            # Convert numeric columns that might be strings
+            numeric_cols = [
+                'requested_cores', 'input_length', 'request_rate', 'max_concurrency',
+                'num_prompts', 'request_throughput_rps', 'token_throughput_tps',
+                'rps_per_core', 'mean_latency_ms', 'median_latency_ms',
+                'std_latency_ms', 'p99_latency_ms', 'duration_sec',
+                'completed_requests', 'total_input_tokens'
+            ]
+
+            for col in numeric_cols:
+                if col in imported_df.columns:
+                    # Handle 'inf' string values
+                    imported_df[col] = pd.to_numeric(imported_df[col], errors='coerce')
+
+            # Merge imported CSV with loaded data
+            original_count = len(df)
+            df = pd.concat([df, imported_df], ignore_index=True)
+            st.success(f"✓ Imported {len(imported_df)} CSV records (merged with {original_count} from directory)")
 
     # Load MTEB quality data
     mteb_df = load_mteb_data(mteb_dir_input)
