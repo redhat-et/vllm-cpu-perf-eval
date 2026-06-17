@@ -27,7 +27,8 @@ class TestContainerBasics:
     """Basic container configuration tests."""
 
     @pytest.fixture(scope="class")
-    def runtime(self):
+    @classmethod
+    def runtime(cls):
         """Get container runtime command."""
         return _get_container_runtime()
 
