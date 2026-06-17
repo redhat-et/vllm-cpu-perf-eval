@@ -443,7 +443,7 @@ FAILED_LIST=()
 START_TIME=$(date +%s)
 
 # Results log - save to dedicated logs directory
-LOGS_DIR="${REPO_ROOT}/logs"
+LOGS_DIR="${REPO_ROOT}/logs/playbook-runs"
 mkdir -p "${LOGS_DIR}"
 RESULTS_LOG="${LOGS_DIR}/rhaiis-concurrent-load-$(date +%Y%m%d-%H%M%S).log"
 

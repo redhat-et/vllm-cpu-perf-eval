@@ -57,6 +57,9 @@ results/*.csv
 !automation/test-execution/grafana/dashboards/*.json
 *.csv
 
+# Log directories
+logs/
+
 # Jekyll HTML files
 # Note: Ignore all HTML first, then negate specific directories
 *.html

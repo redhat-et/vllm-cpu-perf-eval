@@ -68,6 +68,10 @@ vllm-cpu-perf-eval/
 │   ├── llm/                           # LLM test results
 │   └── results.md                     # Results documentation
 │
+├── logs/                               # Test execution logs (gitignored)
+│   ├── playbook-runs/                 # Ansible playbook execution logs
+│   └── progress/                      # Benchmark progress tracking logs
+│
 ├── utils/                              # Utility scripts and tools
 │
 └── Configuration Files
@@ -84,6 +88,9 @@ vllm-cpu-perf-eval/
 - **[automation/test-execution/ansible/](automation/test-execution/ansible/ansible.md)** - Ansible playbooks for test execution
 - **[docs/](docs/docs.md)** - Comprehensive testing methodology and guides
 - **results/** - Local test results (gitignored, see [results.md](results/results.md))
+- **logs/** - Test execution logs (gitignored)
+  - `playbook-runs/` - Ansible playbook execution logs
+  - `progress/` - Benchmark progress tracking logs
 
 See individual directory markdown files for detailed information.
 

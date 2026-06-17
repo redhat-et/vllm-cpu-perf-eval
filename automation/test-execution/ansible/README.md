@@ -521,6 +521,28 @@ results/llm/
 
 > **Note:** `benchmarks.html` files shown in the directory structures above are not currently generated. HTML output is available in GuideLLM but not enabled in this environment. See [GuideLLM issue #627](https://github.com/vllm-project/guidellm/issues/627). JSON and CSV formats are fully functional.
 
+### Execution Logs
+
+Test execution generates logs in the `logs/` directory at the repository root:
+
+```
+logs/
+├── playbook-runs/          # Ansible playbook execution logs
+│   └── rhaiis-concurrent-load-YYYYMMDD-HHMMSS.log
+└── progress/               # Benchmark progress tracking logs
+    └── {model}__{workload}-{config}-progress.log
+```
+
+- **playbook-runs/**: Full Ansible playbook output from test suite runs (e.g., `run-rhaiis-concurrent-load.sh`)
+- **progress/**: Real-time benchmark progress logs showing elapsed time and status updates
+
+These logs are automatically created during test execution and are useful for:
+- Debugging test failures
+- Monitoring long-running test suites
+- Reviewing execution history
+
+> **Note:** The `logs/` directory is gitignored and safe to delete if disk space is needed.
+
 ### View Results
 
 After running tests, results are automatically collected to your local machine:

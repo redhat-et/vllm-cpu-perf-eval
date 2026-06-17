@@ -239,7 +239,7 @@
 
 - name: Set controller-side benchmark progress log directory (containerized)
   ansible.builtin.set_fact:
-    guidellm_progress_log_dir: "{{ (playbook_dir + '/../../../progress-logs') | realpath }}"
+    guidellm_progress_log_dir: "{{ (playbook_dir + '/../../../logs/progress') | realpath }}"
   when: use_guidellm_container | bool
 
 - name: Set controller-side benchmark progress log file (containerized)
