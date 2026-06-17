@@ -165,7 +165,7 @@ automation/test-execution/dashboard-examples/vllm_dashboard/
 ### Data Flow
 
 ```
-CSV File → File Uploader → pd.read_csv() → st.session_state → 
+CSV File → File Uploader → pd.read_csv() → st.session_state →
 pd.concat() with directory data → Filters → Visualizations
 ```
 

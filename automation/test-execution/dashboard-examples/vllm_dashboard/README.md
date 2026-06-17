@@ -6,14 +6,17 @@ Comprehensive performance analysis dashboard for vLLM CPU benchmarks.
 
 **Single URL Access**: All dashboards accessible from `http://localhost:8501`
 
-**Three Views**:
+**Four Views**:
 - 🏠 **Home** - Overview, quick start, system status
-- 📊 **Client Metrics** - GuideLLM performance analysis
+- 📊 **Client Metrics** - GuideLLM LLM performance analysis
 - 🖥️ **Server Metrics** - vLLM server-side metrics
+- 📊 **Embedding Metrics** - Embedding model performance analysis
 
 **Navigation**: Use the sidebar to switch between views
 
 **Filters**: Platform, Model, Workload, Core Count, vLLM Version
+
+**CSV Import**: Upload benchmark results directly via sidebar (see [CSV_IMPORT_GUIDE.md](../CSV_IMPORT_GUIDE.md))
 
 ## Quick Start
 
@@ -57,12 +60,24 @@ ansible-playbook llm-core-sweep-auto.yml \
 - **Home** - Click "Home" in sidebar
 - **Client Metrics** - Click "📊 Client Metrics" in sidebar
 - **Server Metrics** - Click "🖥️ Server Metrics" in sidebar
+- **Embedding Metrics** - Click "📊 Embedding Metrics" in sidebar
+
+### 4. Import CSV Data (Optional)
+
+You can upload CSV benchmark results directly without requiring a specific directory structure:
+
+1. Navigate to the appropriate dashboard (Client Metrics or Embedding Metrics)
+2. Find the "📥 Import CSV" section in the sidebar
+3. Upload your CSV file
+4. Click "🔄 Reload Data" to merge with existing results
+
+For detailed instructions, see [CSV_IMPORT_GUIDE.md](../CSV_IMPORT_GUIDE.md)
 
 ## Dashboard Details
 
-### 📊 Client Metrics
+### 📊 Client Metrics (LLM)
 
-**Source**: GuideLLM benchmark results (`benchmarks.json`)
+**Source**: GuideLLM benchmark results (`benchmarks.json`) or uploaded CSV files
 
 **Metric Families**:
 - Throughput (tokens/sec) - mean, P50, P95, P99
@@ -95,6 +110,22 @@ Percentile definition: Pxx = the value below which xx% of data points fall
 - Example: Throughput P99 = 100 tok/s means only 1% of requests exceeded 100 tok/s
 - **P99 > Mean**: Some fast requests pulled up the average
 - **Narrow spread (P99 ≈ P50)**: Consistent per-request throughput
+
+### 📊 Embedding Metrics
+
+**Source**: Embedding benchmark results or uploaded CSV files
+
+**Metrics**:
+- Request throughput (requests/sec)
+- Token throughput (tokens/sec)
+- RPS per core
+- Latency (mean, median, P99)
+
+**Features**:
+- Concurrent vs. Baseline test comparison
+- Platform and model filtering
+- Request rate and concurrency analysis
+- CSV import support
 
 ### 🖥️ Server Metrics
 
@@ -190,9 +221,13 @@ cd ../
 vllm_dashboard/
 ├── Home.py                           # Main entry point (run this)
 ├── pages/
-│   ├── 1_📊_Client_Metrics.py       # GuideLLM analysis
-│   └── 2_🖥️_Server_Metrics.py       # vLLM server metrics
+│   ├── 1_📊_Client_Metrics.py       # GuideLLM LLM analysis
+│   ├── 2_🖥️_Server_Metrics.py       # vLLM server metrics
+│   └── 3_📊_Embedding_Metrics.py    # Embedding performance analysis
 ├── launch-dashboard.sh               # Start script
 ├── stop-dashboard.sh                 # Stop script
 └── README.md                         # This file
+
+dashboard-examples/
+└── CSV_IMPORT_GUIDE.md               # CSV import documentation
 ```
