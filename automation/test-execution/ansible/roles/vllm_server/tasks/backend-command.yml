@@ -1,0 +1,124 @@
+---
+# Generate backend command using abstraction layer
+#
+# This task uses the shared.backends Python module to generate backend-specific
+# commands, environment variables, and container images in a standardized way.
+#
+# Required Input Variables:
+#   backend_name: Name of the backend (default: vllm)
+#   backend_config: Dictionary with:
+#     - model: Model name/path (required)
+#     - host: Bind host (default: 0.0.0.0)
+#     - port: Port number (default: 8000)
+#     - dtype: Data type (default: bfloat16)
+#     - max_tokens: Max context length (default: 512)
+#     - tensor_parallel: Tensor parallelism (default: 1)
+#     - extra_args: Dict of extra backend-specific args (default: {})
+#
+# Output Facts:
+#   backend_cmd: Command string for container
+#   backend_env: Dict of environment variables
+#   backend_image: Container image URL
+#   backend_abstraction_used: Boolean indicating if abstraction was used
+
+- name: Set default backend name
+  ansible.builtin.set_fact:
+    backend_name: "{{ backend_name | default('vllm') }}"
+
+- name: Check if backend abstraction module is available
+  ansible.builtin.stat:
+    path: "{{ playbook_dir }}/../shared/backends/__init__.py"
+  register: backend_module_check
+  delegate_to: localhost
+  run_once: true
+
+- name: Generate command using backend abstraction
+  block:
+    - name: Call backend CLI to generate command
+      ansible.builtin.command:
+        cmd: >-
+          python3 -m shared.backends get-command {{ backend_name }}
+          --model "{{ backend_config.model }}"
+          --host "{{ backend_config.host | default('0.0.0.0') }}"
+          --port {{ backend_config.port | default(8000) }}
+          --dtype "{{ backend_config.dtype | default('bfloat16') }}"
+          --max-tokens {{ backend_config.max_tokens | default(512) }}
+          --tensor-parallel {{ backend_config.tensor_parallel | default(1) }}
+          {% if backend_config.extra_args is defined and backend_config.extra_args | length > 0 %}
+          --extra-args '{{ backend_config.extra_args | to_json }}'
+          {% endif %}
+      register: backend_cli_result
+      delegate_to: localhost
+      changed_when: false
+
+    - name: Parse backend CLI output
+      ansible.builtin.set_fact:
+        backend_data: "{{ backend_cli_result.stdout | from_json }}"
+
+    - name: Set backend facts from abstraction
+      ansible.builtin.set_fact:
+        backend_cmd: "{{ backend_data.command | join(' ') }}"
+        backend_env: "{{ backend_data.env }}"
+        backend_image: "{{ backend_data.image }}"
+        backend_abstraction_used: true
+
+    - name: Display backend abstraction result
+      ansible.builtin.debug:
+        msg:
+          - "✓ Using backend abstraction for {{ backend_name }}"
+          - "Image: {{ backend_image }}"
+          - "Command: {{ backend_cmd }}"
+      when: backend_cli_result is defined
+
+  rescue:
+    - name: Backend abstraction failed, falling back to hardcoded
+      ansible.builtin.debug:
+        msg:
+          - "⚠ Backend abstraction failed: {{ ansible_failed_result.msg | default('unknown error') }}"
+          - "Falling back to hardcoded vLLM command generation"
+
+    - name: Set fallback flag
+      ansible.builtin.set_fact:
+        backend_abstraction_failed: true
+
+  when: backend_module_check.stat.exists
+
+# Fallback to hardcoded vLLM command if:
+# 1. Backend module doesn't exist
+# 2. Backend abstraction failed
+# 3. Backend is not vllm (only vllm has fallback implemented)
+- name: Fallback to hardcoded command generation
+  block:
+    - name: Build hardcoded vLLM command (backward compatibility)
+      ansible.builtin.set_fact:
+        backend_cmd: >-
+          --model {{ backend_config.model }}
+          --host {{ backend_config.host | default('0.0.0.0') }}
+          --port {{ backend_config.port | default(8000) }}
+          --dtype {{ backend_config.dtype | default('bfloat16') }}
+          --max-model-len {{ backend_config.max_tokens | default(512) }}
+          {% if (backend_config.tensor_parallel | default(1) | int) > 1 %}
+          -tp {{ backend_config.tensor_parallel }}
+          {% endif %}
+          {% if backend_config.extra_args is defined %}
+          {% for key, value in backend_config.extra_args.items() %}
+          {% if value is sameas true %}--{{ key }}{% elif value is not sameas false %}--{{ key }} {{ value }}{% endif %}
+          {% endfor %}
+          {% endif %}
+
+    - name: Set fallback backend facts
+      ansible.builtin.set_fact:
+        backend_env: {}
+        backend_image: "{{ container_runtime.image }}"
+        backend_abstraction_used: false
+
+    - name: Display fallback warning
+      ansible.builtin.debug:
+        msg:
+          - "⚠ Using hardcoded {{ backend_name }} command (backend abstraction unavailable)"
+          - "Command: {{ backend_cmd }}"
+
+  when: >
+    not backend_module_check.stat.exists or
+    backend_abstraction_failed | default(false) or
+    backend_name != 'vllm'
