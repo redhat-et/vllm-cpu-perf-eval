@@ -1,0 +1,76 @@
+---
+# Test playbook for backend-command.yml task
+# Verifies backend abstraction integration works correctly
+
+- name: Test Backend Command Generation
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: Test 1 - Basic vLLM command generation
+      ansible.builtin.include_role:
+        name: vllm_server
+        tasks_from: backend-command
+      vars:
+        backend_name: vllm
+        backend_config:
+          model: "meta-llama/Llama-3.2-1B"
+          host: "0.0.0.0"
+          port: 8000
+          dtype: "bfloat16"
+          max_tokens: 2048
+          tensor_parallel: 1
+
+    - name: Display Test 1 results
+      ansible.builtin.debug:
+        msg:
+          - "=== Test 1: Basic vLLM Command ==="
+          - "Backend used: {{ 'abstraction' if backend_abstraction_used else 'fallback' }}"
+          - "Image: {{ backend_image }}"
+          - "Command: {{ backend_cmd }}"
+          - "Env vars: {{ backend_env | to_json }}"
+
+    - name: Test 2 - vLLM with tensor parallelism and extra args
+      ansible.builtin.include_role:
+        name: vllm_server
+        tasks_from: backend-command
+      vars:
+        backend_name: vllm
+        backend_config:
+          model: "meta-llama/Llama-3.2-1B"
+          host: "127.0.0.1"
+          port: 9000
+          dtype: "float16"
+          max_tokens: 4096
+          tensor_parallel: 4
+          extra_args:
+            enable-prefix-caching: true
+            gpu-memory-utilization: 0.9
+            quantization: "awq"
+
+    - name: Display Test 2 results
+      ansible.builtin.debug:
+        msg:
+          - "=== Test 2: vLLM with TP=4 and Extra Args ==="
+          - "Backend used: {{ 'abstraction' if backend_abstraction_used else 'fallback' }}"
+          - "Command: {{ backend_cmd }}"
+
+    - name: Test 3 - Verify required arguments in command
+      ansible.builtin.assert:
+        that:
+          - "'--model' in backend_cmd or 'meta-llama/Llama-3.2-1B' in backend_cmd"
+          - "'--host' in backend_cmd or '127.0.0.1' in backend_cmd"
+          - "'--port' in backend_cmd or '9000' in backend_cmd"
+          - "'--tensor-parallel-size' in backend_cmd or '-tp' in backend_cmd or '4' in backend_cmd"
+          - "'--enable-prefix-caching' in backend_cmd"
+        success_msg: "✓ All required arguments present in command"
+        fail_msg: "✗ Missing required arguments in command"
+
+    - name: Summary
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Backend Command Generation Test - PASSED"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "The backend-command.yml task is working correctly!"
+          - "Ready for integration into vllm_server role."

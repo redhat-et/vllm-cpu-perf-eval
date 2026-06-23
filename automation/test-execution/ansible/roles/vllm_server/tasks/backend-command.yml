@@ -47,6 +47,7 @@
           {% if backend_config.extra_args is defined and backend_config.extra_args | length > 0 %}
           --extra-args '{{ backend_config.extra_args | to_json }}'
           {% endif %}
+        chdir: "{{ playbook_dir }}/.."
       register: backend_cli_result
       delegate_to: localhost
       changed_when: false
