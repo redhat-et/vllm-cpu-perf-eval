@@ -65,26 +65,115 @@ class vLLMBackend(InferenceBackend):
         """Parse vLLM Prometheus metrics to standard format.
 
         Args:
-            metrics_data: Raw Prometheus metrics from /metrics endpoint
+            metrics_data: Dict with 'samples' key containing vLLM metrics JSON
 
         Returns:
             BackendMetrics with standardized fields
 
-        TODO: Implement actual metrics parsing using vllm_metrics.py
-        or prometheus_client parsing logic. For now, returns placeholder.
+        Expected input format (from vllm-metrics.json):
+        {
+            "samples": [
+                {
+                    "timestamp": "...",
+                    "metrics": {
+                        "vllm:ttft_ms": [...],
+                        "vllm:kv_cache_usage_perc": [...],
+                        ...
+                    }
+                }
+            ]
+        }
         """
-        # Placeholder implementation - will be replaced with actual parsing
-        # using the existing vllm_metrics_parser.py or similar logic
-        return BackendMetrics(
-            ttft_mean=0.0,
-            tpot_mean=0.0,
-            e2e_mean=0.0,
-            requests_per_second=0.0,
-            tokens_per_second=0.0,
-            memory_mb=0.0,
-            cpu_percent=0.0,
-            raw_metrics=metrics_data,
-        )
+        try:
+            samples = metrics_data.get('samples', [])
+            if not samples:
+                raise ValueError("No samples found in metrics_data")
+
+            # Use the last sample (end of test) for cumulative metrics
+            last_sample = samples[-1]
+            metrics = last_sample.get('metrics', {})
+
+            # Helper to extract single value from metric list
+            def get_value(metric_list):
+                if metric_list and len(metric_list) > 0:
+                    return metric_list[0].get('value', 0)
+                return 0
+
+            # Extract latencies from histograms (sum / count)
+            ttft_sum = get_value(metrics.get('vllm:time_to_first_token_seconds_sum', []))
+            ttft_count = get_value(metrics.get('vllm:time_to_first_token_seconds_count', []))
+            ttft_mean_ms = (ttft_sum / ttft_count * 1000) if ttft_count > 0 else 0.0
+
+            e2e_sum = get_value(metrics.get('vllm:e2e_request_latency_seconds_sum', []))
+            e2e_count = get_value(metrics.get('vllm:e2e_request_latency_seconds_count', []))
+            e2e_mean_ms = (e2e_sum / e2e_count * 1000) if e2e_count > 0 else 0.0
+
+            # Calculate TPOT from decode time
+            decode_sum = get_value(metrics.get('vllm:request_decode_time_seconds_sum', []))
+            gen_tokens_sum = get_value(metrics.get('vllm:request_generation_tokens_sum', []))
+
+            # TPOT = total_decode_time / total_output_tokens (ms per token)
+            tpot_mean_ms = 0.0
+            if gen_tokens_sum > 0:
+                tpot_mean_ms = (decode_sum / gen_tokens_sum * 1000)
+
+            # Throughput: requests per second and tokens per second
+            # Get test duration from first to last sample timestamp
+            if len(samples) > 1:
+                import datetime
+                first_ts = datetime.datetime.fromisoformat(samples[0]['timestamp'])
+                last_ts = datetime.datetime.fromisoformat(last_sample['timestamp'])
+                duration_sec = (last_ts - first_ts).total_seconds()
+            else:
+                duration_sec = 0
+
+            requests_per_second = e2e_count / duration_sec if duration_sec > 0 else 0.0
+
+            prompt_tokens = get_value(metrics.get('vllm:prompt_tokens_total', []))
+            generation_tokens = get_value(metrics.get('vllm:generation_tokens_total', []))
+            total_tokens = prompt_tokens + generation_tokens
+            tokens_per_second = total_tokens / duration_sec if duration_sec > 0 else 0.0
+
+            # Memory and CPU
+            memory_bytes = get_value(metrics.get('process_resident_memory_bytes', []))
+            memory_mb = memory_bytes / (1024 * 1024) if memory_bytes > 0 else 0.0
+
+            cpu_seconds = get_value(metrics.get('process_cpu_seconds_total', []))
+            cpu_percent = (cpu_seconds / duration_sec * 100) if duration_sec > 0 else 0.0
+
+            # Optional vLLM-specific metrics
+            kv_cache_usage = get_value(metrics.get('vllm:kv_cache_usage_perc', []))
+
+            prefix_hits = get_value(metrics.get('vllm:prefix_cache_hits_total', []))
+            prefix_queries = get_value(metrics.get('vllm:prefix_cache_queries_total', []))
+            prefix_cache_hit_rate = (prefix_hits / prefix_queries * 100) if prefix_queries > 0 else None
+
+            return BackendMetrics(
+                ttft_mean=ttft_mean_ms,
+                tpot_mean=tpot_mean_ms,
+                e2e_mean=e2e_mean_ms,
+                requests_per_second=requests_per_second,
+                tokens_per_second=tokens_per_second,
+                memory_mb=memory_mb,
+                cpu_percent=cpu_percent,
+                kv_cache_usage=kv_cache_usage if kv_cache_usage > 0 else None,
+                prefix_cache_hit_rate=prefix_cache_hit_rate,
+                raw_metrics=metrics_data,
+            )
+
+        except Exception as e:
+            # Return empty metrics on parse failure
+            print(f"Warning: Failed to parse vLLM metrics: {e}")
+            return BackendMetrics(
+                ttft_mean=0.0,
+                tpot_mean=0.0,
+                e2e_mean=0.0,
+                requests_per_second=0.0,
+                tokens_per_second=0.0,
+                memory_mb=0.0,
+                cpu_percent=0.0,
+                raw_metrics=metrics_data,
+            )
 
     def health_check_endpoint(self) -> str:
         """vLLM health check endpoint."""
