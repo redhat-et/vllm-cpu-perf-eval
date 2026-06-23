@@ -1,0 +1,58 @@
+---
+# Convert vLLM args list to dict format for backend abstraction
+#
+# Input: vllm_args_merged (list like ['--dtype=bfloat16', '--max-model-len=2048', '--enable-prefix-caching'])
+# Output: vllm_extra_args_dict (dict like {'dtype': 'bfloat16', 'max-model-len': 2048, 'enable-prefix-caching': true})
+#
+# This task converts the existing list-based vLLM args format to the dict-based
+# format expected by the backend abstraction layer.
+
+- name: Initialize empty dict for extra args
+  ansible.builtin.set_fact:
+    vllm_extra_args_dict: {}
+    vllm_extracted_dtype: null
+    vllm_extracted_max_len: null
+
+- name: Extract and convert vLLM args to dict
+  ansible.builtin.set_fact:
+    vllm_extra_args_dict: >-
+      {{
+        vllm_extra_args_dict | combine({
+          (item | regex_replace('^--', '') | regex_replace('=.*$', '')):
+          (
+            true if '=' not in item
+            else (item | regex_replace('^--[^=]+=', '') | int if (item | regex_replace('^--[^=]+=', '')) is match('^[0-9]+$')
+            else (item | regex_replace('^--[^=]+=', '') | float if (item | regex_replace('^--[^=]+=', '')) is match('^[0-9]+\\.[0-9]+$')
+            else item | regex_replace('^--[^=]+=', '')))
+          )
+        })
+      }}
+  loop: "{{ vllm_args_merged }}"
+  when:
+    - vllm_args_merged is defined
+    - vllm_args_merged | length > 0
+
+- name: Extract dtype if present in args
+  ansible.builtin.set_fact:
+    vllm_extracted_dtype: "{{ vllm_extra_args_dict.dtype }}"
+  when:
+    - vllm_extra_args_dict.dtype is defined
+
+- name: Extract max-model-len if present in args
+  ansible.builtin.set_fact:
+    vllm_extracted_max_len: "{{ vllm_extra_args_dict['max-model-len'] }}"
+  when:
+    - vllm_extra_args_dict['max-model-len'] is defined
+
+- name: Remove dtype and max-model-len from extra_args (they go in backend_config root)
+  ansible.builtin.set_fact:
+    vllm_extra_args_dict: "{{ vllm_extra_args_dict | dict2items | rejectattr('key', 'in', ['dtype', 'max-model-len']) | items2dict }}"
+
+- name: Display converted args for debugging
+  ansible.builtin.debug:
+    msg:
+      - "Args conversion results:"
+      - "  Extracted dtype: {{ vllm_extracted_dtype | default('auto') }}"
+      - "  Extracted max-model-len: {{ vllm_extracted_max_len | default('auto') }}"
+      - "  Extra args dict: {{ vllm_extra_args_dict | to_json }}"
+  when: vllm_extra_args_dict | length > 0

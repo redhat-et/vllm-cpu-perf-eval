@@ -238,7 +238,36 @@
     vllm_args_merged: "{{ vllm_base_args }}"
   when: vllm_caching_mode is not defined or caching_cfg is not defined
 
-- name: Build vLLM command arguments
+- name: Try backend abstraction for command generation (optional)
+  block:
+    - name: Convert vLLM args list to dict format
+      ansible.builtin.include_tasks: convert-args-to-dict.yml
+
+    - name: Generate command using backend abstraction
+      ansible.builtin.include_tasks: backend-command.yml
+      vars:
+        backend_name: vllm
+        backend_config:
+          model: "{{ test_model }}"
+          host: "{{ vllm_server.host }}"
+          port: "{{ vllm_server.port }}"
+          dtype: "{{ vllm_extracted_dtype | default(model_dtype | default('bfloat16')) }}"
+          max_tokens: "{{ vllm_extracted_max_len | default(workload_cfg.model_max_len | default(512)) | int }}"
+          tensor_parallel: "{{ core_cfg.tensor_parallel | default(1) | int }}"
+          extra_args: "{{ vllm_extra_args_dict }}"
+
+    - name: Override container image if backend abstraction provided one
+      ansible.builtin.set_fact:
+        effective_container_image: "{{ backend_image }}"
+      when: backend_abstraction_used | default(false)
+
+  rescue:
+    - name: Backend abstraction failed, using traditional method
+      ansible.builtin.debug:
+        msg: "Backend abstraction not available, using traditional vLLM command building"
+
+# Traditional command building (used if backend abstraction unavailable or as fallback)
+- name: Build vLLM command arguments (traditional method)
   ansible.builtin.set_fact:
     vllm_cmd: >-
       --model {{ test_model }}
@@ -246,6 +275,16 @@
       --port {{ vllm_server.port }}
       {{ vllm_args_merged | join(' ') }}
       {% if core_cfg.tensor_parallel | int > 1 %}-tp {{ core_cfg.tensor_parallel }}{% endif %}
+  when: not (backend_abstraction_used | default(false))
+
+- name: Use backend-generated command if available
+  ansible.builtin.set_fact:
+    vllm_cmd: "{{ backend_cmd }}"
+  when: backend_abstraction_used | default(false)
+
+- name: Set effective container image (use backend or default)
+  ansible.builtin.set_fact:
+    effective_container_image: "{{ backend_image | default(container_cfg.image) }}"
 
 - name: Extract effective max-model-len for validation
   ansible.builtin.set_fact:
@@ -276,7 +315,7 @@
 - name: Pull vLLM container image
   containers.podman.podman_container:
     name: "{{ vllm_container_name }}"
-    image: "{{ container_cfg.image }}"
+    image: "{{ effective_container_image }}"
     state: present
   when: container_cfg.engine == 'podman'
 
@@ -290,7 +329,8 @@
       - "Workload: {{ workload_type }} (ISL:{{ workload_cfg.isl }}/OSL:{{ workload_cfg.osl }})"
       - "Variability: {{ 'Enabled' if workload_cfg.variability | default(false) else 'Fixed' }}"
       - "Caching Mode: {{ vllm_caching_mode | default('baseline') }}"
-      - "Image: {{ container_cfg.image }}"
+      - "Image: {{ effective_container_image }}"
+      - "{{ 'Backend: Using abstraction layer ✓' if (backend_abstraction_used | default(false)) else 'Backend: Traditional vLLM (abstraction unavailable)' }}"
       - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       - "Container CPU Allocation:"
       - "  CPUs: {{ core_cfg.cpuset_cpus }}"
@@ -307,7 +347,7 @@
 
 - name: Detect AMD ZenDNN container
   ansible.builtin.set_fact:
-    is_zendnn_container: "{{ 'zendnn' in (container_cfg.image | lower) or 'zentorch' in (container_cfg.image | lower) }}"
+    is_zendnn_container: "{{ 'zendnn' in (effective_container_image | lower) or 'zentorch' in (effective_container_image | lower) }}"
 
 - name: Display AMD ZenDNN configuration
   ansible.builtin.debug:
@@ -324,7 +364,7 @@
 - name: Start vLLM LLM server
   containers.podman.podman_container:
     name: "{{ vllm_container_name }}"
-    image: "{{ container_cfg.image }}"
+    image: "{{ effective_container_image }}"
     state: started
     restart_policy: "no"
     detach: true
