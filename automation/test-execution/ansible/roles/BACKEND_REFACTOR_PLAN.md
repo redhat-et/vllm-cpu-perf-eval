@@ -193,21 +193,24 @@ vllm_server/
 
 ## Migration Checklist
 
-### Week 3 Tasks
-- [ ] Create `inference_server` role (wrapper)
-- [ ] Add `backend-command.yml` task
-- [ ] Test with existing playbooks (no behavior change)
-- [ ] Test with bash scripts (NUMA env vars work)
-- [ ] Document new `backend_name` variable
+### Week 3 Tasks ✅ COMPLETE
+- [x] Create `backend-command.yml` task
+- [x] Add CLI path handling with `chdir` support  
+- [x] Create test playbook (test-backend-command.yml)
+- [x] Verify fallback mechanism works
+- [x] Create `convert-args-to-dict.yml` helper
+- [x] Integrate into `start-llm.yml` with rescue blocks
+- [x] Update container image handling to use `effective_container_image`
+- [x] Add backend status to debug output
 
-### Week 4 Tasks
-- [ ] Refactor `start-llm.yml` to use backend abstraction
+### Week 4 Tasks (In Progress)
+- [ ] Test with bash scripts (NUMA env vars work)
 - [ ] Refactor `start-embedding.yml` to use backend abstraction
-- [ ] Convert vllm_args list to extra_args dict format
 - [ ] Test all workload types (chat, code, summarization, rag, embedding)
 - [ ] Test all core counts (8, 16, 32)
 - [ ] Test tensor parallelism (1, 2, 4)
 - [ ] Verify metrics collection unchanged
+- [ ] Document new `backend_name` variable
 
 ### Backward Compatibility Tests
 - [ ] `./run-rhaiis-concurrent-load.sh --models tiny --cores 8 --workloads chat`
