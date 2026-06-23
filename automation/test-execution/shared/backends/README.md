@@ -138,10 +138,16 @@ Optional metrics (backend-specific):
   - [x] Migrate metrics parsing from `log_to_mlflow.py`
   - [x] Implement `parse_metrics()` fully
   - [x] Add unit tests (26 tests passing)
-- [ ] Week 3-4: Refactor Ansible roles
-  - [ ] Update `vllm_server` role to use backend abstraction
+- [x] Week 3: Ansible integration (in progress)
+  - [x] Create `backend-command.yml` task for role integration
+  - [x] Add CLI path handling with `chdir` support
+  - [x] Test backend abstraction with test playbook
+  - [x] Verify fallback to hardcoded command works
+  - [ ] Integrate into `vllm_server` role `start-llm.yml`
+- [ ] Week 4: Complete role refactoring
+  - [ ] Update `start-embedding.yml` to use backend abstraction
   - [ ] Make roles backend-agnostic
-  - [ ] Backward compatibility testing
+  - [ ] Backward compatibility testing with bash scripts
 - [ ] Week 5-6: Second backend (TGI)
   - [ ] Implement `TGIBackend`
   - [ ] Test with TGI containers
