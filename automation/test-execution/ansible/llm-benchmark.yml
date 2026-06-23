@@ -5,12 +5,11 @@
 - name: "LLM GuideLLM Test - Setup"
   hosts: localhost
   gather_facts: false
-  vars:
-    test_run_id: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
 
   tasks:
-    - name: Detect if running from AWX
+    - name: Initialize test run ID and paths
       ansible.builtin.set_fact:
+        test_run_id: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
         is_awx_job: "{{ lookup('env', 'AWX_JOB_ID') | length > 0 }}"
         local_results_base: "{{ lookup('env', 'HOME') ~ '/benchmark-results' if (lookup('env', 'AWX_JOB_ID') | length > 0) else playbook_dir ~ '/../../../results/llm' }}"
 
