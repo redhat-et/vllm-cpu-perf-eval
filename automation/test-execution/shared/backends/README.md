@@ -146,6 +146,10 @@ Optional metrics (backend-specific):
   - [x] Create `convert-args-to-dict.yml` helper task
   - [x] Integrate into `vllm_server` role `start-llm.yml`
   - [x] Add rescue blocks for graceful fallback
+  - [x] Backward compatibility testing with actual group_vars
+    - Tested: chat, rag, embedding, code workloads
+    - Result: 66 tasks ok, 0 failed
+    - Confirmed: No changes needed to inventory files
 - [ ] Week 4: Complete role refactoring (in progress)
   - [ ] Update `start-embedding.yml` to use backend abstraction
   - [ ] Make roles backend-agnostic
