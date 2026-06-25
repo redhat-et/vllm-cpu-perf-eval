@@ -368,7 +368,7 @@
 - name: Fetch GuideLLM logs to controller
   ansible.builtin.fetch:
     src: "{{ guidellm_log_file.path }}"
-    dest: "{{ results_path }}/guidellm.log"
+    dest: "{{ local_results_path | default(results_path) }}/guidellm.log"
     flat: true
   when: use_guidellm_container | bool
 

@@ -547,6 +547,8 @@
     - role: hf_token
       tasks_from: setup-optional
     - role: benchmark_guidellm
+      vars:
+        local_results_path: "{{ playbook_dir }}/../../../results/llm/{{ actual_model | replace('/', '__') }}/{{ workload_type }}-{{ hostvars['localhost']['test_run_id'] }}/{{ core_configuration.name }}"
 
   post_tasks:
     - name: Stop vLLM metrics collection
