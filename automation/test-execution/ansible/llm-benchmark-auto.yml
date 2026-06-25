@@ -450,6 +450,17 @@
     core_configuration: "{{ hostvars['localhost']['core_configuration'] }}"
 
   pre_tasks:
+    - name: Get SSH user's home directory before becoming root
+      ansible.builtin.shell: "echo ~{{ ansible_user }}"
+      register: ssh_user_home
+      changed_when: false
+      become: false
+
+    - name: Expand tilde in bench_config.results_dir
+      ansible.builtin.set_fact:
+        bench_config: "{{ bench_config | combine({'results_dir': bench_config.results_dir | regex_replace('^~', ssh_user_home.stdout)}) }}"
+      when: bench_config.results_dir is defined and bench_config.results_dir is string
+
     - name: Override results_dir for local host mode (no container)
       ansible.builtin.set_fact:
         bench_config: "{{ bench_config | combine({'results_dir': hostvars['localhost']['local_results_base']}) }}"
