@@ -25,11 +25,22 @@
   ansible.builtin.set_fact:
     backend_name: "{{ backend_name | default('vllm') }}"
 
+- name: Get playbook directory on localhost
+  ansible.builtin.command: pwd
+  register: localhost_playbook_dir
+  delegate_to: localhost
+  become: false
+  run_once: true
+  changed_when: false
+  args:
+    chdir: "{{ playbook_dir }}"
+
 - name: Check if backend abstraction module is available
   ansible.builtin.stat:
-    path: "{{ playbook_dir }}/../shared/backends/__init__.py"
+    path: "{{ localhost_playbook_dir.stdout }}/../shared/backends/__init__.py"
   register: backend_module_check
   delegate_to: localhost
+  become: false
   run_once: true
 
 - name: Generate command using backend abstraction
@@ -47,9 +58,10 @@
           {% if backend_config.extra_args is defined and backend_config.extra_args | length > 0 %}
           --extra-args '{{ backend_config.extra_args | to_json }}'
           {% endif %}
-        chdir: "{{ playbook_dir }}/.."
+        chdir: "{{ localhost_playbook_dir.stdout }}/.."
       register: backend_cli_result
       delegate_to: localhost
+      become: false
       changed_when: false
 
     - name: Parse backend CLI output

@@ -79,9 +79,64 @@
     - core_cfg.omp_threads_bind is not none
   no_log: true  # Prevent HF_TOKEN from appearing in logs
 
+# ============================================================================
+# Backend Abstraction Integration
+# ============================================================================
+
+- name: Try backend abstraction for command generation (optional)
+  block:
+    - name: Generate command using backend abstraction
+      ansible.builtin.include_tasks: backend-command.yml
+      vars:
+        backend_name: vllm
+        backend_config:
+          model: "{{ test_model }}"
+          host: "{{ vllm_server.host }}"
+          port: "{{ vllm_server.port }}"
+          dtype: "bfloat16"
+          max_tokens: "{{ embedding_max_model_len | default(512) }}"
+          workload_type: "embedding"
+          tensor_parallel: "{{ core_cfg.tensor_parallel | default(1) }}"
+          extra_args:
+            trust-remote-code: "{{ trust_remote_code | default(false) }}"
+
+    - name: Override container image if backend abstraction provided one
+      ansible.builtin.set_fact:
+        effective_container_image: "{{ backend_image }}"
+      when: backend_abstraction_used | default(false)
+
+  rescue:
+    - name: Backend abstraction not available, will use traditional command
+      ansible.builtin.debug:
+        msg: "Backend abstraction unavailable, using traditional vLLM command"
+
+# ============================================================================
+# Traditional Command Building (fallback)
+# ============================================================================
+
+- name: Build traditional vLLM embedding command
+  ansible.builtin.set_fact:
+    vllm_cmd: >-
+      --model {{ test_model }}
+      --host {{ vllm_server.host }}
+      --port {{ vllm_server.port }}
+      --dtype bfloat16
+      {{ ('--max-model-len ' + (embedding_max_model_len | string)) if (embedding_max_model_len is defined and embedding_max_model_len is not none) else '' }}
+      {{ '--trust-remote-code' if (trust_remote_code | default(false) | bool) else '' }}
+  when: not (backend_abstraction_used | default(false))
+
+- name: Use backend-generated command if available
+  ansible.builtin.set_fact:
+    vllm_cmd: "{{ backend_cmd }}"
+  when: backend_abstraction_used | default(false)
+
+- name: Set effective container image (use backend or default)
+  ansible.builtin.set_fact:
+    effective_container_image: "{{ backend_image | default(container_cfg.image) }}"
+
 - name: Pull vLLM container image
   containers.podman.podman_image:
-    name: "{{ container_cfg.image }}"
+    name: "{{ effective_container_image }}"
     state: present
   when: container_cfg.engine == 'podman'
 
@@ -90,15 +145,16 @@
     msg:
       - "Starting vLLM for Embedding Model"
       - "Model: {{ test_model }}"
-      - "Image: {{ container_cfg.image }}"
+      - "Image: {{ effective_container_image }}"
       - "Cores: {{ core_cfg.cpuset_cpus | default('auto') }}"
       - "NUMA: {{ core_cfg.cpuset_mems | default('auto') }}"
       - "KV Cache: {{ workload_cfg.kv_cache_space }} (VLLM_CPU_KVCACHE_SPACE={{ workload_cfg.kv_cache_space | extract_size_value }})"
+      - "{{ 'Backend: Using abstraction layer ✓' if (backend_abstraction_used | default(false)) else 'Backend: Traditional vLLM (abstraction unavailable)' }}"
 
 - name: Start vLLM embedding server (with CPU pinning)
   containers.podman.podman_container:
     name: "{{ vllm_container_name }}"
-    image: "{{ container_cfg.image }}"
+    image: "{{ effective_container_image }}"
     state: started
     restart_policy: "no"
     detach: true
@@ -110,15 +166,9 @@
     cpuset_cpus: "{{ core_cfg.cpuset_cpus }}"
     cpuset_mems: "{{ core_cfg.cpuset_mems }}"
     volumes: "{{ [model_cache_dir + ':' + container_cache_path + ':rw', log_dir + ':/var/log/vllm:rw'] if (use_persistent_cache | default(false) | bool) else [] }}"
-    env: "{{ vllm_env_vars }}"
+    env: "{{ vllm_env_vars | combine(backend_env | default({})) }}"
     entrypoint: "{{ container_cfg.entrypoint | trim if (container_cfg.entrypoint is defined and container_cfg.entrypoint | trim | length > 0) else omit }}"
-    command: >
-      --model {{ test_model }}
-      --host {{ vllm_server.host }}
-      --port {{ vllm_server.port }}
-      --dtype bfloat16
-      {{ ('--max-model-len ' + (embedding_max_model_len | string)) if (embedding_max_model_len is defined and embedding_max_model_len is not none) else '' }}
-      {{ '--trust-remote-code' if (trust_remote_code | default(false) | bool) else '' }}
+    command: "{{ vllm_cmd }}"
     log_driver: journald
     log_opt:
       tag: "vllm-embedding-{{ core_cfg.cores | default('auto') }}c"
@@ -131,7 +181,7 @@
 - name: Start vLLM embedding server (no CPU pinning)
   containers.podman.podman_container:
     name: "{{ vllm_container_name }}"
-    image: "{{ container_cfg.image }}"
+    image: "{{ effective_container_image }}"
     state: started
     restart_policy: "no"
     detach: true
@@ -141,15 +191,9 @@
     security_opt: "{{ container_cfg.security_opts | default([]) }}"
     cap_add: "{{ container_cfg.capabilities | default([]) }}"
     volumes: "{{ [model_cache_dir + ':' + container_cache_path + ':rw', log_dir + ':/var/log/vllm:rw'] if (use_persistent_cache | default(false) | bool) else [] }}"
-    env: "{{ vllm_env_vars }}"
+    env: "{{ vllm_env_vars | combine(backend_env | default({})) }}"
     entrypoint: "{{ container_cfg.entrypoint | trim if (container_cfg.entrypoint is defined and container_cfg.entrypoint | trim | length > 0) else omit }}"
-    command: >
-      --model {{ test_model }}
-      --host {{ vllm_server.host }}
-      --port {{ vllm_server.port }}
-      --dtype bfloat16
-      {{ ('--max-model-len ' + (embedding_max_model_len | string)) if (embedding_max_model_len is defined and embedding_max_model_len is not none) else '' }}
-      {{ '--trust-remote-code' if (trust_remote_code | default(false) | bool) else '' }}
+    command: "{{ vllm_cmd }}"
     log_driver: journald
     log_opt:
       tag: "vllm-embedding-auto"

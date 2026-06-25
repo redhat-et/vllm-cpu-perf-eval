@@ -82,3 +82,6 @@ mlruns/
 mlflow.db
 *.db-journal
 automation/test-execution/mlflow/artifacts/
+
+# Design documents (working notes, not for commit)
+docs/design/

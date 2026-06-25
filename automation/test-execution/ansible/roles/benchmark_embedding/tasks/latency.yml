@@ -30,6 +30,10 @@
     success_msg: "NUMA pinning configuration validated"
   when: vllm_bench_cpuset_cpus != '' or vllm_bench_cpuset_mems != ''
 
+- name: Expand tilde in results directory path
+  ansible.builtin.set_fact:
+    expanded_results_dir: "{{ bench_config.results_dir | regex_replace('^~', ansible_env.HOME) }}"
+
 - name: Build vllm-bench command prefix
   ansible.builtin.set_fact:
     vllm_bench_prefix: >-
@@ -37,7 +41,7 @@
       podman run --rm --entrypoint="" --network host
       {% if vllm_bench_cpuset_cpus %}--cpuset-cpus {{ vllm_bench_cpuset_cpus }}{% endif %}
       {% if vllm_bench_cpuset_mems %}--cpuset-mems {{ vllm_bench_cpuset_mems }}{% endif %}
-      -v "{{ bench_config.results_dir }}":"{{ bench_config.results_dir }}":z
+      -v "{{ expanded_results_dir }}":"{{ expanded_results_dir }}":z
       {{ vllm_bench_image }}
       /opt/venv/bin/vllm bench serve
       {% else %}
