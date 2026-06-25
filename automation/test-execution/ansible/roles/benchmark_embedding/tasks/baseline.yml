@@ -30,9 +30,15 @@
     success_msg: "NUMA pinning configuration validated"
   when: vllm_bench_cpuset_cpus != '' or vllm_bench_cpuset_mems != ''
 
+- name: Get SSH user's home directory
+  ansible.builtin.shell: "getent passwd {{ ansible_user }} | cut -d: -f6"
+  register: ssh_user_home
+  changed_when: false
+  become: false
+
 - name: Expand tilde in results directory path
   ansible.builtin.set_fact:
-    expanded_results_dir: "{{ bench_config.results_dir | regex_replace('^~', ansible_env.HOME) }}"
+    expanded_results_dir: "{{ bench_config.results_dir | regex_replace('^~', ssh_user_home.stdout) }}"
 
 - name: Build vllm-bench command prefix
   ansible.builtin.set_fact:

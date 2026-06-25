@@ -204,27 +204,41 @@
       ansible.builtin.meta: end_play
       when: not is_dut_only
 
+    - name: Get SSH user's home directory before becoming root
+      ansible.builtin.shell: "echo ~{{ ansible_user }}"
+      register: ssh_user_home
+      changed_when: false
+      become: false
+
+    - name: Expand tilde in bench_config.results_dir
+      ansible.builtin.set_fact:
+        bench_config: "{{ bench_config | combine({'results_dir': bench_config.results_dir | regex_replace('^~', ssh_user_home.stdout)}) }}"
+
+    - name: Expand tilde in results base directory
+      ansible.builtin.set_fact:
+        test_run_base_expanded: "{{ test_run_base | regex_replace('^~', ssh_user_home.stdout) }}"
+
     - name: Set vllm_host for dut-only mode
       ansible.builtin.set_fact:
         bench_config: "{{ bench_config | combine({'vllm_host': 'localhost'}) }}"
 
     - name: Create test run base directory
       ansible.builtin.file:
-        path: "{{ test_run_base }}"
+        path: "{{ test_run_base_expanded }}"
         state: directory
         mode: "0755"
         recurse: true
 
     - name: Set results directories for roles
       ansible.builtin.set_fact:
-        baseline_results_dir: "{{ test_run_base }}/baseline"
-        latency_results_dir: "{{ test_run_base }}/latency"
+        baseline_results_dir: "{{ test_run_base_expanded }}/baseline"
+        latency_results_dir: "{{ test_run_base_expanded }}/latency"
 
   roles:
     - role: benchmark_embedding
       vars:
         scenario: "{{ scenario_name }}"
-        results_base_dir: "{{ test_run_base }}"
+        results_base_dir: "{{ test_run_base_expanded }}"
 
   post_tasks:
     - name: Create test-metadata.json for dut-only mode
@@ -246,7 +260,7 @@
             "requested_cores": {{ requested_cores | default('null') }},
             "timestamp": "{{ lookup('pipe', 'date -Iseconds') }}"
           }
-        dest: "{{ test_run_base }}/test-metadata.json"
+        dest: "{{ test_run_base_expanded }}/test-metadata.json"
 
 # ==============================================================================
 # PHASE 3: Run Embedding Tests (Managed/External modes)
@@ -270,6 +284,20 @@
       ansible.builtin.meta: end_play
       when: not is_managed_or_external
 
+    - name: Get SSH user's home directory before becoming root
+      ansible.builtin.shell: "echo ~{{ ansible_user }}"
+      register: ssh_user_home
+      changed_when: false
+      become: false
+
+    - name: Expand tilde in bench_config.results_dir
+      ansible.builtin.set_fact:
+        bench_config: "{{ bench_config | combine({'results_dir': bench_config.results_dir | regex_replace('^~', ssh_user_home.stdout)}) }}"
+
+    - name: Expand tilde in results base directory
+      ansible.builtin.set_fact:
+        test_run_base_expanded: "{{ test_run_base | regex_replace('^~', ssh_user_home.stdout) }}"
+
     - name: Parse external endpoint URL using urlsplit
       ansible.builtin.set_fact:
         external_endpoint_parsed: "{{ vllm_endpoint.external.url | urlsplit }}"
@@ -282,21 +310,21 @@
 
     - name: Create test run base directory
       ansible.builtin.file:
-        path: "{{ test_run_base }}"
+        path: "{{ test_run_base_expanded }}"
         state: directory
         mode: "0755"
         recurse: true
 
     - name: Set results directories for roles
       ansible.builtin.set_fact:
-        baseline_results_dir: "{{ test_run_base }}/baseline"
-        latency_results_dir: "{{ test_run_base }}/latency"
+        baseline_results_dir: "{{ test_run_base_expanded }}/baseline"
+        latency_results_dir: "{{ test_run_base_expanded }}/latency"
 
   roles:
     - role: benchmark_embedding
       vars:
         scenario: "{{ scenario_name }}"
-        results_base_dir: "{{ test_run_base }}"
+        results_base_dir: "{{ test_run_base_expanded }}"
 
   post_tasks:
     - name: Create test-metadata.json for managed/external mode
@@ -318,7 +346,7 @@
             "requested_cores": {{ requested_cores | default('null') }},
             "timestamp": "{{ lookup('pipe', 'date -Iseconds') }}"
           }
-        dest: "{{ test_run_base }}/test-metadata.json"
+        dest: "{{ test_run_base_expanded }}/test-metadata.json"
 
 # ==============================================================================
 # PHASE 4: Collect Logs and Results
