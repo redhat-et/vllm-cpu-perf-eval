@@ -20,6 +20,7 @@
   ansible.builtin.shell: >-
     printf '%s\n' {{ (guidellm_progress_message | trim) | quote }} >> {{ guidellm_progress_log_file | quote }}
   delegate_to: localhost
+  become: false
   changed_when: false
   when:
     - guidellm_container_running | bool
