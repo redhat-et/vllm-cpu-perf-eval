@@ -79,6 +79,7 @@
   ansible.builtin.set_fact:
     guidellm_version: "{{ guidellm_version }}"
   delegate_to: localhost
+  become: false
   delegate_facts: true
 
 - name: Set model name for results path (prefer actual_model if available)
@@ -254,6 +255,7 @@
     state: directory
     mode: "0755"
   delegate_to: localhost
+  become: false
   when: use_guidellm_container | bool
 
 - name: Initialize benchmark progress log on controller
@@ -262,12 +264,14 @@
     content: ""
     mode: "0644"
   delegate_to: localhost
+  become: false
   when: use_guidellm_container | bool
 
 - name: Write benchmark start entry to progress log
   ansible.builtin.shell: >-
     printf '%s\n' {{ (lookup('pipe', 'date -u +%Y-%m-%dT%H:%M:%SZ') ~ ' | START') | quote }} >> {{ guidellm_progress_log_file | quote }}
   delegate_to: localhost
+  become: false
   changed_when: false
   when: use_guidellm_container | bool
 
@@ -301,6 +305,7 @@
   ansible.builtin.shell: >-
     printf '%s\n' {{ (lookup('pipe', 'date -u +%Y-%m-%dT%H:%M:%SZ') ~ ' | COMPLETED') | quote }} >> {{ guidellm_progress_log_file | quote }}
   delegate_to: localhost
+  become: false
   changed_when: false
   when: use_guidellm_container | bool
 
