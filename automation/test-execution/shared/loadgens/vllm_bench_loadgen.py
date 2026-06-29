@@ -1,7 +1,8 @@
 """
 vLLM bench serve load generator implementation.
 
-Wraps vLLM's built-in `vllm bench serve` command for benchmarking.
+Container-only load generator wrapping vLLM's built-in bench serve.
+Always run in containers, no host-based execution.
 """
 
 import json
@@ -27,10 +28,17 @@ class VLLMBenchLoadGen(LoadGenerator):
 
         Returns command arguments for running vllm bench serve.
         """
+        # Parse host and port from target URL
+        url = config.target_url.replace('http://', '').replace(
+            'https://', ''
+        )
+        host = url.split(':')[0]
+        port = url.split(':')[-1].split('/')[0]
+
         cmd = [
             "vllm", "bench", "serve",
-            "--host", config.target_url.replace('http://', '').replace('https://', '').split(':')[0],
-            "--port", config.target_url.split(':')[-1].split('/')[0],
+            "--host", host,
+            "--port", port,
             "--model", config.model,
             "--dataset-name", config.dataset or "random",
             "--num-prompts", str(config.max_requests),
@@ -97,13 +105,21 @@ class VLLMBenchLoadGen(LoadGenerator):
         metrics = LoadGenMetrics(raw_metrics=data)
 
         # Extract basic counts
-        metrics.requests_total = data.get('total_requests', data.get('num_prompts', 0))
-        metrics.requests_successful = data.get('successful_requests', metrics.requests_total)
+        metrics.requests_total = data.get(
+            'total_requests', data.get('num_prompts', 0)
+        )
+        metrics.requests_successful = data.get(
+            'successful_requests', metrics.requests_total
+        )
         metrics.requests_failed = data.get('failed_requests', 0)
 
         # Extract throughput
-        metrics.throughput_rps = data.get('request_throughput', data.get('requests_per_second', 0.0))
-        metrics.throughput_tps = data.get('token_throughput', data.get('tokens_per_second', 0.0))
+        metrics.throughput_rps = data.get(
+            'request_throughput', data.get('requests_per_second', 0.0)
+        )
+        metrics.throughput_tps = data.get(
+            'token_throughput', data.get('tokens_per_second', 0.0)
+        )
 
         # Extract latencies (vLLM bench reports in seconds, convert to ms)
         if 'latency_mean' in data:
@@ -124,7 +140,9 @@ class VLLMBenchLoadGen(LoadGenerator):
             metrics.tpot_mean_ms = data['tpot_mean'] * 1000
 
         # Duration
-        metrics.duration_seconds = data.get('duration', data.get('elapsed_time', 0.0))
+        metrics.duration_seconds = data.get(
+            'duration', data.get('elapsed_time', 0.0)
+        )
 
         return metrics
 
@@ -137,11 +155,15 @@ class VLLMBenchLoadGen(LoadGenerator):
             raise ValueError("model is required")
 
         if config.max_requests <= 0:
-            raise ValueError(f"max_requests must be positive, got: {config.max_requests}")
+            raise ValueError(
+                f"max_requests must be positive, got: {config.max_requests}"
+            )
 
     def supports_workload(self, workload_type: str) -> bool:
         """vLLM bench supports generative and embedding workloads."""
-        supported = ['chat', 'rag', 'code', 'summarization', 'reasoning', 'embedding']
+        supported = [
+            'chat', 'rag', 'code', 'summarization', 'reasoning', 'embedding'
+        ]
         return workload_type in supported
 
     def get_output_format(self) -> str:

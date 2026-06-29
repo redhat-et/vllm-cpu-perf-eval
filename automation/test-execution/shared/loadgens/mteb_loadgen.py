@@ -1,7 +1,8 @@
 """
 MTEB (Massive Text Embedding Benchmark) load generator implementation.
 
-Wraps MTEB for embedding model quality evaluation.
+Container-only load generator for embedding quality evaluation.
+Always run in containers, no host-based execution.
 """
 
 import json
@@ -25,9 +26,9 @@ class MTEBLoadGen(LoadGenerator):
     def get_command(self, config: LoadGenConfig) -> List[str]:
         """Generate MTEB command.
 
-        MTEB typically runs via a Python script in the container.
+        MTEB is CONTAINER-ONLY and runs via Python script in container.
         """
-        # MTEB runs via a script, command is minimal
+        _ = config  # Unused - MTEB uses env vars only
         return []
 
     def get_container_image(self) -> str:
@@ -65,8 +66,8 @@ class MTEBLoadGen(LoadGenerator):
     def parse_results(self, results_path: str) -> LoadGenMetrics:
         """Parse MTEB results.
 
-        MTEB produces quality metrics (accuracy, retrieval scores), not performance metrics.
-        We return what we can map to the standard format.
+        MTEB produces quality metrics (accuracy, retrieval scores),
+        not performance metrics. We return what we can map to standard format.
 
         Args:
             results_path: Path to MTEB results directory or file
@@ -80,7 +81,10 @@ class MTEBLoadGen(LoadGenerator):
         # Look for summary or results files
         if results_file.is_dir():
             # Try to find results.json or similar
-            for candidate in ['results.json', 'summary.json', 'mteb_results.json']:
+            candidates = [
+                'results.json', 'summary.json', 'mteb_results.json'
+            ]
+            for candidate in candidates:
                 candidate_path = results_file / candidate
                 if candidate_path.exists():
                     results_file = candidate_path
@@ -120,8 +124,12 @@ class MTEBLoadGen(LoadGenerator):
 
         # Validate task preset if provided
         task_preset = config.extra_args.get('task_preset')
-        if task_preset and task_preset not in ['quick', 'standard', 'comprehensive']:
-            raise ValueError(f"Invalid MTEB task_preset: {task_preset}. Must be: quick, standard, or comprehensive")
+        valid_presets = ['quick', 'standard', 'comprehensive']
+        if task_preset and task_preset not in valid_presets:
+            raise ValueError(
+                f"Invalid MTEB task_preset: {task_preset}. "
+                f"Must be: quick, standard, or comprehensive"
+            )
 
     def supports_workload(self, workload_type: str) -> bool:
         """MTEB only supports embedding workloads."""

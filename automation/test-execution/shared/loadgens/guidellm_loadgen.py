@@ -1,7 +1,8 @@
 """
 GuideLLM load generator implementation.
 
-Wraps the GuideLLM benchmarking tool for LLM workloads.
+Container-only load generator for LLM benchmarking.
+GuideLLM is always run in containers, no host-based execution.
 """
 
 import json
@@ -25,19 +26,11 @@ class GuideLLMLoadGen(LoadGenerator):
     def get_command(self, config: LoadGenConfig) -> List[str]:
         """Generate GuideLLM command.
 
-        GuideLLM uses environment variables for configuration,
-        so the command is minimal.
+        GuideLLM is CONTAINER-ONLY and uses environment variables.
+        Returns empty list as container ENTRYPOINT handles execution.
         """
-        # GuideLLM is typically run via environment variables
-        # The actual command depends on the profile/mode
-        cmd = []
-
-        # Add common args that might not be in env vars
-        if config.extra_args.get('profile'):
-            # Profile-based execution handled via env vars
-            pass
-
-        return cmd
+        _ = config  # Unused - GuideLLM uses env vars only
+        return []
 
     def get_container_image(self) -> str:
         return f"ghcr.io/vllm-project/guidellm:v{self.version}"
