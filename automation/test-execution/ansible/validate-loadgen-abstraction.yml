@@ -1,0 +1,193 @@
+---
+# ============================================================================
+# Load Generator Abstraction Validation Playbook
+# ============================================================================
+# This playbook validates that the load generator abstraction works correctly
+# on remote EC2 deployments by testing the Ansible integration.
+#
+# Prerequisites:
+#   - Environment variables set (DUT_HOSTNAME, LOADGEN_HOSTNAME, etc.)
+#   - SSH access to EC2 instances
+#
+# Usage:
+#   ansible-playbook -i inventory/hosts-ec2.yml validate-loadgen-abstraction.yml
+#
+# What it tests:
+#   1. loadgen-command.yml task works on remote deployments
+#   2. All three load generators generate valid configurations
+#   3. Environment variables are correctly set
+#   4. Container images are correctly specified
+#   5. Commands are properly generated
+# ============================================================================
+
+- name: "Validate Load Generator Abstraction"
+  hosts: localhost
+  gather_facts: true
+  vars:
+    test_target: "http://localhost:8000"
+    test_model: "test-model"
+
+  tasks:
+    - name: Display validation start
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Load Generator Abstraction Validation"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Testing: GuideLLM, vLLM bench, MTEB"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+    # ========================================================================
+    # Test 1: GuideLLM Load Generator
+    # ========================================================================
+    - name: "Test 1: Generate GuideLLM configuration"
+      ansible.builtin.include_role:
+        name: common
+        tasks_from: loadgen-command
+      vars:
+        loadgen_name: "guidellm"
+        loadgen_config:
+          target_url: "{{ test_target }}"
+          model: "{{ test_model }}"
+          workload_type: "chat"
+          max_requests: 100
+          max_seconds: 300
+          rate: "10,20,40"
+          output_path: "/results"
+          extra_args:
+            profile: "sweep"
+
+    - name: "Test 1: Validate GuideLLM configuration"
+      ansible.builtin.assert:
+        that:
+          - loadgen_abstraction_used is defined
+          - loadgen_abstraction_used | bool
+          - loadgen_cmd is defined
+          - loadgen_env is defined
+          - loadgen_image is defined
+          - loadgen_output_format is defined
+          - loadgen_output_format == "json"
+          - loadgen_image is search("guidellm")
+          - loadgen_env.GUIDELLM_TARGET is defined
+          - loadgen_env.GUIDELLM_MODEL is defined
+          - loadgen_env.GUIDELLM_PROFILE == "sweep"
+        success_msg: "✓ GuideLLM configuration validated"
+        fail_msg: "✗ GuideLLM configuration validation failed"
+
+    - name: "Test 1: Display GuideLLM results"
+      ansible.builtin.debug:
+        msg:
+          - "GuideLLM Configuration:"
+          - "  Image: {{ loadgen_image }}"
+          - "  Output Format: {{ loadgen_output_format }}"
+          - "  Env Vars: {{ loadgen_env.keys() | list | length }} variables set"
+
+    # ========================================================================
+    # Test 2: vLLM bench Load Generator
+    # ========================================================================
+    - name: "Test 2: Generate vLLM bench configuration"
+      ansible.builtin.include_role:
+        name: common
+        tasks_from: loadgen-command
+      vars:
+        loadgen_name: "vllm_bench"
+        loadgen_config:
+          target_url: "{{ test_target }}"
+          model: "{{ test_model }}"
+          workload_type: "embedding"
+          max_requests: 250
+          max_seconds: 600
+          rate: "inf"
+          output_path: "/results/baseline.json"
+          dataset: "random"
+          extra_args:
+            random-input-len: 512
+
+    - name: "Test 2: Validate vLLM bench configuration"
+      ansible.builtin.assert:
+        that:
+          - loadgen_abstraction_used is defined
+          - loadgen_abstraction_used | bool
+          - loadgen_cmd is defined
+          - loadgen_env is defined
+          - loadgen_image is defined
+          - loadgen_output_format == "json"
+          - loadgen_image is search("vllm")
+          - "'vllm' in loadgen_cmd"
+          - "'bench' in loadgen_cmd"
+          - "'serve' in loadgen_cmd"
+          - "'--backend' in loadgen_cmd"
+          - "'openai-embeddings' in loadgen_cmd"
+        success_msg: "✓ vLLM bench configuration validated"
+        fail_msg: "✗ vLLM bench configuration validation failed"
+
+    - name: "Test 2: Display vLLM bench results"
+      ansible.builtin.debug:
+        msg:
+          - "vLLM bench Configuration:"
+          - "  Image: {{ loadgen_image }}"
+          - "  Command: {{ loadgen_cmd | join(' ') }}"
+          - "  Output Format: {{ loadgen_output_format }}"
+
+    # ========================================================================
+    # Test 3: MTEB Load Generator
+    # ========================================================================
+    - name: "Test 3: Generate MTEB configuration"
+      ansible.builtin.include_role:
+        name: common
+        tasks_from: loadgen-command
+      vars:
+        loadgen_name: "mteb"
+        loadgen_config:
+          target_url: "{{ test_target }}"
+          model: "{{ test_model }}"
+          workload_type: "embedding"
+          max_requests: 1000
+          max_seconds: 600
+          output_path: "/results"
+          extra_args:
+            task_preset: "quick"
+            languages: "eng"
+
+    - name: "Test 3: Validate MTEB configuration"
+      ansible.builtin.assert:
+        that:
+          - loadgen_abstraction_used is defined
+          - loadgen_abstraction_used | bool
+          - loadgen_cmd is defined
+          - loadgen_env is defined
+          - loadgen_image is defined
+          - loadgen_output_format == "json"
+          - loadgen_image is search("mteb")
+          - loadgen_env.MTEB_MODEL_NAME is defined
+          - loadgen_env.MTEB_VLLM_ENDPOINT is defined
+          - loadgen_env.MTEB_TASK_PRESET == "quick"
+          - loadgen_env.MTEB_LANGUAGES == "eng"
+        success_msg: "✓ MTEB configuration validated"
+        fail_msg: "✗ MTEB configuration validation failed"
+
+    - name: "Test 3: Display MTEB results"
+      ansible.builtin.debug:
+        msg:
+          - "MTEB Configuration:"
+          - "  Image: {{ loadgen_image }}"
+          - "  Output Format: {{ loadgen_output_format }}"
+          - "  Env Vars: {{ loadgen_env.keys() | list | length }} variables set"
+          - "  Task Preset: {{ loadgen_env.MTEB_TASK_PRESET }}"
+
+    # ========================================================================
+    # Summary
+    # ========================================================================
+    - name: Display validation summary
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "✓ Load Generator Abstraction Validation PASSED"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "All three load generators working correctly:"
+          - "  ✓ GuideLLM - environment variable configuration"
+          - "  ✓ vLLM bench - CLI command generation"
+          - "  ✓ MTEB - environment variable configuration"
+          - ""
+          - "The load generator abstraction is ready for use!"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
