@@ -120,6 +120,7 @@ def cmd_parse_results(args: argparse.Namespace) -> None:
         "ttft_mean_ms": metrics.ttft_mean_ms,
         "tpot_mean_ms": metrics.tpot_mean_ms,
         "duration_seconds": metrics.duration_seconds,
+        "raw_metrics": metrics.raw_metrics,
     }
 
     print(json.dumps(result, indent=2))

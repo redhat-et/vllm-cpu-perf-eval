@@ -57,9 +57,9 @@ class MTEBLoadGen(LoadGenerator):
         if 'batch_size' in config.extra_args:
             env["MTEB_BATCH_SIZE"] = str(config.extra_args['batch_size'])
 
-        # Add HF token if provided
-        if 'HF_TOKEN' in config.extra_args:
-            env["HF_TOKEN"] = config.extra_args['HF_TOKEN']
+        # Note: HF_TOKEN should be passed via environment inheritance
+        # or Ansible's no_log mechanism, not through this env dict
+        # which gets logged by cli.py
 
         return env
 

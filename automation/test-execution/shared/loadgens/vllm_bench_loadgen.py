@@ -29,11 +29,11 @@ class VLLMBenchLoadGen(LoadGenerator):
         Returns command arguments for running vllm bench serve.
         """
         # Parse host and port from target URL
-        url = config.target_url.replace('http://', '').replace(
-            'https://', ''
-        )
-        host = url.split(':')[0]
-        port = url.split(':')[-1].split('/')[0]
+        from urllib.parse import urlparse
+
+        parsed = urlparse(config.target_url)
+        host = parsed.hostname or config.target_url.split(':')[0]
+        port = str(parsed.port) if parsed.port else config.target_url.split(':')[-1].split('/')[0]
 
         cmd = [
             "vllm", "bench", "serve",
