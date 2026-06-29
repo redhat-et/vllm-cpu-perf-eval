@@ -4,7 +4,7 @@
 
 The load generator abstraction provides a unified interface for different benchmarking tools:
 - **GuideLLM**: Full-featured LLM benchmarking (generative + embedding workloads)
-- **vLLM bench**: Built-in vLLM bench serve (generative + embedding workloads)  
+- **vLLM bench**: Built-in vLLM bench serve (generative + embedding workloads)
 - **MTEB**: Massive Text Embedding Benchmark (embedding quality evaluation)
 
 ## Architecture
@@ -24,23 +24,23 @@ shared/loadgens/
 ## Load Generators
 
 ### GuideLLM
-**Purpose**: Comprehensive LLM benchmarking with multiple profiles  
-**Container**: `ghcr.io/vllm-project/guidellm:v0.6.0`  
-**Workloads**: chat, rag, code, summarization, reasoning, embedding  
-**Profiles**: sweep, synchronous, concurrent, throughput, constant, poisson  
+**Purpose**: Comprehensive LLM benchmarking with multiple profiles
+**Container**: `ghcr.io/vllm-project/guidellm:v0.6.0`
+**Workloads**: chat, rag, code, summarization, reasoning, embedding
+**Profiles**: sweep, synchronous, concurrent, throughput, constant, poisson
 **Output**: JSON, HTML, CSV
 
 ### vLLM bench
-**Purpose**: Built-in vLLM benchmarking tool  
-**Container**: `vllm/vllm-openai-cpu:v0.20.0`  
-**Workloads**: All generative + embedding  
+**Purpose**: Built-in vLLM benchmarking tool
+**Container**: `vllm/vllm-openai-cpu:v0.20.0`
+**Workloads**: All generative + embedding
 **Output**: JSON with throughput, latency, TTFT, TPOT metrics
 
 ### MTEB
-**Purpose**: Embedding model quality evaluation  
-**Container**: `quay.io/vllm-cpu-perf-eval/vllm-mteb:latest`  
-**Workloads**: embedding only  
-**Task Presets**: quick, standard, comprehensive  
+**Purpose**: Embedding model quality evaluation
+**Container**: `quay.io/vllm-cpu-perf-eval/vllm-mteb:latest`
+**Workloads**: embedding only
+**Task Presets**: quick, standard, comprehensive
 **Output**: JSON with quality metrics (accuracy, retrieval scores)
 
 ## CLI Usage
@@ -302,36 +302,37 @@ class YourLoadGen(LoadGenerator):
     @property
     def name(self) -> str:
         return "yourloadgen"
-    
+
     @property
     def version(self) -> str:
         return "1.0"
-    
+
     def get_command(self, config: LoadGenConfig) -> List[str]:
         # Return command list
         pass
-    
+
     def get_container_image(self) -> str:
         return "your/container:tag"
-    
+
     def get_env_vars(self, config: LoadGenConfig) -> Dict[str, str]:
         # Return environment variables
         pass
-    
+
     def parse_results(self, results_path: str) -> LoadGenMetrics:
         # Parse results to standard metrics
         pass
-    
+
     def validate_config(self, config: LoadGenConfig) -> None:
         # Validate configuration
         pass
-    
+
     def supports_workload(self, workload_type: str) -> bool:
         # Return True if workload is supported
         pass
 ```
 
-2. **Register** in `shared/loadgens/__init__.py`:
+1. **Register** in `shared/loadgens/__init__.py`:
+
 ```python
 from .yourloadgen import YourLoadGen
 
@@ -343,7 +344,7 @@ LOADGENS = {
 }
 ```
 
-3. **Test** via CLI:
+1. **Test** via CLI:
 ```bash
 python3 -m shared.loadgens list
 python3 -m shared.loadgens get-loadgen yourloadgen
