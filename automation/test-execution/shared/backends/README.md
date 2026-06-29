@@ -54,26 +54,26 @@ class MyBackend(InferenceBackend):
     @property
     def name(self) -> str:
         return "mybackend"
-    
+
     @property
     def version(self) -> str:
         return "1.0.0"
-    
+
     def get_start_command(self, config: BackendConfig) -> List[str]:
         # Return CLI arguments for container start
         pass
-    
+
     def get_container_image(self) -> str:
         # Return container image URL
         return "myorg/mybackend:v1.0.0"
-    
+
     def parse_metrics(self, metrics_data: Dict) -> BackendMetrics:
         # Parse backend-specific metrics to standard format
         pass
-    
+
     def health_check_endpoint(self) -> str:
         return "/health"
-    
+
     def models_endpoint(self) -> str:
         return "/v1/models"
 ```

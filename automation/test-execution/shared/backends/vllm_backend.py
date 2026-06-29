@@ -34,9 +34,11 @@ class vLLMBackend(InferenceBackend):
             str(config.port),
             "--dtype",
             config.dtype,
-            "--max-model-len",
-            str(config.max_tokens),
         ]
+
+        # Add max-model-len only if explicitly set
+        if config.max_tokens:
+            cmd.extend(["--max-model-len", str(config.max_tokens)])
 
         # Add tensor parallelism if > 1
         if config.tensor_parallel > 1:

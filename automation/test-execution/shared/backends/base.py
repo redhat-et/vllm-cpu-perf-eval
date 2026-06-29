@@ -27,7 +27,7 @@ class BackendConfig:
     host: str = "0.0.0.0"
     port: int = 8000
     dtype: str = "bfloat16"
-    max_tokens: int = 512
+    max_tokens: Optional[int] = None
     tensor_parallel: int = 1
     extra_args: Dict[str, Any] = field(default_factory=dict)
 
