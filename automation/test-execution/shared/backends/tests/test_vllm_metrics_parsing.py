@@ -55,22 +55,29 @@ class TestVLLMMetricsParsing:
 
         result = backend.parse_metrics(metrics_data)
 
-        # Uses last sample for metrics
-        assert result.ttft_mean == 500.0  # 10.0 / 20 * 1000 ms
-        assert result.e2e_mean == 5000.0  # 100.0 / 20 * 1000 ms
-        assert result.tpot_mean == 4.0  # 40.0 / 10000 * 1000 ms per token
+        # Uses deltas between first and last sample for counters
+        # TTFT delta: (10.0-5.0) / (20-10) * 1000 = 5.0/10*1000 = 500ms
+        assert result.ttft_mean == 500.0
+        # E2E delta: (100.0-50.0) / (20-10) * 1000 = 50.0/10*1000 = 5000ms
+        assert result.e2e_mean == 5000.0
+        # TPOT delta: (40.0-20.0) / (10000-5000) * 1000 = 20.0/5000*1000 = 4ms
+        assert result.tpot_mean == 4.0
 
-        # Throughput calculated from duration (120 seconds)
-        assert result.requests_per_second == pytest.approx(20 / 120, rel=0.01)
-        assert result.tokens_per_second == pytest.approx(12000 / 120, rel=0.01)
+        # Throughput from deltas over 120s duration
+        # Requests delta: 20-10=10, so 10/120 = 0.0833 RPS
+        assert result.requests_per_second == pytest.approx(10 / 120, rel=0.01)
+        # Tokens delta: (2000-1000)+(10000-5000) = 6000, so 6000/120 = 50 TPS
+        assert result.tokens_per_second == pytest.approx(6000 / 120, rel=0.01)
 
-        # Memory and CPU
-        assert result.memory_mb == pytest.approx(8192.0, rel=0.01)  # 8GB in MB
-        assert result.cpu_percent == pytest.approx(200.0, rel=0.01)  # 240 / 120 * 100
+        # Memory (gauge - use last value)
+        assert result.memory_mb == pytest.approx(8192.0, rel=0.01)
+        # CPU delta: 240-120=120, so 120/120*100 = 100%
+        assert result.cpu_percent == pytest.approx(100.0, rel=0.01)
 
         # vLLM-specific metrics
-        assert result.kv_cache_usage == 85.5
-        assert result.prefix_cache_hit_rate == pytest.approx(80.0, rel=0.01)  # 1600/2000*100
+        assert result.kv_cache_usage == 85.5  # Gauge - last value
+        # Prefix cache delta: (1600-800)/(2000-1000)*100 = 800/1000*100 = 80%
+        assert result.prefix_cache_hit_rate == pytest.approx(80.0, rel=0.01)
 
     def test_parse_metrics_empty_samples(self):
         """Test handling of empty samples."""

@@ -161,7 +161,7 @@ class TestBackendConfig:
         assert config.host == "0.0.0.0"
         assert config.port == 8000
         assert config.dtype == "bfloat16"
-        assert config.max_tokens == 512
+        assert config.max_tokens is None
         assert config.tensor_parallel == 1
         assert config.extra_args == {}
 
