@@ -33,6 +33,16 @@ jobs:
           cd automation/test-execution/ansible/tests
           python -m pytest unit/ -v -m unit
 
+      - name: Run backend abstraction tests
+        run: |
+          cd automation/test-execution
+          python -m pytest shared/backends/tests/ -v
+
+      - name: Run load generator abstraction tests
+        run: |
+          cd automation/test-execution
+          python -m pytest shared/loadgens/tests/ -v
+
       - name: Test results summary
         if: always()
         run: |
