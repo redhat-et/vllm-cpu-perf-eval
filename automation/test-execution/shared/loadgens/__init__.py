@@ -30,12 +30,14 @@ from typing import Dict, Type, List
 
 from .base import LoadGenerator, LoadGenConfig, LoadGenMetrics
 from .guidellm_loadgen import GuideLLMLoadGen
+from .vllm_bench_loadgen import VLLMBenchLoadGen
+from .mteb_loadgen import MTEBLoadGen
 
 # Registry of available load generators
 LOADGENS: Dict[str, Type[LoadGenerator]] = {
     "guidellm": GuideLLMLoadGen,
-    # Future: "mlperf": MLPerfLoadGen,
-    # Future: "mteb": MTEBLoadGen,
+    "vllm_bench": VLLMBenchLoadGen,
+    "mteb": MTEBLoadGen,
 }
 
 
@@ -43,7 +45,7 @@ def get_loadgen(name: str) -> LoadGenerator:
     """Get a load generator instance by name.
 
     Args:
-        name: Load generator name ('guidellm', 'mlperf', 'mteb')
+        name: Load generator name ('guidellm', 'vllm_bench', 'mteb')
 
     Returns:
         Load generator instance
@@ -53,7 +55,10 @@ def get_loadgen(name: str) -> LoadGenerator:
     """
     if name not in LOADGENS:
         available = ', '.join(LOADGENS.keys())
-        raise ValueError(f"Unknown load generator: {name}. Available load generators: {available}")
+        raise ValueError(
+            f"Unknown load generator: {name}. "
+            f"Available load generators: {available}"
+        )
 
     return LOADGENS[name]()
 

@@ -1,0 +1,118 @@
+---
+# Load Generator Abstraction - Generate Configuration
+#
+# This task file uses the load generator abstraction layer to generate
+# configuration (command, env vars, container image) for any supported
+# load generator: GuideLLM, vLLM bench, MTEB
+#
+# Input Variables (required):
+#   loadgen_name: Load generator name ('guidellm', 'vllm_bench', 'mteb')
+#   loadgen_config: Configuration dict with keys:
+#     - target_url: Target endpoint URL
+#     - model: Model name
+#     - workload_type: Workload type ('chat', 'embedding', etc.)
+#     - max_requests: Maximum number of requests
+#     - max_seconds: Maximum duration in seconds
+#     - rate: (optional) Request rate
+#     - output_path: Output path for results
+#     - dataset: (optional) Dataset name/path
+#     - extra_args: (optional) Dict of additional args
+#
+# Output Variables:
+#   loadgen_cmd: Generated command as list
+#   loadgen_env: Environment variables as dict
+#   loadgen_image: Container image
+#   loadgen_output_format: Output format ('json', etc.)
+#   loadgen_abstraction_used: Boolean indicating if abstraction was used
+
+- name: Get playbook directory on localhost
+  ansible.builtin.command: pwd
+  register: localhost_playbook_dir
+  delegate_to: localhost
+  become: false
+  run_once: true
+  changed_when: false
+  args:
+    chdir: "{{ playbook_dir }}"
+
+- name: Check if load generator abstraction module is available
+  ansible.builtin.stat:
+    path: "{{ localhost_playbook_dir.stdout }}/../shared/loadgens/__init__.py"
+  register: loadgen_module_check
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Call load generator CLI to generate configuration
+  when: loadgen_module_check.stat.exists
+  block:
+    - name: Build extra args JSON
+      ansible.builtin.set_fact:
+        loadgen_extra_args_json: "{{ loadgen_config.extra_args | default({}) | to_json }}"
+
+    - name: Generate load generator configuration
+      ansible.builtin.command:
+        cmd: >-
+          python3 -m shared.loadgens get-config {{ loadgen_name }}
+          --target "{{ loadgen_config.target_url }}"
+          --model "{{ loadgen_config.model }}"
+          --workload "{{ loadgen_config.workload_type | default('chat') }}"
+          --max-requests {{ loadgen_config.max_requests | default(1000) }}
+          --max-seconds {{ loadgen_config.max_seconds | default(600) }}
+          {% if loadgen_config.rate is defined %}--rate "{{ loadgen_config.rate }}"{% endif %}
+          --output-path "{{ loadgen_config.output_path | default('/results') }}"
+          {% if loadgen_config.dataset is defined %}--dataset "{{ loadgen_config.dataset }}"{% endif %}
+          {% if loadgen_config.extra_args is defined %}--extra-args '{{ loadgen_extra_args_json }}'{% endif %}
+        chdir: "{{ localhost_playbook_dir.stdout }}/.."
+      register: loadgen_cli_result
+      delegate_to: localhost
+      become: false
+      changed_when: false
+
+    - name: Parse load generator CLI output
+      ansible.builtin.set_fact:
+        loadgen_cli_output: "{{ loadgen_cli_result.stdout | from_json }}"
+
+    - name: Set load generator configuration variables
+      ansible.builtin.set_fact:
+        loadgen_cmd: "{{ loadgen_cli_output.command }}"
+        loadgen_env: "{{ loadgen_cli_output.env }}"
+        loadgen_image: "{{ loadgen_cli_output.image }}"
+        loadgen_output_format: "{{ loadgen_cli_output.output_format }}"
+        loadgen_abstraction_used: true
+
+    - name: Display load generator configuration
+      ansible.builtin.debug:
+        msg:
+          - "Load Generator: {{ loadgen_name }}"
+          - "Image: {{ loadgen_image }}"
+          - "Command: {{ loadgen_cmd | join(' ') }}"
+          - "Output Format: {{ loadgen_output_format }}"
+          - "Environment Variables: {{ loadgen_env.keys() | list }}"
+      when: loadgen_cli_result is defined
+
+  rescue:
+    - name: Load generator abstraction failed
+      ansible.builtin.debug:
+        msg:
+          - "WARNING: Load generator abstraction failed"
+          - "Error: {{ loadgen_cli_result.stderr | default('Unknown error') }}"
+          - "Falling back to traditional approach (if available)"
+
+    - name: Mark abstraction as not used
+      ansible.builtin.set_fact:
+        loadgen_abstraction_used: false
+
+- name: Load generator abstraction not available
+  when: not loadgen_module_check.stat.exists
+  block:
+    - name: Display fallback message
+      ansible.builtin.debug:
+        msg:
+          - "Load generator abstraction module not found"
+          - "Path checked: {{ localhost_playbook_dir.stdout }}/../shared/loadgens/__init__.py"
+          - "Using traditional load generator configuration"
+
+    - name: Mark abstraction as not used
+      ansible.builtin.set_fact:
+        loadgen_abstraction_used: false
