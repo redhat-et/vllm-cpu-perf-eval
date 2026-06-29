@@ -148,43 +148,6 @@ class TestVLLMBackend:
         assert '--tensor-parallel-size' in cmd
         assert '2' in cmd
 
-    @pytest.mark.skip(reason="Method not implemented in backend")
-    def test_validate_config_valid(self, vllm_backend, basic_config):
-        """Test configuration validation with valid config."""
-        # Should not raise
-        vllm_backend.validate_config(basic_config)
-
-    @pytest.mark.skip(reason="Method not implemented in backend")
-    def test_validate_config_missing_model(self, vllm_backend):
-        """Test configuration validation with missing model."""
-        config = BackendConfig(model="")
-        with pytest.raises(ValueError) as exc_info:
-            vllm_backend.validate_config(config)
-        assert 'Model name is required' in str(exc_info.value)
-
-    @pytest.mark.skip(reason="Method not implemented in backend")
-    def test_validate_config_invalid_port(self, vllm_backend):
-        """Test configuration validation with invalid port."""
-        config = BackendConfig(model="test", port=99999)
-        with pytest.raises(ValueError) as exc_info:
-            vllm_backend.validate_config(config)
-        assert 'Invalid port' in str(exc_info.value)
-
-    @pytest.mark.skip(reason="Method not implemented in backend")
-    def test_validate_config_invalid_max_tokens(self, vllm_backend):
-        """Test configuration validation with invalid max_tokens."""
-        config = BackendConfig(model="test", max_tokens=-1)
-        with pytest.raises(ValueError) as exc_info:
-            vllm_backend.validate_config(config)
-        assert 'Invalid max_tokens' in str(exc_info.value)
-
-    @pytest.mark.skip(reason="Method not implemented in backend")
-    def test_get_env_vars(self, vllm_backend, basic_config):
-        """Test environment variable generation."""
-        env_vars = vllm_backend.get_env_vars(basic_config)
-        assert isinstance(env_vars, dict)
-        # vLLM uses CLI args primarily, so env should be empty or minimal
-
     def test_parse_metrics_empty_samples(self, vllm_backend):
         """Test metrics parsing with empty samples."""
         metrics_data = {'samples': []}
