@@ -139,13 +139,14 @@ class TestVLLMBackend:
         """Test command generation with tensor parallelism."""
         config = BackendConfig(
             model="test-model",
-            extra_args={'tensor_parallel': 2}
+            tensor_parallel=2
         )
 
         cmd = vllm_backend.get_start_command(config)
 
-        # tensor_parallel should be converted to CLI arg
-        assert '--tensor_parallel' in cmd or 'tensor_parallel' in str(cmd)
+        # tensor_parallel should be converted to --tensor-parallel-size
+        assert '--tensor-parallel-size' in cmd
+        assert '2' in cmd
 
     def test_validate_config_valid(self, vllm_backend, basic_config):
         """Test configuration validation with valid config."""
@@ -233,10 +234,7 @@ class TestBackendConfigDataclass:
         assert config.port == 8000
         assert config.dtype == "bfloat16"
         assert config.max_tokens == 512
-        assert config.workload_type == "chat"
-        assert config.container_name is None
-        assert config.cpu_count is None
-        assert config.memory_gb is None
+        assert config.tensor_parallel == 1
         assert isinstance(config.extra_args, dict)
         assert len(config.extra_args) == 0
 
@@ -248,14 +246,14 @@ class TestBackendConfigDataclass:
             port=9000,
             dtype="float16",
             max_tokens=1024,
-            workload_type="completion"
+            tensor_parallel=2
         )
 
         assert config.host == "127.0.0.1"
         assert config.port == 9000
         assert config.dtype == "float16"
         assert config.max_tokens == 1024
-        assert config.workload_type == "completion"
+        assert config.tensor_parallel == 2
 
     def test_extra_args(self):
         """Test extra_args handling."""
@@ -273,8 +271,16 @@ class TestBackendMetricsDataclass:
     """Test BackendMetrics dataclass behavior."""
 
     def test_default_values(self):
-        """Test that metrics default to 0."""
-        metrics = BackendMetrics()
+        """Test that metrics can be created with required fields."""
+        metrics = BackendMetrics(
+            ttft_mean=0.0,
+            tpot_mean=0.0,
+            e2e_mean=0.0,
+            requests_per_second=0.0,
+            tokens_per_second=0.0,
+            memory_mb=0.0,
+            cpu_percent=0.0
+        )
 
         assert metrics.ttft_mean == 0.0
         assert metrics.tpot_mean == 0.0
@@ -310,6 +316,13 @@ class TestBackendMetricsDataclass:
     def test_optional_metrics(self):
         """Test optional vLLM-specific metrics."""
         metrics = BackendMetrics(
+            ttft_mean=0.0,
+            tpot_mean=0.0,
+            e2e_mean=0.0,
+            requests_per_second=0.0,
+            tokens_per_second=0.0,
+            memory_mb=0.0,
+            cpu_percent=0.0,
             kv_cache_usage=85.5,
             prefix_cache_hit_rate=92.3
         )
