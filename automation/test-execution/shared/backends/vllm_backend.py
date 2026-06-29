@@ -1,6 +1,6 @@
 """vLLM inference backend implementation."""
 
-from typing import List, Dict
+from typing import List, Dict, Optional
 from .base import InferenceBackend, BackendConfig, BackendMetrics
 
 
@@ -56,11 +56,18 @@ class vLLMBackend(InferenceBackend):
 
         return cmd
 
-    def get_container_image(self) -> str:
+    def get_container_image(self, config: Optional[BackendConfig] = None) -> str:
         """Get vLLM container image.
 
-        Returns CPU-optimized vLLM image. For GPU, this should be overridden.
+        Args:
+            config: Optional configuration to check for custom image override
+
+        Returns:
+            Custom image if config.container_image is set,
+            otherwise default CPU-optimized vLLM image
         """
+        if config and config.container_image:
+            return config.container_image
         return f"vllm/vllm-openai-cpu:v{self.version}"
 
     def parse_metrics(self, metrics_data: Dict) -> BackendMetrics:
@@ -91,9 +98,11 @@ class vLLMBackend(InferenceBackend):
             if not samples:
                 raise ValueError("No samples found in metrics_data")
 
-            # Use the last sample (end of test) for cumulative metrics
+            # Get first and last samples for computing counter deltas
+            first_sample = samples[0]
             last_sample = samples[-1]
-            metrics = last_sample.get('metrics', {})
+            first_metrics = first_sample.get('metrics', {})
+            last_metrics = last_sample.get('metrics', {})
 
             # Helper to extract single value from metric list
             def get_value(metric_list):
@@ -101,18 +110,25 @@ class vLLMBackend(InferenceBackend):
                     return metric_list[0].get('value', 0)
                 return 0
 
+            # Helper to compute delta between first and last samples
+            def get_counter_delta(metric_name):
+                first_val = get_value(first_metrics.get(metric_name, []))
+                last_val = get_value(last_metrics.get(metric_name, []))
+                return last_val - first_val
+
             # Extract latencies from histograms (sum / count)
-            ttft_sum = get_value(metrics.get('vllm:time_to_first_token_seconds_sum', []))
-            ttft_count = get_value(metrics.get('vllm:time_to_first_token_seconds_count', []))
+            # Use deltas for cumulative histogram counters
+            ttft_sum = get_counter_delta('vllm:time_to_first_token_seconds_sum')
+            ttft_count = get_counter_delta('vllm:time_to_first_token_seconds_count')
             ttft_mean_ms = (ttft_sum / ttft_count * 1000) if ttft_count > 0 else 0.0
 
-            e2e_sum = get_value(metrics.get('vllm:e2e_request_latency_seconds_sum', []))
-            e2e_count = get_value(metrics.get('vllm:e2e_request_latency_seconds_count', []))
+            e2e_sum = get_counter_delta('vllm:e2e_request_latency_seconds_sum')
+            e2e_count = get_counter_delta('vllm:e2e_request_latency_seconds_count')
             e2e_mean_ms = (e2e_sum / e2e_count * 1000) if e2e_count > 0 else 0.0
 
             # Calculate TPOT from decode time
-            decode_sum = get_value(metrics.get('vllm:request_decode_time_seconds_sum', []))
-            gen_tokens_sum = get_value(metrics.get('vllm:request_generation_tokens_sum', []))
+            decode_sum = get_counter_delta('vllm:request_decode_time_seconds_sum')
+            gen_tokens_sum = get_counter_delta('vllm:request_generation_tokens_sum')
 
             # TPOT = total_decode_time / total_output_tokens (ms per token)
             tpot_mean_ms = 0.0
@@ -131,23 +147,26 @@ class vLLMBackend(InferenceBackend):
 
             requests_per_second = e2e_count / duration_sec if duration_sec > 0 else 0.0
 
-            prompt_tokens = get_value(metrics.get('vllm:prompt_tokens_total', []))
-            generation_tokens = get_value(metrics.get('vllm:generation_tokens_total', []))
+            # Use deltas for cumulative token counters
+            prompt_tokens = get_counter_delta('vllm:prompt_tokens_total')
+            generation_tokens = get_counter_delta('vllm:generation_tokens_total')
             total_tokens = prompt_tokens + generation_tokens
             tokens_per_second = total_tokens / duration_sec if duration_sec > 0 else 0.0
 
-            # Memory and CPU
-            memory_bytes = get_value(metrics.get('process_resident_memory_bytes', []))
+            # Memory (gauge, not counter - use last value)
+            memory_bytes = get_value(last_metrics.get('process_resident_memory_bytes', []))
             memory_mb = memory_bytes / (1024 * 1024) if memory_bytes > 0 else 0.0
 
-            cpu_seconds = get_value(metrics.get('process_cpu_seconds_total', []))
-            cpu_percent = (cpu_seconds / duration_sec * 100) if duration_sec > 0 else 0.0
+            # CPU is cumulative counter - compute delta
+            cpu_seconds_delta = get_counter_delta('process_cpu_seconds_total')
+            cpu_percent = (cpu_seconds_delta / duration_sec * 100) if duration_sec > 0 else 0.0
 
-            # Optional vLLM-specific metrics
-            kv_cache_usage = get_value(metrics.get('vllm:kv_cache_usage_perc', []))
+            # Optional vLLM-specific metrics (gauges - use last value)
+            kv_cache_usage = get_value(last_metrics.get('vllm:kv_cache_usage_perc', []))
 
-            prefix_hits = get_value(metrics.get('vllm:prefix_cache_hits_total', []))
-            prefix_queries = get_value(metrics.get('vllm:prefix_cache_queries_total', []))
+            # Prefix cache metrics are counters - use deltas
+            prefix_hits = get_counter_delta('vllm:prefix_cache_hits_total')
+            prefix_queries = get_counter_delta('vllm:prefix_cache_queries_total')
             prefix_cache_hit_rate = (prefix_hits / prefix_queries * 100) if prefix_queries > 0 else None
 
             return BackendMetrics(

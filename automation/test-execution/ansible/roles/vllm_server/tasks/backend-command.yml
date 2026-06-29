@@ -55,6 +55,9 @@
           --dtype "{{ backend_config.dtype | default('bfloat16') }}"
           --max-tokens {{ backend_config.max_tokens | default(512) }}
           --tensor-parallel {{ backend_config.tensor_parallel | default(1) }}
+          {% if container_runtime.image is defined %}
+          --container-image "{{ container_runtime.image }}"
+          {% endif %}
           {% if backend_config.extra_args is defined and backend_config.extra_args | length > 0 %}
           --extra-args '{{ backend_config.extra_args | to_json }}'
           {% endif %}
@@ -96,11 +99,11 @@
 
   when: backend_module_check.stat.exists
 
-# Fallback to hardcoded vLLM command if:
-# 1. Backend module doesn't exist
-# 2. Backend abstraction failed
-# 3. Backend is not vllm (only vllm has fallback implemented)
+# Fallback to hardcoded vLLM command (backward compatibility only)
 - name: Fallback to hardcoded command generation
+  when: >
+    (not backend_module_check.stat.exists or backend_abstraction_failed | default(false))
+    and backend_name == 'vllm'
   block:
     - name: Build hardcoded vLLM command (backward compatibility)
       ansible.builtin.set_fact:
@@ -128,10 +131,16 @@
     - name: Display fallback warning
       ansible.builtin.debug:
         msg:
-          - "⚠ Using hardcoded {{ backend_name }} command (backend abstraction unavailable)"
-          - "Command: {{ backend_cmd }}"
+          - "⚠ Using hardcoded vLLM command (backend abstraction unavailable)"
+          - "Command args count: {{ backend_cmd.split() | length }}"
 
+# Fail fast for unsupported backends without abstraction
+- name: Fail on unsupported backend without abstraction
+  ansible.builtin.fail:
+    msg: |
+      Backend '{{ backend_name }}' is not supported without backend abstraction.
+      Only vLLM has a fallback implementation.
+      Please ensure shared/backends/ module is available.
   when: >
-    not backend_module_check.stat.exists or
-    backend_abstraction_failed | default(false) or
-    backend_name != 'vllm'
+    (not backend_module_check.stat.exists or backend_abstraction_failed | default(false))
+    and backend_name != 'vllm'

@@ -20,6 +20,7 @@ class BackendConfig:
         dtype: Data type for model weights (e.g., "bfloat16", "float16")
         max_tokens: Maximum context length
         tensor_parallel: Tensor parallelism degree
+        container_image: Custom container image (overrides backend default)
         extra_args: Backend-specific additional arguments
     """
 
@@ -29,6 +30,7 @@ class BackendConfig:
     dtype: str = "bfloat16"
     max_tokens: Optional[int] = None
     tensor_parallel: int = 1
+    container_image: Optional[str] = None
     extra_args: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -106,11 +108,15 @@ class InferenceBackend(ABC):
         pass
 
     @abstractmethod
-    def get_container_image(self) -> str:
+    def get_container_image(self, config: Optional[BackendConfig] = None) -> str:
         """Get container image URL for this backend.
+
+        Args:
+            config: Optional configuration to check for custom image override
 
         Returns:
             Container image URL (e.g., "vllm/vllm-openai-cpu:v0.20.0")
+            Uses config.container_image if set, otherwise backend default
         """
         pass
 

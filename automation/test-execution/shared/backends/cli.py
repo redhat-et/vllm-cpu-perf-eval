@@ -57,6 +57,7 @@ def cmd_get_command(
     dtype: str = "bfloat16",
     max_tokens: int = 512,
     tensor_parallel: int = 1,
+    container_image: str = None,
     extra_args: str = None,
 ) -> None:
     """Get start command for backend."""
@@ -78,6 +79,7 @@ def cmd_get_command(
         dtype=dtype,
         max_tokens=max_tokens,
         tensor_parallel=tensor_parallel,
+        container_image=container_image,
         extra_args=extra,
     )
 
@@ -87,7 +89,7 @@ def cmd_get_command(
     result = {
         "command": cmd,
         "env": env,
-        "image": backend.get_container_image(),
+        "image": backend.get_container_image(config),
     }
     print(json.dumps(result, indent=2))
 
@@ -130,6 +132,9 @@ def main():
         "--tensor-parallel", type=int, default=1, help="Tensor parallelism"
     )
     parser_cmd.add_argument(
+        "--container-image", help="Custom container image (overrides backend default)"
+    )
+    parser_cmd.add_argument(
         "--extra-args", help="Extra args as JSON dict (e.g., '{\"enable-prefix-caching\": true}')"
     )
 
@@ -155,6 +160,7 @@ def main():
                 args.dtype,
                 args.max_tokens,
                 args.tensor_parallel,
+                args.container_image,
                 args.extra_args,
             )
     except Exception as e:

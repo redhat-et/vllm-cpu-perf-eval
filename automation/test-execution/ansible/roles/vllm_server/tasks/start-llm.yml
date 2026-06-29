@@ -361,6 +361,14 @@
       - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   when: is_zendnn_container
 
+- name: Merge backend environment variables if backend abstraction was used
+  ansible.builtin.set_fact:
+    vllm_env_vars: "{{ vllm_env_vars | combine(backend_env) }}"
+  when:
+    - backend_abstraction_used | default(false)
+    - backend_env is defined
+  no_log: true  # backend_env may contain secrets
+
 - name: Start vLLM LLM server
   containers.podman.podman_container:
     name: "{{ vllm_container_name }}"
