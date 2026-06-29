@@ -48,11 +48,11 @@
   ansible.builtin.set_fact:
     vllm_extra_args_dict: "{{ vllm_extra_args_dict | dict2items | rejectattr('key', 'in', ['dtype', 'max-model-len']) | items2dict }}"
 
-- name: Display converted args for debugging
+- name: Display converted args summary
   ansible.builtin.debug:
     msg:
       - "Args conversion results:"
       - "  Extracted dtype: {{ vllm_extracted_dtype | default('auto') }}"
       - "  Extracted max-model-len: {{ vllm_extracted_max_len | default('auto') }}"
-      - "  Extra args dict: {{ vllm_extra_args_dict | to_json }}"
+      - "  Extra args count: {{ vllm_extra_args_dict | length }}"
   when: vllm_extra_args_dict | length > 0

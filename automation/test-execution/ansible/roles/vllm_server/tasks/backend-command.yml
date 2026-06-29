@@ -80,7 +80,7 @@
         msg:
           - "✓ Using backend abstraction for {{ backend_name }}"
           - "Image: {{ backend_image }}"
-          - "Command: {{ backend_cmd }}"
+          - "Command args count: {{ backend_cmd | length }}"
       when: backend_cli_result is defined
 
   rescue:
