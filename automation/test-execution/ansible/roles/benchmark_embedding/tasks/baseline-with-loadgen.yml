@@ -3,6 +3,16 @@
 # This is an alternative to baseline.yml that uses the load generator abstraction layer
 # To use: include this task instead of baseline.yml in run-embedding-tests.yml
 
+- name: Get SSH user's home directory for path expansion
+  ansible.builtin.shell: "getent passwd {{ ansible_user }} | cut -d: -f6"
+  register: ssh_user_home
+  changed_when: false
+  become: false
+
+- name: Expand tilde in results directory path
+  ansible.builtin.set_fact:
+    expanded_results_dir: "{{ bench_config.results_dir | regex_replace('^~', ssh_user_home.stdout) }}"
+
 - name: Generate vllm_bench configuration using load generator abstraction
   ansible.builtin.include_role:
     name: common
@@ -16,7 +26,7 @@
       max_requests: "{{ benchmark_tool.vllm_bench.num_prompts | default(250) }}"
       max_seconds: 600
       rate: "inf"
-      output_path: "{{ results_base_dir }}/baseline/sweep-inf.json"
+      output_path: "{{ expanded_results_dir }}/baseline/sweep-inf.json"
       dataset: "random"
       extra_args:
         random-input-len: "{{ embedding_random_input_len | default(512) }}"
@@ -31,7 +41,7 @@
 
 - name: Ensure baseline result directory exists
   ansible.builtin.file:
-    path: "{{ results_base_dir }}/baseline"
+    path: "{{ expanded_results_dir }}/baseline"
     state: directory
     mode: "0755"
 
@@ -39,16 +49,6 @@
 - name: "Baseline Test - Find Maximum Throughput (using load generator abstraction)"
   when: loadgen_abstraction_used | default(false)
   block:
-    - name: Get SSH user's home directory
-      ansible.builtin.shell: "getent passwd {{ ansible_user }} | cut -d: -f6"
-      register: ssh_user_home
-      changed_when: false
-      become: false
-
-    - name: Expand tilde in results directory path
-      ansible.builtin.set_fact:
-        expanded_results_dir: "{{ bench_config.results_dir | regex_replace('^~', ssh_user_home.stdout) }}"
-
     - name: Run vllm bench using abstraction-generated configuration
       ansible.builtin.command:
         cmd: >
@@ -66,16 +66,6 @@
 - name: "Baseline Test - Find Maximum Throughput (traditional approach)"
   when: not (loadgen_abstraction_used | default(false))
   block:
-    - name: Get SSH user's home directory
-      ansible.builtin.shell: "getent passwd {{ ansible_user }} | cut -d: -f6"
-      register: ssh_user_home
-      changed_when: false
-      become: false
-
-    - name: Expand tilde in results directory path
-      ansible.builtin.set_fact:
-        expanded_results_dir: "{{ bench_config.results_dir | regex_replace('^~', ssh_user_home.stdout) }}"
-
     - name: Set vllm-bench execution mode
       ansible.builtin.set_fact:
         use_vllm_bench_container: "{{ benchmark_tool.vllm_bench.use_container | default(true) | bool }}"

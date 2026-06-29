@@ -50,19 +50,45 @@
       ansible.builtin.set_fact:
         loadgen_extra_args_json: "{{ loadgen_config.extra_args | default({}) | to_json }}"
 
+    - name: Build load generator command arguments
+      ansible.builtin.set_fact:
+        loadgen_cmd_args:
+          - python3
+          - -m
+          - shared.loadgens
+          - get-config
+          - "{{ loadgen_name }}"
+          - --target
+          - "{{ loadgen_config.target_url }}"
+          - --model
+          - "{{ loadgen_config.model }}"
+          - --workload
+          - "{{ loadgen_config.workload_type | default('chat') }}"
+          - --max-requests
+          - "{{ loadgen_config.max_requests | default(1000) }}"
+          - --max-seconds
+          - "{{ loadgen_config.max_seconds | default(600) }}"
+          - --output-path
+          - "{{ loadgen_config.output_path | default('/results') }}"
+
+    - name: Add optional rate argument
+      ansible.builtin.set_fact:
+        loadgen_cmd_args: "{{ loadgen_cmd_args + ['--rate', loadgen_config.rate] }}"
+      when: loadgen_config.rate is defined
+
+    - name: Add optional dataset argument
+      ansible.builtin.set_fact:
+        loadgen_cmd_args: "{{ loadgen_cmd_args + ['--dataset', loadgen_config.dataset] }}"
+      when: loadgen_config.dataset is defined
+
+    - name: Add optional extra-args argument
+      ansible.builtin.set_fact:
+        loadgen_cmd_args: "{{ loadgen_cmd_args + ['--extra-args', loadgen_extra_args_json] }}"
+      when: loadgen_config.extra_args is defined
+
     - name: Generate load generator configuration
       ansible.builtin.command:
-        cmd: >-
-          python3 -m shared.loadgens get-config {{ loadgen_name }}
-          --target "{{ loadgen_config.target_url }}"
-          --model "{{ loadgen_config.model }}"
-          --workload "{{ loadgen_config.workload_type | default('chat') }}"
-          --max-requests {{ loadgen_config.max_requests | default(1000) }}
-          --max-seconds {{ loadgen_config.max_seconds | default(600) }}
-          {% if loadgen_config.rate is defined %}--rate "{{ loadgen_config.rate }}"{% endif %}
-          --output-path "{{ loadgen_config.output_path | default('/results') }}"
-          {% if loadgen_config.dataset is defined %}--dataset "{{ loadgen_config.dataset }}"{% endif %}
-          {% if loadgen_config.extra_args is defined %}--extra-args '{{ loadgen_extra_args_json }}'{% endif %}
+        argv: "{{ loadgen_cmd_args }}"
         chdir: "{{ localhost_playbook_dir.stdout }}/.."
       register: loadgen_cli_result
       delegate_to: localhost
