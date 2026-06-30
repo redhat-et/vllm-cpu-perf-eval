@@ -312,7 +312,7 @@ class TestCLIIntegration:
         env = os.environ.copy()
         env['PYTHONPATH'] = test_dir
         result = subprocess.run(
-            ['python3', '-m', 'shared.backends', 'list'],
+            [sys.executable, '-m', 'shared.backends', 'list'],
             capture_output=True,
             text=True,
             cwd=test_dir,
@@ -333,7 +333,7 @@ class TestCLIIntegration:
         env = os.environ.copy()
         env['PYTHONPATH'] = test_dir
         result = subprocess.run(
-            ['python3', '-m', 'shared.backends', 'get-backend', 'vllm'],
+            [sys.executable, '-m', 'shared.backends', 'get-backend', 'vllm'],
             capture_output=True,
             text=True,
             cwd=test_dir,
@@ -356,7 +356,7 @@ class TestCLIIntegration:
         env['PYTHONPATH'] = test_dir
         result = subprocess.run(
             [
-                'python3', '-m', 'shared.backends', 'get-command', 'vllm',
+                sys.executable, '-m', 'shared.backends', 'get-command', 'vllm',
                 '--model', 'test-model',
                 '--host', '0.0.0.0',
                 '--port', '8000',

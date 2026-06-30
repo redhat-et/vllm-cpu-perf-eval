@@ -33,7 +33,14 @@ class VLLMBenchLoadGen(LoadGenerator):
 
         parsed = urlparse(config.target_url)
         host = parsed.hostname or config.target_url.split(':')[0]
-        port = str(parsed.port) if parsed.port else config.target_url.split(':')[-1].split('/')[0]
+
+        # Use explicit port, or default based on scheme
+        if parsed.port:
+            port = str(parsed.port)
+        elif parsed.scheme == 'https':
+            port = '443'
+        else:
+            port = '8000'  # Default for vLLM servers
 
         cmd = [
             "vllm", "bench", "serve",

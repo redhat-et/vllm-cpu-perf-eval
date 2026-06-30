@@ -45,22 +45,40 @@
 
 - name: Generate command using backend abstraction
   block:
+    - name: Build backend CLI arguments
+      ansible.builtin.set_fact:
+        backend_cli_args:
+          - python3
+          - -m
+          - shared.backends
+          - get-command
+          - "{{ backend_name }}"
+          - --model
+          - "{{ backend_config.model }}"
+          - --host
+          - "{{ backend_config.host | default('0.0.0.0') }}"
+          - --port
+          - "{{ backend_config.port | default(8000) }}"
+          - --dtype
+          - "{{ backend_config.dtype | default('bfloat16') }}"
+          - --max-tokens
+          - "{{ backend_config.max_tokens | default(512) }}"
+          - --tensor-parallel
+          - "{{ backend_config.tensor_parallel | default(1) }}"
+
+    - name: Add container image argument if defined
+      when: container_runtime.image is defined
+      ansible.builtin.set_fact:
+        backend_cli_args: "{{ backend_cli_args + ['--container-image', container_runtime.image] }}"
+
+    - name: Add extra args if defined
+      when: backend_config.extra_args is defined and backend_config.extra_args | length > 0
+      ansible.builtin.set_fact:
+        backend_cli_args: "{{ backend_cli_args + ['--extra-args', backend_config.extra_args | to_json] }}"
+
     - name: Call backend CLI to generate command
       ansible.builtin.command:
-        cmd: >-
-          python3 -m shared.backends get-command {{ backend_name }}
-          --model "{{ backend_config.model }}"
-          --host "{{ backend_config.host | default('0.0.0.0') }}"
-          --port {{ backend_config.port | default(8000) }}
-          --dtype "{{ backend_config.dtype | default('bfloat16') }}"
-          --max-tokens {{ backend_config.max_tokens | default(512) }}
-          --tensor-parallel {{ backend_config.tensor_parallel | default(1) }}
-          {% if container_runtime.image is defined %}
-          --container-image "{{ container_runtime.image }}"
-          {% endif %}
-          {% if backend_config.extra_args is defined and backend_config.extra_args | length > 0 %}
-          --extra-args '{{ backend_config.extra_args | to_json }}'
-          {% endif %}
+        argv: "{{ backend_cli_args }}"
         chdir: "{{ localhost_playbook_dir.stdout }}/.."
       register: backend_cli_result
       delegate_to: localhost
@@ -125,7 +143,7 @@
     - name: Set fallback backend facts
       ansible.builtin.set_fact:
         backend_env: {}
-        backend_image: "{{ container_runtime.image }}"
+        backend_image: "{{ container_runtime.image | default('vllm/vllm-openai-cpu:v0.20.0') }}"
         backend_abstraction_used: false
 
     - name: Display fallback warning
