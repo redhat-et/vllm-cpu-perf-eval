@@ -284,10 +284,10 @@ benchmark_tool:
 
 ```bash
 # Install guidellm on the load generator host
-pip install guidellm  # Latest version (0.6.0+)
+pip install guidellm  # Latest version (0.7.1+)
 
 # Or specify a version
-pip install guidellm==0.6.0
+pip install guidellm==0.7.1
 ```
 
 **Version Compatibility:**

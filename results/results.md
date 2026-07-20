@@ -5,146 +5,94 @@ README.
 
 ## Structure
 
-Results are organized in multiple ways to facilitate different analysis
-patterns:
+Results are organized by model, then by workload-timestamp, then by core
+configuration:
 
 ```text
 results/
-├── by-suite/             # Organized by test suite
-│   ├── concurrent-load/
-│   │   ├── llama-3.2-1b/
-│   │   │   ├── concurrent-8.json
-│   │   │   ├── concurrent-16.json
-│   │   │   └── ...
-│   │   ├── llama-3.2-3b/
-│   │   └── ...
-│   └── scalability/
+├── llm/                                          # LLM generative model results
+│   ├── <model>/                                  # Model name (/ replaced with __)
+│   │   └── <workload>-<YYYYMMDD-HHMMSS>/         # Workload type + test run timestamp
+│   │       └── <core-config>/                    # Core configuration name
+│   │           ├── benchmarks.json               # GuideLLM benchmark results
+│   │           ├── benchmarks.csv                # GuideLLM results (CSV)
+│   │           ├── test-metadata.json            # Test configuration and IETF metadata
+│   │           ├── vllm-metrics.json             # vLLM server Prometheus metrics
+│   │           ├── vllm-server.log               # vLLM server logs
+│   │           ├── guidellm.log                  # GuideLLM execution log
+│   │           ├── system-metrics.log            # System-level metrics
+│   │           └── metrics-collector.log         # Metrics collection log
+│   │
+│   └── ...                                       # Additional models
 │
-├── by-model/             # Organized by model
-│   ├── llama-3.2-1b/
-│   │   ├── concurrent-load/
-│   │   │   ├── concurrent-8.json
-│   │   │   └── ...
-│   │   ├── scalability/
-│   │   └── resource-contention/
-│   └── llama-3.2-3b/
+├── audio-models/                                 # Audio model results (e.g. Whisper)
+│   └── <model>/
+│       └── ...
 │
-├── by-host/              # Organized by test host (distributed testing)
-│   ├── test-node-01/
-│   │   ├── concurrent-load/
-│   │   └── scalability/
-│   └── test-node-02/
-│
-├── reports/              # Generated reports
-│   ├── html/
-│   ├── markdown/
-│   └── json/
-│
-├── archives/             # Timestamped archives
-│   ├── 2024-02-13_10-30-00/
-│   └── 2024-02-14_14-15-00/
-│
-└── metrics/              # Exported metrics
-    └── prometheus/
+└── results.md                                    # This file
+```
+
+**Example:**
+
 ```text
+results/llm/
+├── meta-llama__Llama-3.2-1B-Instruct/
+│   ├── chat-20260421-094807/
+│   │   └── 16cores-numa0-tp1/
+│   │       ├── benchmarks.json
+│   │       ├── benchmarks.csv
+│   │       ├── test-metadata.json
+│   │       ├── vllm-metrics.json
+│   │       ├── vllm-server.log
+│   │       ├── guidellm.log
+│   │       ├── system-metrics.log
+│   │       └── metrics-collector.log
+│   └── chat-20260421-101101/
+│       └── 16cores-numa0-tp1/
+│           └── ...
+│
+└── TinyLlama__TinyLlama-1.1B-Chat-v1.0/
+    ├── chat-20260428-124238/
+    │   └── ...
+    └── chat-20260428-130000/
+        └── ...
+```
 
-## Result File Format
+## Result Files
 
-Test results are stored in JSON format following GuideLLM's output schema:
+<!-- markdownlint-disable MD013 MD060 -->
 
-```json
-{
-  "test_info": {
-    "model": "llama-3.2-1b",
-    "scenario": "concurrent-8",
-    "test_suite": "concurrent-load",
-    "timestamp": "2024-02-13T10:30:00Z"
-  },
-  "metrics": {
-    "throughput": 45.3,
-    "p50_ttft_ms": 234.5,
-    "p95_ttft_ms": 456.7,
-    "p99_ttft_ms": 678.9
-  },
-  "requests": [...]
-}
-```text
+| File | Format | Description |
+|------|--------|-------------|
+| `benchmarks.json` | JSON | GuideLLM benchmark results — percentile latencies (P50–P99.9), throughput, per-request data |
+| `benchmarks.csv` | CSV | Same data in CSV format for spreadsheet import |
+| `test-metadata.json` | JSON | Test configuration, IETF metadata (SUT boundary, tokenizer, load model), timing, sample counts |
+| `vllm-metrics.json` | JSON | vLLM server Prometheus metrics (queue depth, cache usage, token rates) |
+| `vllm-server.log` | Text | vLLM server stdout/stderr logs |
+| `guidellm.log` | Text | GuideLLM execution log |
+| `system-metrics.log` | Text | System-level resource metrics collected during the test |
+| `metrics-collector.log` | Text | Log from the metrics collection process |
+
+<!-- markdownlint-enable MD013 MD060 -->
 
 ## Viewing Results
 
-### Generate HTML Report
+The recommended way to view and analyze results is via the **Streamlit
+dashboard**:
 
 ```bash
-cd automation/analysis
-python generate-report.py \
-  --input ../../results/by-suite/concurrent-load \
-  --format html \
-  --output ../../results/reports/html/concurrent-load.html
-```text
+# One-time setup
+cd automation/test-execution/dashboard-examples
+./setup.sh
 
-### Compare Results
+# Launch dashboard
+cd vllm_dashboard
+./launch-dashboard.sh
 
-```bash
-python compare-results.py \
-  --baseline ../../results/archives/2024-02-13/concurrent-load \
-  --current ../../results/by-suite/concurrent-load
-```text
+# Open http://localhost:8501
+```
 
-### GuideLLM CLI
-
-```bash
-guidellm report generate \
-  --input results/by-suite/concurrent-load/llama-3.2-1b/concurrent-8.json
-```text
-
-## Archiving Results
-
-Results can be archived with timestamps for long-term storage:
-
-```bash
-# Manual archive
-./automation/utilities/archive-results.sh concurrent-load
-
-# Automated archiving (run after test completion)
-cd automation/test-execution/ansible
-ansible-playbook playbooks/archive-results.yml
-```text
-
-## Cleanup
-
-To remove old results and free disk space:
-
-```bash
-# Clean results older than 30 days
-./automation/utilities/cleanup-results.sh --days 30
-
-# Clean specific test suite
-./automation/utilities/cleanup-results.sh --suite concurrent-load
-```text
-
-## Result Collection (Distributed Testing)
-
-When running distributed tests across multiple nodes, results are
-automatically collected:
-
-```bash
-cd automation/test-execution/ansible
-ansible-playbook playbooks/collect-results.yml
-```text
-
-This fetches results from all test nodes to the control node.
-
-## .gitignore
-
-The following patterns are gitignored:
-
-```gitignore
-# Ignore all result files
-*.json
-*.csv
-*.html
-
-# But keep README and directory structure
-!README.md
-!.gitkeep
-```text
+The dashboard provides client metrics (throughput, latency percentiles),
+server metrics (queue depth, cache usage), platform comparison, and CSV
+export. See the [Dashboards Quick Start](../docs/dashboards-quickstart.md)
+for the full guide.

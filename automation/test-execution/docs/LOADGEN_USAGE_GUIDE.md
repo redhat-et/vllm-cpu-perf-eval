@@ -25,14 +25,14 @@ shared/loadgens/
 
 ### GuideLLM
 **Purpose**: Comprehensive LLM benchmarking with multiple profiles
-**Container**: `ghcr.io/vllm-project/guidellm:v0.6.0`
+**Container**: `ghcr.io/vllm-project/guidellm:v0.7.1`
 **Workloads**: chat, rag, code, summarization, reasoning, embedding
 **Profiles**: sweep, synchronous, concurrent, throughput, constant, poisson
 **Output**: JSON, HTML, CSV
 
 ### vLLM bench
 **Purpose**: Built-in vLLM benchmarking tool
-**Container**: `vllm/vllm-openai-cpu:v0.20.0`
+**Container**: `vllm/vllm-openai-cpu:v0.25.1`
 **Workloads**: All generative + embedding
 **Output**: JSON with throughput, latency, TTFT, TPOT metrics
 
@@ -60,8 +60,8 @@ python3 -m shared.loadgens get-loadgen guidellm
 ```json
 {
   "name": "guidellm",
-  "version": "0.6.0",
-  "image": "ghcr.io/vllm-project/guidellm:v0.6.0",
+  "version": "0.7.1",
+  "image": "ghcr.io/vllm-project/guidellm:v0.7.1",
   "output_format": "json",
   "supported_workloads": {
     "chat": true,
@@ -95,7 +95,7 @@ python3 -m shared.loadgens get-config guidellm \
     "GUIDELLM_MODEL": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     ...
   },
-  "image": "ghcr.io/vllm-project/guidellm:v0.6.0",
+  "image": "ghcr.io/vllm-project/guidellm:v0.7.1",
   "output_format": "json"
 }
 ```

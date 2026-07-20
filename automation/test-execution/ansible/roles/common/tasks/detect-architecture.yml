@@ -30,13 +30,13 @@
   ansible.builtin.set_fact:
     vllm_server_image_default: >-
       {%- if system_arch.stdout in ['x86_64', 'amd64'] -%}
-      docker.io/vllm/vllm-openai-cpu:v0.20.0
+      docker.io/vllm/vllm-openai-cpu:v0.25.1
       {%- elif system_arch.stdout in ['aarch64', 'arm64'] -%}
       quay.io/mtahhan/vllm:arm-base-cpu
       {%- else -%}
-      docker.io/vllm/vllm-openai-cpu:v0.20.0
+      docker.io/vllm/vllm-openai-cpu:v0.25.1
       {%- endif -%}
-    guidellm_image_default: ghcr.io/vllm-project/guidellm:v0.6.0
+    guidellm_image_default: ghcr.io/vllm-project/guidellm:v0.7.1
 
 - name: Get actual vLLM image to be used
   ansible.builtin.set_fact:

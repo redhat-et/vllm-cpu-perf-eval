@@ -95,6 +95,56 @@ test_configs:
       - "--block-size=128"              # CPU optimal: multiples of 32 for SIMD alignment (AVX2/AVX512/NEON)
     kv_cache_space: "40GiB"             # Fallback value - should be overridden by model-specific kv_cache_sizes
 
+  # ============================================================================
+  # RAG Test Suite Workloads (Context-Length Tiers)
+  # ============================================================================
+  # Purpose-built for RAG characterization on CPU. Three fixed-point tiers
+  # measure TTFT scaling with input context length (the CPU bottleneck).
+  # The rag_var workload (in Variable Workloads section) tests realistic
+  # retrieval distributions.
+
+  # RAG short context (1-2 retrieved chunks)
+  rag_short:
+    workload_type: "rag_short"
+    isl: 1024
+    osl: 256
+    variability: false
+    backend: "openai-completions"
+    vllm_args:
+      - "--dtype=auto"
+      - "--no-enable-prefix-caching"
+      - "--max-model-len=2048"
+      - "--block-size=128"
+    kv_cache_space: "40GiB"
+
+  # RAG medium context (4-8 retrieved chunks)
+  rag_medium:
+    workload_type: "rag_medium"
+    isl: 4096
+    osl: 384
+    variability: false
+    backend: "openai-completions"
+    vllm_args:
+      - "--dtype=auto"
+      - "--no-enable-prefix-caching"
+      - "--max-model-len=8192"
+      - "--block-size=128"
+    kv_cache_space: "40GiB"
+
+  # RAG long context (full 8K context fill)
+  rag_long:
+    workload_type: "rag_long"
+    isl: 7680
+    osl: 512
+    variability: false
+    backend: "openai-completions"
+    vllm_args:
+      - "--dtype=auto"
+      - "--no-enable-prefix-caching"
+      - "--max-model-len=8320"
+      - "--block-size=128"
+    kv_cache_space: "40GiB"
+
   # Code generation workload (medium input, practical CPU ceiling output)
   code:
     workload_type: "code"
@@ -182,6 +232,28 @@ test_configs:
     kv_cache_space: "40GiB"             # Fallback value - should be overridden by model-specific kv_cache_sizes
 
 
+  # RAG workload with variability (realistic retrieval distribution)
+  # High ISL variance models real RAG where different queries pull
+  # different numbers of document chunks (1-8 chunks of varying sizes)
+  rag_var:
+    workload_type: "rag_var"
+    isl: 4096
+    isl_stdev: 2048
+    isl_min: 1024
+    isl_max: 7680
+    osl: 256
+    osl_stdev: 128
+    osl_min: 64
+    osl_max: 512
+    variability: true
+    backend: "openai-completions"
+    vllm_args:
+      - "--dtype=auto"
+      - "--no-enable-prefix-caching"
+      - "--max-model-len=8320"
+      - "--block-size=128"
+    kv_cache_space: "40GiB"
+
   # Summarization workload with variability (Realistic traffic simulation)
   summarization_var:
     workload_type: "summarization_var"
@@ -200,6 +272,48 @@ test_configs:
       - "--no-enable-prefix-caching"    # Baseline mode: no prefix caching
       - "--block-size=128"              # CPU optimal: multiples of 32 for SIMD alignment (AVX2/AVX512/NEON)
     kv_cache_space: "40GiB"             # ~1280 avg tokens * ~32 concurrent
+
+  # ============================================================================
+  # Context-Length Scaling Workloads (IETF Long Context Scaling Test)
+  # ============================================================================
+  # Fixed 256-token output with increasing input lengths to measure
+  # how TTFT and throughput scale with context size.
+
+  context_scaling_1k:
+    workload_type: "context_scaling_1k"
+    isl: 1024                           # 1K input tokens
+    osl: 256                            # Fixed short output
+    variability: false
+    backend: "openai-completions"
+    vllm_args:
+      - "--dtype=auto"
+      - "--no-enable-prefix-caching"
+      - "--max-model-len=2048"
+    kv_cache_space: "40GiB"
+
+  context_scaling_4k:
+    workload_type: "context_scaling_4k"
+    isl: 4096                           # 4K input tokens
+    osl: 256                            # Fixed short output
+    variability: false
+    backend: "openai-completions"
+    vllm_args:
+      - "--dtype=auto"
+      - "--no-enable-prefix-caching"
+      - "--max-model-len=8192"
+    kv_cache_space: "40GiB"
+
+  context_scaling_8k:
+    workload_type: "context_scaling_8k"
+    isl: 8192                           # 8K input tokens
+    osl: 256                            # Fixed short output
+    variability: false
+    backend: "openai-completions"
+    vllm_args:
+      - "--dtype=auto"
+      - "--no-enable-prefix-caching"
+      - "--max-model-len=16384"
+    kv_cache_space: "40GiB"
 
 # ============================================================================
 # Prefix Caching Mode Configurations

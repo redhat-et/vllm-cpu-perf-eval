@@ -13,6 +13,8 @@ This directory contains all test suites organized by test type.
 tests/
 ├── concurrent-load/           # Concurrent load testing
 │   └── concurrent-load.md     # Test documentation
+├── rag/                       # RAG context length & performance tests
+│   └── rag.md                 # RAG test suite documentation
 ├── scalability/               # Sweep and throughput tests
 │   └── scalability.md         # Test documentation
 ├── resource-contention/       # Resource sharing tests (planned)
@@ -34,7 +36,7 @@ All test cases use a hierarchical naming scheme for easy identification and trac
 
 **Components:**
 
-- **Suite Prefix**: `CONC` (Concurrent Load), `SCALE` (Scalability), `CONT` (Resource Contention), `EMB` (Embedding)
+- **Suite Prefix**: `CONC` (Concurrent Load), `RAG` (RAG Suite), `SCALE` (Scalability), `CONT` (Resource Contention), `EMB` (Embedding)
 - **Type** (not used for CONC suite): `SWEEP`, `SYNC` (Synchronous), `POISSON`, `BASELINE`, `LATENCY`
 - **Model**: Short abbreviation (e.g., `LLAMA32`, `QWEN06`, `GRANITE32`, `GRANITE-EN`, `GRANITE-ML`)
 - **Workload**: `CHAT`, `RAG`, `CODE`, `SUMM`, `EMB` (embedding), `EMB512` (512-token embedding)
@@ -66,6 +68,20 @@ Characterizes maximum throughput and performance curves.
 - **Test types**: Sweep, Synchronous baseline, Poisson distribution
 - **Metrics focus**: Maximum capacity, saturation points
 - **Goal**: Determine optimal operating range
+
+### Test Suite: RAG
+
+Context length sensitivity and performance analysis for RAG workloads
+on CPU.
+
+- **Context tiers**: rag_short (1K), rag_medium (4K), rag_long (8K)
+- **Concurrency levels**: 1, 2, 4, 8, 16
+- **Metrics focus**: TTFT scaling, P95 E2E latency, throughput
+- **Core count sweep**: test across multiple CPU configurations
+- **Goal**: Characterize how RAG prefill cost scales with context
+  length and core count on CPU
+
+See [RAG Test Suite](rag/rag.md) for detailed documentation.
 
 ### Test Suite: Resource Contention (Planned)
 

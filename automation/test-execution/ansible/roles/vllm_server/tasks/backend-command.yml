@@ -143,7 +143,7 @@
     - name: Set fallback backend facts
       ansible.builtin.set_fact:
         backend_env: {}
-        backend_image: "{{ container_runtime.image | default('vllm/vllm-openai-cpu:v0.20.0') }}"
+        backend_image: "{{ container_runtime.image | default('vllm/vllm-openai-cpu:v0.25.1') }}"
         backend_abstraction_used: false
 
     - name: Display fallback warning

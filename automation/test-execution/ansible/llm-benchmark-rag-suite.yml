@@ -1,0 +1,444 @@
+---
+# ============================================================================
+# RAG Test Suite - CPU Context Length Sensitivity & Performance Analysis
+# ============================================================================
+# Purpose-built suite for RAG workload characterization on CPU.
+# Tests context length sensitivity, variable-length distributions,
+# and prefix caching impact across configurable core counts.
+#
+# Why a dedicated suite (not just concurrent-load with base_workload=rag):
+#   - Context scaling: systematic TTFT measurement across 1K/4K/8K input
+#   - Core count sweep: iterate all phases across multiple core configs
+#   - RAG-appropriate concurrency: [1,2,4,8,16] vs standard [1..32]
+#   - Model context filtering: auto-skip tiers the model can't support
+#
+# Usage:
+#   # Single core count
+#   ansible-playbook -i inventory/hosts.yml llm-benchmark-rag-suite.yml \
+#     -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
+#     -e "requested_cores=32"
+#
+#   # Core count sweep (runs full suite per core count)
+#   ansible-playbook -i inventory/hosts.yml llm-benchmark-rag-suite.yml \
+#     -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
+#     -e "rag_core_counts=[16,32,64]"
+#
+# Optional Parameters:
+#   rag_concurrency: [1,2,4,8]    # Override concurrency levels
+#   model_max_context: 8192       # Override model context length for filtering
+#   skip_context_scaling: true    # Skip Phase 1 (context scaling tiers)
+#   skip_variable: true           # Skip Phase 2 (variable distribution)
+#   skip_caching: true            # Skip Phase 3 (prefix caching comparison)
+#
+# ============================================================================
+
+# ==========================================================================
+# Configuration and Validation
+# ==========================================================================
+- name: "RAG Suite - Configuration"
+  hosts: localhost
+  gather_facts: false
+  any_errors_fatal: true
+
+  tasks:
+    - name: Set vLLM mode
+      ansible.builtin.set_fact:
+        vllm_mode: >-
+          {{ lookup('env', 'VLLM_MODE')
+             | default(vllm_endpoint.mode | default('managed'), true) }}
+
+    - name: Validate required parameters
+      ansible.builtin.assert:
+        that:
+          - >-
+            vllm_mode == 'external'
+            or test_model is defined
+        fail_msg: >-
+          Missing required parameter: test_model.
+          Usage: -e "test_model=meta-llama/Llama-3.2-1B-Instruct"
+
+    - name: Validate core configuration
+      ansible.builtin.assert:
+        that:
+          - >-
+            vllm_mode == 'external'
+            or requested_cores is defined
+            or (rag_core_counts is defined
+                and rag_core_counts | length > 0)
+        fail_msg: >-
+          Missing required parameter: requested_cores or rag_core_counts.
+          Usage: -e "requested_cores=32"
+          Or: -e "rag_core_counts=[16,32,64]"
+
+    - name: Set RAG suite configuration
+      ansible.builtin.set_fact:
+        rag_concurrency_levels: >-
+          {{ rag_concurrency | default([1, 2, 4, 8, 16]) }}
+        rag_model_context: >-
+          {{ model_max_context | default(8192) | int }}
+        rag_skip_scaling: >-
+          {{ skip_context_scaling | default(false) | bool }}
+        rag_skip_variable: >-
+          {{ skip_variable | default(false) | bool }}
+        rag_skip_caching: >-
+          {{ skip_caching | default(false) | bool }}
+
+    - name: Build core counts list
+      ansible.builtin.set_fact:
+        effective_core_counts: >-
+          {{ rag_core_counts
+             | default([requested_cores | default(0) | int]) }}
+
+    - name: Determine eligible workload tiers
+      ansible.builtin.set_fact:
+        eligible_tiers: >-
+          {{
+            ((['rag_short']
+              if (rag_model_context | int) >= 2048
+              else [])
+             + (['rag_medium']
+                if (rag_model_context | int) >= 8192
+                else [])
+             + (['rag_long']
+                if (rag_model_context | int) >= 8320
+                else []))
+          }}
+        can_run_rag_var: >-
+          {{ (rag_model_context | int) >= 8320 }}
+
+    - name: Display RAG suite configuration
+      ansible.builtin.debug:
+        msg:
+          - "============================================================"
+          - "RAG Test Suite - CPU Context Length Analysis"
+          - "============================================================"
+          - "Model: {{ test_model | default('external endpoint') }}"
+          - "Model Context Length: {{ rag_model_context }}"
+          - "Core Counts: {{ effective_core_counts }}"
+          - "Concurrency Levels: {{ rag_concurrency_levels }}"
+          - "Eligible Tiers: {{ eligible_tiers }}"
+          - "Variable RAG: {{ 'YES' if (can_run_rag_var | bool) else 'SKIPPED (needs 8320+ ctx)' }}"
+          - ""
+          - "Phases:"
+          - "  1. Context Scaling: {{ 'SKIP' if rag_skip_scaling else eligible_tiers | join(', ') }}"
+          - "  2. Variable Dist:   {{ 'SKIP' if (rag_skip_variable or not (can_run_rag_var | bool)) else 'rag_var' }}"
+          - "  3. Prefix Caching:  {{ 'SKIP' if (rag_skip_caching or not (can_run_rag_var | bool)) else 'rag_var (production)' }}"
+          - ""
+          - "Total runs: {{ effective_core_counts | length }} core config(s)"
+          - "  x {{ (eligible_tiers | length if not rag_skip_scaling else 0) + (1 if not rag_skip_variable and (can_run_rag_var | bool) else 0) + (1 if not rag_skip_caching and (can_run_rag_var | bool) else 0) }} workload(s) each"
+          - "============================================================"
+
+# ==========================================================================
+# Phase 1: Context Scaling (Fixed tokens, No Caching)
+# ==========================================================================
+# Runs rag_short → rag_medium → rag_long to measure how TTFT scales
+# with input context length on CPU. This is the primary CPU-RAG metric.
+
+- name: "RAG Phase 1a: Context Scaling - rag_short (ISL=1024)"
+  ansible.builtin.import_playbook: llm-benchmark-auto.yml
+  vars:
+    workload_type: "rag_short"
+    vllm_caching_mode: "baseline"
+    guidellm_profile: "concurrent"
+    guidellm_rate: "{{ hostvars['localhost']['rag_concurrency_levels'] }}"
+    requested_cores: "{{ hostvars['localhost']['effective_core_counts'] | first }}"
+  when:
+    - not (hostvars['localhost']['rag_skip_scaling'] | bool)
+    - "'rag_short' in hostvars['localhost']['eligible_tiers']"
+
+- name: "RAG Phase 1b: Context Scaling - rag_medium (ISL=4096)"
+  ansible.builtin.import_playbook: llm-benchmark-auto.yml
+  vars:
+    workload_type: "rag_medium"
+    vllm_caching_mode: "baseline"
+    guidellm_profile: "concurrent"
+    guidellm_rate: "{{ hostvars['localhost']['rag_concurrency_levels'] }}"
+    requested_cores: "{{ hostvars['localhost']['effective_core_counts'] | first }}"
+  when:
+    - not (hostvars['localhost']['rag_skip_scaling'] | bool)
+    - "'rag_medium' in hostvars['localhost']['eligible_tiers']"
+
+- name: "RAG Phase 1c: Context Scaling - rag_long (ISL=7680)"
+  ansible.builtin.import_playbook: llm-benchmark-auto.yml
+  vars:
+    workload_type: "rag_long"
+    vllm_caching_mode: "baseline"
+    guidellm_profile: "concurrent"
+    guidellm_rate: "{{ hostvars['localhost']['rag_concurrency_levels'] }}"
+    requested_cores: "{{ hostvars['localhost']['effective_core_counts'] | first }}"
+  when:
+    - not (hostvars['localhost']['rag_skip_scaling'] | bool)
+    - "'rag_long' in hostvars['localhost']['eligible_tiers']"
+
+# ==========================================================================
+# Phase 2: Variable Distribution (No Caching)
+# ==========================================================================
+# Runs rag_var to test realistic retrieval distributions where
+# different queries pull different numbers of document chunks.
+
+- name: "RAG Phase 2: Variable Distribution - rag_var"
+  ansible.builtin.import_playbook: llm-benchmark-auto.yml
+  vars:
+    workload_type: "rag_var"
+    vllm_caching_mode: "baseline"
+    guidellm_profile: "concurrent"
+    guidellm_rate: "{{ hostvars['localhost']['rag_concurrency_levels'] }}"
+    requested_cores: "{{ hostvars['localhost']['effective_core_counts'] | first }}"
+  when:
+    - not (hostvars['localhost']['rag_skip_variable'] | bool)
+    - hostvars['localhost']['can_run_rag_var'] | bool
+
+# ==========================================================================
+# Phase 3: Prefix Caching Comparison
+# ==========================================================================
+# Runs rag_var with prefix caching enabled.
+# NOTE: With synthetic text each request gets unique tokens, so prefix
+# caching has no effect. This phase establishes a structural baseline
+# that becomes meaningful when file-based datasets with shared document
+# prefixes are supported.
+
+- name: "RAG Phase 3: Prefix Caching - rag_var (production)"
+  ansible.builtin.import_playbook: llm-benchmark-auto.yml
+  vars:
+    workload_type: "rag_var"
+    vllm_caching_mode: "production"
+    guidellm_profile: "concurrent"
+    guidellm_rate: "{{ hostvars['localhost']['rag_concurrency_levels'] }}"
+    requested_cores: "{{ hostvars['localhost']['effective_core_counts'] | first }}"
+  when:
+    - not (hostvars['localhost']['rag_skip_caching'] | bool)
+    - hostvars['localhost']['can_run_rag_var'] | bool
+
+# ==========================================================================
+# Core Count Sweep (Phases 1-3 repeated for additional core counts)
+# ==========================================================================
+# When rag_core_counts has multiple entries, the phases above run with
+# the first core count. This section repeats for remaining core counts.
+# Ansible import_playbook does not support loops, so we repeat the
+# import blocks for the 2nd and 3rd core counts.
+
+# --- Second core count ---
+- name: "RAG Core Count 2 - rag_short (ISL=1024)"
+  ansible.builtin.import_playbook: llm-benchmark-auto.yml
+  vars:
+    workload_type: "rag_short"
+    vllm_caching_mode: "baseline"
+    guidellm_profile: "concurrent"
+    guidellm_rate: "{{ hostvars['localhost']['rag_concurrency_levels'] }}"
+    requested_cores: "{{ hostvars['localhost']['effective_core_counts'][1] }}"
+  when:
+    - hostvars['localhost']['effective_core_counts'] | length > 1
+    - not (hostvars['localhost']['rag_skip_scaling'] | bool)
+    - "'rag_short' in hostvars['localhost']['eligible_tiers']"
+
+- name: "RAG Core Count 2 - rag_medium (ISL=4096)"
+  ansible.builtin.import_playbook: llm-benchmark-auto.yml
+  vars:
+    workload_type: "rag_medium"
+    vllm_caching_mode: "baseline"
+    guidellm_profile: "concurrent"
+    guidellm_rate: "{{ hostvars['localhost']['rag_concurrency_levels'] }}"
+    requested_cores: "{{ hostvars['localhost']['effective_core_counts'][1] }}"
+  when:
+    - hostvars['localhost']['effective_core_counts'] | length > 1
+    - not (hostvars['localhost']['rag_skip_scaling'] | bool)
+    - "'rag_medium' in hostvars['localhost']['eligible_tiers']"
+
+- name: "RAG Core Count 2 - rag_long (ISL=7680)"
+  ansible.builtin.import_playbook: llm-benchmark-auto.yml
+  vars:
+    workload_type: "rag_long"
+    vllm_caching_mode: "baseline"
+    guidellm_profile: "concurrent"
+    guidellm_rate: "{{ hostvars['localhost']['rag_concurrency_levels'] }}"
+    requested_cores: "{{ hostvars['localhost']['effective_core_counts'][1] }}"
+  when:
+    - hostvars['localhost']['effective_core_counts'] | length > 1
+    - not (hostvars['localhost']['rag_skip_scaling'] | bool)
+    - "'rag_long' in hostvars['localhost']['eligible_tiers']"
+
+- name: "RAG Core Count 2 - rag_var (baseline)"
+  ansible.builtin.import_playbook: llm-benchmark-auto.yml
+  vars:
+    workload_type: "rag_var"
+    vllm_caching_mode: "baseline"
+    guidellm_profile: "concurrent"
+    guidellm_rate: "{{ hostvars['localhost']['rag_concurrency_levels'] }}"
+    requested_cores: "{{ hostvars['localhost']['effective_core_counts'][1] }}"
+  when:
+    - hostvars['localhost']['effective_core_counts'] | length > 1
+    - not (hostvars['localhost']['rag_skip_variable'] | bool)
+    - hostvars['localhost']['can_run_rag_var'] | bool
+
+- name: "RAG Core Count 2 - rag_var (production)"
+  ansible.builtin.import_playbook: llm-benchmark-auto.yml
+  vars:
+    workload_type: "rag_var"
+    vllm_caching_mode: "production"
+    guidellm_profile: "concurrent"
+    guidellm_rate: "{{ hostvars['localhost']['rag_concurrency_levels'] }}"
+    requested_cores: "{{ hostvars['localhost']['effective_core_counts'][1] }}"
+  when:
+    - hostvars['localhost']['effective_core_counts'] | length > 1
+    - not (hostvars['localhost']['rag_skip_caching'] | bool)
+    - hostvars['localhost']['can_run_rag_var'] | bool
+
+# --- Third core count ---
+- name: "RAG Core Count 3 - rag_short (ISL=1024)"
+  ansible.builtin.import_playbook: llm-benchmark-auto.yml
+  vars:
+    workload_type: "rag_short"
+    vllm_caching_mode: "baseline"
+    guidellm_profile: "concurrent"
+    guidellm_rate: "{{ hostvars['localhost']['rag_concurrency_levels'] }}"
+    requested_cores: "{{ hostvars['localhost']['effective_core_counts'][2] }}"
+  when:
+    - hostvars['localhost']['effective_core_counts'] | length > 2
+    - not (hostvars['localhost']['rag_skip_scaling'] | bool)
+    - "'rag_short' in hostvars['localhost']['eligible_tiers']"
+
+- name: "RAG Core Count 3 - rag_medium (ISL=4096)"
+  ansible.builtin.import_playbook: llm-benchmark-auto.yml
+  vars:
+    workload_type: "rag_medium"
+    vllm_caching_mode: "baseline"
+    guidellm_profile: "concurrent"
+    guidellm_rate: "{{ hostvars['localhost']['rag_concurrency_levels'] }}"
+    requested_cores: "{{ hostvars['localhost']['effective_core_counts'][2] }}"
+  when:
+    - hostvars['localhost']['effective_core_counts'] | length > 2
+    - not (hostvars['localhost']['rag_skip_scaling'] | bool)
+    - "'rag_medium' in hostvars['localhost']['eligible_tiers']"
+
+- name: "RAG Core Count 3 - rag_long (ISL=7680)"
+  ansible.builtin.import_playbook: llm-benchmark-auto.yml
+  vars:
+    workload_type: "rag_long"
+    vllm_caching_mode: "baseline"
+    guidellm_profile: "concurrent"
+    guidellm_rate: "{{ hostvars['localhost']['rag_concurrency_levels'] }}"
+    requested_cores: "{{ hostvars['localhost']['effective_core_counts'][2] }}"
+  when:
+    - hostvars['localhost']['effective_core_counts'] | length > 2
+    - not (hostvars['localhost']['rag_skip_scaling'] | bool)
+    - "'rag_long' in hostvars['localhost']['eligible_tiers']"
+
+- name: "RAG Core Count 3 - rag_var (baseline)"
+  ansible.builtin.import_playbook: llm-benchmark-auto.yml
+  vars:
+    workload_type: "rag_var"
+    vllm_caching_mode: "baseline"
+    guidellm_profile: "concurrent"
+    guidellm_rate: "{{ hostvars['localhost']['rag_concurrency_levels'] }}"
+    requested_cores: "{{ hostvars['localhost']['effective_core_counts'][2] }}"
+  when:
+    - hostvars['localhost']['effective_core_counts'] | length > 2
+    - not (hostvars['localhost']['rag_skip_variable'] | bool)
+    - hostvars['localhost']['can_run_rag_var'] | bool
+
+- name: "RAG Core Count 3 - rag_var (production)"
+  ansible.builtin.import_playbook: llm-benchmark-auto.yml
+  vars:
+    workload_type: "rag_var"
+    vllm_caching_mode: "production"
+    guidellm_profile: "concurrent"
+    guidellm_rate: "{{ hostvars['localhost']['rag_concurrency_levels'] }}"
+    requested_cores: "{{ hostvars['localhost']['effective_core_counts'][2] }}"
+  when:
+    - hostvars['localhost']['effective_core_counts'] | length > 2
+    - not (hostvars['localhost']['rag_skip_caching'] | bool)
+    - hostvars['localhost']['can_run_rag_var'] | bool
+
+# --- Fourth core count ---
+- name: "RAG Core Count 4 - rag_short (ISL=1024)"
+  ansible.builtin.import_playbook: llm-benchmark-auto.yml
+  vars:
+    workload_type: "rag_short"
+    vllm_caching_mode: "baseline"
+    guidellm_profile: "concurrent"
+    guidellm_rate: "{{ hostvars['localhost']['rag_concurrency_levels'] }}"
+    requested_cores: "{{ hostvars['localhost']['effective_core_counts'][3] }}"
+  when:
+    - hostvars['localhost']['effective_core_counts'] | length > 3
+    - not (hostvars['localhost']['rag_skip_scaling'] | bool)
+    - "'rag_short' in hostvars['localhost']['eligible_tiers']"
+
+- name: "RAG Core Count 4 - rag_medium (ISL=4096)"
+  ansible.builtin.import_playbook: llm-benchmark-auto.yml
+  vars:
+    workload_type: "rag_medium"
+    vllm_caching_mode: "baseline"
+    guidellm_profile: "concurrent"
+    guidellm_rate: "{{ hostvars['localhost']['rag_concurrency_levels'] }}"
+    requested_cores: "{{ hostvars['localhost']['effective_core_counts'][3] }}"
+  when:
+    - hostvars['localhost']['effective_core_counts'] | length > 3
+    - not (hostvars['localhost']['rag_skip_scaling'] | bool)
+    - "'rag_medium' in hostvars['localhost']['eligible_tiers']"
+
+- name: "RAG Core Count 4 - rag_long (ISL=7680)"
+  ansible.builtin.import_playbook: llm-benchmark-auto.yml
+  vars:
+    workload_type: "rag_long"
+    vllm_caching_mode: "baseline"
+    guidellm_profile: "concurrent"
+    guidellm_rate: "{{ hostvars['localhost']['rag_concurrency_levels'] }}"
+    requested_cores: "{{ hostvars['localhost']['effective_core_counts'][3] }}"
+  when:
+    - hostvars['localhost']['effective_core_counts'] | length > 3
+    - not (hostvars['localhost']['rag_skip_scaling'] | bool)
+    - "'rag_long' in hostvars['localhost']['eligible_tiers']"
+
+- name: "RAG Core Count 4 - rag_var (baseline)"
+  ansible.builtin.import_playbook: llm-benchmark-auto.yml
+  vars:
+    workload_type: "rag_var"
+    vllm_caching_mode: "baseline"
+    guidellm_profile: "concurrent"
+    guidellm_rate: "{{ hostvars['localhost']['rag_concurrency_levels'] }}"
+    requested_cores: "{{ hostvars['localhost']['effective_core_counts'][3] }}"
+  when:
+    - hostvars['localhost']['effective_core_counts'] | length > 3
+    - not (hostvars['localhost']['rag_skip_variable'] | bool)
+    - hostvars['localhost']['can_run_rag_var'] | bool
+
+- name: "RAG Core Count 4 - rag_var (production)"
+  ansible.builtin.import_playbook: llm-benchmark-auto.yml
+  vars:
+    workload_type: "rag_var"
+    vllm_caching_mode: "production"
+    guidellm_profile: "concurrent"
+    guidellm_rate: "{{ hostvars['localhost']['rag_concurrency_levels'] }}"
+    requested_cores: "{{ hostvars['localhost']['effective_core_counts'][3] }}"
+  when:
+    - hostvars['localhost']['effective_core_counts'] | length > 3
+    - not (hostvars['localhost']['rag_skip_caching'] | bool)
+    - hostvars['localhost']['can_run_rag_var'] | bool
+
+# ==========================================================================
+# Suite Summary
+# ==========================================================================
+- name: "RAG Suite - Summary"
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Display RAG suite summary
+      ansible.builtin.debug:
+        msg:
+          - "============================================================"
+          - "RAG Test Suite - COMPLETE"
+          - "============================================================"
+          - "Model: {{ test_model | default('external endpoint') }}"
+          - "Core Counts Tested: {{ effective_core_counts }}"
+          - "Concurrency Levels: {{ rag_concurrency_levels }}"
+          - ""
+          - "Phases:"
+          - "  1. Context Scaling: {{ 'SKIPPED' if rag_skip_scaling else eligible_tiers | join(', ') }}"
+          - "  2. Variable Dist:   {{ 'SKIPPED' if (rag_skip_variable or not (can_run_rag_var | bool)) else 'rag_var' }}"
+          - "  3. Prefix Caching:  {{ 'SKIPPED' if (rag_skip_caching or not (can_run_rag_var | bool)) else 'rag_var (production)' }}"
+          - ""
+          - "NOTE: Phase 3 uses synthetic text. Each request gets unique"
+          - "tokens so prefix caching has no effect. Results establish a"
+          - "structural baseline. Meaningful caching results require"
+          - "file-based datasets with shared document prefixes."
+          - "============================================================"

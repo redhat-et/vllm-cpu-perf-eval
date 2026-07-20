@@ -27,14 +27,11 @@ vllm-cpu-perf-eval/
 ├── tests/                              # Test suites and scenarios
 │   ├── tests.md                        # Test suite overview
 │   ├── concurrent-load/                # Test Suite 1: Concurrent load testing
-│   │   ├── concurrent-load.md         # Suite documentation
-│   │   └── *.yaml                     # Test scenario definitions
+│   │   └── concurrent-load.md         # Suite documentation
 │   ├── scalability/                    # Test Suite 2: Scalability testing
-│   │   ├── scalability.md             # Suite documentation
-│   │   └── *.yaml                     # Test scenario definitions
-│   ├── resource-contention/            # Test Suite 3: Resource contention
-│   │   ├── resource-contention.md     # Suite documentation
-│   │   └── *.yaml                     # Test scenario definitions (planned)
+│   │   └── scalability.md             # Suite documentation
+│   ├── resource-contention/            # Test Suite 3: Resource contention (planned)
+│   │   └── resource-contention.md     # Suite documentation
 │   └── embedding-models/               # Embedding model test scenarios
 │       ├── embedding-models.md        # Embedding test documentation
 │       ├── baseline-sweep.md          # Baseline performance tests

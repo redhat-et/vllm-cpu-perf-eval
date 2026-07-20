@@ -99,10 +99,10 @@
     - name: Validate guidellm_profile if provided
       ansible.builtin.assert:
         that:
-          - guidellm_profile in ['sweep', 'synchronous', 'concurrent', 'throughput']
+          - guidellm_profile in ['sweep', 'synchronous', 'concurrent', 'throughput', 'poisson', 'constant']
         fail_msg: |
           Invalid guidellm_profile: {{ guidellm_profile }}
-          Supported profiles: sweep, synchronous, concurrent, throughput
+          Supported profiles: sweep, synchronous, concurrent, throughput, poisson, constant
       when: guidellm_profile is defined
 
     - name: Validate guidellm_max_seconds if provided
@@ -609,6 +609,20 @@
             "vllm_mode": "{{ hostvars['localhost']['vllm_mode'] }}",
             "vllm_endpoint_url": "{{ vllm_endpoint.external.url if hostvars['localhost']['vllm_mode'] == 'external' else 'n/a' }}",
             "guidellm_version": "{{ hostvars['localhost']['guidellm_version'] | default('unknown') }}",
+            "guidellm_profile": "{{ guidellm_profile | default(benchmark_tool.guidellm.profile) }}",
+            "guidellm_container_image": "{{ benchmark_tool.guidellm.container_image }}",
+            "vllm_container_image": "{{ container_runtime.image if hostvars['localhost']['vllm_mode'] == 'managed' else 'n/a' }}",
+            "sut_boundary": "model_engine",
+            "ietf_methodology_version": "draft-gaikwad-llm-benchmarking-methodology-00",
+            "tokenizer": "{{ actual_model }}",
+            "tokenizer_source": "huggingface",
+            "streaming_protocol": "sse",
+            "random_seed": 42,
+            "clock_sync_method": "{{ 'single-machine' if hostvars['localhost']['vllm_mode'] == 'managed' else 'ntp' }}",
+            "model_precision": "{{ vllm_dtype | default('auto') }}",
+            "quantization_method": "{{ vllm_quantization | default('none') }}",
+            "load_model": "{{ 'closed-loop' if (guidellm_profile | default(benchmark_tool.guidellm.profile)) in ['concurrent', 'synchronous', 'throughput'] else 'open-loop' }}",
+            "arrival_pattern": "{{ guidellm_profile | default(benchmark_tool.guidellm.profile) }}",
             "timestamp": "{{ lookup('pipe', 'date -Iseconds') }}",
             "test_duration": "{{ test_duration_string | default('unknown') }}",
             "test_duration_seconds": {{ test_duration_seconds | default('null') }}

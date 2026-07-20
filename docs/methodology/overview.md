@@ -68,10 +68,10 @@ workload necessary to test the system under realistic or stress conditions.
 
 | Test Type | Guidellm CLI Parameter Example | Guidellm Podman Parameter Example |
 | --- | --- | --- |
-| **concurrent** | `guidellm benchmark --target "http://localhost:8000" --profile concurrent --warmup 0.1 --rate 1,2,4,8,16,32 --max-seconds 600 --request-timeout 600 --data "prompt_tokens=512,output_tokens=256"` | `sudo podman run --rm -it --network=host --cpuset-cpus=17-31 -v "/tmp/results:/results:z" -e GUIDELLM_TARGET=http://localhost:8000 -e GUIDELLM_PROFILE=concurrent -e GUIDELLM_RATE=1,2,4,8,16,32 -e GUIDELLM_MAX_SECONDS=600 -e GUIDELLM_REQUEST_TIMEOUT=600 -e GUIDELLM_WARMUP=0.1 -e GUIDELLM_DATA="prompt_tokens=512,output_tokens=256" -e HF_TOKEN=$HF_TOKEN ghcr.io/vllm-project/guidellm:v0.6.0` |
-| **sweep** | `guidellm benchmark --target "http://localhost:8000" --profile sweep --warmup 30 --rampup 15.0 --max-requests 130 --data "prompt_tokens=512,output_tokens=256"` | `sudo podman run --rm -it --network=host --cpuset-cpus=17-31 -v "/tmp/results:/results:z" -e GUIDELLM_TARGET=http://localhost:8000 -e GUIDELLM_PROFILE=sweep -e GUIDELLM_RAMPUP=15.0 -e GUIDELLM_WARMUP=30 -e GUIDELLM_MAX_REQUESTS=130 -e GUIDELLM_DATA="prompt_tokens=512,output_tokens=256" -e HF_TOKEN=$HF_TOKEN ghcr.io/vllm-project/guidellm:v0.6.0` |
-| **synchronous** | `guidellm benchmark --target "http://localhost:8000" --profile synchronous --warmup 30 --max-requests 100 --data "prompt_tokens=512,output_tokens=256"` | `sudo podman run --rm -it --network=host --cpuset-cpus=17-31 -v "/tmp/results:/results:z" -e GUIDELLM_TARGET=http://localhost:8000 -e GUIDELLM_PROFILE=synchronous -e GUIDELLM_WARMUP=30 -e GUIDELLM_MAX_REQUESTS=100 -e GUIDELLM_DATA="prompt_tokens=512,output_tokens=256" -e HF_TOKEN=$HF_TOKEN ghcr.io/vllm-project/guidellm:v0.6.0` |
-| **poisson** | `guidellm benchmark --target "http://localhost:8000" --profile poisson --warmup 30 --rate 32 --max-requests 280 --data "prompt_tokens=512,output_tokens=256"` | `sudo podman run --rm -it --network=host --cpuset-cpus=17-31 -v "/tmp/results:/results:z" -e GUIDELLM_TARGET=http://localhost:8000 -e GUIDELLM_PROFILE=poisson -e GUIDELLM_RATE=32 -e GUIDELLM_MAX_REQUESTS=280 -e GUIDELLM_WARMUP=30 -e GUIDELLM_DATA="prompt_tokens=512,output_tokens=256" -e HF_TOKEN=$HF_TOKEN ghcr.io/vllm-project/guidellm:v0.6.0` |
+| **concurrent** | `guidellm benchmark --target "http://localhost:8000" --profile concurrent --warmup 0.1 --rate 1,2,4,8,16,32 --max-seconds 600 --request-timeout 600 --data "prompt_tokens=512,output_tokens=256"` | `sudo podman run --rm -it --network=host --cpuset-cpus=17-31 -v "/tmp/results:/results:z" -e GUIDELLM_TARGET=http://localhost:8000 -e GUIDELLM_PROFILE=concurrent -e GUIDELLM_RATE=1,2,4,8,16,32 -e GUIDELLM_MAX_SECONDS=600 -e GUIDELLM_REQUEST_TIMEOUT=600 -e GUIDELLM_WARMUP=0.1 -e GUIDELLM_DATA="prompt_tokens=512,output_tokens=256" -e HF_TOKEN=$HF_TOKEN ghcr.io/vllm-project/guidellm:v0.7.1` |
+| **sweep** | `guidellm benchmark --target "http://localhost:8000" --profile sweep --warmup 30 --rampup 15.0 --max-requests 130 --data "prompt_tokens=512,output_tokens=256"` | `sudo podman run --rm -it --network=host --cpuset-cpus=17-31 -v "/tmp/results:/results:z" -e GUIDELLM_TARGET=http://localhost:8000 -e GUIDELLM_PROFILE=sweep -e GUIDELLM_RAMPUP=15.0 -e GUIDELLM_WARMUP=30 -e GUIDELLM_MAX_REQUESTS=130 -e GUIDELLM_DATA="prompt_tokens=512,output_tokens=256" -e HF_TOKEN=$HF_TOKEN ghcr.io/vllm-project/guidellm:v0.7.1` |
+| **synchronous** | `guidellm benchmark --target "http://localhost:8000" --profile synchronous --warmup 30 --max-requests 100 --data "prompt_tokens=512,output_tokens=256"` | `sudo podman run --rm -it --network=host --cpuset-cpus=17-31 -v "/tmp/results:/results:z" -e GUIDELLM_TARGET=http://localhost:8000 -e GUIDELLM_PROFILE=synchronous -e GUIDELLM_WARMUP=30 -e GUIDELLM_MAX_REQUESTS=100 -e GUIDELLM_DATA="prompt_tokens=512,output_tokens=256" -e HF_TOKEN=$HF_TOKEN ghcr.io/vllm-project/guidellm:v0.7.1` |
+| **poisson** | `guidellm benchmark --target "http://localhost:8000" --profile poisson --warmup 30 --rate 32 --max-requests 280 --data "prompt_tokens=512,output_tokens=256"` | `sudo podman run --rm -it --network=host --cpuset-cpus=17-31 -v "/tmp/results:/results:z" -e GUIDELLM_TARGET=http://localhost:8000 -e GUIDELLM_PROFILE=poisson -e GUIDELLM_RATE=32 -e GUIDELLM_MAX_REQUESTS=280 -e GUIDELLM_WARMUP=30 -e GUIDELLM_DATA="prompt_tokens=512,output_tokens=256" -e HF_TOKEN=$HF_TOKEN ghcr.io/vllm-project/guidellm:v0.7.1` |
 
 <!-- markdownlint-enable MD013 -->
 
@@ -108,6 +108,7 @@ workload necessary to test the system under realistic or stress conditions.
 | --- | --- |
 | **Device Under Test (DUT)** | Server Platform (e.g. Intel Xeon 6, AMD EPYC 9005) |
 | **Load Generator** | Separate node (≥ 16 cores), same network segment as DUT (≥ 10 GbE), running GuideLLM |
+| **SUT Boundary** | Model Engine (vLLM inference runtime only, per [IETF profiles](ietf-alignment.md#sut-boundary)) |
 
 <!-- markdownlint-enable MD013 MD060 -->
 
@@ -214,6 +215,8 @@ for status and planned tests**
 
 ## Related Documentation
 
+- **[IETF Alignment](ietf-alignment.md)** - Alignment with IETF LLM
+  benchmarking drafts (methodology, profiles, terminology)
 - **[3-Phase Testing Methodology](testing-phases.md)** - General testing
   approach for all suites
 - **[Metrics Guide](metrics.md)** - Definitions of all measured metrics
@@ -226,3 +229,9 @@ for status and planned tests**
   scenarios
 - **[Model Selection](../../models/models.md)** - Centralized model
   definitions and rationale
+
+## References
+
+- [IETF: Benchmarking Methodology for LLMs](https://datatracker.ietf.org/doc/draft-gaikwad-llm-benchmarking-methodology/)
+- [IETF: Benchmarking Profiles for LLMs](https://datatracker.ietf.org/doc/draft-gaikwad-llm-benchmarking-profiles/)
+- [IETF: Benchmarking Terminology for LLMs](https://datatracker.ietf.org/doc/draft-gaikwad-llm-benchmarking-terminology/)

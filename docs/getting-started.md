@@ -146,7 +146,7 @@ export HF_TOKEN=$(cat ~/hf-token)
 
 # Container images (optional - defaults are provided)
 export VLLM_CONTAINER_IMAGE=docker.io/vllm/vllm-openai-cpu:v0.18.0
-export GUIDELLM_CONTAINER_IMAGE=ghcr.io/vllm-project/guidellm:v0.6.0
+export GUIDELLM_CONTAINER_IMAGE=ghcr.io/vllm-project/guidellm:v0.7.1
 ```
 
 > **⚠️ Red Hat AI Images**: If using Red Hat AI Inference Server images (`registry.redhat.io/rhaii/*`), you **must manually pull** the image on the DUT before running tests, as Ansible cannot pull authenticated images. See [Using Red Hat AI Images](embedding-models.md#using-red-hat-ai-inference-server-rhaiis-images) for complete setup.
@@ -232,14 +232,35 @@ ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
 
 ### 6. View Results
 
-Results are automatically collected to your local machine:
+Results are automatically collected to your local machine. The recommended way
+to view and analyze results is via the **Streamlit dashboard**:
 
 ```bash
-# View JSON results
-cat results/llm/TinyLlama__TinyLlama-1.1B-Chat-v1.0/chat-*/benchmarks.json
+# One-time setup
+cd automation/test-execution/dashboard-examples
+./setup.sh
 
-# View CSV results (importable to spreadsheets)
-cat results/llm/TinyLlama__TinyLlama-1.1B-Chat-v1.0/chat-*/benchmarks.csv
+# Launch the dashboard
+cd vllm_dashboard
+./launch-dashboard.sh
+```
+
+Then open <http://localhost:8501> in your browser. The dashboard provides:
+
+- **Client Metrics** — throughput, latency percentiles (P50/P90/P95/P99),
+  success rate, with multi-percentile overlay charts
+- **Server Metrics** — vLLM queue depth, cache usage, token generation rates
+- **Platform Comparison** — side-by-side analysis across configurations
+- **CSV Export** — download filtered data for external analysis
+
+For the full dashboard guide, see
+[Dashboards Quick Start](dashboards-quickstart.md).
+
+**Raw results** are also available as JSON and CSV:
+
+```bash
+ls results/llm/TinyLlama__TinyLlama-1.1B-Chat-v1.0/chat-*/
+# benchmarks.json  benchmarks.csv  test-metadata.json
 ```
 
 ## Common Test Scenarios

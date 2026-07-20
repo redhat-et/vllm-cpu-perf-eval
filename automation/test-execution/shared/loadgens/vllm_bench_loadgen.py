@@ -21,7 +21,7 @@ class VLLMBenchLoadGen(LoadGenerator):
 
     @property
     def version(self) -> str:
-        return "0.20.0"  # vLLM version
+        return "0.25.1"  # vLLM version
 
     def get_command(self, config: LoadGenConfig) -> List[str]:
         """Generate vllm bench serve command.

@@ -16,7 +16,7 @@ class TestVLLMBackend:
     def test_backend_version(self):
         """Test backend version is set."""
         backend = vLLMBackend()
-        assert backend.version == "0.20.0"
+        assert backend.version == "0.25.1"
 
     def test_container_image(self):
         """Test container image URL."""

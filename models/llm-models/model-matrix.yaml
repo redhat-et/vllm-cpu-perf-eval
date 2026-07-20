@@ -35,11 +35,16 @@ matrix:
         reasoning: "3GiB"     # 2304 tokens, 32 concurrent
         chat_var: "3GiB"      # 2048 max tokens, 32 concurrent, 1.5x safety
         code_var: "6GiB"      # 4096 max tokens, 32 concurrent, 1.5x safety
+        rag_short: "2GiB"     # 1280 tokens, 16 concurrent
+        rag_medium: "5GiB"    # 4480 tokens, 16 concurrent
+        rag_long: "11GiB"     # 8192 tokens, 16 concurrent
+        rag_var: "11GiB"      # 8192 max tokens, 16 concurrent
       default_workloads:
         - chat
       test_suites:
         - concurrent-load
         - scalability
+        - rag-suite
 
     - name: "llama-3.2-3b-instruct"
       full_name: "meta-llama/Llama-3.2-3B-Instruct"
@@ -66,11 +71,16 @@ matrix:
         reasoning: "10GiB"    # 2304 tokens, 32 concurrent
         chat_var: "11GiB"     # 2048 max tokens, 32 concurrent, 1.5x safety
         code_var: "21GiB"     # 4096 max tokens, 32 concurrent, 1.5x safety
+        rag_short: "5GiB"     # 1280 tokens, 16 concurrent
+        rag_medium: "18GiB"   # 4480 tokens, 16 concurrent
+        rag_long: "36GiB"     # 8192 tokens, 16 concurrent
+        rag_var: "36GiB"      # 8192 max tokens, 16 concurrent
       default_workloads:
         - chat
       test_suites:
         - concurrent-load
         - scalability
+        - rag-suite
 
     # Llama 2 Family (Small-Scale)
     - name: "tinyllama-1.1b-chat"
@@ -98,11 +108,13 @@ matrix:
         reasoning: "2GiB"     # 2304 tokens, 32 concurrent
         chat_var: "3GiB"      # 2048 max tokens, 32 concurrent, 1.5x safety
         code_var: "5GiB"      # 4096 max tokens, 32 concurrent, 1.5x safety
+        rag_short: "1GiB"     # 1280 tokens, 16 concurrent (only RAG tier for 2048 ctx)
       default_workloads:
         - chat
       test_suites:
         - concurrent-load
         - scalability
+        - rag-suite
 
     # IBM Granite Family
     - name: "granite-3.2-2b-instruct"
@@ -130,11 +142,13 @@ matrix:
         reasoning: "5GiB"     # 2304 tokens, 32 concurrent
         chat_var: "8GiB"      # 2048 max tokens, 32 concurrent, 1.5x safety
         code_var: "15GiB"     # 4096 max tokens, 32 concurrent, 1.5x safety
+        rag_short: "3GiB"     # 1280 tokens, 16 concurrent (only RAG tier for 4096 ctx)
       default_workloads:
         - chat
       test_suites:
         - concurrent-load
         - scalability
+        - rag-suite
 
     # Qwen Family
     - name: "qwen3-0.6b"
@@ -162,12 +176,17 @@ matrix:
         reasoning: "4GiB"     # 2304 tokens, 32 concurrent
         chat_var: "6GiB"      # 2048 max tokens, 32 concurrent, 1.5x safety
         code_var: "11GiB"     # 4096 max tokens, 32 concurrent, 1.5x safety
+        rag_short: "2GiB"     # 1280 tokens, 16 concurrent
+        rag_medium: "6GiB"    # 4480 tokens, 16 concurrent
+        rag_long: "12GiB"     # 8192 tokens, 16 concurrent
+        rag_var: "12GiB"      # 8192 max tokens, 16 concurrent
       default_workloads:
         - chat
         - code
       test_suites:
         - concurrent-load
         - scalability
+        - rag-suite
 
     - name: "qwen2.5-3b-instruct"
       full_name: "Qwen/Qwen2.5-3B-Instruct"
@@ -194,11 +213,16 @@ matrix:
         reasoning: "2GiB"     # 2304 tokens, 32 concurrent
         chat_var: "4GiB"      # 2048 max tokens, 32 concurrent, 1.5x safety
         code_var: "7GiB"      # 4096 max tokens, 32 concurrent, 1.5x safety
+        rag_short: "1GiB"     # 1280 tokens, 16 concurrent
+        rag_medium: "4GiB"    # 4480 tokens, 16 concurrent
+        rag_long: "7GiB"      # 8192 tokens, 16 concurrent
+        rag_var: "7GiB"       # 8192 max tokens, 16 concurrent
       default_workloads:
         - chat
         - code
       test_suites:
         - scalability
+        - rag-suite
 
     # OpenAI GPT-OSS Family
     - name: "gpt-oss-20b"
@@ -238,6 +262,10 @@ matrix:
         reasoning: "4GiB"     # 2304 tokens, 32 concurrent
         chat_var: "4GiB"      # 2048 max tokens, 32 concurrent, 1.5x safety
         code_var: "7GiB"      # 4096 max tokens, 32 concurrent, 1.5x safety
+        rag_short: "2GiB"     # 1280 tokens, 16 concurrent
+        rag_medium: "7GiB"    # 4480 tokens, 16 concurrent
+        rag_long: "14GiB"     # 8192 tokens, 16 concurrent
+        rag_var: "14GiB"      # 8192 max tokens, 16 concurrent
       default_workloads:
         - rag       # Primary - leverages large context
         - chat      # Baseline conversational
@@ -245,6 +273,7 @@ matrix:
       test_suites:
         - concurrent-load
         - scalability
+        - rag-suite
       notes: |
         - Largest model in test suite
         - Excellent for CPU scalability testing at higher parameter counts
@@ -322,6 +351,43 @@ matrix:
       description: "Variable code generation with realistic output variance"
       use_case: "Realistic code generation with varying complexity"
 
+    # RAG Suite Workloads
+    rag_short:
+      name: "RAG Short Context"
+      input_tokens: 1024
+      output_tokens: 256
+      max_model_len: 2048
+      description: "Short retrieval context (1-2 document chunks)"
+      use_case: "Simple document Q&A with minimal context"
+
+    rag_medium:
+      name: "RAG Medium Context"
+      input_tokens: 4096
+      output_tokens: 384
+      max_model_len: 8192
+      description: "Medium retrieval context (4-8 document chunks)"
+      use_case: "Multi-document retrieval with moderate context"
+
+    rag_long:
+      name: "RAG Long Context"
+      input_tokens: 7680
+      output_tokens: 512
+      max_model_len: 8320
+      description: "Full context fill (same as base rag workload)"
+      use_case: "Large document or many-chunk retrieval"
+
+    rag_var:
+      name: "RAG (Variable)"
+      input_tokens_mean: 4096
+      input_tokens_stdev: 2048
+      output_tokens_mean: 256
+      output_tokens_stdev: 128
+      input_range: "1024-7680"
+      output_range: "64-512"
+      variability: true
+      description: "Variable RAG workload simulating diverse retrieval patterns"
+      use_case: "Production RAG with varying document context sizes"
+
   # Common test parameters
   common_parameters:
     affinity: "FULL"  # All physical cores
@@ -371,6 +437,33 @@ matrix:
         - "saturation_point"
         - "ttft_scaling"
         - "itl_scaling"
+
+    rag-suite:
+      concurrency_levels: [1, 2, 4, 8, 16]
+      test_tool: "guidellm"
+      profile: "concurrent"
+      primary_metrics:
+        - "ttft_ms"
+        - "p95_e2el_ms"
+        - "throughput_rps"
+      test_phases:
+        phase1_context_scaling:
+          name: "Phase 1: Context Scaling"
+          description: "TTFT sensitivity to input length on CPU"
+          workloads: ["rag_short", "rag_medium", "rag_long"]
+          caching_mode: "baseline"
+        phase2_variable:
+          name: "Phase 2: Variable Distribution"
+          description: "Realistic retrieval patterns"
+          workloads: ["rag_var"]
+          caching_mode: "baseline"
+        phase3_caching:
+          name: "Phase 3: Prefix Caching"
+          description: "Caching impact (synthetic baseline only)"
+          workloads: ["rag_var"]
+          caching_mode: "production"
+          note: "Synthetic text - no real prefix sharing. Structural only."
+      core_count_sweep: true
 
     resource-contention:
       status: "planned"

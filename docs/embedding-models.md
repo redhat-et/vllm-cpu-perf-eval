@@ -303,7 +303,7 @@ Override default benchmark settings:
 -e "use_container=true"
 
 # Custom vllm-bench container image
--e "vllm_bench_image=docker.io/vllm/vllm-openai-cpu:v0.20.0"
+-e "vllm_bench_image=docker.io/vllm/vllm-openai-cpu:v0.25.1"
 ```
 
 **Example: Test different input lengths**
@@ -327,7 +327,7 @@ Configuration in `inventory/group_vars/all/benchmark-tools.yml`:
 ```yaml
 vllm_bench:
   use_container: true
-  container_image: docker.io/vllm/vllm-openai-cpu:v0.20.0
+  container_image: docker.io/vllm/vllm-openai-cpu:v0.25.1
   num_prompts: 250
 ```
 
@@ -339,7 +339,7 @@ The framework **automatically detects system architecture** and selects appropri
 
 | Architecture | vLLM Server Image | vllm-bench/GuideLLM Image |
 |--------------|-------------------|---------------------------|
-| **x86_64/amd64** | `docker.io/vllm/vllm-openai-cpu:v0.20.0` | `docker.io/vllm/vllm-openai-cpu:v0.20.0` |
+| **x86_64/amd64** | `docker.io/vllm/vllm-openai-cpu:v0.25.1` | `docker.io/vllm/vllm-openai-cpu:v0.25.1` |
 | **aarch64/arm64** | `quay.io/mtahhan/vllm:arm-base-cpu` | `quay.io/mtahhan/vllm:arm-base-cpu` |
 
 ### How It Works

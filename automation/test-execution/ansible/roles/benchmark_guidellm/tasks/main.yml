@@ -82,6 +82,19 @@
   become: false
   delegate_facts: true
 
+- name: Parse GuideLLM major.minor version from container image tag
+  ansible.builtin.set_fact:
+    guidellm_semver: >-
+      {%- set ver = guidellm_version | trim | regex_replace('^v', '') -%}
+      {%- set parts = ver.split('.') -%}
+      {{ parts[0] }}.{{ parts[1] if parts | length > 1 else '0' }}
+  when: use_guidellm_container | bool
+
+- name: Display parsed GuideLLM semver
+  ansible.builtin.debug:
+    msg: "GuideLLM semver: {{ guidellm_semver | default('unknown') }} (v0.7+ CLI: {{ guidellm_semver is defined and guidellm_semver is version('0.7', '>=') }})"
+  when: use_guidellm_container | bool
+
 - name: Set model name for results path (prefer actual_model if available)
   ansible.builtin.set_fact:
     resolved_model: "{{ actual_model | default(test_model) }}"
@@ -131,7 +144,28 @@
     state: present
   when: use_guidellm_container | bool
 
-- name: Prepare GuideLLM environment variables (base)
+# Build data string (shared by both container and host modes, v0.6.x and v0.7.x)
+- name: Build GUIDELLM_DATA for fixed workloads
+  ansible.builtin.set_fact:
+    guidellm_data_string: "prompt_tokens={{ workload_cfg.isl }},output_tokens={{ workload_cfg.osl }}"
+  when: not (workload_cfg.variability | default(false) | bool)
+
+- name: Build GUIDELLM_DATA for variable workloads
+  ansible.builtin.set_fact:
+    guidellm_data_string: "prompt_tokens={{ workload_cfg.isl }},prompt_tokens_stdev={{ workload_cfg.isl_stdev }},prompt_tokens_min={{ workload_cfg.isl_min }},prompt_tokens_max={{ workload_cfg.isl_max }},output_tokens={{ workload_cfg.osl }},output_tokens_stdev={{ workload_cfg.osl_stdev }},output_tokens_min={{ workload_cfg.osl_min }},output_tokens_max={{ workload_cfg.osl_max }}"
+  when: workload_cfg.variability | default(false) | bool
+
+# Build container name (shared by both v0.6.x and v0.7.x)
+- name: Build GuideLLM container name with actual NUMA configuration
+  ansible.builtin.set_fact:
+    guidellm_container_name: "guidellm-{{ workload_type }}-{{ core_cfg.name | default(core_cfg.cpuset_cpus | default('auto')) }}-vllm-numa{{ core_cfg.cpuset_mems | replace('n/a', 'na') | regex_replace('[^a-zA-Z0-9_.-]', '-') }}-loadgen-numa{{ guidellm_cfg.cpuset_mems | replace('n/a', 'na') | regex_replace('[^a-zA-Z0-9_.-]', '-') }}"
+  when: use_guidellm_container | bool
+
+# ----------------------------------------------------------------------------
+# v0.6.x CONTAINER PATH (env-var-based configuration)
+# ----------------------------------------------------------------------------
+
+- name: "v0.6.x: Prepare GuideLLM environment variables (base)"
   ansible.builtin.set_fact:
     guidellm_env:
       GUIDELLM_TARGET: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}"
@@ -149,48 +183,44 @@
       GUIDELLM_OUTPUTS: "{{ guidellm_cfg.outputs }}"
       HF_TOKEN: "{{ hf_token | default('') }}"
   no_log: true
+  when:
+    - use_guidellm_container | bool
+    - guidellm_semver is version('0.7', '<')
 
-- name: Build GUIDELLM_DATA for fixed workloads
-  ansible.builtin.set_fact:
-    guidellm_data_string: "prompt_tokens={{ workload_cfg.isl }},output_tokens={{ workload_cfg.osl }}"
-  when: not (workload_cfg.variability | default(false) | bool)
-
-- name: Build GUIDELLM_DATA for variable workloads
-  ansible.builtin.set_fact:
-    guidellm_data_string: "prompt_tokens={{ workload_cfg.isl }},prompt_tokens_stdev={{ workload_cfg.isl_stdev }},prompt_tokens_min={{ workload_cfg.isl_min }},prompt_tokens_max={{ workload_cfg.isl_max }},output_tokens={{ workload_cfg.osl }},output_tokens_stdev={{ workload_cfg.osl_stdev }},output_tokens_min={{ workload_cfg.osl_min }},output_tokens_max={{ workload_cfg.osl_max }}"
-  when: workload_cfg.variability | default(false) | bool
-
-- name: Add GUIDELLM_DATA to environment
+- name: "v0.6.x: Add GUIDELLM_DATA to environment"
   ansible.builtin.set_fact:
     guidellm_env: "{{ guidellm_env | combine({'GUIDELLM_DATA': guidellm_data_string}) }}"
   no_log: true
+  when:
+    - use_guidellm_container | bool
+    - guidellm_semver is version('0.7', '<')
 
-- name: Add rate parameter for non-synchronous profiles
+- name: "v0.6.x: Add rate parameter for non-synchronous profiles"
   ansible.builtin.set_fact:
     guidellm_env: "{{ guidellm_env | combine({'GUIDELLM_RATE': guidellm_cfg.rate | default([]) | join(',')}) }}"
-  when: guidellm_cfg.profile != 'synchronous'
+  when:
+    - use_guidellm_container | bool
+    - guidellm_semver is version('0.7', '<')
+    - guidellm_cfg.profile != 'synchronous'
   no_log: true
 
-- name: Add API key to backend kwargs if configured
+- name: "v0.6.x: Add API key to backend kwargs if configured"
   ansible.builtin.set_fact:
     guidellm_env: "{{ guidellm_env | combine({'GUIDELLM_BACKEND_KWARGS': '{\"api_key\": \"' + vllm_api_key + '\"}'}) }}"
   when:
+    - use_guidellm_container | bool
+    - guidellm_semver is version('0.7', '<')
     - vllm_api_key is defined
     - vllm_api_key | length > 0
   no_log: true
 
-- name: Build GuideLLM container name with actual NUMA configuration
-  ansible.builtin.set_fact:
-    guidellm_container_name: "guidellm-{{ workload_type }}-{{ core_cfg.name | default(core_cfg.cpuset_cpus | default('auto')) }}-vllm-numa{{ core_cfg.cpuset_mems | replace('n/a', 'na') | regex_replace('[^a-zA-Z0-9_.-]', '-') }}-loadgen-numa{{ guidellm_cfg.cpuset_mems | replace('n/a', 'na') | regex_replace('[^a-zA-Z0-9_.-]', '-') }}"
-  when: use_guidellm_container | bool
-
-- name: Start GuideLLM benchmark container
+- name: "v0.6.x: Start GuideLLM benchmark container"
   containers.podman.podman_container:
     name: "{{ guidellm_container_name }}"
     image: "{{ guidellm_cfg.container_image }}"
     state: started
-    rm: false  # Don't auto-remove so we can check exit code
-    detach: true  # Run in background so we can stream logs
+    rm: false
+    detach: true
     network: host
     cpuset_cpus: "{{ omit if ansible_facts['system'] == 'Darwin' else guidellm_cfg.cpuset_cpus }}"
     cpuset_mems: "{{ omit if ansible_facts['system'] == 'Darwin' else guidellm_cfg.cpuset_mems }}"
@@ -201,8 +231,115 @@
     log_opt:
       tag: "{{ guidellm_container_name }}"
   register: guidellm_container
-  when: use_guidellm_container | bool
-  no_log: true  # Prevent HF_TOKEN from appearing in logs
+  when:
+    - use_guidellm_container | bool
+    - guidellm_semver is version('0.7', '<')
+  no_log: true
+
+# ----------------------------------------------------------------------------
+# v0.7.x CONTAINER PATH (CLI-arg-based configuration)
+# ----------------------------------------------------------------------------
+
+- name: "v0.7.x: Build --backend argument"
+  ansible.builtin.set_fact:
+    guidellm_v7_backend: "kind=openai_http,target=http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}"
+  when:
+    - use_guidellm_container | bool
+    - guidellm_semver is version('0.7', '>=')
+
+- name: "v0.7.x: Build --data argument for fixed workloads"
+  ansible.builtin.set_fact:
+    guidellm_v7_data: "kind=synthetic_text,{{ guidellm_data_string }}"
+  when:
+    - use_guidellm_container | bool
+    - guidellm_semver is version('0.7', '>=')
+
+- name: "v0.7.x: Build --profile argument"
+  ansible.builtin.set_fact:
+    guidellm_v7_profile: >-
+      {%- set p = guidellm_cfg.profile -%}
+      {%- set parts = ['kind=' + p, 'warmup=' + (guidellm_cfg.warmup | string), 'cooldown=' + (guidellm_cfg.cooldown | string)] -%}
+      {%- set rates = guidellm_cfg.rate | default([]) -%}
+      {%- if p == 'concurrent' and rates | length > 0 -%}
+        {%- set _ = parts.append('streams=' + (rates[0] | string)) -%}
+      {%- elif p in ['constant', 'poisson'] and rates | length > 0 -%}
+        {%- set _ = parts.append('rate=' + (rates[0] | string)) -%}
+      {%- endif -%}
+      {{ parts | join(',') }}
+  when:
+    - use_guidellm_container | bool
+    - guidellm_semver is version('0.7', '>=')
+
+- name: "v0.7.x: Build --override for multi-rate profiles"
+  ansible.builtin.set_fact:
+    guidellm_v7_override: >-
+      {%- set p = guidellm_cfg.profile -%}
+      {%- set rates = guidellm_cfg.rate | default([]) -%}
+      {%- if p == 'concurrent' and rates | length > 1 -%}
+        --override profile.streams {{ rates | join(',') }}
+      {%- elif p in ['constant', 'poisson'] and rates | length > 1 -%}
+        --override profile.rate {{ rates | join(',') }}
+      {%- endif -%}
+  when:
+    - use_guidellm_container | bool
+    - guidellm_semver is version('0.7', '>=')
+
+- name: "v0.7.x: Build full CLI args string"
+  ansible.builtin.set_fact:
+    guidellm_v7_args: >-
+      run
+      --backend {{ guidellm_v7_backend }}
+      --data {{ guidellm_v7_data }}
+      --tokenizer kind=huggingface_auto,model={{ processor_model }}
+      --profile {{ guidellm_v7_profile }}
+      {{ guidellm_v7_override | default('') }}
+      --constraint kind=max_duration,seconds={{ guidellm_cfg.max_seconds }}
+      --constraint kind=max_requests,count={{ guidellm_cfg.max_requests }}
+      --output kind=json,path=/results/benchmarks.json
+      --output kind=csv,path=/results/benchmarks.csv
+  when:
+    - use_guidellm_container | bool
+    - guidellm_semver is version('0.7', '>=')
+
+- name: "v0.7.x: Display generated CLI args"
+  ansible.builtin.debug:
+    msg: "GuideLLM v0.7.x CLI args: {{ guidellm_v7_args }}"
+  when:
+    - use_guidellm_container | bool
+    - guidellm_semver is version('0.7', '>=')
+
+- name: "v0.7.x: Prepare minimal environment variables"
+  ansible.builtin.set_fact:
+    guidellm_env:
+      HF_TOKEN: "{{ hf_token | default('') }}"
+      GUIDELLM__MAX_CONCURRENCY: "{{ guidellm_cfg.max_concurrency | default(128) }}"
+  no_log: true
+  when:
+    - use_guidellm_container | bool
+    - guidellm_semver is version('0.7', '>=')
+
+- name: "v0.7.x: Start GuideLLM benchmark container"
+  containers.podman.podman_container:
+    name: "{{ guidellm_container_name }}"
+    image: "{{ guidellm_cfg.container_image }}"
+    state: started
+    rm: false
+    detach: true
+    network: host
+    cpuset_cpus: "{{ omit if ansible_facts['system'] == 'Darwin' else guidellm_cfg.cpuset_cpus }}"
+    cpuset_mems: "{{ omit if ansible_facts['system'] == 'Darwin' else guidellm_cfg.cpuset_mems }}"
+    volumes:
+      - "{{ results_path }}:/results:z"
+    env: "{{ guidellm_env }}"
+    command: "{{ guidellm_v7_args }}"
+    log_driver: journald
+    log_opt:
+      tag: "{{ guidellm_container_name }}"
+  register: guidellm_container
+  when:
+    - use_guidellm_container | bool
+    - guidellm_semver is version('0.7', '>=')
+  no_log: true
 
 - name: Set monitoring command based on connection type
   ansible.builtin.set_fact:
@@ -452,13 +589,14 @@
     msg: "Detected guidellm version: {{ guidellm_major_minor | default('unknown') }}"
   when: not (use_guidellm_container | bool)
 
-- name: Set guidellm CLI prefix for v0.4+ (uses subcommands)
+- name: Set guidellm CLI prefix for v0.4-v0.6 (uses subcommands)
   ansible.builtin.set_fact:
     guidellm_cli_prefix: "guidellm benchmark run"
   when:
     - not (use_guidellm_container | bool)
     - guidellm_major_minor is defined
     - guidellm_major_minor is version('0.4', '>=')
+    - guidellm_major_minor is version('0.7', '<')
 
 - name: Set guidellm CLI prefix for v0.3 and earlier (no subcommands)
   ansible.builtin.set_fact:
@@ -475,7 +613,46 @@
     - not (use_guidellm_container | bool)
     - guidellm_major_minor is not defined
 
-- name: Build GuideLLM command arguments for v0.4+ (modern flags)
+# ----------------------------------------------------------------------------
+# Host mode: v0.7.x (structured CLI args)
+# ----------------------------------------------------------------------------
+
+- name: Build GuideLLM command arguments for v0.7+ (structured CLI)
+  ansible.builtin.set_fact:
+    guidellm_cmd_args: >-
+      guidellm run
+      --backend kind=openai_http,target=http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}
+      --data kind=synthetic_text,{{ guidellm_data_string }}
+      --tokenizer kind=huggingface_auto,model={{ processor_model }}
+      --profile
+      {%- set p = guidellm_cfg.profile -%}
+      {%- set parts = ['kind=' + p, 'warmup=' + (guidellm_cfg.warmup | string), 'cooldown=' + (guidellm_cfg.cooldown | string)] -%}
+      {%- set rates = guidellm_cfg.rate | default([]) -%}
+      {%- if p == 'concurrent' and rates | length > 0 -%}
+        {%- set _ = parts.append('streams=' + (rates[0] | string)) -%}
+      {%- elif p in ['constant', 'poisson'] and rates | length > 0 -%}
+        {%- set _ = parts.append('rate=' + (rates[0] | string)) -%}
+      {%- endif -%}
+      {{ ' ' + parts | join(',') }}
+      {%- if p == 'concurrent' and rates | length > 1 %}
+      --override profile.streams {{ rates | join(',') }}
+      {%- elif p in ['constant', 'poisson'] and rates | length > 1 %}
+      --override profile.rate {{ rates | join(',') }}
+      {%- endif %}
+      --constraint kind=max_duration,seconds={{ guidellm_cfg.max_seconds }}
+      --constraint kind=max_requests,count={{ guidellm_cfg.max_requests }}
+      --output kind=json,path={{ results_path }}/benchmarks.json
+      --output kind=csv,path={{ results_path }}/benchmarks.csv
+  when:
+    - not (use_guidellm_container | bool)
+    - guidellm_major_minor is defined
+    - guidellm_major_minor is version('0.7', '>=')
+
+# ----------------------------------------------------------------------------
+# Host mode: v0.4-v0.6 (modern flags)
+# ----------------------------------------------------------------------------
+
+- name: Build GuideLLM command arguments for v0.4-v0.6 (modern flags)
   ansible.builtin.set_fact:
     guidellm_cmd_args: >-
       {{ guidellm_cli_prefix }}
@@ -497,7 +674,11 @@
       {% endif %}
   when:
     - not (use_guidellm_container | bool)
-    - guidellm_major_minor is not defined or guidellm_major_minor is version('0.4', '>=')
+    - guidellm_major_minor is not defined or (guidellm_major_minor is version('0.4', '>=') and guidellm_major_minor is version('0.7', '<'))
+
+# ----------------------------------------------------------------------------
+# Host mode: v0.3 and earlier (legacy flags)
+# ----------------------------------------------------------------------------
 
 - name: Build GuideLLM command arguments for v0.3 and earlier (legacy flags)
   ansible.builtin.set_fact:
