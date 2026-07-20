@@ -10,6 +10,7 @@ scripts/
 │   ├── extract_benchmark_timings.py   # Extract per-benchmark timing data
 │   └── log_to_mlflow.py               # Log results to MLflow tracking
 └── conversion/           # Result conversion utilities
+    ├── view_results.py                # Terminal results viewer (LLM + embedding)
     ├── convert_embedding_results.py   # Convert embedding JSON to CSV
     ├── convert_batch.py               # Batch convert LLM results
     └── convert_single.py              # Convert single LLM result file
@@ -46,6 +47,32 @@ python3 log_to_mlflow.py <benchmarks.json> <metadata.json> \
 - `automation/test-execution/ansible/log-to-mlflow.yml`
 
 ## Conversion Scripts
+
+### view_results.py
+
+Displays benchmark results as a formatted table in the terminal.
+Auto-detects LLM (GuideLLM) vs embedding (vllm bench serve) format.
+
+**Usage:**
+```bash
+# LLM results
+python3 view_results.py <path/to/benchmarks.json>
+python3 view_results.py <path/to/results-directory/>
+
+# Embedding results
+python3 view_results.py <path/to/embedding-test-run-dir/>
+
+# Suppress metadata header
+python3 view_results.py --no-header <path>
+```
+
+**Used by:**
+- `automation/test-execution/ansible/llm-benchmark.yml`
+- `automation/test-execution/ansible/llm-benchmark-auto.yml`
+- `automation/test-execution/ansible/embedding-benchmark.yml`
+
+See [Terminal Results Viewer](../../../docs/terminal-results-viewer.md)
+for full documentation.
 
 ### convert_embedding_results.py
 

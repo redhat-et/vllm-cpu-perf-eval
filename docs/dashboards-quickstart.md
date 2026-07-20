@@ -27,6 +27,9 @@ open <http://localhost:8501>
 
 **That's it!** No Grafana setup needed for analysis.
 
+> **Tip:** For a quick terminal-only summary without launching a
+> dashboard, see [Terminal Results Viewer](terminal-results-viewer.md).
+
 ## Two Dashboard Systems
 
 ### Streamlit Dashboard (Post-Test Analysis)
@@ -94,15 +97,20 @@ ansible-playbook start-grafana.yml
 
 ## When to Use What
 
+<!-- markdownlint-disable MD013 -->
+
 | Scenario | Use | Why |
 |----------|-----|-----|
+| Quick post-run glance | [Terminal Viewer](terminal-results-viewer.md) | No setup, same terminal |
 | Analyze completed test | Streamlit | Comprehensive post-test analysis |
 | Compare multiple tests | Streamlit | Side-by-side comparison tools |
 | Export data to CSV | Streamlit | Built-in export functionality |
 | Watch long test progress | Grafana | Real-time monitoring |
 | Debug performance issue | Both | Live view + detailed analysis |
-| Quick test (<2 min) | Streamlit only | Not worth Grafana setup |
+| CI/CD pipeline | [Terminal Viewer](terminal-results-viewer.md) | No browser available |
 | External endpoint testing | Streamlit | Client metrics always available |
+
+<!-- markdownlint-enable MD013 -->
 
 ## Testing External Endpoints
 
@@ -154,8 +162,10 @@ cd automation/test-execution/dashboard-examples/vllm_dashboard
 - Efficiency (tokens/sec/core) - managed mode only
 
 **Visualizations:**
-- **Multi-percentile overlay**: Select metric family and view Mean, P50, P95, P99 on same chart
-- **Visual differentiation**: Each percentile uses distinct line style (solid, dashed, dotted, dash-dot)
+- **Multi-percentile overlay**: Select metric family and view
+  Mean, P50, P95, P99 on same chart
+- **Visual differentiation**: Each percentile uses distinct line
+  style (solid, dashed, dotted, dash-dot)
 - Line charts by request rate or concurrency
 - Peak performance summary for selected percentiles
 - CSV export
@@ -216,7 +226,8 @@ Percentile definition: Pxx = the value below which xx% of data points fall
 - Concurrent request handling
 
 **Visualizations:**
-- **Saturation curves**: Throughput and P99 latency vs load level (inf, 75%, 50%, 25%)
+- **Saturation curves**: Throughput and P99 latency vs load
+  level (inf, 75%, 50%, 25%)
 - **Concurrent load analysis**: Performance vs concurrency level
 - **Model comparison**: Side-by-side throughput and latency comparison
 - CSV export
@@ -232,7 +243,8 @@ Unlike LLM models (which generate tokens), embedding models:
 
 **Data Source:**
 - `vllm bench serve` JSON results (`sweep-*.json`, `concurrent-*.json`)
-- **Note**: Currently uses vLLM bench serve. Future versions will also support GuideLLM embedding tests when available.
+- **Note**: Currently uses vLLM bench serve. Future versions
+  will also support GuideLLM embedding tests.
 
 **Best for:**
 - Finding max sustainable throughput
@@ -242,7 +254,8 @@ Unlike LLM models (which generate tokens), embedding models:
 
 **Dashboard Filters:**
 
-The Embedding Metrics dashboard includes comprehensive filtering for multi-dimensional analysis:
+The Embedding Metrics dashboard includes comprehensive
+filtering for multi-dimensional analysis:
 
 1. **Primary Filters** (Row 1)
    - **Models** - Select one or more embedding models to compare
@@ -264,7 +277,8 @@ The Embedding Metrics dashboard includes comprehensive filtering for multi-dimen
 
 **Populating Filter Data:**
 
-Filters show "(no data)" when viewing old test results. To populate all filters, run a new test:
+Filters show "(no data)" when viewing old test results.
+To populate all filters, run a new test:
 
 ```bash
 ansible-playbook -i inventory/hosts.yml embedding-benchmark.yml \
@@ -491,7 +505,9 @@ cd automation/test-execution/dashboard-examples/vllm_dashboard
 
 7. **Validate concurrent request handling** in dashboard
 
-**Note:** Embedding tests use `vllm bench serve` for benchmarking. Future versions will also support GuideLLM embedding tests when available.
+**Note:** Embedding tests use `vllm bench serve` for
+benchmarking. Future versions will also support GuideLLM
+embedding tests when available.
 
 ## Troubleshooting
 
@@ -523,7 +539,8 @@ find results/llm results/embedding -name "vllm-metrics.json" 2>/dev/null
 
 # If missing, metrics collection may have failed
 # Check logs:
-tail -f results/llm/*/metrics-collector.log results/embedding/*/logs/metrics-collector.log 2>/dev/null
+tail -f results/llm/*/metrics-collector.log \
+  results/embedding/*/logs/metrics-collector.log 2>/dev/null
 ```
 
 ### Grafana shows no data
@@ -539,7 +556,8 @@ ps aux | grep "ssh.*8000:localhost:8000"
 open http://localhost:9090/targets
 ```
 
-**Note:** Streamlit works independently of Grafana - if Grafana has issues, you can still analyze results in Streamlit!
+**Note:** Streamlit works independently of Grafana - if
+Grafana has issues, you can still analyze results in Streamlit!
 
 ## Tips
 

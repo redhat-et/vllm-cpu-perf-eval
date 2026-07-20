@@ -725,6 +725,27 @@
         - timing_extraction.stdout_lines is defined
         - is_core_sweep is not defined or not is_core_sweep
 
+    - name: Display benchmark results summary
+      ansible.builtin.command:
+        cmd: >-
+          python3 {{ playbook_dir }}/../scripts/conversion/view_results.py
+          {{ hostvars['localhost']['local_results_base'] }}/{{ actual_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/
+      delegate_to: localhost
+      register: results_summary
+      changed_when: false
+      failed_when: false
+      when:
+        - show_results | default(false) | bool
+        - is_core_sweep is not defined or not is_core_sweep
+
+    - name: Show results summary output
+      ansible.builtin.debug:
+        msg: "{{ results_summary.stdout_lines }}"
+      when:
+        - show_results | default(false) | bool
+        - is_core_sweep is not defined or not is_core_sweep
+        - results_summary.stdout_lines is defined
+
     - name: Display results location (standalone run)
       ansible.builtin.debug:
         msg:

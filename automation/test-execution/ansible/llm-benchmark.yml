@@ -158,6 +158,24 @@
         msg: "{{ timing_extraction.stdout_lines }}"
       when: timing_extraction.stdout_lines is defined
 
+    - name: Display benchmark results summary
+      ansible.builtin.command:
+        cmd: >-
+          python3 {{ playbook_dir }}/../scripts/conversion/view_results.py
+          {{ hostvars['localhost']['local_results_base'] }}/{{ test_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}/
+      delegate_to: localhost
+      register: results_summary
+      changed_when: false
+      failed_when: false
+      when: show_results | default(false) | bool
+
+    - name: Show results summary output
+      ansible.builtin.debug:
+        msg: "{{ results_summary.stdout_lines }}"
+      when:
+        - show_results | default(false) | bool
+        - results_summary.stdout_lines is defined
+
 - name: "Phase 4 - Collect Logs from DUT"
   hosts: dut
   become: true

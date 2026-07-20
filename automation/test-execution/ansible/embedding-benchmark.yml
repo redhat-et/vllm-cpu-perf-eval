@@ -414,6 +414,37 @@
         mode: pull
         recursive: true
 
+- name: "Phase 4c - Display Results Summary"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
+    _lg_host: "{{ groups['load_generator'][0] | default('') }}"
+    _detected: >-
+      {{ hostvars[_lg_host]['detected_model'] | default('')
+         if _lg_host | length > 0 else '' }}
+    model_name: >-
+      {{ _detected if _detected | length > 0
+         else test_model | default('RedHatAI/granite-embedding-english-r2') }}
+
+  tasks:
+    - name: Display embedding benchmark results summary
+      ansible.builtin.command:
+        cmd: >-
+          python3 {{ playbook_dir }}/../scripts/conversion/view_results.py
+          {{ playbook_dir }}/../../../results/embedding/{{ model_name | replace('/', '__') }}/{{ test_run_id }}/
+      register: results_summary
+      changed_when: false
+      failed_when: false
+      when: show_results | default(false) | bool
+
+    - name: Show results summary output
+      ansible.builtin.debug:
+        msg: "{{ results_summary.stdout_lines }}"
+      when:
+        - show_results | default(false) | bool
+        - results_summary.stdout_lines is defined
+
 - name: "Phase 4 - Collect Logs from DUT"
   hosts: dut
   become: true

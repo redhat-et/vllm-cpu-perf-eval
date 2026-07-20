@@ -1,0 +1,73 @@
+---
+# Display benchmark results in the terminal
+# Supports LLM (GuideLLM) and embedding (vllm bench serve) results
+#
+# Usage:
+#   ansible-playbook view-results.yml \
+#     -e "results_path=results/llm/model__name/workload-runid/config/"
+#
+#   ansible-playbook view-results.yml \
+#     -e "results_path=results/embedding/model__name/runid/"
+#
+#   # Suppress metadata header
+#   ansible-playbook view-results.yml \
+#     -e "results_path=..." -e "no_header=true"
+
+- name: "View Benchmark Results"
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: Validate results_path is provided
+      ansible.builtin.assert:
+        that:
+          - results_path is defined
+          - results_path | length > 0
+        fail_msg: |
+          Missing required variable: results_path
+
+          Usage:
+            ansible-playbook view-results.yml \
+              -e "results_path=<path/to/results/directory>"
+
+          Examples:
+            # LLM results
+            ansible-playbook view-results.yml \
+              -e "results_path=results/llm/TinyLlama__TinyLlama-1.1B-Chat-v1.0/chat-20260428-124238/32cores-numa3-tp1/"
+
+            # Embedding results
+            ansible-playbook view-results.yml \
+              -e "results_path=results/embedding/BAAI__bge-small-en-v1.5/20260710-143022/"
+
+    - name: Resolve results path
+      ansible.builtin.set_fact:
+        resolved_path: >-
+          {{ results_path if results_path is abs
+             else (playbook_dir ~ '/../../../' ~ results_path) }}
+
+    - name: Check results path exists
+      ansible.builtin.stat:
+        path: "{{ resolved_path }}"
+      register: results_check
+
+    - name: Fail if results path not found
+      ansible.builtin.fail:
+        msg: "Results path not found: {{ resolved_path }}"
+      when: not results_check.stat.exists
+
+    - name: Build viewer command
+      ansible.builtin.set_fact:
+        viewer_cmd: >-
+          python3 {{ playbook_dir }}/../scripts/conversion/view_results.py
+          {{ '--no-header' if (no_header | default(false) | bool) else '' }}
+          {{ resolved_path }}
+
+    - name: Run results viewer
+      ansible.builtin.command:
+        cmd: "{{ viewer_cmd }}"
+      register: viewer_output
+      changed_when: false
+
+    - name: Display results
+      ansible.builtin.debug:
+        msg: "{{ viewer_output.stdout_lines }}"

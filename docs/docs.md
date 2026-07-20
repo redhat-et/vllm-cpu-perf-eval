@@ -10,6 +10,7 @@ Comprehensive documentation for vLLM CPU performance evaluation.
 - **Understanding results**: See [Metrics Guide](methodology/metrics.md)
 - **Experiment tracking**: See [MLflow Integration](mlflow.md)
 - **Dashboards**: See [Dashboards Quick Start](dashboards-quickstart.md)
+- **Terminal viewer**: See [Terminal Results Viewer](terminal-results-viewer.md)
 - **Metrics collection**: See [Metrics Collection Guide](metrics-collection.md)
 
 ## Documentation Structure
@@ -18,6 +19,7 @@ Comprehensive documentation for vLLM CPU performance evaluation.
 docs/
 ├── getting-started.md        # Quick start guide
 ├── dashboards-quickstart.md  # Streamlit dashboard guide
+├── terminal-results-viewer.md # Terminal results viewer
 ├── metrics-collection.md     # vLLM metrics collection
 ├── mlflow.md                 # MLflow experiment tracking
 ├── environment-variables.md  # Environment variable reference
@@ -47,6 +49,8 @@ docs/
 1. [Getting Started](getting-started.md) - Setup and run your first test
 2. [Dashboards Quick Start](dashboards-quickstart.md) - View results in
    Streamlit
+3. [Terminal Results Viewer](terminal-results-viewer.md) - Quick
+   results in the terminal
 
 ### For Test Execution
 
@@ -74,7 +78,9 @@ docs/
 
 1. [MLflow Experiment Tracking](mlflow.md) - Track and compare experiments
 2. [Interactive Dashboards](dashboards-quickstart.md) - Visualize results
-3. [Metrics Collection Guide](metrics-collection.md) - Server-side metrics
+3. [Terminal Results Viewer](terminal-results-viewer.md) - Quick
+   terminal output
+4. [Metrics Collection Guide](metrics-collection.md) - Server-side metrics
 
 ## Contributing to Documentation
 
@@ -109,6 +115,7 @@ pre-commit run --all-files
 | ansible/model-predownload.md | ✅ Complete |
 | mlflow.md | ✅ Complete |
 | dashboards-quickstart.md | ✅ Complete |
+| terminal-results-viewer.md | ✅ Complete |
 | metrics-collection.md | ✅ Complete |
 
 <!-- markdownlint-enable MD013 -->
