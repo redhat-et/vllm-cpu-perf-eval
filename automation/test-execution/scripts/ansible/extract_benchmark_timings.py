@@ -79,6 +79,27 @@ def main() -> int:
         metadata['test_duration_seconds'] = int(total_duration)
         metadata['test_duration'] = test_duration_string
 
+        # IETF sample count aggregates for statistical validity assessment
+        successful_counts = [
+            t['successful_requests'] for t in benchmark_timings
+        ]
+        metadata['total_successful_requests'] = (
+            sum(successful_counts) if successful_counts else 0
+        )
+        min_reqs = min(successful_counts) if successful_counts else 0
+        metadata['min_requests_per_benchmark'] = min_reqs
+
+        if min_reqs < 1000:
+            metadata['ietf_sample_warning'] = (
+                f"Minimum requests per benchmark ({min_reqs}) is below 1000; "
+                f"P99 may not be statistically reliable per IETF guidelines"
+            )
+        elif min_reqs < 10000:
+            metadata['ietf_sample_warning'] = (
+                f"Minimum requests per benchmark ({min_reqs}) is below 10000; "
+                f"P99.9 may not be statistically reliable per IETF guidelines"
+            )
+
         # Save updated metadata
         save_json_file(metadata_file, metadata)
 

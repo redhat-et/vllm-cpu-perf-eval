@@ -67,7 +67,8 @@ benchmark_tool:
     # Runtime constraints (apply to all profiles)
     # Override with: export GUIDELLM_MAX_SECONDS=300 for shorter tests
     max_seconds: "{{ lookup('env', 'GUIDELLM_MAX_SECONDS') | default('600', true) | int }}"  # Maximum benchmark duration (10 minutes default)
-    max_requests: 1000          # Maximum number of requests (fallback if max_seconds not reached)
+    # IETF sample requirements: >=1000 for P99, >=10000 for P99.9
+    max_requests: 10000         # Maximum number of requests (fallback if max_seconds not reached)
     # Override with: export GUIDELLM_REQUEST_TIMEOUT=300 (should match max_seconds)
     request_timeout: "{{ lookup('env', 'GUIDELLM_REQUEST_TIMEOUT') | default('600', true) | int }}"  # Request timeout (matches max_seconds for CPU testing)
     warmup: 0.1                 # Warmup as percentage (10% of time for time-based tests)
@@ -82,6 +83,9 @@ benchmark_tool:
     # For other profiles:
     #   Calculated as: min(max_seconds + 600, 14400)
     # Override with: -e "guidellm_wait_timeout_seconds=7200" for custom timeout
+
+    # Model quantization (used in test metadata)
+    quantization_method: "none"
 
     # Output configuration
     outputs: "json,csv"    # Output formats (comma-separated) - HTML disabled due to vllm.ai URL redirect issue

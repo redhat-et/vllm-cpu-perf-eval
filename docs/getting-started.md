@@ -232,14 +232,35 @@ ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
 
 ### 6. View Results
 
-Results are automatically collected to your local machine:
+Results are automatically collected to your local machine. The recommended way
+to view and analyze results is via the **Streamlit dashboard**:
 
 ```bash
-# View JSON results
-cat results/llm/TinyLlama__TinyLlama-1.1B-Chat-v1.0/chat-*/benchmarks.json
+# One-time setup
+cd automation/test-execution/dashboard-examples
+./setup.sh
 
-# View CSV results (importable to spreadsheets)
-cat results/llm/TinyLlama__TinyLlama-1.1B-Chat-v1.0/chat-*/benchmarks.csv
+# Launch the dashboard
+cd vllm_dashboard
+./launch-dashboard.sh
+```
+
+Then open <http://localhost:8501> in your browser. The dashboard provides:
+
+- **Client Metrics** — throughput, latency percentiles (P50/P90/P95/P99),
+  success rate, with multi-percentile overlay charts
+- **Server Metrics** — vLLM queue depth, cache usage, token generation rates
+- **Platform Comparison** — side-by-side analysis across configurations
+- **CSV Export** — download filtered data for external analysis
+
+For the full dashboard guide, see
+[Dashboards Quick Start](dashboards-quickstart.md).
+
+**Raw results** are also available as JSON and CSV:
+
+```bash
+ls results/llm/TinyLlama__TinyLlama-1.1B-Chat-v1.0/chat-*/
+# benchmarks.json  benchmarks.csv  test-metadata.json
 ```
 
 ## Common Test Scenarios

@@ -190,6 +190,47 @@ The vLLM CPU performance evaluation uses a structured 3-phase testing approach t
 
 ---
 
+## IETF Test Coverage
+
+The 3-phase methodology maps to the IETF LLM benchmarking methodology as
+follows:
+
+<!-- markdownlint-disable MD013 MD060 -->
+
+| IETF Test | Phase | Profile | Workload |
+|-----------|-------|---------|----------|
+| Baseline Latency | Phase 1 | `synchronous` | Any fixed-token workload |
+| Fixed-Concurrency Scaling | Phase 1 | `concurrent` | chat, rag, code, summarization |
+| Throughput Saturation | Phase 1 | `throughput` or `sweep` | Any fixed-token workload |
+| Variable Token Distribution | Phase 2 | `concurrent` | chat\_var, code\_var, summarization\_var |
+| Open-Loop Poisson | Phase 1/2 | `poisson` | Any workload |
+| Constant-Rate | Phase 1/2 | `constant` | Any workload |
+| Prefix Caching Impact | Phase 3 | `concurrent` | Variable workloads with caching |
+| Long Context Scaling | Phase 1 | `concurrent` | context\_scaling\_1k/4k/8k |
+
+<!-- markdownlint-enable MD013 MD060 -->
+
+See [IETF Alignment](ietf-alignment.md) for full compliance status and known
+gaps.
+
+### Running Open-Loop Poisson Tests
+
+To run a Poisson (open-loop) test, override the GuideLLM profile:
+
+```bash
+ansible-playbook llm-benchmark-auto.yml \
+  -e "guidellm_profile=poisson" \
+  -e "guidellm_rate=8,16,32" \
+  -e "workload_types=chat"
+```
+
+This sends requests at the specified average rates (requests/second) with
+Poisson-distributed inter-arrival times. Poisson tests measure system
+responsiveness to bursty, stochastic traffic — a key IETF requirement for
+realistic load modeling.
+
+---
+
 ## Cross-Phase Analysis
 
 ### Comparing Baseline vs Realistic (Phase 1 vs Phase 2)
@@ -221,8 +262,10 @@ Conclusion: Variability adds ~13-17% latency overhead
 
 **Metrics:**
 - TTFT Improvement % = (TTFT_phase2 - TTFT_phase3) / TTFT_phase2 × 100
-- Throughput Gain % = (Throughput_phase3 - Throughput_phase2) / Throughput_phase2 × 100
-- Latency Reduction % = (P95_phase2 - P95_phase3) / P95_phase2 × 100
+- Throughput Gain % = (Throughput_phase3 - Throughput_phase2) /
+  Throughput_phase2 × 100
+- Latency Reduction % = (P95_phase2 - P95_phase3) /
+  P95_phase2 × 100
 
 **Example Analysis:**
 ```
@@ -246,7 +289,8 @@ Gains:
 
 **Metrics:**
 - Total TTFT Impact = (TTFT_phase1 - TTFT_phase3) / TTFT_phase1 × 100
-- Total Throughput Impact = (Throughput_phase3 - Throughput_phase1) / Throughput_phase1 × 100
+- Total Throughput Impact = (Throughput_phase3 - Throughput_phase1) /
+  Throughput_phase1 × 100
 
 **Example Analysis:**
 ```
@@ -261,7 +305,8 @@ Total Impact:
 
 **Interpretation:**
 - Shows combined effect of caching benefits offsetting variability overhead
-- Production configuration (Phase 3) should outperform baseline (Phase 1) despite variable load
+- Production configuration (Phase 3) should outperform baseline (Phase 1)
+  despite variable load
 - Validates that production optimizations compensate for realistic traffic complexity
 
 ---
@@ -292,13 +337,15 @@ Total Impact:
 - **Phase 2** depends on **Phase 1** for baseline comparison
 - **Phase 3** depends on **Phase 2** for caching impact measurement
 - **Phase 3** depends on **Phase 1** for total improvement calculation
-- All phases should use **consistent test configuration** (duration, warmup, cores, etc.)
+- All phases should use **consistent test configuration** (duration,
+  warmup, cores, etc.)
 
 ---
 
 ## Test Suite Implementation Status
 
-The 3-phase methodology was designed to be adaptable across test suites, but implementation varies:
+The 3-phase methodology was designed to be adaptable across test suites,
+but implementation varies:
 
 ### Concurrent Load Tests ✅ **FULLY IMPLEMENTED**
 
@@ -346,7 +393,8 @@ The 3-phase methodology was designed to be adaptable across test suites, but imp
 
 ### Common Pitfalls
 
-❌ **Comparing different phases directly** - Fixed vs variable comparisons require careful interpretation
+❌ **Comparing different phases directly** - Fixed vs variable comparisons
+require careful interpretation
 
 ❌ **Ignoring minimal load baseline** - Essential for efficiency calculations
 
@@ -360,11 +408,15 @@ The 3-phase methodology was designed to be adaptable across test suites, but imp
 
 ## Summary
 
+<!-- markdownlint-disable MD013 MD060 -->
+
 | Phase | Configuration | Purpose | Key Metrics | Applies To |
 |-------|--------------|---------|-------------|------------|
 | **1. Baseline** | Fixed tokens, No caching | Reproducible baseline | P95/P99, TTFT, Throughput | All test suites |
 | **2. Realistic** | Variable tokens, No caching | Real-world simulation | Variance, Stability | All test suites |
 | **3. Production** | Realistic datasets, With caching | True production conditions | Production performance, Cache effectiveness | All test suites |
+
+<!-- markdownlint-enable MD013 MD060 -->
 
 **Estimated time per model/test suite: 4-6 hours**
 
@@ -373,6 +425,7 @@ The 3-phase methodology was designed to be adaptable across test suites, but imp
 ## References
 
 - [Testing Methodology Overview](overview.md)
+- [IETF Alignment](ietf-alignment.md)
 - [Concurrent Load Test Suite](../../tests/concurrent-load/concurrent-load.md)
 - [Scalability Test Suite](../../tests/scalability/scalability.md)
 - [Embedding Models Test Suite](../../tests/embedding-models/embedding-models.md)

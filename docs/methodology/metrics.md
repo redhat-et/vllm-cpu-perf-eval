@@ -12,13 +12,15 @@ Percentile definition: **Pxx = the value below which xx% of data points fall**
 ### Latency Percentiles (lower is better)
 
 - **P50 (median)**: 50% of requests completed within this latency
+- **P90**: 90% of requests completed within this latency
 - **P95**: 95% of requests completed within this latency
 - **P99**: 99% of requests completed within this latency (worst-case tail)
+- **P99.9**: 99.9% of requests completed within this latency (extreme tail)
 
 **Interpretation**:
 - High P99 latency = **bad** (indicates slow tail)
 - Example: TTFT P99 = 200ms → 99% of requests got first token within 200ms, 1% took longer
-- **P99 > P95 > P50** is normal (higher percentiles show worse-case performance)
+- **P99.9 > P99 > P95 > P90 > P50** is normal (higher percentiles show worse-case performance)
 
 ### Throughput Percentiles (higher is better)
 
@@ -36,6 +38,26 @@ Percentile definition: **Pxx = the value below which xx% of data points fall**
 - For **latency**: Higher percentiles (P95, P99) show **worst-case** performance
 - For **throughput**: Higher percentiles (P95, P99) show **upper bound** of performance
 
+### IETF Minimum Sample Counts
+
+<!-- markdownlint-disable MD013 MD060 -->
+
+Per the IETF benchmarking methodology, percentile accuracy requires minimum
+sample sizes:
+
+| Percentile | Minimum Samples | Notes |
+|------------|----------------|-------|
+| P50 | 100 | Sufficient for median estimation |
+| P90 | 500 | Moderate tail accuracy |
+| P95 | 1,000 | Standard tail latency reporting |
+| P99 | 1,000 | IETF MUST requirement |
+| P99.9 | 10,000 | IETF SHOULD requirement; may not be achievable for CPU tests within time constraints |
+
+<!-- markdownlint-enable MD013 MD060 -->
+
+The `ietf_sample_warning` field in `test-metadata.json` flags when a test run
+has insufficient samples for reliable percentile reporting.
+
 ## Guidellm Metrics
 
 GuideLLM documents the key metrics measured/reported and how to interpret
@@ -49,7 +71,7 @@ workloads this Table provides the key metrics, along with a description.
 | METRIC (unit) | DESCRIPTION |
 |---------------|-------------|
 | **Primary Metrics** | |
-| Inter-Token Latency (ms) | (ITL) - Average time between generating consecutive tokens in the output, excluding the first token. |
+| Inter-Token Latency (ms) | (ITL) - Average time between generating consecutive tokens in the output, excluding the first token. IETF term: TBT (Time Between Tokens). ITL is a client-side measurement; TBT is server-side. For single-machine tests the difference is negligible. |
 | Time to First Token (s) | (TTFT) - Time from request submission to receiving the first generated token |
 | Total Tokens Throughput (tokens/s) | The combined rate of prompt and output tokens processed per second as a throughput metric across all requests. |
 | Request Success Rate (%) | Percentage of requests completed successfully without errors |
@@ -69,6 +91,24 @@ workloads this Table provides the key metrics, along with a description.
 | Memory Utilization/Consumption (GB) | The total memory (RAM) used by the vLLM process, including model weights and key-value (KV) cache. |
 
 <!-- markdownlint-enable MD013 MD060 -->
+
+## IETF-Aligned Metrics
+
+The following metrics are defined by the IETF LLM benchmarking methodology
+but not directly reported by GuideLLM. They can be derived from test results:
+
+<!-- markdownlint-disable MD013 MD060 -->
+
+| Metric | Definition | Derivation |
+|--------|-----------|------------|
+| Goodput (tokens/s) | Output tokens from requests meeting SLO targets | Filter successful requests by SLO, sum output tokens / time |
+| SLO Attainment Rate (%) | Fraction of requests meeting all SLO targets | Count(requests meeting SLO) / Count(total requests) |
+| Normalized Latency (ms/token) | E2E latency divided by output token count | request_latency / output_token_count per request |
+
+<!-- markdownlint-enable MD013 MD060 -->
+
+See [IETF Alignment](ietf-alignment.md) for full terminology mapping and
+compliance status.
 
 ## Service Level Objective (SLO) Definition
 

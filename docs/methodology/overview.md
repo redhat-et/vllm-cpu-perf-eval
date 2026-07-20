@@ -108,6 +108,7 @@ workload necessary to test the system under realistic or stress conditions.
 | --- | --- |
 | **Device Under Test (DUT)** | Server Platform (e.g. Intel Xeon 6, AMD EPYC 9005) |
 | **Load Generator** | Separate node (≥ 16 cores), same network segment as DUT (≥ 10 GbE), running GuideLLM |
+| **SUT Boundary** | Model Engine (vLLM inference runtime only, per [IETF profiles](ietf-alignment.md#sut-boundary)) |
 
 <!-- markdownlint-enable MD013 MD060 -->
 
@@ -214,6 +215,8 @@ for status and planned tests**
 
 ## Related Documentation
 
+- **[IETF Alignment](ietf-alignment.md)** - Alignment with IETF LLM
+  benchmarking drafts (methodology, profiles, terminology)
 - **[3-Phase Testing Methodology](testing-phases.md)** - General testing
   approach for all suites
 - **[Metrics Guide](metrics.md)** - Definitions of all measured metrics
@@ -226,3 +229,9 @@ for status and planned tests**
   scenarios
 - **[Model Selection](../../models/models.md)** - Centralized model
   definitions and rationale
+
+## References
+
+- [IETF: Benchmarking Methodology for LLMs](https://datatracker.ietf.org/doc/draft-gaikwad-llm-benchmarking-methodology/)
+- [IETF: Benchmarking Profiles for LLMs](https://datatracker.ietf.org/doc/draft-gaikwad-llm-benchmarking-profiles/)
+- [IETF: Benchmarking Terminology for LLMs](https://datatracker.ietf.org/doc/draft-gaikwad-llm-benchmarking-terminology/)
