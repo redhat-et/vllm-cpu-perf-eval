@@ -25,8 +25,7 @@ models/
 │   ├── model-matrix.yaml        # LLM model definitions and test mappings
 │   └── llm-models.md            # Points to this file
 ├── embedding-models/
-│   ├── model-matrix.yaml        # Embedding model definitions
-│   └── embedding-models.md      # Embedding-specific extended documentation
+│   └── model-matrix.yaml        # Embedding model definitions
 └── models.md                    # This file (comprehensive documentation)
 ```
 

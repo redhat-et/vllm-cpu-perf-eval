@@ -16,96 +16,65 @@ Comprehensive documentation for vLLM CPU performance evaluation.
 
 ```text
 docs/
-├── getting-started/          # Quick start guides
-│   ├── quick-start.md       # 5-minute getting started
-│   ├── adding-models.md     # How to add new models
-│   ├── creating-tests.md    # How to create test scenarios
-│   └── interpreting-results.md
+├── getting-started.md        # Quick start guide
+├── dashboards-quickstart.md  # Streamlit dashboard guide
+├── metrics-collection.md     # vLLM metrics collection
+├── mlflow.md                 # MLflow experiment tracking
+├── environment-variables.md  # Environment variable reference
+├── scripts-reference.md      # Scripts reference
 │
-├── methodology/             # Testing methodologies
-│   ├── overview.md          # Performance evaluation overview
-│   ├── metrics.md           # Metrics definitions
-│   ├── reporting.md         # Test report structure
-│   └── (manual-sweep.md)    # Manual sweep testing guide
+├── methodology/              # Testing methodologies
+│   ├── overview.md           # Performance evaluation overview
+│   ├── metrics.md            # Metrics definitions
+│   ├── reporting.md          # Test report structure
+│   ├── testing-phases.md     # 3-phase testing methodology
+│   ├── ietf-alignment.md     # IETF benchmarking alignment
+│   └── manual-sweep.md       # Manual sweep testing guide
 │
-├── platform-setup/          # Platform configuration
-│   ├── x86/intel/
-│   │   └── deterministic-benchmarking.md
-│   ├── ansible-guide.md     # Using Ansible for setup
-│   └── bash-guide.md        # Using bash scripts
+├── ansible/                  # Ansible documentation
+│   ├── test-execution.md     # Using Ansible for tests
+│   └── model-predownload.md  # Model pre-download guide
 │
-├── containers/              # Container runtime guides
-│   ├── getting-started.md   # Container basics
-│   ├── docker-guide.md      # Docker-specific guide
-│   ├── podman-guide.md      # Podman-specific guide
-│   ├── runtime-comparison.md # Docker vs Podman
-│   └── rootless-containers.md
-│
-├── ansible/                 # Ansible documentation
-│   ├── test-execution.md    # Using Ansible for tests
-│   ├── distributed-testing.md
-│   └── playbook-reference.md
-│
-├── results-analysis/        # Results analysis tools
-│   ├── mlflow.md            # MLflow experiment tracking
-│   ├── dashboards-quickstart.md # Interactive dashboards
-│   └── metrics-collection.md # vLLM metrics collection
-│
-└── reference/               # Reference documentation
-    ├── model-yaml-schema.md
-    ├── test-yaml-schema.md
-    ├── matrix-yaml-schema.md
-    └── cli-reference.md
+└── platform-setup/           # Platform configuration
+    └── x86/intel/
+        └── deterministic-benchmarking.md
 ```
 
 ## Documentation by Topic
 
 ### For New Users
 
-1. [Quick Start Guide](getting-started/quick-start.md) - Get up and running
-   in 5 minutes
-2. [Running Your First Test](getting-started/running-first-test.md) - Execute
-   a simple test
-3. [Interpreting Results](getting-started/interpreting-results.md) - Understand
-   test output
+1. [Getting Started](getting-started.md) - Setup and run your first test
+2. [Dashboards Quick Start](dashboards-quickstart.md) - View results in
+   Streamlit
 
 ### For Test Execution
 
-1. [Container Getting Started](containers/getting-started.md) - Docker/Podman
-   basics
-2. [Test Execution with Ansible](ansible/test-execution.md) - Automated test
+1. [Test Execution with Ansible](ansible/test-execution.md) - Automated test
    orchestration
-3. [Distributed Testing](ansible/distributed-testing.md) - Multi-node testing
+2. [Testing Methodology](methodology/overview.md) - Performance evaluation
+   approach
+3. [3-Phase Testing](methodology/testing-phases.md) - Baseline, realistic,
+   and production phases
 
 ### For Platform Setup
 
-1. [Platform Setup Overview](platform-setup/platform-setup.md) - Platform configuration
-   overview
-2. [Intel Xeon Setup](platform-setup/x86/intel/deterministic-benchmarking.md) -
-   Intel-specific tuning
-3. [Ansible Setup Guide](platform-setup/ansible-guide.md) - Automated platform
-   configuration
+1. [Intel Xeon Setup](platform-setup/x86/intel/deterministic-benchmarking.md)
+   \- Intel-specific tuning
 
 ### For Understanding Results
 
 1. [Metrics Guide](methodology/metrics.md) - Metrics definitions and
    interpretation
 2. [Reporting Guide](methodology/reporting.md) - Report structure and formats
-3. [Performance Evaluation Overview](methodology/overview.md) - Testing
-   methodology
+3. [IETF Alignment](methodology/ietf-alignment.md) - IETF benchmarking
+   alignment
 
 ### For Results Analysis
 
-1. [MLflow Experiment Tracking](mlflow.md) - Track and compare experiments over time
-2. [Interactive Dashboards](dashboards-quickstart.md) - Visualize and explore results
-3. [Metrics Collection Guide](metrics-collection.md) - Server-side metrics collection
-
-### Reference Documentation
-
-1. [Model Configuration Schema](reference/model-yaml-schema.md) - Model YAML
-   format
-2. [Test Scenario Schema](reference/test-yaml-schema.md) - Test YAML format
-3. [CLI Reference](reference/cli-reference.md) - Command-line tool reference
+1. [MLflow Experiment Tracking](mlflow.md) - Track and compare experiments
+2. [Interactive Dashboards](dashboards-quickstart.md) - Visualize results
+3. [Metrics Collection Guide](metrics-collection.md) - Server-side metrics
 
 ## Contributing to Documentation
 
@@ -126,21 +95,21 @@ pre-commit run --all-files
 
 <!-- markdownlint-disable MD013 -->
 
-| Document | Status | Last Updated |
-| --- | --- | --- |
-| methodology/overview.md | ✅ Complete | 2024-02-08 |
-| methodology/metrics.md | ✅ Complete | 2024-02-08 |
-| methodology/reporting.md | ✅ Complete | 2024-02-08 |
-| platform-setup/x86/intel/deterministic-benchmarking.md | ✅ Complete | (current) |
-| ansible/test-execution.md | ✅ Complete | 2026-04-28 |
-| mlflow.md | ✅ Complete | 2026-05-27 |
-| dashboards-quickstart.md | ✅ Complete | 2024-05-21 |
-| metrics-collection.md | ✅ Complete | 2024-05-21 |
-| containers/* | 📝 Planned | - |
-| ansible/distributed-testing.md | 📝 Planned | - |
-| ansible/playbook-reference.md | 📝 Planned | - |
-| getting-started/* | 📝 Planned | - |
-| reference/* | 📝 Planned | - |
+| Document | Status |
+| --- | --- |
+| getting-started.md | ✅ Complete |
+| methodology/overview.md | ✅ Complete |
+| methodology/metrics.md | ✅ Complete |
+| methodology/reporting.md | ✅ Complete |
+| methodology/testing-phases.md | ✅ Complete |
+| methodology/ietf-alignment.md | ✅ Complete |
+| methodology/manual-sweep.md | ✅ Complete |
+| platform-setup/x86/intel/deterministic-benchmarking.md | ✅ Complete |
+| ansible/test-execution.md | ✅ Complete |
+| ansible/model-predownload.md | ✅ Complete |
+| mlflow.md | ✅ Complete |
+| dashboards-quickstart.md | ✅ Complete |
+| metrics-collection.md | ✅ Complete |
 
 <!-- markdownlint-enable MD013 -->
 

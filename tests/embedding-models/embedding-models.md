@@ -90,22 +90,21 @@ The framework supports three execution modes to accommodate different testing sc
 ## Test Structure
 
 ```text
-embedding-models/
+tests/embedding-models/
 ├── embedding-models.md           # This comprehensive guide
 ├── baseline-sweep.md             # Baseline throughput test methodology
-├── latency-concurrent.md         # Concurrent latency test methodology
-└── model-matrix.yaml             # Model definitions and test mappings (in ../../models/embedding-models/)
+└── latency-concurrent.md         # Concurrent latency test methodology
+
+models/embedding-models/
+└── model-matrix.yaml             # Embedding model definitions and test mappings
 
 automation/test-execution/
 ├── ansible/                      # Ansible automation (recommended)
+│   ├── embedding-benchmark.yml  # Main embedding test playbook
 │   ├── inventory/
 │   │   └── hosts.yml            # Node inventory (supports 1-2 nodes)
-│   └── playbooks/
-│       ├── embedding/
-│       │   ├── run-tests.yml    # Main test execution
-│       │   ├── run-core-sweep.yml  # Core count sweep
-│       │   └── tasks/           # Reusable task files
-│       └── common/              # Shared playbooks
+│   ├── roles/                   # Ansible roles
+│   └── filter_plugins/          # Custom Ansible filters
 └── bash/embedding/              # Bash scripts (manual execution)
     ├── run-baseline.sh          # Run baseline performance tests
     ├── run-latency.sh           # Run latency tests
@@ -236,26 +235,26 @@ load_generator:
 cd automation/test-execution/ansible
 
 # Run all embedding tests
-ansible-playbook playbooks/embedding/run-tests.yml \
+ansible-playbook embedding-benchmark.yml \
   -i inventory/hosts.yml
 
 # Run baseline test only
-ansible-playbook playbooks/embedding/run-tests.yml \
+ansible-playbook embedding-benchmark.yml \
   -i inventory/hosts.yml \
   -e "scenario=baseline"
 
 # Run latency test only
-ansible-playbook playbooks/embedding/run-tests.yml \
+ansible-playbook embedding-benchmark.yml \
   -i inventory/hosts.yml \
   -e "scenario=latency"
 
 # Test specific model
-ansible-playbook playbooks/embedding/run-tests.yml \
+ansible-playbook embedding-benchmark.yml \
   -i inventory/hosts.yml \
   -e "test_model=RedHatAI/granite-embedding-english-r2"
 
 # Keep vLLM running after tests
-ansible-playbook playbooks/embedding/run-tests.yml \
+ansible-playbook embedding-benchmark.yml \
   -i inventory/hosts.yml \
   -e "cleanup_after_test=false"
 ```
@@ -319,36 +318,26 @@ export VLLM_PORT=8000
   --concurrency "8 16 32 64 128"
 ```
 
-### Core Count Sweep
+### Core Count Comparison
 
-Test vLLM with different CPU allocations to find optimal configuration:
+Test vLLM with different CPU allocations to find optimal configuration.
+Run the playbook multiple times with different `requested_cores` values:
 
 ```bash
-# Test with 8, 16, 32, 64 cores
-ansible-playbook playbooks/embedding/run-core-sweep.yml \
+# Test with 16 cores
+ansible-playbook embedding-benchmark.yml \
   -i inventory/hosts.yml \
-  -e "test_core_counts=[8,16,32,64]"
+  -e "requested_cores=16"
 
-# Baseline test across core counts
-ansible-playbook playbooks/embedding/run-core-sweep.yml \
+# Test with 32 cores
+ansible-playbook embedding-benchmark.yml \
   -i inventory/hosts.yml \
-  -e "scenario=baseline" \
-  -e "test_core_counts=[16,32,48,64]"
+  -e "requested_cores=32"
 
-# Full core sweep with latency tests
-ansible-playbook playbooks/embedding/run-core-sweep.yml \
+# Test with 64 cores
+ansible-playbook embedding-benchmark.yml \
   -i inventory/hosts.yml \
-  -e "scenario=latency" \
-  -e "test_core_counts=[8,16,24,32,40,48,56,64]"
-```
-
-**Core Sweep Results Location**:
-```text
-results/embedding-models/core-sweep-<timestamp>/
-├── 8cores/
-├── 16cores/
-├── 32cores/
-└── 64cores/
+  -e "requested_cores=64"
 ```
 
 ## Test Parameters
@@ -788,20 +777,12 @@ cat results/embedding-models/<model>/baseline/sweep-inf.json | jq
 ### Workflow 2: Core Count Performance Analysis
 
 ```bash
-# Use Ansible for automated core sweep
-ansible-playbook playbooks/embedding/run-core-sweep.yml \
-  -i inventory/hosts.yml \
-  -e "test_core_counts=[8,16,24,32,40,48,56,64]" \
-  -e "scenario=baseline"
-
-# Results in: results/embedding-models/core-sweep-<timestamp>/
-
-# Analyze core scaling
-for cores in 8 16 24 32 40 48 56 64; do
-  echo "=== ${cores} cores ==="
-  jq '.request_throughput' \
-    results/embedding-models/core-sweep-*/\
-${cores}cores/*/baseline/sweep-inf.json
+# Run tests with different core counts
+for cores in 8 16 32 64; do
+  ansible-playbook embedding-benchmark.yml \
+    -i inventory/hosts.yml \
+    -e "requested_cores=${cores}" \
+    -e "scenario=baseline"
 done
 ```
 
@@ -831,7 +812,7 @@ jq -s '.' results/embedding-models/*/*.json > results/combined-analysis.json
 
 ```bash
 # Automated nightly test run
-ansible-playbook playbooks/embedding/run-tests.yml \
+ansible-playbook embedding-benchmark.yml \
   -i inventory/hosts.yml \
   -e "scenario=all" \
   -e "cleanup_after_test=true" \
@@ -876,22 +857,10 @@ ansible-playbook playbooks/embedding/run-tests.yml \
 **Directory Structure**:
 ```text
 automation/test-execution/ansible/
+├── embedding-benchmark.yml         # Main embedding test playbook
 ├── inventory/
 │   └── hosts.yml                   # Node inventory (1-2 nodes)
-├── playbooks/
-│   ├── embedding/                  # Embedding-specific playbooks
-│   │   ├── run-tests.yml          # Main test execution
-│   │   ├── run-core-sweep.yml     # Core count performance sweep
-│   │   └── tasks/                 # Reusable task files
-│   │       ├── baseline.yml       # Baseline test tasks
-│   │       ├── latency.yml        # Latency test tasks
-│   │       ├── core-iteration.yml # Core sweep iteration
-│   │       └── start-embedding-vllm.yml  # Start vLLM server
-│   └── common/                     # Shared playbooks
-│       ├── start-vllm-server.yml  # Generic vLLM startup
-│       ├── health-check.yml       # Wait for vLLM ready
-│       ├── setup-platform.yml     # Platform configuration
-│       └── collect-logs.yml       # Collect logs and results
+├── roles/                          # Ansible roles
 ├── filter_plugins/                 # Custom Ansible filters
 │   └── cpu_utils.py               # CPU allocation utilities
 └── ansible.cfg                     # Ansible configuration
@@ -1051,9 +1020,8 @@ results/embedding-models/
 - [Ansible Documentation](https://docs.ansible.com/)
 
 ### Project Files
-- [Model Matrix](model-matrix.yaml)
-- [Test Scenarios](test-scenarios/)
-- [Ansible Playbooks](../../automation/test-execution/ansible/playbooks/README.md)
+- [Model Matrix](../../models/embedding-models/model-matrix.yaml)
+- [Embedding Benchmark Playbook](../../automation/test-execution/ansible/embedding-benchmark.yml)
 - [Ansible Inventory](../../automation/test-execution/ansible/inventory/README.md)
 
 ### Related Guides

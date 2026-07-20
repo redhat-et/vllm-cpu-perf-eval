@@ -629,36 +629,30 @@ Monitor these metrics for each concurrency level:
 Results are written to:
 
 ```text
-../../results/
-├── by-suite/concurrent-load/
-│   ├── llama-3.2-1b/
-│   │   ├── concurrent-8.json
-│   │   ├── concurrent-16.json
-│   │   └── ...
-│   └── ...
-└── by-model/llama-3.2-1b/concurrent-load/
+results/llm/
+└── <model>/
+    └── <workload>-<YYYYMMDD-HHMMSS>/
+        └── <core-config>/
+            ├── benchmarks.json
+            ├── benchmarks.csv
+            ├── test-metadata.json
+            ├── vllm-metrics.json
+            ├── vllm-server.log
+            └── guidellm.log
 ```
 
 ## Analysis
 
-Generate reports after completing tests:
+View results using the Streamlit dashboard:
 
 ```bash
-# Generate reports using GuideLLM
-cd ../../results/by-suite/concurrent-load
-
-# Console report for a specific test
-guidellm report generate --input llama-3.2-1b/concurrent-16.json
-
-# JSON report for programmatic analysis
-guidellm report generate \
-  --input llama-3.2-1b/concurrent-*.json \
-  --output-format json \
-  --output-path llama-3.2-1b-analysis.json
+cd automation/test-execution/dashboard-examples/vllm_dashboard
+./launch-dashboard.sh
+# Open http://localhost:8501
 ```
 
-> **Note:** Custom analysis scripts (`generate-report.py`, `compare-models.py`)
-> are planned but not yet implemented. Use GuideLLM's built-in reporting for now.
+See [Dashboards Quick Start](../../docs/dashboards-quickstart.md) for
+details.
 
 ## Related Documentation
 

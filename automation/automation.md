@@ -8,16 +8,17 @@ and test execution.
 ```text
 automation/
 ├── platform-setup/            # System configuration automation
-│   ├── ansible/              # Ansible playbooks for setup
 │   └── bash/                 # Shell scripts for setup
 ├── test-execution/           # Test orchestration automation
 │   ├── ansible/              # Ansible playbooks for running tests
-│   └── bash/                 # Shell scripts for running tests
-├── analysis/                 # Results analysis scripts
-│   ├── generate-report.py
-│   ├── compare-results.py
-│   └── templates/
+│   ├── bash/                 # Shell scripts for running tests
+│   ├── dashboard-examples/   # Streamlit dashboard for results
+│   ├── grafana/              # Grafana dashboards for live monitoring
+│   ├── mlflow/               # MLflow experiment tracking
+│   └── scripts/              # Python/bash helper scripts
 └── utilities/                # Helper scripts
+    ├── health-checks/        # Health check scripts
+    └── log-monitoring/       # Log analysis tools
 ```
 
 ## Platform Setup
@@ -27,13 +28,10 @@ Configure your system for deterministic performance testing.
 ### Using Ansible (Recommended)
 
 ```bash
-cd automation/platform-setup/ansible
+cd automation/test-execution/ansible
 
-# Configure all nodes
-ansible-playbook playbooks/site.yml -i inventory/hosts.yml
-
-# Configure specific platform
-ansible-playbook playbooks/configure-intel.yml
+# Configure DUT and Load Generator hosts
+ansible-playbook -i inventory/hosts.yml setup-platform.yml
 ```
 
 ### Using Bash Scripts (Platform Setup)
@@ -50,68 +48,41 @@ sudo ./setup-guidellm-platform.sh --apply
 
 ## Test Execution
 
-Run performance tests using container-based workflows.
+Run performance tests using Ansible playbooks.
 
-### Using Ansible (Recommended for automation)
+### Using Ansible
 
 ```bash
 cd automation/test-execution/ansible
 
-# Run entire test suite
-ansible-playbook playbooks/run-suite.yml -e "test_suite=concurrent-load"
+# Run a single LLM test
+ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
+  -e "test_model=TinyLlama/TinyLlama-1.1B-Chat-v1.0" \
+  -e "workload_type=chat" \
+  -e "requested_cores=16"
 
-# Run specific model
-ansible-playbook playbooks/run-model.yml \
-  -e "model_name=llama-3.2-1b" \
-  -e "test_suite=concurrent-load"
-
-# Distributed testing across multiple nodes
-ansible-playbook playbooks/distributed-tests.yml
-```
-
-**Note:** The `phase` parameter is deprecated. Use `test_suite` with the new suite names:
-`concurrent-load`, `scalability`, `resource-contention`.
-
-### Using Bash Scripts (Test Execution)
-
-```bash
-# Run a test suite
-automation/test-execution/bash/run-suite.sh concurrent-load
-
-# Run a single model
-automation/test-execution/bash/run-model.sh llama-3.2-1b concurrent-load
+# Run concurrent load test suite (all 3 phases)
+ansible-playbook -i inventory/hosts.yml llm-benchmark-concurrent-load.yml \
+  -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
+  -e "base_workload=chat" \
+  -e "requested_cores=32"
 ```
 
 ## Results Analysis
 
-Generate reports and compare test results.
+View results using the Streamlit dashboard:
 
 ```bash
-cd automation/analysis
-
-# Generate HTML report
-python generate-report.py \
-  --input ../../results/by-suite/concurrent-load/ \
-  --format html \
-  --output ../../results/reports/concurrent-load-report.html
-
-# Compare multiple test runs
-python compare-results.py \
-  --baseline results/baseline.json \
-  --current results/current.json
+cd automation/test-execution/dashboard-examples/vllm_dashboard
+./launch-dashboard.sh
+# Open http://localhost:8501
 ```
 
-## Container Runtime Support
-
-All automation supports both Docker and Podman:
-
-- **Auto-detection**: Automatically detects available runtime
-- **Explicit selection**: Set `CONTAINER_RUNTIME=docker` or `podman`
-- **Per-host configuration**: Set runtime preference in Ansible inventory
+See [Dashboards Quick Start](../docs/dashboards-quickstart.md) for details.
 
 ## Documentation
 
-- Platform setup: `docs/platform-setup/`
-- Ansible guide: `docs/ansible/`
-- Container guide: `docs/containers/`
-- Getting started: `docs/getting-started/`
+- Getting started: [docs/getting-started.md](../docs/getting-started.md)
+- Platform setup: [docs/platform-setup/](../docs/platform-setup/)
+- Ansible guide: [docs/ansible/](../docs/ansible/)
+- Dashboards: [docs/dashboards-quickstart.md](../docs/dashboards-quickstart.md)
