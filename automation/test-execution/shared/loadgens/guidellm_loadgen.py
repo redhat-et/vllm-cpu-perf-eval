@@ -43,9 +43,10 @@ class GuideLLMLoadGen(LoadGenerator):
 
         cmd = ["run"]
 
-        backend = (
-            f"kind=openai_http,target={config.target_url}"
-        )
+        backend = f"kind=openai_http,target={config.target_url}"
+        api_key = config.extra_args.get('api_key', '')
+        if api_key:
+            backend += f",api_key={api_key}"
         cmd.extend(["--backend", backend])
 
         isl = config.extra_args.get('isl', 512)
