@@ -27,7 +27,7 @@ This directory implements a pluggable backend system that allows the benchmarkin
 
 ### vLLM
 - **Status**: Implemented (skeleton)
-- **Container**: `vllm/vllm-openai-cpu:v0.20.0`
+- **Container**: `vllm/vllm-openai-cpu:v0.25.1`
 - **API**: OpenAI-compatible
 - **Features**: Prefix caching, tensor parallelism, quantization
 

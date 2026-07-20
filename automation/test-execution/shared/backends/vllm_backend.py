@@ -19,7 +19,7 @@ class vLLMBackend(InferenceBackend):
     @property
     def version(self) -> str:
         # TODO: Make this configurable or detect from container image
-        return "0.20.0"
+        return "0.25.1"
 
     def get_start_command(self, config: BackendConfig) -> List[str]:
         """Generate vLLM CLI arguments.

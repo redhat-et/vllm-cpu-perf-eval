@@ -115,7 +115,7 @@ class InferenceBackend(ABC):
             config: Optional configuration to check for custom image override
 
         Returns:
-            Container image URL (e.g., "vllm/vllm-openai-cpu:v0.20.0")
+            Container image URL (e.g., "vllm/vllm-openai-cpu:v0.25.1")
             Uses config.container_image if set, otherwise backend default
         """
         pass

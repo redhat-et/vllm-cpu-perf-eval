@@ -65,7 +65,7 @@ class TestLoadGenRegistry:
 
 
 class TestGuideLLMLoadGen:
-    """Test GuideLLM load generator implementation."""
+    """Test GuideLLM load generator (v0.7.x, default)."""
 
     @pytest.fixture
     def loadgen(self):
@@ -85,38 +85,101 @@ class TestGuideLLMLoadGen:
     def test_name_and_version(self, loadgen):
         """Test load generator name and version."""
         assert loadgen.name == "guidellm"
-        assert loadgen.version == "0.6.0"
+        assert loadgen.version == "0.7.1"
 
     def test_get_container_image(self, loadgen):
         """Test container image generation."""
         image = loadgen.get_container_image()
-        assert image == "ghcr.io/vllm-project/guidellm:v0.6.0"
+        assert image == "ghcr.io/vllm-project/guidellm:v0.7.1"
 
-    def test_get_command(self, loadgen, config):
-        """Test command generation (should be empty for GuideLLM)."""
+    def test_is_v7_or_later(self, loadgen):
+        """Test version detection property."""
+        assert loadgen._is_v7_or_later is True
+
+    def test_get_command_v7(self, loadgen, config):
+        """Test v0.7.x generates CLI args."""
         cmd = loadgen.get_command(config)
-        assert cmd == []
+        assert cmd[0] == "run"
+        assert "--backend" in cmd
+        assert "--data" in cmd
+        assert "--tokenizer" in cmd
+        assert "--profile" in cmd
+        assert "--constraint" in cmd
+        assert "--output" in cmd
 
-    def test_get_env_vars_basic(self, loadgen, config):
-        """Test basic environment variable generation."""
-        env = loadgen.get_env_vars(config)
-        assert env["GUIDELLM_TARGET"] == "http://localhost:8000"
-        assert env["GUIDELLM_MODEL"] == "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-        assert env["GUIDELLM_MAX_REQUESTS"] == "100"
-        assert env["GUIDELLM_MAX_SECONDS"] == "300"
-        assert env["GUIDELLM_OUTPUT_PATH"] == "/results"
+    def test_get_command_v7_backend(self, loadgen, config):
+        """Test v0.7.x --backend arg format."""
+        cmd = loadgen.get_command(config)
+        idx = cmd.index("--backend")
+        backend = cmd[idx + 1]
+        assert backend.startswith("kind=openai_http,target=")
+        assert "http://localhost:8000" in backend
 
-    def test_get_env_vars_with_profile(self, loadgen, config):
-        """Test environment variables with profile."""
+    def test_get_command_v7_data(self, loadgen, config):
+        """Test v0.7.x --data arg format."""
+        config.extra_args = {"isl": 256, "osl": 128}
+        cmd = loadgen.get_command(config)
+        idx = cmd.index("--data")
+        data = cmd[idx + 1]
+        assert "kind=synthetic_text" in data
+        assert "prompt_tokens=256" in data
+        assert "output_tokens=128" in data
+
+    def test_get_command_v7_profile_sweep(self, loadgen, config):
+        """Test v0.7.x --profile with sweep."""
         config.extra_args = {"profile": "sweep"}
-        env = loadgen.get_env_vars(config)
-        assert env["GUIDELLM_PROFILE"] == "sweep"
+        cmd = loadgen.get_command(config)
+        idx = cmd.index("--profile")
+        profile = cmd[idx + 1]
+        assert "kind=sweep" in profile
 
-    def test_get_env_vars_with_rate(self, loadgen, config):
-        """Test environment variables with rate."""
-        config.rate = "10,20,40"
+    def test_get_command_v7_profile_concurrent(self, loadgen, config):
+        """Test v0.7.x concurrent profile with rates."""
+        config.extra_args = {"profile": "concurrent"}
+        config.rate = "1,2,4,8"
+        cmd = loadgen.get_command(config)
+        idx = cmd.index("--profile")
+        profile = cmd[idx + 1]
+        assert "kind=concurrent" in profile
+        assert "streams=1" in profile
+        assert "--override" in cmd
+        oidx = cmd.index("--override")
+        assert cmd[oidx + 1] == "profile.streams"
+        assert cmd[oidx + 2] == "1,2,4,8"
+
+    def test_get_command_v7_constraints(self, loadgen, config):
+        """Test v0.7.x --constraint args."""
+        cmd = loadgen.get_command(config)
+        constraints = [
+            cmd[i + 1] for i, v in enumerate(cmd)
+            if v == "--constraint"
+        ]
+        duration = [c for c in constraints if "max_duration" in c]
+        requests = [c for c in constraints if "max_requests" in c]
+        assert len(duration) == 1
+        assert "seconds=300" in duration[0]
+        assert len(requests) == 1
+        assert "count=100" in requests[0]
+
+    def test_get_command_v7_output(self, loadgen, config):
+        """Test v0.7.x --output arg."""
+        cmd = loadgen.get_command(config)
+        idx = cmd.index("--output")
+        output = cmd[idx + 1]
+        assert "kind=json" in output
+        assert "benchmarks.json" in output
+
+    def test_get_env_vars_v7_minimal(self, loadgen, config):
+        """Test v0.7.x returns minimal env vars."""
         env = loadgen.get_env_vars(config)
-        assert env["GUIDELLM_RATE"] == "10,20,40"
+        assert "GUIDELLM_TARGET" not in env
+        assert "GUIDELLM_PROFILE" not in env
+
+    def test_get_env_vars_v7_with_hf_token(self, loadgen, config):
+        """Test v0.7.x passes through HF_TOKEN."""
+        config.extra_args = {"HF_TOKEN": "hf_test"}
+        env = loadgen.get_env_vars(config)
+        assert env["HF_TOKEN"] == "hf_test"
 
     def test_supports_workload_generative(self, loadgen):
         """Test workload support for generative workloads."""
@@ -135,7 +198,7 @@ class TestGuideLLMLoadGen:
 
     def test_validate_config_valid(self, loadgen, config):
         """Test configuration validation with valid config."""
-        loadgen.validate_config(config)  # Should not raise
+        loadgen.validate_config(config)
 
     def test_validate_config_missing_target(self, loadgen, config):
         """Test configuration validation with missing target."""
@@ -151,9 +214,80 @@ class TestGuideLLMLoadGen:
             loadgen.validate_config(config)
         assert "model is required" in str(exc_info.value)
 
+    def test_validate_config_v7_profiles(self, loadgen, config):
+        """Test v0.7.x accepts constant and poisson profiles."""
+        for profile in ['constant', 'poisson']:
+            config.extra_args = {"profile": profile}
+            loadgen.validate_config(config)
+
     def test_get_output_format(self, loadgen):
         """Test output format."""
         assert loadgen.get_output_format() == "json"
+
+
+class _GuideLLMV6(GuideLLMLoadGen):
+    """GuideLLM subclass simulating v0.6.x for testing."""
+
+    @property
+    def version(self) -> str:
+        return "0.6.0"
+
+
+class TestGuideLLMLoadGenV6:
+    """Test GuideLLM backward compat with v0.6.x."""
+
+    @pytest.fixture
+    def loadgen(self):
+        return _GuideLLMV6()
+
+    @pytest.fixture
+    def config(self):
+        return LoadGenConfig(
+            target_url="http://localhost:8000",
+            model="TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+            workload_type="chat",
+            max_requests=100,
+            max_seconds=300,
+            output_path="/results",
+        )
+
+    def test_is_not_v7(self, loadgen):
+        """Test v0.6.x is detected as legacy."""
+        assert loadgen._is_v7_or_later is False
+
+    def test_get_command_empty(self, loadgen, config):
+        """Test v0.6.x returns empty command."""
+        cmd = loadgen.get_command(config)
+        assert cmd == []
+
+    def test_get_env_vars_full(self, loadgen, config):
+        """Test v0.6.x returns full env var set."""
+        env = loadgen.get_env_vars(config)
+        assert env["GUIDELLM_TARGET"] == "http://localhost:8000"
+        assert env["GUIDELLM_MODEL"] == (
+            "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+        )
+        assert env["GUIDELLM_MAX_REQUESTS"] == "100"
+        assert env["GUIDELLM_MAX_SECONDS"] == "300"
+        assert env["GUIDELLM_OUTPUT_PATH"] == "/results"
+
+    def test_get_env_vars_with_profile(self, loadgen, config):
+        """Test v0.6.x env vars include profile."""
+        config.extra_args = {"profile": "sweep"}
+        env = loadgen.get_env_vars(config)
+        assert env["GUIDELLM_PROFILE"] == "sweep"
+
+    def test_get_env_vars_with_rate(self, loadgen, config):
+        """Test v0.6.x env vars include rate."""
+        config.rate = "10,20,40"
+        env = loadgen.get_env_vars(config)
+        assert env["GUIDELLM_RATE"] == "10,20,40"
+
+    def test_validate_rejects_v7_profiles(self, loadgen, config):
+        """Test v0.6.x rejects constant/poisson profiles."""
+        config.extra_args = {"profile": "constant"}
+        with pytest.raises(ValueError):
+            loadgen.validate_config(config)
 
 
 class TestVLLMBenchLoadGen:
@@ -178,12 +312,12 @@ class TestVLLMBenchLoadGen:
     def test_name_and_version(self, loadgen):
         """Test load generator name and version."""
         assert loadgen.name == "vllm_bench"
-        assert loadgen.version == "0.20.0"
+        assert loadgen.version == "0.25.1"
 
     def test_get_container_image(self, loadgen):
         """Test container image generation."""
         image = loadgen.get_container_image()
-        assert image == "vllm/vllm-openai-cpu:v0.20.0"
+        assert image == "vllm/vllm-openai-cpu:v0.25.1"
 
     def test_get_command_embedding(self, loadgen, config):
         """Test command generation for embedding workload."""
