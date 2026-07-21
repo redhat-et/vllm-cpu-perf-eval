@@ -15,7 +15,9 @@
 #   -e "output_len=256"                      # For random/sharegpt/cnn_dailymail datasets
 #   -e "vllm_container_image=vllm/vllm-openai:latest"  # Default (upstream vLLM)
 #   -e "vllm_container_image=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0"  # RHAIIS optimized
-#   -e "vllm_extra_args=--enable-prefix-caching"       # Extra args passed to vllm bench
+#   -e "vllm_extra_args=--enforce-eager"                 # Extra args passed to vllm bench
+#       (--enable-prefix-caching is only useful with a shared-prefix workload;
+#        the suite does not provide one yet, so the flag is not passed today)
 #
 # Dataset types: sonnet, random, sharegpt
 #   - sonnet: Classic sonnet text (needs dataset_path)

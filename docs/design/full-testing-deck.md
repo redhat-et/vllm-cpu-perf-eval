@@ -1,3 +1,5 @@
+<!-- markdownlint-disable MD024 -->
+
 # vLLM CPU Performance Evaluation
 
 ## Full Testing Methodology
@@ -376,12 +378,16 @@ where latency per request is less important than total throughput.
 
 ### When to Use Offline Batch vs. Online Server Testing
 
+<!-- markdownlint-disable MD013 -->
+
 | Criteria | Offline Batch | Online Server |
 |----------|--------------|---------------|
 | User interaction | None (batch jobs) | Real-time requests |
 | Latency requirement | Not critical | Critical (SLOs) |
 | Throughput priority | Maximum | Balanced with latency |
 | Examples | Document processing, ETL, dataset generation | Chatbots, APIs, RAG |
+
+<!-- markdownlint-enable MD013 -->
 
 ### Use Cases (11 Scenarios)
 

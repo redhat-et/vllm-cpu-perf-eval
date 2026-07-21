@@ -27,11 +27,14 @@ def get_use_case_units(use_case: str) -> Dict[str, str]:
     """
     use_case_lower = use_case.lower()
 
-    if 'long' in use_case_lower and 'summarization' in use_case_lower or '📜' in use_case:
+    if (
+        ('long' in use_case_lower and 'summarization' in use_case_lower)
+        or '📜' in use_case
+    ):
         return {'singular': 'doc', 'plural': 'docs'}
     elif 'translation' in use_case_lower or '🌐' in use_case:
         return {'singular': 'doc', 'plural': 'docs'}
-    elif 'labeling' in use_case_lower or ('short' in use_case_lower and 'label' in use_case_lower):
+    elif 'labeling' in use_case_lower or ('short' in use_case_lower and 'label' in use_case_lower) or '⚡' in use_case:
         return {'singular': 'item', 'plural': 'items'}
     elif 'classification' in use_case_lower or 'tagging' in use_case_lower or '🏷️' in use_case:
         return {'singular': 'item', 'plural': 'items'}

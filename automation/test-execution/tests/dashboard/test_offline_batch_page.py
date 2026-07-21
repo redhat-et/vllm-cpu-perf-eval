@@ -103,6 +103,11 @@ class TestUseCaseUnits:
         units = get_use_case_units("⚡ Ultra-Short Labeling")
         assert units == {'singular': 'item', 'plural': 'items'}
 
+    def test_short_labeling_units_emoji_only(self):
+        """⚡ emoji alone should resolve to items (labeling)."""
+        units = get_use_case_units("⚡")
+        assert units == {'singular': 'item', 'plural': 'items'}
+
     def test_kv_capacity_units(self):
         """KV-cache capacity should use requests/request units."""
         units = get_use_case_units("📊 KV-Cache Capacity")
