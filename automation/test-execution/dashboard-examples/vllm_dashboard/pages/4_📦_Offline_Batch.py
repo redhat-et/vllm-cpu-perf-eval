@@ -61,7 +61,7 @@ def infer_use_case(test_metadata: dict) -> str:
     """
     Infer the use case from test metadata parameters.
 
-    Maps to the 7 use cases from run-offline-batch-suite.sh:
+    Maps to the 11 use cases from run-offline-batch-suite.sh:
     1. Summarization (sharegpt, 1000 prompts, no output_len set)
     2. Classification/Tagging (sharegpt, 1000 prompts, output=64)
     3. Translation (sharegpt, 500 prompts, output=1024)
@@ -69,6 +69,10 @@ def infer_use_case(test_metadata: dict) -> str:
     5. Dataset Generation (random, 256→256 tokens, 5000 prompts)
     6. Code Generation (random, 512→512 tokens, 500 prompts)
     7. ETL Pipelines (sonnet, 500 prompts, variable cores)
+    8. Long-Document Summarization (random, 4096→256 tokens, 500 prompts)
+    9. Batch RAG / Grounded Q&A (random, 2048→128 tokens, 500 prompts)
+    10. Shared-Prefix / Template Batch (random, 1024→64 tokens, 1000 prompts)
+    11. Ultra-Short Labeling (sharegpt, 2000 prompts, output=16)
 
     Args:
         test_metadata: Dictionary containing test configuration
@@ -93,7 +97,7 @@ def infer_use_case(test_metadata: dict) -> str:
             'long_summarization': '📜 Long-Document Summarization',
             'rag_batch': '🔍 Batch RAG / Grounded Q&A',
             'shared_prefix': '📋 Shared-Prefix / Template Batch',
-            'short_labeling': '🏷️ Ultra-Short Labeling',
+            'short_labeling': '⚡ Ultra-Short Labeling',
             'kv_capacity': '📊 KV-Cache Capacity',
             'context_scaling': '📏 Context Scaling',
         }
@@ -109,7 +113,7 @@ def infer_use_case(test_metadata: dict) -> str:
     if dataset == 'sharegpt':
         # Ultra-Short Labeling: sharegpt, output_len <= 20
         if output_len > 0 and output_len <= 20:
-            return "🏷️ Ultra-Short Labeling"
+            return "⚡ Ultra-Short Labeling"
         # Classification/Tagging: sharegpt, 1000 prompts, output=64
         elif num_prompts == 1000 and output_len > 0 and output_len <= 100:
             return "🏷️ Classification/Tagging"
@@ -140,11 +144,6 @@ def infer_use_case(test_metadata: dict) -> str:
         else:
             return "🔄 ETL Pipelines"  # Default for sonnet
 
-    # ShareGPT ultra-short labeling: output_len <= 20
-    if dataset == 'sharegpt':
-        if output_len > 0 and output_len <= 20:
-            return "🏷️ Ultra-Short Labeling"
-
     # Random dataset - infer from token lengths
     if dataset == 'random':
         input_len = dataset_config.get('input_len', 0)
@@ -158,17 +157,17 @@ def infer_use_case(test_metadata: dict) -> str:
         elif input_len == 512 and output_len == 512 and num_prompts == 500:
             return "💻 Code Generation"
 
-        # Long-Document Summarization: input >= 2048, output <= 256
-        elif input_len >= 2048 and output_len <= 256 and output_len > 0:
-            return "📜 Long-Document Summarization"
+        # Shared-Prefix: input ~1024, very short output (64), high volume
+        elif input_len >= 512 and output_len <= 64 and output_len > 0 and num_prompts >= 1000:
+            return "📋 Shared-Prefix / Template Batch"
 
         # Batch RAG: long input, short output (128)
         elif input_len >= 1024 and output_len <= 128 and output_len > 0 and num_prompts <= 500:
             return "🔍 Batch RAG / Grounded Q&A"
 
-        # Shared-Prefix: input ~1024, very short output (64)
-        elif input_len >= 512 and output_len <= 64 and output_len > 0 and num_prompts >= 1000:
-            return "📋 Shared-Prefix / Template Batch"
+        # Long-Document Summarization: input >= 2048, output 129-256
+        elif input_len >= 2048 and output_len <= 256 and output_len > 128:
+            return "📜 Long-Document Summarization"
 
         # Fallback for random with pattern matching
         # Code Generation: moderate balanced
@@ -310,7 +309,7 @@ def main():
                     "📝 Summarization", "🏷️ Classification", "🌐 Translation",
                     "🧬 Entity Extraction", "🎲 Dataset Gen", "💻 Code Gen", "🔄 ETL",
                     "📜 Long-Doc Summary", "🔍 RAG Batch", "📋 Shared-Prefix",
-                    "🏷️ Short Labeling",
+                    "⚡ Short Labeling",
                 ],
                 "Dataset": [
                     "sharegpt", "sharegpt", "sharegpt", "sharegpt", "random", "random", "sonnet",

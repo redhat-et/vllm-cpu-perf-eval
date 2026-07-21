@@ -39,7 +39,7 @@ Tests vLLM in offline batch mode (vllm bench throughput).
 - `scripts/bash/run-offline-batch-suite.sh` - Comprehensive test suite
 
 **Features:**
-- 7 real-world use cases (summarization, classification, translation, etc.)
+- 11 real-world use cases (summarization, classification, translation, long-doc summarization, RAG, shared-prefix, ultra-short labeling, etc.)
 - Multi-model support (all 4 RedHatAI models)
 - Core scaling, batch size scaling
 - Container image tracking
@@ -99,7 +99,7 @@ ansible-playbook -i ansible/inventory/hosts.yml ansible/llm-benchmark-concurrent
 ```bash
 cd scripts/bash
 
-# Run all 7 use cases with all 4 RedHatAI models (5 iterations each)
+# Run all 11 use cases with all 4 RedHatAI models (5 iterations each)
 ./run-offline-batch-suite.sh use-cases 5 all
 
 # Single test configuration
@@ -120,6 +120,8 @@ export VLLM_CONTAINER_IMAGE=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
 ./run-offline-batch-suite.sh input-scaling <model> 16
 ./run-offline-batch-suite.sh output-scaling <model> 16
 ./run-offline-batch-suite.sh core-scaling <model>
+./run-offline-batch-suite.sh kv-capacity <model> 32
+./run-offline-batch-suite.sh context-scaling <model> 32
 ```
 
 ### Embedding Models

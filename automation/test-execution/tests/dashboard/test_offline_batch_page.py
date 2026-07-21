@@ -100,7 +100,7 @@ class TestUseCaseUnits:
 
     def test_short_labeling_units(self):
         """Ultra-short labeling should use items/item units."""
-        units = get_use_case_units("🏷️ Ultra-Short Labeling")
+        units = get_use_case_units("⚡ Ultra-Short Labeling")
         assert units == {'singular': 'item', 'plural': 'items'}
 
     def test_kv_capacity_units(self):
@@ -387,7 +387,7 @@ class TestUseCaseInference:
                 }
             }
         }
-        assert infer_use_case(metadata) == "🏷️ Ultra-Short Labeling"
+        assert infer_use_case(metadata) == "⚡ Ultra-Short Labeling"
 
     def test_explicit_use_case_kv_capacity(self):
         """Explicit use_case=kv_capacity should return KV-Cache."""
@@ -433,7 +433,7 @@ class TestUseCaseInference:
                 'dataset_config': {'output_len': 16}
             }
         }
-        assert infer_use_case(metadata) == "🏷️ Ultra-Short Labeling"
+        assert infer_use_case(metadata) == "⚡ Ultra-Short Labeling"
 
     def test_random_long_summarization_heuristic(self):
         """Random 4096→256 → Long-Document Summarization."""

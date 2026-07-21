@@ -190,7 +190,7 @@ with tab1:
 
     **Offline Batch Tests:**
     ```bash
-    # Run all 7 use cases with all 4 RedHatAI models (5 iterations each)
+    # Run all 11 use cases with all 4 RedHatAI models (5 iterations each)
     cd automation/test-execution/scripts/bash
     ./run-offline-batch-suite.sh use-cases 5 all
 

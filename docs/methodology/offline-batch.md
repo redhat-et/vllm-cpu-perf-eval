@@ -79,14 +79,38 @@ use case is tested across the full range of core counts.
 | Dataset Generation | random 256:256 | 5000 | Synthetic data, fixed lengths |
 | ETL Pipelines | sonnet | 500 | Reproducible baseline text |
 | Code Generation | random 512:512 | 500 | Balanced I/O lengths |
+| Long-Doc Summarization | random 4096:256 | 500 | Prefill-heavy, long input |
+| Batch RAG / Grounded Q&A | random 2048:128 | 500 | Long context, short answer |
+| Shared-Prefix / Template | random 1024:64 | 1000 | Short-output template shape |
+| Ultra-Short Labeling | sharegpt | 2000 | Output 16 tokens, high volume |
+
+**Production questions each new use case answers:**
+
+- **Long-Doc Summarization** — How many long documents (reports, legal
+  filings, articles) can we summarize per hour? Where is the bottleneck:
+  prefill or decode?
+- **Batch RAG** — How fast can we process RAG queries where most tokens
+  are retrieved context and output is a short answer?
+- **Shared-Prefix** — How fast can we process template-shaped batches
+  (moderate input, very short output) typical of classify/moderate/extract
+  jobs? At what core count does this short-output shape saturate?
+  *Note:* `--enable-prefix-caching` is disabled because `vllm bench
+  throughput` with `--dataset-name random` generates independent random
+  prompts with no shared prefix, so cache hit rate stays ~0. Re-enable
+  only when a workload with a fixed instruction prefix + unique suffixes
+  (or an equivalent shared-prefix dataset) is available, plus an on/off
+  baseline.
+- **Ultra-Short Labeling** — At what core count do sentiment/yes-no
+  tasks saturate? How does output=16 compare to classification@64?
 
 **Datasets:**
 
 - **ShareGPT** — real conversations with variable token lengths (100-2000).
   Used for realistic text workloads (summarization, classification,
-  translation, entity extraction)
+  translation, entity extraction, ultra-short labeling)
 - **Random** — synthetic with controlled I/O lengths. Used for dataset
-  generation and code generation benchmarks
+  generation, code generation, long-doc summarization, RAG, shared-prefix,
+  and technical benchmarks
 - **Sonnet** — classic poetry, ~50 prompts. Used for reproducible baselines
 
 ### Technical Benchmarks
@@ -101,6 +125,8 @@ while sweeping core counts:
 | Input Scaling | Prefill performance curve | 128, 256, 512, 1024, 2048 input tokens |
 | Output Scaling | Decode performance curve | 64, 128, 256, 512, 1024 output tokens |
 | Quantization | INT8 vs INT4 comparison | w8a8, w4a16 |
+| KV-Cache Capacity | Max batch before KV saturation | 100, 250, 500, 1000, 2000, 5000 prompts |
+| Context Scaling | Throughput vs context length | 1024, 2048, 4096, 8192 input tokens |
 
 ## Models Under Test
 

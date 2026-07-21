@@ -68,6 +68,10 @@ See [Methodology](methodology/overview.md) for details.
 - [Metrics Guide](methodology/metrics.md)
 - [Reporting](methodology/reporting.md)
 
+### Design & Slides
+- [Design Documents](design/) - Slide decks and design documents
+- [Rendering Slides](design/README.md) - How to render Marp slide decks
+
 ### Configuration
 - [vLLM KV Cache Configuration Guide](vllm-kv-cache-configuration.md) - Understanding max_model_len, KV cache size, and block_size for optimal CPU performance
 - [Environment Variables Reference](environment-variables.md) - Complete guide to configuration via environment variables

@@ -39,7 +39,7 @@ All test cases use a hierarchical naming scheme for easy identification and trac
 
 - **Suite Prefix**: `CONC` (Concurrent Load), `SCALE` (Scalability), `OFFLINE` (Offline Batch), `CONT` (Resource Contention), `EMB` (Embedding)
 - **Type** (not used for CONC suite): `SWEEP`, `SYNC` (Synchronous), `POISSON`, `BASELINE`, `LATENCY`
-- **Use Case** (offline batch): `SUMM` (Summarization), `CLASS` (Classification), `TRANS` (Translation), `ENTITY` (Entity Extraction), `DATAGEN` (Dataset Generation), `ETL` (ETL Pipelines), `CODEGEN` (Code Generation)
+- **Use Case** (offline batch): `SUMM` (Summarization), `CLASS` (Classification), `TRANS` (Translation), `ENTITY` (Entity Extraction), `DATAGEN` (Dataset Generation), `ETL` (ETL Pipelines), `CODEGEN` (Code Generation), `LONGSUM` (Long-Doc Summarization), `RAG` (Batch RAG), `PREFIX` (Shared-Prefix), `LABEL` (Ultra-Short Labeling)
 - **Model**: Short abbreviation (e.g., `LLAMA32`, `QWEN06`, `GRANITE32`, `GRANITE-EN`, `GRANITE-ML`)
 - **Workload**: `CHAT`, `RAG`, `CODE`, `SUMM`, `EMB` (embedding), `EMB512` (512-token embedding)
 
@@ -77,10 +77,10 @@ Characterizes maximum throughput and performance curves.
 
 Tests vLLM batch processing performance using the native Python API (not server mode).
 
-- **Test types**: Use cases (7 scenarios), Technical benchmarks (batch/core/I/O scaling)
+- **Test types**: Use cases (11 scenarios), Technical benchmarks (batch/core/I/O scaling, KV-cache capacity, context scaling)
 - **Metrics focus**: Throughput (req/s, tokens/s), total batch time, processing capacity
 - **Goal**: Optimize bulk processing for ETL, dataset generation, document processing
-- **Use cases**: Summarization, Classification, Translation, Entity Extraction, Dataset Generation, ETL Pipelines, Code Generation
+- **Use cases**: Summarization, Classification, Translation, Entity Extraction, Dataset Generation, ETL Pipelines, Code Generation, Long-Document Summarization, Batch RAG, Shared-Prefix/Template Batch, Ultra-Short Labeling
 
 See [Offline Batch Test Suite](offline-batch/offline-batch.md) for detailed documentation.
 

@@ -474,14 +474,14 @@ use_cases_suite() {
 
     # 10. SHARED-PREFIX / TEMPLATE BATCH
     echo -e "${GREEN}📋 [10/11] Shared-Prefix / Template Batch${NC}"
-    echo "Use case: Classify/moderate/extract with fixed instruction prefix"
+    echo "Use case: Short-output template-shaped throughput (1024→64 tokens)"
     echo "Parameters: 1000 prompts, random 1024→64 tokens, 16 cores"
     echo
     for model in "${MODELS[@]}"; do
         echo "  Model: $model"
         for run in $(seq 1 $runs); do
             echo "    Run $run/$runs..."
-            if ! run_test "$model" "random" 1000 16 -e "input_len=1024" -e "output_len=64" -e "use_case=shared_prefix" -e "vllm_extra_args=--enable-prefix-caching"; then
+            if ! run_test "$model" "random" 1000 16 -e "input_len=1024" -e "output_len=64" -e "use_case=shared_prefix"; then
                 failed_tests+=("Shared-Prefix - $model - Run $run")
             fi
         done
@@ -490,7 +490,7 @@ use_cases_suite() {
     echo
 
     # 11. ULTRA-SHORT LABELING
-    echo -e "${GREEN}🏷️ [11/11] Ultra-Short Labeling${NC}"
+    echo -e "${GREEN}⚡ [11/11] Ultra-Short Labeling${NC}"
     echo "Use case: Sentiment/moderation/yes-no labeling at high volume"
     echo "Parameters: 2000 prompts, sharegpt, output=16 tokens, 16 cores"
     echo
@@ -895,12 +895,12 @@ use_case_sweep() {
             use_case_name="📋 Shared-Prefix / Template Batch"
             dataset="random"
             num_prompts=1000
-            extra_args="-e input_len=1024 -e output_len=64 -e use_case=shared_prefix -e vllm_extra_args=--enable-prefix-caching"
-            echo "Use case: Classify/moderate/extract with fixed instruction prefix"
-            echo "Dataset: random (prefix caching enabled)"
+            extra_args="-e input_len=1024 -e output_len=64 -e use_case=shared_prefix"
+            echo "Use case: Short-output template-shaped throughput (1024→64 tokens)"
+            echo "Dataset: random (controlled I/O shape)"
             ;;
         short-labeling|short-label|labeling|sentiment)
-            use_case_name="🏷️ Ultra-Short Labeling"
+            use_case_name="⚡ Ultra-Short Labeling"
             dataset="sharegpt"
             num_prompts=2000
             extra_args="-e output_len=16 -e use_case=short_labeling"

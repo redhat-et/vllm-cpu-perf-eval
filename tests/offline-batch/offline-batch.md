@@ -25,15 +25,34 @@ This directory documents test scenarios for offline batch benchmarking with vLLM
    - Translate documentation corpus
    - Extract entities from document batches
 
-2. **Dataset Generation**
+2. **Long-Document Summarization**
+   - Summarize long reports, legal filings, articles (2k-8k tokens)
+   - Prefill-dominated workloads
+
+3. **Batch RAG / Grounded Q&A**
+   - Process RAG queries with retrieved context + short answers
+   - Long input (retrieved chunks), short output
+
+4. **Shared-Prefix / Template Batch**
+   - Short-output template-shaped throughput (1024→64 tokens)
+   - Measures items/hr and core saturation for classify/moderate/extract I/O shapes
+   - Prefix caching is **disabled** — random prompts share no common prefix,
+     so `--enable-prefix-caching` cannot produce meaningful hit rates.
+     Re-enable when a shared-prefix dataset is available plus an on/off baseline
+
+5. **Ultra-Short Labeling**
+   - Sentiment analysis, moderation, yes/no classification
+   - Output 16 tokens, high volume
+
+6. **Dataset Generation**
    - Generate 100,000 synthetic training examples
    - Create evaluation datasets
 
-3. **ETL Pipelines**
+7. **ETL Pipelines**
    - Batch inference in data workflows
    - Scheduled bulk processing jobs
 
-4. **Code Generation**
+8. **Code Generation**
    - Generate tests for 1,000 functions
    - Batch code migration/conversion
 
@@ -58,6 +77,10 @@ Real-world scenarios implemented in `run-offline-batch-suite.sh`:
 | **🎲 Dataset Generation** | Generate synthetic examples | random, 256→256 tokens, 5000 prompts | `use-case-sweep dataset-generation` |
 | **💻 Code Generation** | Generate test code | random, 512→512 tokens, 500 prompts | `use-case-sweep code-generation` |
 | **🔄 ETL Pipelines** | Batch inference workflows | sonnet, 500 prompts, core scaling | `use-case-sweep etl` |
+| **📜 Long-Doc Summarization** | Summarize long documents | random, 4096→256 tokens, 500 prompts | `use-case-sweep long-summarization` |
+| **🔍 Batch RAG** | RAG queries with context | random, 2048→128 tokens, 500 prompts | `use-case-sweep rag` |
+| **📋 Shared-Prefix** | Template-shaped short-output throughput | random, 1024→64 tokens, 1000 prompts | `use-case-sweep shared-prefix` |
+| **⚡ Ultra-Short Labeling** | Sentiment/moderation/yes-no | sharegpt, output=16 tokens, 2000 prompts | `use-case-sweep short-labeling` |
 
 ### 2. Technical Benchmarks
 
@@ -71,6 +94,8 @@ Performance characterization tests:
 | **Output Scaling** | Decode performance | 64-1024 tokens | `output-scaling <model> [cores]` |
 | **Core Scaling** | CPU scaling | 8, 16, 32, 64 cores | `core-scaling <model>` |
 | **Quantization** | Quantization comparison | w8a8, w4a16 | `quantization [cores] [prompts]` |
+| **KV-Cache Capacity** | Max batch before KV saturation | 100-5000 prompts, fixed 512→256 | `kv-capacity <model> [cores]` |
+| **Context Scaling** | Throughput vs context length | 1024-8192 input, output=128 | `context-scaling <model> [cores]` |
 
 ## Implementation
 
@@ -97,7 +122,7 @@ The test scenarios are implemented in:
 ```bash
 cd automation/test-execution/scripts/bash
 
-# Run all 7 use cases with all RedHatAI models (5 runs each)
+# Run all 11 use cases with all RedHatAI models (5 runs each)
 ./run-offline-batch-suite.sh use-cases 5 all
 
 # Run summarization with specific models across core counts
@@ -105,12 +130,20 @@ cd automation/test-execution/scripts/bash
   "RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w8a8,RedHatAI/Qwen3-8B-quantized.w4a16" \
   8,16,32,64 3
 
+# New use cases
+./run-offline-batch-suite.sh use-case-sweep long-summarization all 16,32 3
+./run-offline-batch-suite.sh use-case-sweep rag all
+./run-offline-batch-suite.sh use-case-sweep shared-prefix all
+./run-offline-batch-suite.sh use-case-sweep short-labeling all 8,16,32,64
+
 # Single test
 ./run-offline-batch-suite.sh run_test all sonnet 1000 16
 
 # Technical benchmarks
 ./run-offline-batch-suite.sh batch-scaling <model> 16
 ./run-offline-batch-suite.sh core-scaling <model>
+./run-offline-batch-suite.sh kv-capacity <model> 32
+./run-offline-batch-suite.sh context-scaling <model> 32
 
 # View full usage
 ./run-offline-batch-suite.sh
