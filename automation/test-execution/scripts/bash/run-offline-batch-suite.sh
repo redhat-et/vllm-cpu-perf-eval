@@ -194,34 +194,28 @@ run_ansible_with_timeout() {
         fi
 
         # Run with timeout if available, otherwise run directly
-        local run_success=false
+        local exit_code=0
         if [ -n "$TIMEOUT_CMD" ]; then
-            if "$TIMEOUT_CMD" "${timeout_seconds}s" ansible-playbook -i "$INVENTORY" "$PLAYBOOK" \
+            "$TIMEOUT_CMD" "${timeout_seconds}s" ansible-playbook -i "$INVENTORY" "$PLAYBOOK" \
                 -e "test_model=$model" \
                 -e "dataset_name=$dataset" \
                 -e "num_prompts=$num_prompts" \
                 -e "requested_cores=$cores" \
                 -e "vllm_container_image=$VLLM_CONTAINER_IMAGE" \
-                "$@"; then
-                run_success=true
-            fi
+                "$@" || exit_code=$?
         else
-            if ansible-playbook -i "$INVENTORY" "$PLAYBOOK" \
+            ansible-playbook -i "$INVENTORY" "$PLAYBOOK" \
                 -e "test_model=$model" \
                 -e "dataset_name=$dataset" \
                 -e "num_prompts=$num_prompts" \
                 -e "requested_cores=$cores" \
                 -e "vllm_container_image=$VLLM_CONTAINER_IMAGE" \
-                "$@"; then
-                run_success=true
-            fi
+                "$@" || exit_code=$?
         fi
 
-        if [ "$run_success" = true ]; then
+        if [ $exit_code -eq 0 ]; then
             return 0  # Success
         fi
-
-        local exit_code=$?
 
         if [ $exit_code -eq 124 ]; then
             echo -e "${RED}✗ TIMEOUT after ${timeout_seconds}s${NC}"
@@ -231,8 +225,8 @@ run_ansible_with_timeout() {
 
         # Cleanup any hung containers on DUT
         echo -e "${YELLOW}Cleaning up any hung containers...${NC}"
-        ansible dut -i "$INVENTORY" -m shell -a "podman ps -q | xargs -r podman stop" -b || true
-        ansible dut -i "$INVENTORY" -m shell -a "podman ps -aq | xargs -r podman rm" -b || true
+        ansible dut -i "$INVENTORY" -m shell -a "podman ps -q --filter 'name=vllm-batch-*' | xargs -r podman stop" -b || true
+        ansible dut -i "$INVENTORY" -m shell -a "podman ps -aq --filter 'name=vllm-batch-*' | xargs -r podman rm" -b || true
 
         if [ $attempt -lt $max_attempts ]; then
             echo -e "${YELLOW}Retrying in ${RETRY_DELAY}s...${NC}"
@@ -269,7 +263,7 @@ run_test() {
             echo -e "${YELLOW}Testing model: $model${NC}"
             if ! run_ansible_with_timeout "$timeout_seconds" "$model" "$dataset" "$num_prompts" "$cores" "$@"; then
                 echo -e "${RED}✗ Failed: $model${NC}"
-                ((failed++))
+                failed=$((failed + 1))
             else
                 echo -e "${GREEN}✓ Complete: $model${NC}"
             fi
@@ -319,7 +313,7 @@ use_cases_suite() {
         echo "  Model: $model"
         for run in $(seq 1 $runs); do
             echo "    Run $run/$runs..."
-            if ! run_test "$model" "sharegpt" 1000 16; then
+            if ! run_test "$model" "sharegpt" 1000 16 -e "use_case=summarization"; then
                 failed_tests+=("Document Processing - $model - Run $run")
             fi
         done
@@ -336,7 +330,7 @@ use_cases_suite() {
         echo "  Model: $model"
         for run in $(seq 1 $runs); do
             echo "    Run $run/$runs..."
-            if ! run_test "$model" "sharegpt" 1000 16 -e "output_len=64"; then
+            if ! run_test "$model" "sharegpt" 1000 16 -e "output_len=64" -e "use_case=classification"; then
                 failed_tests+=("Classification - $model - Run $run")
             fi
         done
@@ -353,7 +347,7 @@ use_cases_suite() {
         echo "  Model: $model"
         for run in $(seq 1 $runs); do
             echo "    Run $run/$runs..."
-            if ! run_test "$model" "sharegpt" 500 16 -e "output_len=1024"; then
+            if ! run_test "$model" "sharegpt" 500 16 -e "output_len=1024" -e "use_case=translation"; then
                 failed_tests+=("Translation - $model - Run $run")
             fi
         done
@@ -370,7 +364,7 @@ use_cases_suite() {
         echo "  Model: $model"
         for run in $(seq 1 $runs); do
             echo "    Run $run/$runs..."
-            if ! run_test "$model" "sharegpt" 1000 16 -e "output_len=128"; then
+            if ! run_test "$model" "sharegpt" 1000 16 -e "output_len=128" -e "use_case=entity_extraction"; then
                 failed_tests+=("Entity Extraction - $model - Run $run")
             fi
         done
@@ -387,7 +381,7 @@ use_cases_suite() {
         echo "  Model: $model"
         for run in $(seq 1 $runs); do
             echo "    Run $run/$runs..."
-            if ! run_test "$model" "random" 5000 32 -e "input_len=256" -e "output_len=256"; then
+            if ! run_test "$model" "random" 5000 32 -e "input_len=256" -e "output_len=256" -e "use_case=dataset_generation"; then
                 failed_tests+=("Dataset Generation - $model - Run $run")
             fi
         done
@@ -406,7 +400,7 @@ use_cases_suite() {
             echo "    Testing with $cores cores..."
             for run in $(seq 1 $runs); do
                 echo "      Run $run/$runs..."
-                if ! run_test "$model" "sonnet" 500 $cores; then
+                if ! run_test "$model" "sonnet" 500 $cores -e "use_case=etl"; then
                     failed_tests+=("ETL ($cores cores) - $model - Run $run")
                 fi
             done
@@ -424,7 +418,7 @@ use_cases_suite() {
         echo "  Model: $model"
         for run in $(seq 1 $runs); do
             echo "    Run $run/$runs..."
-            if ! run_test "$model" "random" 500 16 -e "input_len=512" -e "output_len=512"; then
+            if ! run_test "$model" "random" 500 16 -e "input_len=512" -e "output_len=512" -e "use_case=code_generation"; then
                 failed_tests+=("Code Generation - $model - Run $run")
             fi
         done
@@ -686,7 +680,7 @@ use_case_sweep() {
             use_case_name="📝 Summarization"
             dataset="sharegpt"
             num_prompts=1000
-            extra_args=""
+            extra_args="-e use_case=summarization"
             echo "Use case: Summarize 10,000 support tickets overnight"
             echo "Dataset: sharegpt (conversations)"
             ;;
@@ -694,7 +688,7 @@ use_case_sweep() {
             use_case_name="🏷️ Classification/Tagging"
             dataset="sharegpt"
             num_prompts=1000
-            extra_args="-e output_len=64"
+            extra_args="-e output_len=64 -e use_case=classification"
             echo "Use case: Classify 50,000 articles for tagging"
             echo "Dataset: sharegpt (real conversations)"
             ;;
@@ -702,7 +696,7 @@ use_case_sweep() {
             use_case_name="🌐 Translation"
             dataset="sharegpt"
             num_prompts=500
-            extra_args="-e output_len=1024"
+            extra_args="-e output_len=1024 -e use_case=translation"
             echo "Use case: Translate documentation corpus"
             echo "Dataset: sharegpt (real text)"
             ;;
@@ -710,7 +704,7 @@ use_case_sweep() {
             use_case_name="🧬 Entity Extraction"
             dataset="sharegpt"
             num_prompts=1000
-            extra_args="-e output_len=128"
+            extra_args="-e output_len=128 -e use_case=entity_extraction"
             echo "Use case: Extract entities from document batches"
             echo "Dataset: sharegpt (conversations with real entities)"
             ;;
@@ -718,7 +712,7 @@ use_case_sweep() {
             use_case_name="🎲 Dataset Generation"
             dataset="random"
             num_prompts=5000
-            extra_args="-e input_len=256 -e output_len=256"
+            extra_args="-e input_len=256 -e output_len=256 -e use_case=dataset_generation"
             echo "Use case: Generate 100k synthetic training examples"
             echo "Dataset: random (synthetic data)"
             ;;
@@ -726,7 +720,7 @@ use_case_sweep() {
             use_case_name="💻 Code Generation"
             dataset="random"
             num_prompts=500
-            extra_args="-e input_len=512 -e output_len=512"
+            extra_args="-e input_len=512 -e output_len=512 -e use_case=code_generation"
             echo "Use case: Generate tests for 1,000 functions"
             echo "Dataset: random (no code-specific dataset available)"
             ;;
@@ -734,7 +728,7 @@ use_case_sweep() {
             use_case_name="🔄 ETL Pipelines"
             dataset="sonnet"
             num_prompts=500
-            extra_args=""
+            extra_args="-e use_case=etl"
             echo "Use case: Batch inference in data workflows"
             echo "Dataset: sonnet (baseline)"
             ;;

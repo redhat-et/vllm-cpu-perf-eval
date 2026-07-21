@@ -247,6 +247,7 @@
       {%- if vllm_api_key is defined and vllm_api_key | length > 0 -%}
         ,api_key={{ vllm_api_key }}
       {%- endif -%}
+  no_log: true
   when:
     - use_guidellm_container | bool
     - guidellm_semver is version('0.7', '>=')
@@ -301,6 +302,7 @@
       --constraint kind=max_requests,count={{ guidellm_cfg.max_requests }}
       --output kind=json,path=/results/benchmarks.json
       --output kind=csv,path=/results/benchmarks.csv
+  no_log: true
   when:
     - use_guidellm_container | bool
     - guidellm_semver is version('0.7', '>=')
@@ -308,6 +310,7 @@
 - name: "v0.7.x: Display generated CLI args"
   ansible.builtin.debug:
     msg: "GuideLLM v0.7.x CLI args: {{ guidellm_v7_args }}"
+  no_log: true
   when:
     - use_guidellm_container | bool
     - guidellm_semver is version('0.7', '>=')
@@ -650,6 +653,7 @@
       --constraint kind=max_requests,count={{ guidellm_cfg.max_requests }}
       --output kind=json,path={{ results_path }}/benchmarks.json
       --output kind=csv,path={{ results_path }}/benchmarks.csv
+  no_log: true
   when:
     - not (use_guidellm_container | bool)
     - guidellm_major_minor is defined

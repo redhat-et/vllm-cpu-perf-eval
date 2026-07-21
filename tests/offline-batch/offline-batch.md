@@ -78,7 +78,7 @@ The test scenarios are implemented in:
 
 **Bash Test Suite:**
 - `automation/test-execution/scripts/bash/run-offline-batch-suite.sh`
-- See [README-offline-batch.md](../../automation/test-execution/scripts/bash/README-offline-batch.md) for detailed usage
+- See [Offline Batch Methodology](../../docs/methodology/offline-batch.md) for detailed usage
 
 **Ansible Playbook:**
 - `automation/test-execution/ansible/llm-benchmark-offline-batch.yml`

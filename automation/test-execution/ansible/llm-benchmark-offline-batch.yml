@@ -115,6 +115,7 @@
       when: not model_cache_check.stat.exists
       register: model_download
       changed_when: model_download.rc == 0
+      no_log: true
 
     - name: Get model snapshot path
       ansible.builtin.shell: |
@@ -228,6 +229,7 @@
               --num-prompts {{ num_prompts }} \
               {% if output_len is defined %}--output-len {{ output_len }}{% endif %}
       when: dataset_name == 'sharegpt'
+      no_log: true
 
     - name: Build benchmark command (random dataset)
       ansible.builtin.set_fact:
@@ -312,7 +314,7 @@
 
     - name: Parse KV cache usage from streaming logs
       ansible.builtin.set_fact:
-        kv_cache_samples: "{{ engine_logs | map('regex_search', 'GPU KV cache usage: ([0-9.]+)%', '\\1') | select('string') | map('first') | list }}"
+        kv_cache_samples: "{{ engine_logs | map('regex_search', '(?:GPU|CPU) KV cache usage: ([0-9.]+)%', '\\1') | select('string') | map('first') | list }}"
       when: engine_logs | length > 0
 
     - name: Parse prefix cache hit rate from streaming logs
@@ -339,6 +341,13 @@
         - total_output_tokens is defined
         - requests_per_sec is defined
 
+    - name: Validate benchmark produced results
+      ansible.builtin.assert:
+        that:
+          - requests_per_sec is defined
+          - requests_per_sec | float > 0
+        fail_msg: "Benchmark produced no throughput data. Check benchmark.log for errors."
+
     - name: Create test-metadata.json
       ansible.builtin.copy:
         content: |
@@ -353,17 +362,25 @@
               "dataset": "{{ dataset_name }}",
               "num_prompts": {{ num_prompts }},
               "dataset_config": {
-                {% if dataset_name == 'random' %}
+                "dataset_name": "{{ dataset_name }}"
+                {% if use_case is defined and use_case | length > 0 %},
+                "use_case": "{{ use_case }}"
+                {% endif %}
+                {% if dataset_name == 'random' %},
                 "input_len": {{ input_len | default(512) }},
                 "output_len": {{ output_len | default(256) }}
-                {% else %}
-                "dataset_file": "{{ dataset_file | default('') | basename }}"
+                {% endif %}
+                {% if dataset_name != 'random' and output_len is defined %},
+                "output_len": {{ output_len }}
+                {% endif %}
+                {% if dataset_file is defined and dataset_file | length > 0 %},
+                "dataset_file": "{{ dataset_file | basename }}"
                 {% endif %}
               }
             },
             "environment": {
               "container_image": "{{ vllm_container_image }}",
-              "vllm_version": "0.18.0+rhaiv.7"
+              "vllm_version": "{{ vllm_container_image | regex_search(':(.+)$', '\\1') | first | default(vllm_container_image) }}"
             }
           }
         dest: "{{ results_base }}/{{ model_safe }}/offline-batch-{{ test_timestamp }}/{{ config_id }}/test-metadata.json"
@@ -396,11 +413,19 @@
               "avg_prefix_cache_hit_rate_percent": {{ avg_prefix_cache_hit_rate | default(0) }}
             },
             "dataset_config": {
-              {% if dataset_name == 'random' %}
+              "dataset_name": "{{ dataset_name }}"
+              {% if use_case is defined and use_case | length > 0 %},
+              "use_case": "{{ use_case }}"
+              {% endif %}
+              {% if dataset_name == 'random' %},
               "input_len": {{ input_len | default(512) }},
               "output_len": {{ output_len | default(256) }}
-              {% else %}
-              "dataset_file": "{{ dataset_file | default('') | basename }}"
+              {% endif %}
+              {% if dataset_name != 'random' and output_len is defined %},
+              "output_len": {{ output_len }}
+              {% endif %}
+              {% if dataset_file is defined and dataset_file | length > 0 %},
+              "dataset_file": "{{ dataset_file | basename }}"
               {% endif %}
             }
           }
@@ -431,8 +456,8 @@
           - "=== Capacity Planning ==="
           - "Avg time/request: {{ avg_time_per_request_sec | default('N/A') }} sec"
           - "For {{ num_prompts }} docs: {{ total_time_sec | default('N/A') }} seconds"
-          - "For 1,000 docs: ~{{ (1000 / requests_per_sec | float) | round(0) | default('N/A') }} seconds"
-          - "For 10,000 docs: ~{{ (10000 / requests_per_sec | float) | round(0) | default('N/A') }} seconds"
+          - "For 1,000 docs: ~{{ (1000 / requests_per_sec | float) | round(0) if requests_per_sec is defined and requests_per_sec | float > 0 else 'N/A' }} seconds"
+          - "For 10,000 docs: ~{{ (10000 / requests_per_sec | float) | round(0) if requests_per_sec is defined and requests_per_sec | float > 0 else 'N/A' }} seconds"
           - ""
           - "Results saved to:"
           - "  {{ results_base }}/{{ model_safe }}/offline-batch-{{ test_timestamp }}/{{ config_id }}/"

@@ -8,19 +8,41 @@ Tests the key functions in the dashboard:
 - Data loading and parsing
 """
 
-import pytest
-from pathlib import Path
 import sys
+from pathlib import Path
+from unittest.mock import MagicMock
 
-# Add dashboard to path
-dashboard_path = Path(__file__).parent / "../../dashboard-examples/vllm_dashboard"
-sys.path.insert(0, str(dashboard_path / "pages"))
+import pytest
 
-# Import functions from the dashboard
-# Note: Using exec to import from emoji-named file
-dashboard_file = dashboard_path / "pages" / "4_📦_Offline_Batch.py"
-with open(dashboard_file) as f:
-    exec(f.read(), globals())
+# Resolve dashboard root so config_manager imports work from any CWD.
+# The page does: sys.path.insert(0, Path(__file__).parent.parent)
+# so exec must set __file__ to the page path (not this test file).
+_DASHBOARD_ROOT = (
+    Path(__file__).resolve().parents[2]
+    / "dashboard-examples"
+    / "vllm_dashboard"
+)
+_DASHBOARD_PAGE = _DASHBOARD_ROOT / "pages" / "4_📦_Offline_Batch.py"
+
+sys.path.insert(0, str(_DASHBOARD_ROOT))
+
+# Heavy UI deps are not needed for pure helper tests.
+for _mod in (
+    "streamlit",
+    "plotly",
+    "plotly.graph_objects",
+    "pandas",
+):
+    sys.modules.setdefault(_mod, MagicMock())
+
+_ns = {
+    "__file__": str(_DASHBOARD_PAGE),
+    "__name__": "offline_batch_dashboard_under_test",
+}
+exec(compile(_DASHBOARD_PAGE.read_text(), str(_DASHBOARD_PAGE), "exec"), _ns)
+
+get_use_case_units = _ns["get_use_case_units"]
+infer_use_case = _ns["infer_use_case"]
 
 
 class TestUseCaseUnits:
@@ -70,21 +92,121 @@ class TestUseCaseUnits:
 class TestUseCaseInference:
     """Test the infer_use_case function."""
 
-    def test_summarization_sonnet_1000(self):
-        """Sonnet with 1000 prompts should be Summarization."""
+    # ---- Explicit use_case field overrides inference ----
+
+    def test_explicit_use_case_classification(self):
+        """Explicit use_case field should override inference."""
+        metadata = {
+            'configuration': {
+                'dataset': 'sharegpt',
+                'num_prompts': 1000,
+                'cores': 16,
+                'dataset_config': {
+                    'use_case': 'classification',
+                    'output_len': 64
+                }
+            }
+        }
+        assert infer_use_case(metadata) == "🏷️ Classification/Tagging"
+
+    def test_explicit_use_case_summarization(self):
+        """Explicit use_case=summarization should return Summarization."""
+        metadata = {
+            'configuration': {
+                'dataset': 'sharegpt',
+                'num_prompts': 1000,
+                'cores': 16,
+                'dataset_config': {
+                    'use_case': 'summarization'
+                }
+            }
+        }
+        assert infer_use_case(metadata) == "📝 Summarization"
+
+    def test_explicit_use_case_etl(self):
+        """Explicit use_case=etl should return ETL Pipelines."""
         metadata = {
             'configuration': {
                 'dataset': 'sonnet',
+                'num_prompts': 500,
+                'cores': 16,
+                'dataset_config': {
+                    'use_case': 'etl'
+                }
+            }
+        }
+        assert infer_use_case(metadata) == "🔄 ETL Pipelines"
+
+    def test_explicit_use_case_code_generation(self):
+        """Explicit use_case=code_generation should return Code Gen."""
+        metadata = {
+            'configuration': {
+                'dataset': 'random',
+                'num_prompts': 500,
+                'cores': 16,
+                'dataset_config': {
+                    'use_case': 'code_generation',
+                    'input_len': 512,
+                    'output_len': 512
+                }
+            }
+        }
+        assert infer_use_case(metadata) == "💻 Code Generation"
+
+    # ---- ShareGPT exact matches ----
+
+    def test_sharegpt_summarization(self):
+        """sharegpt + 1000 prompts + no output_len → Summarization."""
+        metadata = {
+            'configuration': {
+                'dataset': 'sharegpt',
                 'num_prompts': 1000,
                 'cores': 16,
                 'dataset_config': {}
             }
         }
-        use_case = infer_use_case(metadata)
-        assert use_case == "📝 Summarization"
+        assert infer_use_case(metadata) == "📝 Summarization"
 
-    def test_etl_pipelines_sonnet_500(self):
-        """Sonnet with 500 prompts and 8/16/32 cores should be ETL Pipelines."""
+    def test_sharegpt_classification(self):
+        """sharegpt + 1000 prompts + output_len=64 → Classification."""
+        metadata = {
+            'configuration': {
+                'dataset': 'sharegpt',
+                'num_prompts': 1000,
+                'cores': 16,
+                'dataset_config': {'output_len': 64}
+            }
+        }
+        assert infer_use_case(metadata) == "🏷️ Classification/Tagging"
+
+    def test_sharegpt_entity_extraction(self):
+        """sharegpt + 1000 prompts + output_len=128 → Entity Extraction."""
+        metadata = {
+            'configuration': {
+                'dataset': 'sharegpt',
+                'num_prompts': 1000,
+                'cores': 16,
+                'dataset_config': {'output_len': 128}
+            }
+        }
+        assert infer_use_case(metadata) == "🧬 Entity Extraction"
+
+    def test_sharegpt_translation(self):
+        """sharegpt + 500 prompts + output_len=1024 → Translation."""
+        metadata = {
+            'configuration': {
+                'dataset': 'sharegpt',
+                'num_prompts': 500,
+                'cores': 16,
+                'dataset_config': {'output_len': 1024}
+            }
+        }
+        assert infer_use_case(metadata) == "🌐 Translation"
+
+    # ---- Sonnet ----
+
+    def test_sonnet_etl_pipelines(self):
+        """Sonnet with 500 prompts and 8/16/32 cores → ETL Pipelines."""
         for cores in [8, 16, 32]:
             metadata = {
                 'configuration': {
@@ -94,59 +216,24 @@ class TestUseCaseInference:
                     'dataset_config': {}
                 }
             }
-            use_case = infer_use_case(metadata)
-            assert use_case == "🔄 ETL Pipelines"
+            assert infer_use_case(metadata) == "🔄 ETL Pipelines"
 
-    def test_classification_512_64(self):
-        """Random 512→64 with 1000 prompts should be Classification."""
+    def test_sonnet_default_etl(self):
+        """Any sonnet dataset → ETL Pipelines."""
         metadata = {
             'configuration': {
-                'dataset': 'random',
+                'dataset': 'sonnet',
                 'num_prompts': 1000,
                 'cores': 16,
-                'dataset_config': {
-                    'input_len': 512,
-                    'output_len': 64
-                }
+                'dataset_config': {}
             }
         }
-        use_case = infer_use_case(metadata)
-        assert use_case == "🏷️ Classification/Tagging"
+        assert infer_use_case(metadata) == "🔄 ETL Pipelines"
 
-    def test_translation_1024_1024(self):
-        """Random 1024→1024 with 500 prompts should be Translation."""
-        metadata = {
-            'configuration': {
-                'dataset': 'random',
-                'num_prompts': 500,
-                'cores': 16,
-                'dataset_config': {
-                    'input_len': 1024,
-                    'output_len': 1024
-                }
-            }
-        }
-        use_case = infer_use_case(metadata)
-        assert use_case == "🌐 Translation"
+    # ---- Random exact matches ----
 
-    def test_entity_extraction_1500_128(self):
-        """Random 1500→128 with 1000 prompts should be Entity Extraction."""
-        metadata = {
-            'configuration': {
-                'dataset': 'random',
-                'num_prompts': 1000,
-                'cores': 16,
-                'dataset_config': {
-                    'input_len': 1500,
-                    'output_len': 128
-                }
-            }
-        }
-        use_case = infer_use_case(metadata)
-        assert use_case == "🧬 Entity Extraction"
-
-    def test_dataset_generation_256_256_5000(self):
-        """Random 256→256 with 5000 prompts should be Dataset Generation."""
+    def test_random_dataset_generation(self):
+        """Random 256→256 with 5000 prompts → Dataset Generation."""
         metadata = {
             'configuration': {
                 'dataset': 'random',
@@ -158,11 +245,10 @@ class TestUseCaseInference:
                 }
             }
         }
-        use_case = infer_use_case(metadata)
-        assert use_case == "🎲 Dataset Generation"
+        assert infer_use_case(metadata) == "🎲 Dataset Generation"
 
-    def test_code_generation_512_512(self):
-        """Random 512→512 with 500 prompts should be Code Generation."""
+    def test_random_code_generation(self):
+        """Random 512→512 with 500 prompts → Code Generation."""
         metadata = {
             'configuration': {
                 'dataset': 'random',
@@ -174,59 +260,12 @@ class TestUseCaseInference:
                 }
             }
         }
-        use_case = infer_use_case(metadata)
-        assert use_case == "💻 Code Generation"
+        assert infer_use_case(metadata) == "💻 Code Generation"
 
-    def test_fallback_classification_short_output(self):
-        """Random with short output should fallback to Classification."""
-        metadata = {
-            'configuration': {
-                'dataset': 'random',
-                'num_prompts': 100,
-                'cores': 16,
-                'dataset_config': {
-                    'input_len': 400,
-                    'output_len': 50
-                }
-            }
-        }
-        use_case = infer_use_case(metadata)
-        assert use_case == "🏷️ Classification/Tagging"
+    # ---- Random fuzzy matches ----
 
-    def test_fallback_translation_balanced(self):
-        """Random with balanced 1000→1000 should fallback to Translation."""
-        metadata = {
-            'configuration': {
-                'dataset': 'random',
-                'num_prompts': 100,
-                'cores': 16,
-                'dataset_config': {
-                    'input_len': 1000,
-                    'output_len': 1000
-                }
-            }
-        }
-        use_case = infer_use_case(metadata)
-        assert use_case == "🌐 Translation"
-
-    def test_fallback_entity_extraction_long_input(self):
-        """Random with long input short output should fallback to Entity Extraction."""
-        metadata = {
-            'configuration': {
-                'dataset': 'random',
-                'num_prompts': 100,
-                'cores': 16,
-                'dataset_config': {
-                    'input_len': 1500,
-                    'output_len': 150
-                }
-            }
-        }
-        use_case = infer_use_case(metadata)
-        assert use_case == "🧬 Entity Extraction"
-
-    def test_fallback_code_generation_moderate(self):
-        """Random with moderate balanced lengths should fallback to Code Generation."""
+    def test_random_fuzzy_code_generation(self):
+        """Random with moderate balanced lengths → Code Generation."""
         metadata = {
             'configuration': {
                 'dataset': 'random',
@@ -238,11 +277,10 @@ class TestUseCaseInference:
                 }
             }
         }
-        use_case = infer_use_case(metadata)
-        assert use_case == "💻 Code Generation"
+        assert infer_use_case(metadata) == "💻 Code Generation"
 
-    def test_fallback_dataset_generation_high_volume(self):
-        """Random with 5000+ prompts should fallback to Dataset Generation."""
+    def test_random_fuzzy_dataset_generation(self):
+        """Random with 5000+ prompts → Dataset Generation."""
         metadata = {
             'configuration': {
                 'dataset': 'random',
@@ -254,8 +292,21 @@ class TestUseCaseInference:
                 }
             }
         }
-        use_case = infer_use_case(metadata)
-        assert use_case == "🎲 Dataset Generation"
+        assert infer_use_case(metadata) == "🎲 Dataset Generation"
+
+    # ---- Fallback ----
+
+    def test_unknown_dataset_general(self):
+        """Unknown dataset → General."""
+        metadata = {
+            'configuration': {
+                'dataset': 'custom',
+                'num_prompts': 100,
+                'cores': 16,
+                'dataset_config': {}
+            }
+        }
+        assert infer_use_case(metadata) == "⚙️ General"
 
 
 if __name__ == "__main__":

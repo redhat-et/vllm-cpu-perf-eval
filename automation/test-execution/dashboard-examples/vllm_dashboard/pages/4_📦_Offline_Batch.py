@@ -65,26 +65,42 @@ def infer_use_case(test_metadata: dict) -> str:
         String describing the use case with emoji
     """
     config = test_metadata.get('configuration', {})
+    dataset_config = config.get('dataset_config', {})
+
+    # Check for explicit use_case field first (written by run-offline-batch-suite.sh)
+    use_case = dataset_config.get('use_case', '')
+    if use_case:
+        USE_CASE_MAP = {
+            'summarization': '📝 Summarization',
+            'classification': '🏷️ Classification/Tagging',
+            'translation': '🌐 Translation',
+            'entity_extraction': '🧬 Entity Extraction',
+            'dataset_generation': '🎲 Dataset Generation',
+            'code_generation': '💻 Code Generation',
+            'etl': '🔄 ETL Pipelines',
+        }
+        if use_case in USE_CASE_MAP:
+            return USE_CASE_MAP[use_case]
+
     dataset = config.get('dataset', '')
     num_prompts = config.get('num_prompts', 0)
     cores = config.get('cores', 0)
-    dataset_config = config.get('dataset_config', {})
     output_len = dataset_config.get('output_len', 0)
 
     # ShareGPT dataset cases
     if dataset == 'sharegpt':
-        # Summarization: sharegpt, 1000 prompts, no output_len (variable output)
-        if num_prompts == 1000 and output_len == 0:
-            return "📝 Summarization"
-        # Entity Extraction: sharegpt, 1000 prompts, output=128
-        elif num_prompts == 1000 and output_len > 0 and output_len <= 150:
-            return "🧬 Entity Extraction"
         # Classification/Tagging: sharegpt, 1000 prompts, output=64
-        elif num_prompts == 1000 and output_len > 0 and output_len <= 100:
+        if num_prompts == 1000 and output_len > 0 and output_len <= 100:
             return "🏷️ Classification/Tagging"
+        # Entity Extraction: sharegpt, 1000 prompts, output=128
+        elif num_prompts == 1000 and output_len > 100 and output_len <= 150:
+            return "🧬 Entity Extraction"
         # Translation: sharegpt, 500 prompts, output=1024
         elif num_prompts == 500 and output_len >= 900:
             return "🌐 Translation"
+        # Summarization: sharegpt, 1000 prompts, no output_len (variable output)
+        elif num_prompts == 1000 and output_len == 0:
+            return "📝 Summarization"
         # Fallback: short output = classification, long output = translation
         elif output_len > 0 and output_len <= 100:
             return "🏷️ Classification/Tagging"
