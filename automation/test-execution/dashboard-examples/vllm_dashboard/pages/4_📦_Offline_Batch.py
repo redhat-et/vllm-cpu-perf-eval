@@ -27,12 +27,20 @@ def get_use_case_units(use_case: str) -> Dict[str, str]:
     """
     use_case_lower = use_case.lower()
 
-    if 'translation' in use_case_lower or '🌐' in use_case:
+    if 'long' in use_case_lower and 'summarization' in use_case_lower or '📜' in use_case:
         return {'singular': 'doc', 'plural': 'docs'}
+    elif 'translation' in use_case_lower or '🌐' in use_case:
+        return {'singular': 'doc', 'plural': 'docs'}
+    elif 'labeling' in use_case_lower or ('short' in use_case_lower and 'label' in use_case_lower):
+        return {'singular': 'item', 'plural': 'items'}
     elif 'classification' in use_case_lower or 'tagging' in use_case_lower or '🏷️' in use_case:
         return {'singular': 'item', 'plural': 'items'}
     elif 'summarization' in use_case_lower or '📝' in use_case:
         return {'singular': 'doc', 'plural': 'docs'}
+    elif 'rag' in use_case_lower or 'grounded' in use_case_lower or '🔍' in use_case:
+        return {'singular': 'query', 'plural': 'queries'}
+    elif 'prefix' in use_case_lower or 'template' in use_case_lower or '📋' in use_case:
+        return {'singular': 'item', 'plural': 'items'}
     elif 'code' in use_case_lower or '💻' in use_case:
         return {'singular': 'function', 'plural': 'functions'}
     elif 'generation' in use_case_lower or 'dataset' in use_case_lower or '🎲' in use_case:
@@ -41,6 +49,10 @@ def get_use_case_units(use_case: str) -> Dict[str, str]:
         return {'singular': 'doc', 'plural': 'docs'}
     elif 'etl' in use_case_lower or 'pipeline' in use_case_lower or '🔄' in use_case:
         return {'singular': 'record', 'plural': 'records'}
+    elif 'kv' in use_case_lower or 'capacity' in use_case_lower:
+        return {'singular': 'request', 'plural': 'requests'}
+    elif 'context' in use_case_lower and 'scaling' in use_case_lower:
+        return {'singular': 'request', 'plural': 'requests'}
     else:
         return {'singular': 'request', 'plural': 'requests'}
 
@@ -78,6 +90,12 @@ def infer_use_case(test_metadata: dict) -> str:
             'dataset_generation': '🎲 Dataset Generation',
             'code_generation': '💻 Code Generation',
             'etl': '🔄 ETL Pipelines',
+            'long_summarization': '📜 Long-Document Summarization',
+            'rag_batch': '🔍 Batch RAG / Grounded Q&A',
+            'shared_prefix': '📋 Shared-Prefix / Template Batch',
+            'short_labeling': '🏷️ Ultra-Short Labeling',
+            'kv_capacity': '📊 KV-Cache Capacity',
+            'context_scaling': '📏 Context Scaling',
         }
         if use_case in USE_CASE_MAP:
             return USE_CASE_MAP[use_case]
@@ -89,8 +107,11 @@ def infer_use_case(test_metadata: dict) -> str:
 
     # ShareGPT dataset cases
     if dataset == 'sharegpt':
+        # Ultra-Short Labeling: sharegpt, output_len <= 20
+        if output_len > 0 and output_len <= 20:
+            return "🏷️ Ultra-Short Labeling"
         # Classification/Tagging: sharegpt, 1000 prompts, output=64
-        if num_prompts == 1000 and output_len > 0 and output_len <= 100:
+        elif num_prompts == 1000 and output_len > 0 and output_len <= 100:
             return "🏷️ Classification/Tagging"
         # Entity Extraction: sharegpt, 1000 prompts, output=128
         elif num_prompts == 1000 and output_len > 100 and output_len <= 150:
@@ -119,6 +140,11 @@ def infer_use_case(test_metadata: dict) -> str:
         else:
             return "🔄 ETL Pipelines"  # Default for sonnet
 
+    # ShareGPT ultra-short labeling: output_len <= 20
+    if dataset == 'sharegpt':
+        if output_len > 0 and output_len <= 20:
+            return "🏷️ Ultra-Short Labeling"
+
     # Random dataset - infer from token lengths
     if dataset == 'random':
         input_len = dataset_config.get('input_len', 0)
@@ -131,6 +157,18 @@ def infer_use_case(test_metadata: dict) -> str:
         # Code Generation: 512→512 tokens, 500 prompts
         elif input_len == 512 and output_len == 512 and num_prompts == 500:
             return "💻 Code Generation"
+
+        # Long-Document Summarization: input >= 2048, output <= 256
+        elif input_len >= 2048 and output_len <= 256 and output_len > 0:
+            return "📜 Long-Document Summarization"
+
+        # Batch RAG: long input, short output (128)
+        elif input_len >= 1024 and output_len <= 128 and output_len > 0 and num_prompts <= 500:
+            return "🔍 Batch RAG / Grounded Q&A"
+
+        # Shared-Prefix: input ~1024, very short output (64)
+        elif input_len >= 512 and output_len <= 64 and output_len > 0 and num_prompts >= 1000:
+            return "📋 Shared-Prefix / Template Batch"
 
         # Fallback for random with pattern matching
         # Code Generation: moderate balanced
@@ -268,11 +306,24 @@ def main():
         with st.expander("📋 Task Configurations", expanded=False):
             st.markdown("**Use Case Characteristics**")
             use_case_data = {
-                "Use Case": ["📝 Summarization", "🏷️ Classification", "🌐 Translation",
-                            "🧬 Entity Extraction", "🎲 Dataset Gen", "💻 Code Gen", "🔄 ETL"],
-                "Dataset": ["sharegpt", "sharegpt", "sharegpt", "sharegpt", "random", "random", "sonnet"],
-                "Output Tokens": ["variable", "64", "1024", "128", "256", "512", "~150"],
-                "Unit": ["docs", "items", "docs", "docs", "examples", "functions", "records"]
+                "Use Case": [
+                    "📝 Summarization", "🏷️ Classification", "🌐 Translation",
+                    "🧬 Entity Extraction", "🎲 Dataset Gen", "💻 Code Gen", "🔄 ETL",
+                    "📜 Long-Doc Summary", "🔍 RAG Batch", "📋 Shared-Prefix",
+                    "🏷️ Short Labeling",
+                ],
+                "Dataset": [
+                    "sharegpt", "sharegpt", "sharegpt", "sharegpt", "random", "random", "sonnet",
+                    "random", "random", "random", "sharegpt",
+                ],
+                "Output Tokens": [
+                    "variable", "64", "1024", "128", "256", "512", "~150",
+                    "256", "128", "64", "16",
+                ],
+                "Unit": [
+                    "docs", "items", "docs", "docs", "examples", "functions", "records",
+                    "docs", "queries", "items", "items",
+                ],
             }
             use_case_df = pd.DataFrame(use_case_data)
             st.dataframe(

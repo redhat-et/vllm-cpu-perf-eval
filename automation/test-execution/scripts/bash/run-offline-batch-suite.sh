@@ -8,14 +8,16 @@
 #   ./run-offline-batch-suite.sh <mode> [args...]
 #
 # Modes:
-#   use-cases [runs]                 - Run all 7 real-world use cases (default: 5 runs each)
+#   use-cases [runs]                 - Run all 11 real-world use cases (default: 5 runs each)
 #   baseline [cores] [prompts]       - Baseline throughput across 5 models
 #   batch-scaling <model> [cores]    - Batch size scaling (6 sizes)
 #   input-scaling <model> [cores]    - Input length variation (5 lengths)
 #   output-scaling <model> [cores]   - Output length variation (5 lengths)
 #   core-scaling <model>             - Core scaling (4 configurations)
 #   quantization [cores] [prompts]   - Quantization comparison (3 variants)
-#   all <model> [cores]              - Run all 6 technical tests
+#   kv-capacity <model> [cores]      - KV-cache capacity sweep (6 batch sizes)
+#   context-scaling <model> [cores]  - Context length scaling (4 input lengths)
+#   all <model> [cores]              - Run all 8 technical tests
 #
 # Examples:
 #   ./run-offline-batch-suite.sh use-cases 3
@@ -98,7 +100,7 @@ USAGE:
 MODES:
 
   Use Case Oriented (Real-world scenarios):
-    use-cases [runs] [models]        Run all 7 use cases (default: 5 runs each, TinyLlama pruned)
+    use-cases [runs] [models]        Run all 11 use cases (default: 5 runs each, TinyLlama pruned)
       - Document summarization
       - Classification/tagging
       - Translation
@@ -106,13 +108,18 @@ MODES:
       - Dataset generation
       - ETL pipelines (core scaling)
       - Code generation
+      - Long-document summarization (2k-8k input)
+      - Batch RAG / grounded Q&A
+      - Shared-prefix / template batch
+      - Ultra-short labeling (output 16 tokens)
 
       Models: Single model or comma-separated list. Use 'all' for all 4 RedHatAI models.
 
     use-case-sweep <use-case> [models] [cores] [runs]
       Run a specific use case with core sweep
       Use cases: summarization, classification, translation, entity-extraction,
-                 dataset-generation, code-generation, etl
+                 dataset-generation, code-generation, etl, long-summarization,
+                 rag, shared-prefix, short-labeling
       Models: 'all' or comma-separated list (default: all)
       Cores: comma-separated list (default: 8,16,32)
       Runs: number of iterations (default: 3)
@@ -124,7 +131,9 @@ MODES:
     output-scaling <model> [cores]   Output length variation (64-1024 tokens)
     core-scaling <model>             Core scaling (8, 16, 32, 64 cores)
     quantization [cores] [prompts]   Quantization comparison (Llama w8a8, w4a16, Qwen w4a16)
-    all <model> [cores]              Run all 6 technical tests
+    kv-capacity <model> [cores]      KV-cache capacity sweep (100-5000 prompts)
+    context-scaling <model> [cores]  Context length scaling (1024-8192 input tokens)
+    all <model> [cores]              Run all 8 technical tests
 
 EXAMPLES:
 
@@ -137,6 +146,9 @@ EXAMPLES:
   ./run-offline-batch-suite.sh use-case-sweep summarization all 8,16,32,64 3
   ./run-offline-batch-suite.sh use-case-sweep classification all
   ./run-offline-batch-suite.sh use-case-sweep translation "$MODEL_LLAMA_W8A8" 16,32 5
+  ./run-offline-batch-suite.sh use-case-sweep long-summarization all 16,32 3
+  ./run-offline-batch-suite.sh use-case-sweep rag all
+  ./run-offline-batch-suite.sh use-case-sweep short-labeling all 8,16,32,64
 
   # Technical benchmarks
   ./run-offline-batch-suite.sh baseline 32 100
@@ -305,7 +317,7 @@ use_cases_suite() {
     local failed_tests=()
 
     # 1. BULK DOCUMENT PROCESSING
-    echo -e "${GREEN}📄 [1/7] Bulk Document Processing (Summarization)${NC}"
+    echo -e "${GREEN}📄 [1/11] Bulk Document Processing (Summarization)${NC}"
     echo "Use case: Summarize 10,000 support tickets overnight"
     echo "Parameters: 1000 prompts, sharegpt dataset (conversations), 16 cores"
     echo
@@ -322,7 +334,7 @@ use_cases_suite() {
     echo
 
     # 2. CLASSIFICATION / TAGGING
-    echo -e "${GREEN}🏷️ [2/7] Classification/Tagging${NC}"
+    echo -e "${GREEN}🏷️ [2/11] Classification/Tagging${NC}"
     echo "Use case: Classify 50,000 articles for tagging"
     echo "Parameters: 1000 prompts, sharegpt dataset (real conversations), 16 cores, output=64 tokens"
     echo
@@ -339,7 +351,7 @@ use_cases_suite() {
     echo
 
     # 3. TRANSLATION
-    echo -e "${GREEN}🌐 [3/7] Translation${NC}"
+    echo -e "${GREEN}🌐 [3/11] Translation${NC}"
     echo "Use case: Translate documentation corpus"
     echo "Parameters: 500 prompts, sharegpt dataset (real text), output=1024 tokens"
     echo
@@ -356,7 +368,7 @@ use_cases_suite() {
     echo
 
     # 4. ENTITY EXTRACTION
-    echo -e "${GREEN}🧬 [4/7] Entity Extraction${NC}"
+    echo -e "${GREEN}🧬 [4/11] Entity Extraction${NC}"
     echo "Use case: Extract entities from document batches"
     echo "Parameters: 1000 prompts, sharegpt dataset (conversations with real entities), output=128 tokens"
     echo
@@ -373,7 +385,7 @@ use_cases_suite() {
     echo
 
     # 5. DATASET GENERATION
-    echo -e "${GREEN}🎲 [5/7] Dataset Generation${NC}"
+    echo -e "${GREEN}🎲 [5/11] Dataset Generation${NC}"
     echo "Use case: Generate 100k synthetic training examples"
     echo "Parameters: 5000 prompts, 256→256 tokens, 32 cores"
     echo
@@ -390,7 +402,7 @@ use_cases_suite() {
     echo
 
     # 6. ETL PIPELINES (Core Scaling)
-    echo -e "${GREEN}🔄 [6/7] ETL Pipelines (Core Scaling)${NC}"
+    echo -e "${GREEN}🔄 [6/11] ETL Pipelines (Core Scaling)${NC}"
     echo "Use case: Batch inference in data workflows"
     echo "Parameters: 500 prompts, sonnet, 8/16/32 cores"
     echo
@@ -410,7 +422,7 @@ use_cases_suite() {
     echo
 
     # 7. CODE GENERATION
-    echo -e "${GREEN}💻 [7/7] Code Generation${NC}"
+    echo -e "${GREEN}💻 [7/11] Code Generation${NC}"
     echo "Use case: Generate tests for 1,000 functions"
     echo "Parameters: 500 prompts, 512→512 tokens, 16 cores"
     echo
@@ -420,6 +432,74 @@ use_cases_suite() {
             echo "    Run $run/$runs..."
             if ! run_test "$model" "random" 500 16 -e "input_len=512" -e "output_len=512" -e "use_case=code_generation"; then
                 failed_tests+=("Code Generation - $model - Run $run")
+            fi
+        done
+    done
+    echo -e "${GREEN}✓ Complete${NC}"
+    echo
+
+    # 8. LONG-DOCUMENT SUMMARIZATION
+    echo -e "${GREEN}📜 [8/11] Long-Document Summarization${NC}"
+    echo "Use case: Summarize long documents (reports, articles, legal docs)"
+    echo "Parameters: 500 prompts, random 4096→256 tokens, 16 cores"
+    echo
+    for model in "${MODELS[@]}"; do
+        echo "  Model: $model"
+        for run in $(seq 1 $runs); do
+            echo "    Run $run/$runs..."
+            if ! run_test "$model" "random" 500 16 -e "input_len=4096" -e "output_len=256" -e "use_case=long_summarization"; then
+                failed_tests+=("Long-Document Summarization - $model - Run $run")
+            fi
+        done
+    done
+    echo -e "${GREEN}✓ Complete${NC}"
+    echo
+
+    # 9. BATCH RAG / GROUNDED Q&A
+    echo -e "${GREEN}🔍 [9/11] Batch RAG / Grounded Q&A${NC}"
+    echo "Use case: Process RAG queries with retrieved context + short answers"
+    echo "Parameters: 500 prompts, random 2048→128 tokens, 16 cores"
+    echo
+    for model in "${MODELS[@]}"; do
+        echo "  Model: $model"
+        for run in $(seq 1 $runs); do
+            echo "    Run $run/$runs..."
+            if ! run_test "$model" "random" 500 16 -e "input_len=2048" -e "output_len=128" -e "use_case=rag_batch"; then
+                failed_tests+=("RAG Batch - $model - Run $run")
+            fi
+        done
+    done
+    echo -e "${GREEN}✓ Complete${NC}"
+    echo
+
+    # 10. SHARED-PREFIX / TEMPLATE BATCH
+    echo -e "${GREEN}📋 [10/11] Shared-Prefix / Template Batch${NC}"
+    echo "Use case: Classify/moderate/extract with fixed instruction prefix"
+    echo "Parameters: 1000 prompts, random 1024→64 tokens, 16 cores"
+    echo
+    for model in "${MODELS[@]}"; do
+        echo "  Model: $model"
+        for run in $(seq 1 $runs); do
+            echo "    Run $run/$runs..."
+            if ! run_test "$model" "random" 1000 16 -e "input_len=1024" -e "output_len=64" -e "use_case=shared_prefix" -e "vllm_extra_args=--enable-prefix-caching"; then
+                failed_tests+=("Shared-Prefix - $model - Run $run")
+            fi
+        done
+    done
+    echo -e "${GREEN}✓ Complete${NC}"
+    echo
+
+    # 11. ULTRA-SHORT LABELING
+    echo -e "${GREEN}🏷️ [11/11] Ultra-Short Labeling${NC}"
+    echo "Use case: Sentiment/moderation/yes-no labeling at high volume"
+    echo "Parameters: 2000 prompts, sharegpt, output=16 tokens, 16 cores"
+    echo
+    for model in "${MODELS[@]}"; do
+        echo "  Model: $model"
+        for run in $(seq 1 $runs); do
+            echo "    Run $run/$runs..."
+            if ! run_test "$model" "sharegpt" 2000 16 -e "output_len=16" -e "use_case=short_labeling"; then
+                failed_tests+=("Ultra-Short Labeling - $model - Run $run")
             fi
         done
     done
@@ -643,6 +723,69 @@ test_quantization() {
     [ ${#failed[@]} -eq 0 ]
 }
 
+test_kv_capacity() {
+    local model="$1"
+    local cores="${2:-32}"
+    local sizes=(100 250 500 1000 2000 5000)
+
+    echo -e "${GREEN}========================================${NC}"
+    echo -e "${GREEN}Test: KV-Cache Capacity Sweep${NC}"
+    echo -e "${GREEN}========================================${NC}"
+    echo "Model: $model"
+    echo "Dataset: random (512 → 256 tokens)"
+    echo "Cores: $cores"
+    echo "Batch sizes: ${sizes[*]}"
+    echo "Question: How large a batch fits before KV cache saturates?"
+    echo -e "${GREEN}========================================${NC}"
+    echo
+
+    local failed=()
+    for size in "${sizes[@]}"; do
+        echo -e "${YELLOW}Batch size: $size${NC}"
+        if run_test "$model" "random" "$size" "$cores" -e "input_len=512" -e "output_len=256" -e "use_case=kv_capacity"; then
+            echo -e "${GREEN}✓ Completed${NC}"
+        else
+            echo -e "${RED}✗ Failed${NC}"
+            failed+=("$size")
+        fi
+        echo
+    done
+
+    [ ${#failed[@]} -eq 0 ]
+}
+
+test_context_scaling() {
+    local model="$1"
+    local cores="${2:-32}"
+    local lengths=(1024 2048 4096 8192)
+
+    echo -e "${GREEN}========================================${NC}"
+    echo -e "${GREEN}Test: Context Length Scaling${NC}"
+    echo -e "${GREEN}========================================${NC}"
+    echo "Model: $model"
+    echo "Batch size: 100"
+    echo "Output: 128 tokens (fixed)"
+    echo "Cores: $cores"
+    echo "Input lengths: ${lengths[*]}"
+    echo "Question: How does throughput degrade as context grows?"
+    echo -e "${GREEN}========================================${NC}"
+    echo
+
+    local failed=()
+    for len in "${lengths[@]}"; do
+        echo -e "${YELLOW}Context length: $len tokens${NC}"
+        if run_test "$model" "random" 100 "$cores" -e "input_len=$len" -e "output_len=128" -e "use_case=context_scaling"; then
+            echo -e "${GREEN}✓ Completed${NC}"
+        else
+            echo -e "${RED}✗ Failed${NC}"
+            failed+=("$len")
+        fi
+        echo
+    done
+
+    [ ${#failed[@]} -eq 0 ]
+}
+
 # Run a specific use case with core sweep
 use_case_sweep() {
     local use_case="$1"
@@ -732,10 +875,43 @@ use_case_sweep() {
             echo "Use case: Batch inference in data workflows"
             echo "Dataset: sonnet (baseline)"
             ;;
+        long-summarization|long-summary|longsum)
+            use_case_name="📜 Long-Document Summarization"
+            dataset="random"
+            num_prompts=500
+            extra_args="-e input_len=4096 -e output_len=256 -e use_case=long_summarization"
+            echo "Use case: Summarize long documents (reports, articles, legal)"
+            echo "Dataset: random (controlled long input)"
+            ;;
+        rag|rag-batch|grounded-qa)
+            use_case_name="🔍 Batch RAG / Grounded Q&A"
+            dataset="random"
+            num_prompts=500
+            extra_args="-e input_len=2048 -e output_len=128 -e use_case=rag_batch"
+            echo "Use case: RAG queries with retrieved context + short answers"
+            echo "Dataset: random (simulating retrieved chunks)"
+            ;;
+        shared-prefix|prefix|template)
+            use_case_name="📋 Shared-Prefix / Template Batch"
+            dataset="random"
+            num_prompts=1000
+            extra_args="-e input_len=1024 -e output_len=64 -e use_case=shared_prefix -e vllm_extra_args=--enable-prefix-caching"
+            echo "Use case: Classify/moderate/extract with fixed instruction prefix"
+            echo "Dataset: random (prefix caching enabled)"
+            ;;
+        short-labeling|short-label|labeling|sentiment)
+            use_case_name="🏷️ Ultra-Short Labeling"
+            dataset="sharegpt"
+            num_prompts=2000
+            extra_args="-e output_len=16 -e use_case=short_labeling"
+            echo "Use case: Sentiment/moderation/yes-no labeling at high volume"
+            echo "Dataset: sharegpt (real text, ultra-short output)"
+            ;;
         *)
             echo -e "${RED}Error: Unknown use case: $use_case${NC}"
             echo "Valid use cases: summarization, classification, translation,"
-            echo "                 entity-extraction, dataset-generation, code-generation, etl"
+            echo "                 entity-extraction, dataset-generation, code-generation, etl,"
+            echo "                 long-summarization, rag, shared-prefix, short-labeling"
             return 1
             ;;
     esac
@@ -785,13 +961,15 @@ test_all() {
     echo "Cores: $cores"
     echo -e "${BLUE}========================================${NC}"
     echo
-    echo "This will run all 6 technical tests:"
-    echo "  1. Baseline throughput (5 models)"
+    echo "This will run all 8 technical tests:"
+    echo "  1. Baseline throughput (4 models)"
     echo "  2. Batch size scaling (6 sizes)"
     echo "  3. Input length variation (5 lengths)"
     echo "  4. Output length variation (5 lengths)"
     echo "  5. Core scaling (4 configurations)"
     echo "  6. Quantization comparison (3 variants)"
+    echo "  7. KV-cache capacity sweep (6 sizes)"
+    echo "  8. Context length scaling (4 lengths)"
     echo
     read -p "Continue? [y/N] " -n 1 -r
     echo
@@ -815,13 +993,17 @@ test_all() {
     echo
     test_quantization "$cores" 100 || failed_tests+=("Quantization")
     echo
+    test_kv_capacity "$model" "$cores" || failed_tests+=("KV Capacity")
+    echo
+    test_context_scaling "$model" "$cores" || failed_tests+=("Context Scaling")
+    echo
 
     echo -e "${BLUE}========================================${NC}"
     echo -e "${BLUE}TECHNICAL SUITE COMPLETE${NC}"
     echo -e "${BLUE}========================================${NC}"
 
     if [ ${#failed_tests[@]} -eq 0 ]; then
-        echo -e "${GREEN}✓✓✓ All 6 tests completed successfully! ✓✓✓${NC}"
+        echo -e "${GREEN}✓✓✓ All 8 tests completed successfully! ✓✓✓${NC}"
         return 0
     else
         echo -e "${RED}✗ ${#failed_tests[@]} test(s) failed:${NC}"
@@ -895,6 +1077,20 @@ main() {
             ;;
         quantization)
             test_quantization "$@"
+            ;;
+        kv-capacity)
+            if [ $# -lt 1 ]; then
+                echo "Error: kv-capacity requires <model> argument"
+                exit 1
+            fi
+            test_kv_capacity "$@"
+            ;;
+        context-scaling)
+            if [ $# -lt 1 ]; then
+                echo "Error: context-scaling requires <model> argument"
+                exit 1
+            fi
+            test_context_scaling "$@"
             ;;
         all)
             if [ $# -lt 1 ]; then

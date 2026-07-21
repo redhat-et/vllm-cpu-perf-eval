@@ -15,6 +15,7 @@
 #   -e "output_len=256"                      # For random/sharegpt/cnn_dailymail datasets
 #   -e "vllm_container_image=vllm/vllm-openai:latest"  # Default (upstream vLLM)
 #   -e "vllm_container_image=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0"  # RHAIIS optimized
+#   -e "vllm_extra_args=--enable-prefix-caching"       # Extra args passed to vllm bench
 #
 # Dataset types: sonnet, random, sharegpt
 #   - sonnet: Classic sonnet text (needs dataset_path)
@@ -209,7 +210,8 @@
               --model /root/.cache/huggingface/{{ hostvars['localhost']['model_repo_name'] }}/snapshots/{{ hostvars['localhost']['model_snapshot_hash'] }} \
               --dataset-name {{ dataset_name }} \
               --dataset-path /datasets/{{ dataset_file | basename }} \
-              --num-prompts {{ num_prompts }}
+              --num-prompts {{ num_prompts }} \
+              {{ vllm_extra_args | default('') }}
       when: dataset_name == 'sonnet' or dataset_file is defined
 
     - name: Build benchmark command (sharegpt dataset)
@@ -227,7 +229,8 @@
               --model /root/.cache/huggingface/{{ hostvars['localhost']['model_repo_name'] }}/snapshots/{{ hostvars['localhost']['model_snapshot_hash'] }} \
               --dataset-name sharegpt \
               --num-prompts {{ num_prompts }} \
-              {% if output_len is defined %}--output-len {{ output_len }}{% endif %}
+              {% if output_len is defined %}--output-len {{ output_len }}{% endif %} \
+              {{ vllm_extra_args | default('') }}
       when: dataset_name == 'sharegpt'
       no_log: true
 
@@ -247,7 +250,8 @@
               --dataset-name random \
               --num-prompts {{ num_prompts }} \
               --input-len {{ input_len | default(512) }} \
-              --output-len {{ output_len | default(256) }}
+              --output-len {{ output_len | default(256) }} \
+              {{ vllm_extra_args | default('') }}
       when: dataset_name == 'random'
 
     - name: Run offline batch benchmark
@@ -376,11 +380,14 @@
                 {% if dataset_file is defined and dataset_file | length > 0 %},
                 "dataset_file": "{{ dataset_file | basename }}"
                 {% endif %}
+                {% if vllm_extra_args is defined and vllm_extra_args | length > 0 %},
+                "extra_args": "{{ vllm_extra_args }}"
+                {% endif %}
               }
             },
             "environment": {
               "container_image": "{{ vllm_container_image }}",
-              "vllm_version": "{{ vllm_container_image | regex_search(':(.+)$', '\\1') | first | default(vllm_container_image) }}"
+              "vllm_version": "{{ vllm_container_image.split(':') | last | default(vllm_container_image, true) }}"
             }
           }
         dest: "{{ results_base }}/{{ model_safe }}/offline-batch-{{ test_timestamp }}/{{ config_id }}/test-metadata.json"
@@ -426,6 +433,9 @@
               {% endif %}
               {% if dataset_file is defined and dataset_file | length > 0 %},
               "dataset_file": "{{ dataset_file | basename }}"
+              {% endif %}
+              {% if vllm_extra_args is defined and vllm_extra_args | length > 0 %},
+              "extra_args": "{{ vllm_extra_args }}"
               {% endif %}
             }
           }

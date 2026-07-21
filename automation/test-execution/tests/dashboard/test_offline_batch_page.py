@@ -83,6 +83,36 @@ class TestUseCaseUnits:
         units = get_use_case_units("🔄 ETL Pipelines")
         assert units == {'singular': 'record', 'plural': 'records'}
 
+    def test_long_summarization_units(self):
+        """Long-document summarization should use docs/doc units."""
+        units = get_use_case_units("📜 Long-Document Summarization")
+        assert units == {'singular': 'doc', 'plural': 'docs'}
+
+    def test_rag_batch_units(self):
+        """RAG batch should use queries/query units."""
+        units = get_use_case_units("🔍 Batch RAG / Grounded Q&A")
+        assert units == {'singular': 'query', 'plural': 'queries'}
+
+    def test_shared_prefix_units(self):
+        """Shared-prefix should use items/item units."""
+        units = get_use_case_units("📋 Shared-Prefix / Template Batch")
+        assert units == {'singular': 'item', 'plural': 'items'}
+
+    def test_short_labeling_units(self):
+        """Ultra-short labeling should use items/item units."""
+        units = get_use_case_units("🏷️ Ultra-Short Labeling")
+        assert units == {'singular': 'item', 'plural': 'items'}
+
+    def test_kv_capacity_units(self):
+        """KV-cache capacity should use requests/request units."""
+        units = get_use_case_units("📊 KV-Cache Capacity")
+        assert units == {'singular': 'request', 'plural': 'requests'}
+
+    def test_context_scaling_units(self):
+        """Context scaling should use requests/request units."""
+        units = get_use_case_units("📏 Context Scaling")
+        assert units == {'singular': 'request', 'plural': 'requests'}
+
     def test_default_units(self):
         """Unknown use cases should default to requests/request."""
         units = get_use_case_units("Unknown Task")
@@ -293,6 +323,162 @@ class TestUseCaseInference:
             }
         }
         assert infer_use_case(metadata) == "🎲 Dataset Generation"
+
+    # ---- Explicit new use cases ----
+
+    def test_explicit_use_case_long_summarization(self):
+        """Explicit use_case=long_summarization should return Long-Doc."""
+        metadata = {
+            'configuration': {
+                'dataset': 'random',
+                'num_prompts': 500,
+                'cores': 16,
+                'dataset_config': {
+                    'use_case': 'long_summarization',
+                    'input_len': 4096,
+                    'output_len': 256
+                }
+            }
+        }
+        assert infer_use_case(metadata) == "📜 Long-Document Summarization"
+
+    def test_explicit_use_case_rag_batch(self):
+        """Explicit use_case=rag_batch should return RAG."""
+        metadata = {
+            'configuration': {
+                'dataset': 'random',
+                'num_prompts': 500,
+                'cores': 16,
+                'dataset_config': {
+                    'use_case': 'rag_batch',
+                    'input_len': 2048,
+                    'output_len': 128
+                }
+            }
+        }
+        assert infer_use_case(metadata) == "🔍 Batch RAG / Grounded Q&A"
+
+    def test_explicit_use_case_shared_prefix(self):
+        """Explicit use_case=shared_prefix should return Shared-Prefix."""
+        metadata = {
+            'configuration': {
+                'dataset': 'random',
+                'num_prompts': 1000,
+                'cores': 16,
+                'dataset_config': {
+                    'use_case': 'shared_prefix',
+                    'input_len': 1024,
+                    'output_len': 64
+                }
+            }
+        }
+        assert infer_use_case(metadata) == "📋 Shared-Prefix / Template Batch"
+
+    def test_explicit_use_case_short_labeling(self):
+        """Explicit use_case=short_labeling should return Ultra-Short."""
+        metadata = {
+            'configuration': {
+                'dataset': 'sharegpt',
+                'num_prompts': 2000,
+                'cores': 16,
+                'dataset_config': {
+                    'use_case': 'short_labeling',
+                    'output_len': 16
+                }
+            }
+        }
+        assert infer_use_case(metadata) == "🏷️ Ultra-Short Labeling"
+
+    def test_explicit_use_case_kv_capacity(self):
+        """Explicit use_case=kv_capacity should return KV-Cache."""
+        metadata = {
+            'configuration': {
+                'dataset': 'random',
+                'num_prompts': 2000,
+                'cores': 32,
+                'dataset_config': {
+                    'use_case': 'kv_capacity',
+                    'input_len': 512,
+                    'output_len': 256
+                }
+            }
+        }
+        assert infer_use_case(metadata) == "📊 KV-Cache Capacity"
+
+    def test_explicit_use_case_context_scaling(self):
+        """Explicit use_case=context_scaling should return Context Scaling."""
+        metadata = {
+            'configuration': {
+                'dataset': 'random',
+                'num_prompts': 100,
+                'cores': 32,
+                'dataset_config': {
+                    'use_case': 'context_scaling',
+                    'input_len': 4096,
+                    'output_len': 128
+                }
+            }
+        }
+        assert infer_use_case(metadata) == "📏 Context Scaling"
+
+    # ---- Heuristic inference for new use cases ----
+
+    def test_sharegpt_short_labeling_heuristic(self):
+        """sharegpt + output_len=16 → Ultra-Short Labeling."""
+        metadata = {
+            'configuration': {
+                'dataset': 'sharegpt',
+                'num_prompts': 2000,
+                'cores': 16,
+                'dataset_config': {'output_len': 16}
+            }
+        }
+        assert infer_use_case(metadata) == "🏷️ Ultra-Short Labeling"
+
+    def test_random_long_summarization_heuristic(self):
+        """Random 4096→256 → Long-Document Summarization."""
+        metadata = {
+            'configuration': {
+                'dataset': 'random',
+                'num_prompts': 500,
+                'cores': 16,
+                'dataset_config': {
+                    'input_len': 4096,
+                    'output_len': 256
+                }
+            }
+        }
+        assert infer_use_case(metadata) == "📜 Long-Document Summarization"
+
+    def test_random_rag_heuristic(self):
+        """Random 2048→128, 500 prompts → RAG Batch."""
+        metadata = {
+            'configuration': {
+                'dataset': 'random',
+                'num_prompts': 500,
+                'cores': 16,
+                'dataset_config': {
+                    'input_len': 2048,
+                    'output_len': 128
+                }
+            }
+        }
+        assert infer_use_case(metadata) == "🔍 Batch RAG / Grounded Q&A"
+
+    def test_random_shared_prefix_heuristic(self):
+        """Random 1024→64, 1000 prompts → Shared-Prefix."""
+        metadata = {
+            'configuration': {
+                'dataset': 'random',
+                'num_prompts': 1000,
+                'cores': 16,
+                'dataset_config': {
+                    'input_len': 1024,
+                    'output_len': 64
+                }
+            }
+        }
+        assert infer_use_case(metadata) == "📋 Shared-Prefix / Template Batch"
 
     # ---- Fallback ----
 
