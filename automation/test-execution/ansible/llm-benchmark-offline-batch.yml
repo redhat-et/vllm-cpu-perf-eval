@@ -42,7 +42,7 @@
 
     - name: Set default values
       ansible.builtin.set_fact:
-        vllm_container_image: "{{ vllm_container_image | default('vllm/vllm-openai:latest') }}"
+        vllm_container_image: "{{ vllm_container_image | default('docker.io/vllm/vllm-openai-cpu:v0.25.1') }}"
         cache_dir: "{{ lookup('env', 'HOME') }}/.cache/huggingface"
         datasets_dir: "{{ lookup('env', 'HOME') }}/datasets"
         results_base: "{{ playbook_dir }}/../../../results/llm"
@@ -195,7 +195,7 @@
     - name: Build benchmark command (sonnet dataset with file)
       ansible.builtin.set_fact:
         benchmark_cmd: |
-          podman run --rm \
+          podman run --rm --replace \
             --name vllm-batch-{{ dataset_name }}-{{ requested_cores }}c \
             --cpuset-cpus=0-{{ requested_cores | int - 1 }} \
             -v "{{ hostvars['localhost']['dut_cache_dir'] }}:/root/.cache/huggingface:z" \
@@ -214,7 +214,7 @@
     - name: Build benchmark command (sharegpt dataset)
       ansible.builtin.set_fact:
         benchmark_cmd: |
-          podman run --rm \
+          podman run --rm --replace \
             --name vllm-batch-{{ dataset_name }}-{{ requested_cores }}c \
             --cpuset-cpus=0-{{ requested_cores | int - 1 }} \
             -v "{{ hostvars['localhost']['dut_cache_dir'] }}:/root/.cache/huggingface:z" \
@@ -232,7 +232,7 @@
     - name: Build benchmark command (random dataset)
       ansible.builtin.set_fact:
         benchmark_cmd: |
-          podman run --rm \
+          podman run --rm --replace \
             --name vllm-batch-random-{{ requested_cores }}c \
             --cpuset-cpus=0-{{ requested_cores | int - 1 }} \
             -v "{{ hostvars['localhost']['dut_cache_dir'] }}:/root/.cache/huggingface:z" \

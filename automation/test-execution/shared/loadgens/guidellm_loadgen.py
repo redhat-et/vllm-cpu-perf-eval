@@ -238,8 +238,14 @@ class GuideLLMLoadGen(LoadGenerator):
         Raises:
             ValueError: If configuration is invalid
         """
+        if config.mode == "offline_batch":
+            raise ValueError(
+                "GuideLLM does not yet support offline_batch mode. "
+                "Use vllm bench throughput directly."
+            )
+
         if not config.target_url:
-            raise ValueError("target_url is required")
+            raise ValueError("target_url is required for online mode")
 
         if not config.target_url.startswith('http'):
             raise ValueError(

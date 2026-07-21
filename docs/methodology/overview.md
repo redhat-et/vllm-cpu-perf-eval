@@ -219,6 +219,8 @@ for status and planned tests**
   benchmarking drafts (methodology, profiles, terminology)
 - **[3-Phase Testing Methodology](testing-phases.md)** - General testing
   approach for all suites
+- **[Offline Batch Testing](offline-batch.md)** - Methodology for offline
+  batch benchmarking with `vllm bench throughput`
 - **[Metrics Guide](metrics.md)** - Definitions of all measured metrics
 - **[Test Reporting](reporting.md)** - Test report structure and formats
 - **[Manual Sweep Testing](manual-sweep.md)** - Detailed manual testing

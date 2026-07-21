@@ -24,23 +24,29 @@ class VLLMBenchLoadGen(LoadGenerator):
         return "0.25.1"  # vLLM version
 
     def get_command(self, config: LoadGenConfig) -> List[str]:
-        """Generate vllm bench serve command.
+        """Generate vllm bench command.
 
-        Returns command arguments for running vllm bench serve.
+        Returns command arguments for running vllm bench serve (online)
+        or vllm bench throughput (offline batch).
         """
-        # Parse host and port from target URL
+        if config.mode == "offline_batch":
+            return self._get_offline_batch_command(config)
+
+        return self._get_online_command(config)
+
+    def _get_online_command(self, config: LoadGenConfig) -> List[str]:
+        """Generate vllm bench serve command for online mode."""
         from urllib.parse import urlparse
 
         parsed = urlparse(config.target_url)
         host = parsed.hostname or config.target_url.split(':')[0]
 
-        # Use explicit port, or default based on scheme
         if parsed.port:
             port = str(parsed.port)
         elif parsed.scheme == 'https':
             port = '443'
         else:
-            port = '8000'  # Default for vLLM servers
+            port = '8000'
 
         cmd = [
             "vllm", "bench", "serve",
@@ -51,28 +57,43 @@ class VLLMBenchLoadGen(LoadGenerator):
             "--num-prompts", str(config.max_requests),
         ]
 
-        # Add backend type based on workload
         if config.workload_type == 'embedding':
             cmd.extend(["--backend", "openai-embeddings"])
             cmd.extend(["--endpoint", "/v1/embeddings"])
         else:
             cmd.extend(["--backend", "openai"])
 
-        # Add request rate if specified
         if config.rate:
             cmd.extend(["--request-rate", config.rate])
 
-        # Add output path
         cmd.extend(["--save-result"])
         cmd.extend(["--result-filename", config.output_path])
 
-        # Add extra args
         for key, value in config.extra_args.items():
             if isinstance(value, bool):
                 if value:
                     cmd.append(f"--{key}")
             else:
                 cmd.extend([f"--{key}", str(value)])
+
+        return cmd
+
+    def _get_offline_batch_command(self, config: LoadGenConfig) -> List[str]:
+        """Generate vllm bench throughput command for offline batch mode."""
+        model = config.model_path or config.model
+        cmd = [
+            "vllm", "bench", "throughput",
+            "--model", model,
+            "--num-prompts", str(config.max_requests),
+        ]
+
+        if config.dataset:
+            cmd.extend(["--dataset-name", config.dataset])
+
+        if config.extra_args.get('input_len'):
+            cmd.extend(["--input-len", str(config.extra_args['input_len'])])
+        if config.extra_args.get('output_len'):
+            cmd.extend(["--output-len", str(config.extra_args['output_len'])])
 
         return cmd
 
@@ -155,10 +176,16 @@ class VLLMBenchLoadGen(LoadGenerator):
 
     def validate_config(self, config: LoadGenConfig) -> None:
         """Validate vLLM bench configuration."""
-        if not config.target_url:
-            raise ValueError("target_url is required")
+        if config.mode == "offline_batch":
+            if not config.model and not config.model_path:
+                raise ValueError(
+                    "model or model_path is required for offline_batch mode"
+                )
+        else:
+            if not config.target_url:
+                raise ValueError("target_url is required for online mode")
 
-        if not config.model:
+        if not config.model and not config.model_path:
             raise ValueError("model is required")
 
         if config.max_requests <= 0:
@@ -172,6 +199,10 @@ class VLLMBenchLoadGen(LoadGenerator):
             'chat', 'rag', 'code', 'summarization', 'reasoning', 'embedding'
         ]
         return workload_type in supported
+
+    def supports_mode(self, mode: str) -> bool:
+        """vLLM bench supports both online and offline batch modes."""
+        return mode in ("online", "offline_batch")
 
     def get_output_format(self) -> str:
         return "json"

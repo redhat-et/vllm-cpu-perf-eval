@@ -15,24 +15,31 @@ class LoadGenConfig:
     """Configuration for load generator execution.
 
     Attributes:
-        target_url: URL of the inference endpoint to test
+        target_url: URL of the inference endpoint to test (online mode)
         model: Model name/identifier
         workload_type: Type of workload (chat, rag, code, embedding, etc.)
+        mode: Execution mode - "online" (server + load generator) or
+            "offline_batch" (direct API, no server). Defaults to "online".
         max_requests: Maximum number of requests to send
         max_seconds: Maximum duration in seconds
         rate: Request rate (requests/second) or 'inf' for max throughput
         output_path: Path to save results
         dataset: Dataset name or path (optional)
+        model_path: Local model path for offline batch mode (optional)
+        num_cores: CPU cores for offline batch mode (optional)
         extra_args: Additional load generator specific arguments
     """
-    target_url: str
-    model: str
+    target_url: str = ""
+    model: str = ""
     workload_type: str = "chat"
+    mode: str = "online"
     max_requests: int = 1000
     max_seconds: int = 600
-    rate: Optional[str] = None  # None, 'inf', or specific rate
+    rate: Optional[str] = None
     output_path: str = "/results"
     dataset: Optional[str] = None
+    model_path: Optional[str] = None
+    num_cores: Optional[int] = None
     extra_args: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -53,6 +60,10 @@ class LoadGenMetrics:
         ttft_mean_ms: Time to first token mean (LLM workloads)
         tpot_mean_ms: Time per output token mean (LLM workloads)
         duration_seconds: Total test duration
+        prefill_throughput_tps: Prefill phase tokens/sec (offline batch)
+        decode_throughput_tps: Decode phase tokens/sec (offline batch)
+        output_throughput_tps: Output tokens/sec (offline batch)
+        kv_cache_usage_pct: Peak KV cache usage percent (offline batch)
         raw_metrics: Raw metrics dict from load generator
     """
     requests_total: int = 0
@@ -67,6 +78,10 @@ class LoadGenMetrics:
     ttft_mean_ms: Optional[float] = None
     tpot_mean_ms: Optional[float] = None
     duration_seconds: float = 0.0
+    prefill_throughput_tps: Optional[float] = None
+    decode_throughput_tps: Optional[float] = None
+    output_throughput_tps: Optional[float] = None
+    kv_cache_usage_pct: Optional[float] = None
     raw_metrics: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -157,6 +172,17 @@ class LoadGenerator(ABC):
             True if workload is supported
         """
         pass
+
+    def supports_mode(self, mode: str) -> bool:
+        """Check if this load generator supports a given execution mode.
+
+        Args:
+            mode: Execution mode ("online" or "offline_batch")
+
+        Returns:
+            True if mode is supported. Default: online only.
+        """
+        return mode == "online"
 
     def get_output_format(self) -> str:
         """Return the output format (json, csv, etc.).
