@@ -42,7 +42,7 @@
     - name: Resolve results path
       ansible.builtin.set_fact:
         resolved_path: >-
-          {{ results_path if results_path is abs
+          {{ results_path if results_path.startswith('/')
              else (playbook_dir ~ '/../../../' ~ results_path) }}
 
     - name: Check results path exists

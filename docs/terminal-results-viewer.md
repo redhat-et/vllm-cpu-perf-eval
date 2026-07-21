@@ -222,16 +222,19 @@ Use `--no-header` to suppress this block.
 
 ### "Could not detect result format"
 
-The script could not find `benchmarks.json` (LLM) or `baseline/` /
-`latency/` subdirs (embedding) at the given path. Verify you are
-pointing at the correct results directory:
+The script could not find `benchmarks.json` (LLM) or embedding
+result files at the given path. Verify you are pointing at the
+correct results directory:
 
 ```bash
 # LLM: should contain benchmarks.json
 ls <path>/benchmarks.json
 
-# Embedding: should contain baseline/ or latency/ subdirs
+# Embedding: subdirectory layout
 ls <path>/baseline/ <path>/latency/
+
+# Embedding: top-level file layout
+ls <path>/sweep-*.json <path>/concurrent-*.json
 ```
 
 ### Missing columns show "-"
