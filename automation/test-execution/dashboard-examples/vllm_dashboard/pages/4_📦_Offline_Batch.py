@@ -50,6 +50,12 @@ USE_CASE_MAP = {
     'short_labeling': '⚡ Ultra-Short Labeling',
     'kv_capacity': '📊 KV-Cache Capacity',
     'context_scaling': '📏 Context Scaling',
+    'baseline': '📐 Baseline Throughput',
+    'batch_scaling': '📈 Batch Size Scaling',
+    'input_scaling': '📥 Input Length Scaling',
+    'output_scaling': '📤 Output Length Scaling',
+    'core_scaling': '🔧 Core Scaling',
+    'quantization_comparison': '⚖️ Quantization Comparison',
 }
 
 USE_CASE_REFERENCE = [
@@ -156,10 +162,12 @@ def is_technical_use_case(use_case_key: str) -> bool:
 
 
 def normalize_version(version: str) -> str:
-    """Strip leading 'v' from version strings for consistent comparison."""
+    """Strip a single leading 'v'/'V' for consistent version comparison."""
     if not version:
         return 'unknown'
-    return version.lstrip('v') or version
+    if version[:1] in ('v', 'V') and len(version) > 1:
+        return version[1:]
+    return version
 
 
 def format_duration(seconds: float) -> str:

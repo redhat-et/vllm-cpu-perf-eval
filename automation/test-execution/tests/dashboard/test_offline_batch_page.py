@@ -164,6 +164,12 @@ class TestNormalizeVersion:
     def test_v_only(self):
         assert normalize_version("v") == "v"
 
+    def test_double_v_strips_one(self):
+        assert normalize_version("vv1.0") == "v1.0"
+
+    def test_uppercase_v(self):
+        assert normalize_version("V0.25.1") == "0.25.1"
+
 
 class TestUseCaseReference:
     """Test the USE_CASE_REFERENCE table structure."""

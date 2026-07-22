@@ -552,7 +552,7 @@ test_baseline() {
     local failed=()
     for model in "${models[@]}"; do
         echo -e "${YELLOW}Testing: $model${NC}"
-        if run_test "$model" "sonnet" "$prompts" "$cores"; then
+        if run_test "$model" "sonnet" "$prompts" "$cores" -e "use_case=baseline"; then
             echo -e "${GREEN}✓ Completed${NC}"
         else
             echo -e "${RED}✗ Failed${NC}"
@@ -582,7 +582,7 @@ test_batch_scaling() {
     local failed=()
     for size in "${sizes[@]}"; do
         echo -e "${YELLOW}Batch size: $size${NC}"
-        if run_test "$model" "random" "$size" "$cores" -e "input_len=512" -e "output_len=256"; then
+        if run_test "$model" "random" "$size" "$cores" -e "input_len=512" -e "output_len=256" -e "use_case=batch_scaling"; then
             echo -e "${GREEN}✓ Completed${NC}"
         else
             echo -e "${RED}✗ Failed${NC}"
@@ -613,7 +613,7 @@ test_input_scaling() {
     local failed=()
     for len in "${lengths[@]}"; do
         echo -e "${YELLOW}Input length: $len tokens${NC}"
-        if run_test "$model" "random" 100 "$cores" -e "input_len=$len" -e "output_len=256"; then
+        if run_test "$model" "random" 100 "$cores" -e "input_len=$len" -e "output_len=256" -e "use_case=input_scaling"; then
             echo -e "${GREEN}✓ Completed${NC}"
         else
             echo -e "${RED}✗ Failed${NC}"
@@ -644,7 +644,7 @@ test_output_scaling() {
     local failed=()
     for len in "${lengths[@]}"; do
         echo -e "${YELLOW}Output length: $len tokens${NC}"
-        if run_test "$model" "random" 100 "$cores" -e "input_len=512" -e "output_len=$len"; then
+        if run_test "$model" "random" 100 "$cores" -e "input_len=512" -e "output_len=$len" -e "use_case=output_scaling"; then
             echo -e "${GREEN}✓ Completed${NC}"
         else
             echo -e "${RED}✗ Failed${NC}"
@@ -673,7 +673,7 @@ test_core_scaling() {
     local failed=()
     for cores in "${cores_list[@]}"; do
         echo -e "${YELLOW}Cores: $cores${NC}"
-        if run_test "$model" "sonnet" 100 "$cores"; then
+        if run_test "$model" "sonnet" 100 "$cores" -e "use_case=core_scaling"; then
             echo -e "${GREEN}✓ Completed${NC}"
         else
             echo -e "${RED}✗ Failed${NC}"
@@ -711,7 +711,7 @@ test_quantization() {
         local model_short=$(basename "$model")
 
         echo -e "${YELLOW}Testing: $model_short${NC}"
-        if run_test "$model" "sonnet" "$prompts" "$cores"; then
+        if run_test "$model" "sonnet" "$prompts" "$cores" -e "use_case=quantization_comparison"; then
             echo -e "${GREEN}✓ Completed${NC}"
         else
             echo -e "${RED}✗ Failed${NC}"

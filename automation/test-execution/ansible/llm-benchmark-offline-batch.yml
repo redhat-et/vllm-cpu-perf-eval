@@ -16,8 +16,11 @@
 #   -e "vllm_container_image=vllm/vllm-openai:latest"  # Default (upstream vLLM)
 #   -e "vllm_container_image=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0"  # RHAIIS optimized
 #   -e "vllm_extra_args=--enforce-eager"                 # Extra args passed to vllm bench
-#   -e "offline_batch_become=true"                       # Run benchmark as root (default: false, rootless podman)
-#   -e "vllm_ld_preload=/usr/lib64/libomp.so"            # Override LD_PRELOAD (auto-detected from container if not set)
+#   -e "offline_batch_become=true"    # Run benchmark as root (default: false, rootless podman)
+#   -e "vllm_ld_preload=/usr/lib64/libomp.so"  # Override LD_PRELOAD path
+#       Default: auto-detected via one-shot `podman run … find` for libomp.so/libiomp5.so.
+#       Override: -e "vllm_ld_preload=/custom/path/libomp.so" to skip auto-detection.
+#       Disable:  -e "vllm_ld_preload=" (empty) to run without LD_PRELOAD.
 #       (--enable-prefix-caching is only useful with a shared-prefix workload;
 #        the suite does not provide one yet, so the flag is not passed today)
 #
