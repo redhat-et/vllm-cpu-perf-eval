@@ -90,10 +90,28 @@ class VLLMBenchLoadGen(LoadGenerator):
         if config.dataset:
             cmd.extend(["--dataset-name", config.dataset])
 
-        if config.extra_args.get('input_len'):
-            cmd.extend(["--input-len", str(config.extra_args['input_len'])])
-        if config.extra_args.get('output_len'):
-            cmd.extend(["--output-len", str(config.extra_args['output_len'])])
+        if config.dataset == "random":
+            if config.extra_args.get('input_len'):
+                cmd.extend([
+                    "--random-input-len",
+                    str(config.extra_args['input_len']),
+                ])
+            if config.extra_args.get('output_len'):
+                cmd.extend([
+                    "--random-output-len",
+                    str(config.extra_args['output_len']),
+                ])
+        else:
+            if config.extra_args.get('input_len'):
+                cmd.extend([
+                    "--input-len",
+                    str(config.extra_args['input_len']),
+                ])
+            if config.extra_args.get('output_len'):
+                cmd.extend([
+                    "--output-len",
+                    str(config.extra_args['output_len']),
+                ])
 
         return cmd
 

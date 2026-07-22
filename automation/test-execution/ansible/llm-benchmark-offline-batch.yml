@@ -16,6 +16,8 @@
 #   -e "vllm_container_image=vllm/vllm-openai:latest"  # Default (upstream vLLM)
 #   -e "vllm_container_image=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0"  # RHAIIS optimized
 #   -e "vllm_extra_args=--enforce-eager"                 # Extra args passed to vllm bench
+#   -e "offline_batch_become=true"                       # Run benchmark as root (default: false, rootless podman)
+#   -e "vllm_ld_preload=/usr/lib64/libomp.so"            # Override LD_PRELOAD (auto-detected from container if not set)
 #       (--enable-prefix-caching is only useful with a shared-prefix workload;
 #        the suite does not provide one yet, so the flag is not passed today)
 #
@@ -39,9 +41,9 @@
         fail_msg: |
           Missing required variables. Please provide:
           -e "test_model=<model>"
-          -e "dataset_name=<sonnet|random|sharegpt|hf>"
+          -e "dataset_name=<sonnet|random|sharegpt>"
           -e "num_prompts=<100|1000|...>"
-          -e "requested_cores=<8|16|32|64>"
+          -e "requested_cores=<8|16|24|32>"
 
     - name: Set default values
       ansible.builtin.set_fact:
@@ -111,10 +113,12 @@
       ansible.builtin.shell: |
         podman run --rm \
           -v "{{ dut_cache_dir }}:/root/.cache/huggingface:z" \
-          -e HF_TOKEN={{ lookup('env', 'HF_TOKEN') }} \
+          -e HF_TOKEN \
           --entrypoint python3 \
           {{ hostvars['localhost']['vllm_container_image'] }} \
           -c "from huggingface_hub import snapshot_download; snapshot_download('{{ test_model }}', cache_dir='/root/.cache/huggingface')"
+      environment:
+        HF_TOKEN: "{{ lookup('env', 'HF_TOKEN') }}"
       when: not model_cache_check.stat.exists
       register: model_download
       changed_when: model_download.rc == 0
@@ -192,10 +196,30 @@
 
 - name: "Offline Batch Benchmark - Run Benchmark"
   hosts: dut
-  become: true
+  become: "{{ offline_batch_become | default(false) }}"
   gather_facts: false
 
   tasks:
+    - name: Find libomp/libiomp in container image
+      ansible.builtin.shell: >
+        podman run --rm --entrypoint ""
+        {{ hostvars['localhost']['vllm_container_image'] }}
+        find / -maxdepth 5 \( -name 'libomp.so' -o -name 'libiomp5.so' \) 2>/dev/null | head -1
+      register: libomp_find
+      changed_when: false
+      when: vllm_ld_preload is not defined
+
+    - name: Set LD_PRELOAD path from container
+      ansible.builtin.set_fact:
+        vllm_ld_preload: "{{ libomp_find.stdout }}"
+      when:
+        - vllm_ld_preload is not defined
+        - libomp_find.stdout | default('') | length > 0
+
+    - name: Display LD_PRELOAD configuration
+      ansible.builtin.debug:
+        msg: "LD_PRELOAD={{ vllm_ld_preload | default('(not set - libomp not found in container)') }}"
+
     - name: Build benchmark command (sonnet dataset with file)
       ansible.builtin.set_fact:
         benchmark_cmd: |
@@ -204,7 +228,7 @@
             --cpuset-cpus=0-{{ requested_cores | int - 1 }} \
             -v "{{ hostvars['localhost']['dut_cache_dir'] }}:/root/.cache/huggingface:z" \
             -v "{{ hostvars['localhost']['datasets_dir'] }}:/datasets:z" \
-            -e LD_PRELOAD=/usr/lib64/libomp.so \
+            {{ '-e LD_PRELOAD=' + vllm_ld_preload if vllm_ld_preload is defined else '' }} \
             -e HF_HUB_OFFLINE=1 \
             --entrypoint vllm \
             {{ hostvars['localhost']['vllm_container_image'] }} \
@@ -214,7 +238,7 @@
               --dataset-path /datasets/{{ dataset_file | basename }} \
               --num-prompts {{ num_prompts }} \
               {{ vllm_extra_args | default('') }}
-      when: dataset_name == 'sonnet' or dataset_file is defined
+      when: dataset_name == 'sonnet'
 
     - name: Build benchmark command (sharegpt dataset)
       ansible.builtin.set_fact:
@@ -223,8 +247,8 @@
             --name vllm-batch-{{ dataset_name }}-{{ requested_cores }}c \
             --cpuset-cpus=0-{{ requested_cores | int - 1 }} \
             -v "{{ hostvars['localhost']['dut_cache_dir'] }}:/root/.cache/huggingface:z" \
-            -e LD_PRELOAD=/usr/lib64/libomp.so \
-            -e HF_TOKEN={{ lookup('env', 'HF_TOKEN') }} \
+            {{ '-e LD_PRELOAD=' + vllm_ld_preload if vllm_ld_preload is defined else '' }} \
+            -e HF_TOKEN \
             --entrypoint vllm \
             {{ hostvars['localhost']['vllm_container_image'] }} \
             bench throughput \
@@ -243,7 +267,7 @@
             --name vllm-batch-random-{{ requested_cores }}c \
             --cpuset-cpus=0-{{ requested_cores | int - 1 }} \
             -v "{{ hostvars['localhost']['dut_cache_dir'] }}:/root/.cache/huggingface:z" \
-            -e LD_PRELOAD=/usr/lib64/libomp.so \
+            {{ '-e LD_PRELOAD=' + vllm_ld_preload if vllm_ld_preload is defined else '' }} \
             -e HF_HUB_OFFLINE=1 \
             --entrypoint vllm \
             {{ hostvars['localhost']['vllm_container_image'] }} \
@@ -256,8 +280,15 @@
               {{ vllm_extra_args | default('') }}
       when: dataset_name == 'random'
 
+    - name: Fail on unsupported dataset
+      ansible.builtin.fail:
+        msg: "Unsupported dataset_name '{{ dataset_name }}'. Supported: sonnet, random, sharegpt"
+      when: benchmark_cmd is not defined
+
     - name: Run offline batch benchmark
       ansible.builtin.shell: "{{ benchmark_cmd }}"
+      environment:
+        HF_TOKEN: "{{ lookup('env', 'HF_TOKEN') }}"
       register: benchmark_output
       changed_when: false
       no_log: true

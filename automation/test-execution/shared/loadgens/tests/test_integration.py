@@ -415,6 +415,54 @@ class TestVLLMBenchLoadGen:
         finally:
             Path(results_path).unlink()
 
+    def test_offline_batch_random_uses_random_flags(self, loadgen):
+        """Test offline batch with random dataset uses --random-input-len."""
+        config = LoadGenConfig(
+            model="test-model",
+            mode="offline_batch",
+            max_requests=100,
+            dataset="random",
+            extra_args={"input_len": 512, "output_len": 256},
+        )
+        cmd = loadgen.get_command(config)
+        assert "--random-input-len" in cmd
+        assert "--random-output-len" in cmd
+        assert "512" in cmd
+        assert "256" in cmd
+        assert "--input-len" not in cmd
+        assert "--output-len" not in cmd
+
+    def test_offline_batch_sharegpt_uses_output_len(self, loadgen):
+        """Test offline batch with sharegpt uses --output-len."""
+        config = LoadGenConfig(
+            model="test-model",
+            mode="offline_batch",
+            max_requests=100,
+            dataset="sharegpt",
+            extra_args={"output_len": 256},
+        )
+        cmd = loadgen.get_command(config)
+        assert "--output-len" in cmd
+        assert "256" in cmd
+        assert "--random-output-len" not in cmd
+
+    def test_offline_batch_sonnet_uses_input_output_len(self, loadgen):
+        """Test offline batch with sonnet uses --input-len / --output-len."""
+        config = LoadGenConfig(
+            model="test-model",
+            mode="offline_batch",
+            max_requests=100,
+            dataset="sonnet",
+            extra_args={"input_len": 512, "output_len": 256},
+        )
+        cmd = loadgen.get_command(config)
+        assert "--input-len" in cmd
+        assert "--output-len" in cmd
+        assert "512" in cmd
+        assert "256" in cmd
+        assert "--random-input-len" not in cmd
+        assert "--random-output-len" not in cmd
+
 
 class TestMTEBLoadGen:
     """Test MTEB load generator implementation."""
