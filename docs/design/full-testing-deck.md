@@ -189,7 +189,7 @@ Core sweep per use case: **8, 16, 24, 32**
 | RedHatAI/embeddinggemma-300m | 300M | 2048 | Sentence Similarity |
 | RedHatAI/Qwen3-Embedding-8B | 8B | 40960 | Feature Extraction |
 
-**Perf:** `vllm bench serve --backend openai-embeddings`  
+**Perf:** `vllm bench serve --backend openai-embeddings`
 **Quality:** MTEB (GuideLLM does not support embeddings)
 
 ---
@@ -268,7 +268,7 @@ saturation points
 - vLLM: `--no-enable-prefix-caching`, `--dtype=bfloat16` or `auto`
 - GuideLLM: concurrent, concurrency=[1,2,4,8,16,32], duration=600s, warmup=60s
 
-**Coverage:** 5 workloads × 7 models × 6 concurrency levels  
+**Coverage:** 5 workloads × 7 models × 6 concurrency levels
 (models filtered by context length)
 
 **Outcome:** Clean baseline for all comparisons
@@ -399,12 +399,14 @@ Core counts: **8, 16, 24, 32**
 
 ## Offline Batch — Use Cases (2/2)
 
+<!-- markdownlint-disable MD029 -->
 7. **Code Generation** — random 512:512, 500
 8. **Long-Document Summarization** — random 4096:256, 500
 9. **Batch RAG / Grounded Q&A** — random 2048:128, 500
-10. **Shared-Prefix / Template** — random 1024:64, 1000  
+10. **Shared-Prefix / Template** — random 1024:64, 1000
     *(no prefix caching — random prompts share no prefix)*
 11. **Ultra-Short Labeling** — sharegpt, output=16, 2000
+<!-- markdownlint-enable MD029 -->
 
 ---
 
@@ -442,7 +444,7 @@ Primary tuning axis: **how many cores for this job?**
 | RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w4a16 | INT4 |
 | RedHatAI/Qwen3-8B-quantized.w4a16 | INT4 |
 
-**Metrics:** tok/s, req/s, items/hour, batch completion time  
+**Metrics:** tok/s, req/s, items/hour, batch completion time
 (+ prefill/decode, max KV % where available)
 
 ---
