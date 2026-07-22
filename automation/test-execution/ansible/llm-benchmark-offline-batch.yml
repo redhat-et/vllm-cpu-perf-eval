@@ -251,8 +251,8 @@
               --model /root/.cache/huggingface/{{ hostvars['localhost']['model_repo_name'] }}/snapshots/{{ hostvars['localhost']['model_snapshot_hash'] }} \
               --dataset-name random \
               --num-prompts {{ num_prompts }} \
-              --input-len {{ input_len | default(512) }} \
-              --output-len {{ output_len | default(256) }} \
+              --random-input-len {{ input_len | default(512) }} \
+              --random-output-len {{ output_len | default(256) }} \
               {{ vllm_extra_args | default('') }}
       when: dataset_name == 'random'
 

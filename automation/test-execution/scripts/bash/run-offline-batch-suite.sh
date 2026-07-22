@@ -121,7 +121,7 @@ MODES:
                  dataset-generation, code-generation, etl, long-summarization,
                  rag, shared-prefix, short-labeling
       Models: 'all' or comma-separated list (default: all)
-      Cores: comma-separated list (default: 8,16,32)
+      Cores: comma-separated list (default: 8,16,24,32)
       Runs: number of iterations (default: 3)
 
   Technical Benchmarks (Performance analysis):
@@ -129,7 +129,7 @@ MODES:
     batch-scaling <model> [cores]    Batch size scaling (10, 50, 100, 250, 500, 1000)
     input-scaling <model> [cores]    Input length variation (128-2048 tokens)
     output-scaling <model> [cores]   Output length variation (64-1024 tokens)
-    core-scaling <model>             Core scaling (8, 16, 32, 64 cores)
+    core-scaling <model>             Core scaling (8, 16, 24, 32 cores)
     quantization [cores] [prompts]   Quantization comparison (Llama w8a8, w4a16, Qwen w4a16)
     kv-capacity <model> [cores]      KV-cache capacity sweep (100-5000 prompts)
     context-scaling <model> [cores]  Context length scaling (1024-8192 input tokens)
@@ -143,12 +143,12 @@ EXAMPLES:
   ./run-offline-batch-suite.sh use-cases 1 "$MODEL_LLAMA_W8A8,$MODEL_QWEN_W4A16"  # Specific models
 
   # Focused use case testing
-  ./run-offline-batch-suite.sh use-case-sweep summarization all 8,16,32,64 3
+  ./run-offline-batch-suite.sh use-case-sweep summarization all 8,16,24,32 3
   ./run-offline-batch-suite.sh use-case-sweep classification all
   ./run-offline-batch-suite.sh use-case-sweep translation "$MODEL_LLAMA_W8A8" 16,32 5
   ./run-offline-batch-suite.sh use-case-sweep long-summarization all 16,32 3
   ./run-offline-batch-suite.sh use-case-sweep rag all
-  ./run-offline-batch-suite.sh use-case-sweep short-labeling all 8,16,32,64
+  ./run-offline-batch-suite.sh use-case-sweep short-labeling all 8,16,24,32
 
   # Technical benchmarks
   ./run-offline-batch-suite.sh baseline 32 100
@@ -404,11 +404,11 @@ use_cases_suite() {
     # 6. ETL PIPELINES (Core Scaling)
     echo -e "${GREEN}🔄 [6/11] ETL Pipelines (Core Scaling)${NC}"
     echo "Use case: Batch inference in data workflows"
-    echo "Parameters: 500 prompts, sonnet, 8/16/32 cores"
+    echo "Parameters: 500 prompts, sonnet, 8/16/24/32 cores"
     echo
     for model in "${MODELS[@]}"; do
         echo "  Model: $model"
-        for cores in 8 16 32; do
+        for cores in 8 16 24 32; do
             echo "    Testing with $cores cores..."
             for run in $(seq 1 $runs); do
                 echo "      Run $run/$runs..."
@@ -658,7 +658,7 @@ test_output_scaling() {
 
 test_core_scaling() {
     local model="$1"
-    local cores_list=(8 16 32 64)
+    local cores_list=(8 16 24 32)
 
     echo -e "${GREEN}========================================${NC}"
     echo -e "${GREEN}Test: Core Scaling${NC}"
@@ -790,7 +790,7 @@ test_context_scaling() {
 use_case_sweep() {
     local use_case="$1"
     local model_list="${2:-all}"
-    local cores_list="${3:-8,16,32}"
+    local cores_list="${3:-8,16,24,32}"
     local runs="${4:-3}"
 
     # Handle "all" keyword for models

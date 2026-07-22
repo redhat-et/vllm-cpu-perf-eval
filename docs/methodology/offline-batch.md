@@ -49,7 +49,7 @@ All offline batch tests sweep across core counts to identify the optimal
 allocation for each model/workload combination. More cores does not always
 yield better throughput — models and workloads saturate at different points.
 
-**Standard core counts tested:** 8, 16, 32, 64
+**Standard core counts tested:** 8, 16, 24, 32
 
 This sweep answers a key production question: *how many cores should I
 allocate for this batch job?*
@@ -182,7 +182,7 @@ cd automation/test-execution/scripts/bash
 # Sweep use cases across models and core counts
 ./run-offline-batch-suite.sh use-case-sweep summarization \
   "RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w8a8" \
-  8,16,32,64 3
+  8,16,24,32 3
 
 # Technical benchmarks
 ./run-offline-batch-suite.sh core-scaling <model>

@@ -92,7 +92,7 @@ Performance characterization tests:
 | **Batch Scaling** | Optimal batch size | 1, 10, 50, 100, 250, 500, 1000 | `batch-scaling <model> [cores]` |
 | **Input Scaling** | Prefill performance | 128-2048 tokens | `input-scaling <model> [cores]` |
 | **Output Scaling** | Decode performance | 64-1024 tokens | `output-scaling <model> [cores]` |
-| **Core Scaling** | CPU scaling | 8, 16, 32, 64 cores | `core-scaling <model>` |
+| **Core Scaling** | CPU scaling | 8, 16, 24, 32 cores | `core-scaling <model>` |
 | **Quantization** | Quantization comparison | w8a8, w4a16 | `quantization [cores] [prompts]` |
 | **KV-Cache Capacity** | Max batch before KV saturation | 100-5000 prompts, fixed 512→256 | `kv-capacity <model> [cores]` |
 | **Context Scaling** | Throughput vs context length | 1024-8192 input, output=128 | `context-scaling <model> [cores]` |
@@ -128,13 +128,13 @@ cd automation/test-execution/scripts/bash
 # Run summarization with specific models across core counts
 ./run-offline-batch-suite.sh use-case-sweep summarization \
   "RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w8a8,RedHatAI/Qwen3-8B-quantized.w4a16" \
-  8,16,32,64 3
+  8,16,24,32 3
 
 # New use cases
 ./run-offline-batch-suite.sh use-case-sweep long-summarization all 16,32 3
 ./run-offline-batch-suite.sh use-case-sweep rag all
 ./run-offline-batch-suite.sh use-case-sweep shared-prefix all
-./run-offline-batch-suite.sh use-case-sweep short-labeling all 8,16,32,64
+./run-offline-batch-suite.sh use-case-sweep short-labeling all 8,16,24,32
 
 # Single test
 ./run-offline-batch-suite.sh run_test all sonnet 1000 16

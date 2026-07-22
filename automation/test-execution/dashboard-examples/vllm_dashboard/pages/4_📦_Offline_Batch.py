@@ -141,8 +141,8 @@ def infer_use_case(test_metadata: dict) -> str:
 
     # Sonnet dataset cases
     if dataset == 'sonnet':
-        # ETL Pipelines: sonnet, 500 prompts, variable cores (8/16/32)
-        if num_prompts == 500 and cores in [8, 16, 32]:
+        # ETL Pipelines: sonnet, 500 prompts, variable cores (8/16/24/32)
+        if num_prompts == 500 and cores in [8, 16, 24, 32]:
             return "🔄 ETL Pipelines"
         else:
             return "🔄 ETL Pipelines"  # Default for sonnet

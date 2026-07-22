@@ -110,7 +110,7 @@ platforms that aligns with the
 | Shared-Prefix | random 1024:64 | 1000 | Short-output template shape |
 | Ultra-Short Labeling | sharegpt | 2000 | output=16 tokens |
 
-Each use case is run across multiple core counts (e.g. 8, 16, 32, 64) to
+Each use case is run across multiple core counts (e.g. 8, 16, 24, 32) to
 identify the optimal core allocation for that workload.
 
 ---
@@ -391,7 +391,7 @@ where latency per request is less important than total throughput.
 
 ### Use Cases (11 Scenarios)
 
-Each use case is tested across a range of core counts (e.g. 8, 16, 32, 64)
+Each use case is tested across a range of core counts (e.g. 8, 16, 24, 32)
 to identify the optimal core allocation for that workload.
 
 1. **Bulk Summarization** - sharegpt, 1000 prompts
@@ -411,7 +411,7 @@ to identify the optimal core allocation for that workload.
 All offline batch tests sweep across core counts to find the best
 throughput for each model/workload combination:
 
-**Core counts tested:** 8, 16, 32, 64
+**Core counts tested:** 8, 16, 24, 32
 
 This is the primary tuning axis — different models and workloads saturate
 at different core counts, and more cores does not always mean better
@@ -427,7 +427,7 @@ individual variables:
 3. **Input length variation** (128, 256, 512, 1024, 2048)
 4. **Output length variation** (64, 128, 256, 512, 1024)
 5. **Quantization comparison** (w8a8, w4a16)
-6. **Core scaling** (8, 16, 32, 64 cores)
+6. **Core scaling** (8, 16, 24, 32 cores)
 7. **KV-cache capacity sweep** (100, 250, 500, 1000, 2000, 5000 prompts)
 8. **Context length scaling** (1024, 2048, 4096, 8192 input tokens)
 
