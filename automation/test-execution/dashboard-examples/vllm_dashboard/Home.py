@@ -127,7 +127,7 @@ with col4:
     - Batch size impact
 
     **Features**:
-    - Use case analysis (7 scenarios)
+    - Use case analysis (11 scenarios)
     - Model comparison
     - Resource efficiency metrics
     - Environment tracking

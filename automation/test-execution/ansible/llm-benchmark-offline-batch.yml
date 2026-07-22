@@ -260,6 +260,7 @@
       ansible.builtin.shell: "{{ benchmark_cmd }}"
       register: benchmark_output
       changed_when: false
+      no_log: true
 
     - name: Display benchmark output
       ansible.builtin.debug:

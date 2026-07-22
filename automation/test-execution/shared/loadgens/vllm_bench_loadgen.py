@@ -184,9 +184,8 @@ class VLLMBenchLoadGen(LoadGenerator):
         else:
             if not config.target_url:
                 raise ValueError("target_url is required for online mode")
-
-        if not config.model and not config.model_path:
-            raise ValueError("model is required")
+            if not config.model:
+                raise ValueError("model is required for online mode")
 
         if config.max_requests <= 0:
             raise ValueError(

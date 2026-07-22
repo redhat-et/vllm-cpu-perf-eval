@@ -225,7 +225,7 @@ identify the optimal core allocation for that workload.
 
 **Configuration:**
 
-- vLLM: `--no-enable-prefix-caching`, `--dtype=bfloat16` (FP16) or `--dtype=auto`
+- vLLM: `--no-enable-prefix-caching`, `--dtype=bfloat16` or `--dtype=auto`
 - GuideLLM: profile=concurrent, concurrency=[1,2,4,8,16,32], duration=600s, warmup=60s
 
 **Test Coverage:** 5 workloads x 7 models x 6 concurrency levels

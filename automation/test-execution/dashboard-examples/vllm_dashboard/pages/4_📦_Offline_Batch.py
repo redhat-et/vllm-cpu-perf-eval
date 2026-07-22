@@ -288,7 +288,7 @@ def main():
         st.header("Configuration")
 
         config = DashboardConfig()
-        default_results_dir = str(Path(config.get_results_directory()) / "llm")
+        default_results_dir = str(Path(config.get_results_directory()))
 
         results_dir_input = st.text_input(
             "Results Directory",

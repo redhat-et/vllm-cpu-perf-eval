@@ -60,7 +60,7 @@ MODEL_QUANTIZED_W8A8="$MODEL_LLAMA_W8A8"
 MODEL_QUANTIZED_W4A16="$MODEL_LLAMA_W4A16"
 
 # Container image (can be overridden via environment variable)
-DEFAULT_VLLM_CONTAINER_IMAGE="vllm/vllm-openai:latest"
+DEFAULT_VLLM_CONTAINER_IMAGE="docker.io/vllm/vllm-openai-cpu:v0.25.1"
 VLLM_CONTAINER_IMAGE="${VLLM_CONTAINER_IMAGE:-$DEFAULT_VLLM_CONTAINER_IMAGE}"
 
 # Timeout configuration (can be overridden via environment variable)
@@ -157,7 +157,7 @@ EXAMPLES:
 
 ENVIRONMENT VARIABLES:
   VLLM_CONTAINER_IMAGE    Override vLLM container image
-                          Default: vllm/vllm-openai:latest
+                          Default: docker.io/vllm/vllm-openai-cpu:v0.25.1
                           RHAIIS: export VLLM_CONTAINER_IMAGE=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
 
 REDHATAI MODELS (Intel Xeon Compatible):

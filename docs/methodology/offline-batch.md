@@ -215,7 +215,7 @@ View results in the Streamlit dashboard:
 
 ```bash
 cd automation/test-execution/dashboard-examples/vllm_dashboard
-streamlit run Home.py
+./launch_dashboard.sh
 # Navigate to "Offline Batch" page
 ```
 

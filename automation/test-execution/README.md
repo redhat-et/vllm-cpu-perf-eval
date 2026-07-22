@@ -202,11 +202,10 @@ Run unit tests:
 
 ```bash
 # Offline batch dashboard tests
-cd tests/offline-batch
-pytest test_offline_batch_dashboard.py -v
+python -m pytest automation/test-execution/tests/dashboard/test_offline_batch_page.py -v
 
 # Offline batch script tests
-./test_run_offline_batch_suite.sh
+bash automation/test-execution/tests/scripts/test_run_offline_batch_suite.sh
 ```
 
 ## Directory Structure
@@ -241,7 +240,6 @@ automation/test-execution/
   - [Offline Batch](../../tests/offline-batch/offline-batch.md)
   - [Concurrent Load](../../tests/concurrent-load/concurrent-load.md)
   - [Embedding Models](../../tests/embedding-models/embedding-models.md)
-- **Test Scenarios**: [../../tests/offline-batch/README.md](../../tests/offline-batch/README.md)
 - **Ansible**: [ansible/README.md](ansible/README.md)
 - **Scripts**: [scripts/README.md](scripts/README.md)
 - **Dashboards**: [dashboard-examples/vllm_dashboard/README.md](dashboard-examples/vllm_dashboard/README.md)
