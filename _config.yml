@@ -81,3 +81,5 @@ exclude:
   - .jekyll-cache
   - .jekyll-metadata
   - image.tar  # Exclude container image to prevent podman permission issues
+  # Marp slide sources (rendered separately; Jekyll would mangle Marp front matter)
+  - docs/design/full-testing-deck.md
