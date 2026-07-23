@@ -1,6 +1,6 @@
 """vLLM Audio Performance Dashboard.
 
-Audio-specific metrics for speech recognition, translation, and audio chat models.
+Audio-specific metrics for speech recognition (ASR) models.
 Focuses on Real-Time Factor (RTF), audio throughput, and audio processing characteristics.
 """
 
@@ -128,13 +128,11 @@ def render_overview_metrics(df: pd.DataFrame):
     """Render overview metric cards."""
     # Test Dataset Overview — use one representative stage per run to avoid
     # double-counting files/audio across sequential + concurrent + max-throughput.
-    representative = df.copy()
-    if 'sequential' in df['stage'].values:
-        representative = df[df['stage'] == 'sequential']
-    else:
-        representative = df.drop_duplicates(
-            subset=['test_run_id', 'model', 'scenario'], keep='first'
-        )
+    groups = []
+    for _, grp in df.groupby(['test_run_id', 'model', 'scenario']):
+        seq = grp[grp['stage'] == 'sequential']
+        groups.append(seq if not seq.empty else grp.head(1))
+    representative = pd.concat(groups)
 
     st.markdown("### 📊 Test Dataset Overview")
 

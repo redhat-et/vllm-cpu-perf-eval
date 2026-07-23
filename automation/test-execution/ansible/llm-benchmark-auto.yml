@@ -491,11 +491,6 @@
   post_tasks:
     - name: Stop vLLM metrics collection
       ansible.builtin.include_tasks: tasks/stop-vllm-metrics-collection.yml
-      when:
-        - >-
-          hostvars['localhost']['vllm_mode'] == 'managed' or
-          (hostvars['localhost']['vllm_mode'] == 'external' and
-           hostvars['localhost'].get('external_metrics_available', false))
 
 # ==============================================================================
 # STEP 6: Collect Results

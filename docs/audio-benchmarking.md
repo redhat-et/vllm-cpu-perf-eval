@@ -227,13 +227,13 @@ results/audio-models/openai__whisper-small/transcription-throughput-20260423-103
 
 ```
 Stage: sequential
-  Duration: 1.17s
-  Successful: 5 requests
+  Duration: 2.34s
+  Successful: 10 requests
   Throughput: 4.26 req/s
 
 Stage: concurrent-8
-  Duration: 0.45s
-  Successful: 5 requests
+  Duration: 0.91s
+  Successful: 10 requests
   Throughput: 11.02 req/s
   Speedup: 2.6x vs sequential
 ```
@@ -241,8 +241,7 @@ Stage: concurrent-8
 **Interpretation:**
 - Sequential: Baseline 4.26 files/sec
 - Concurrent-8: 2.6x speedup with 8 concurrent requests
-- System scales well with concurrency
-- Can handle ~11 files/sec or ~11 concurrent users
+- Measured throughput: ~11 files/sec under sustained concurrent load
 
 ## Advanced Configuration
 
@@ -304,10 +303,11 @@ pip install guidellm[audio,recommended]
 # Ensure vLLM is running separately
 ```
 
-**Run without containers:**
+**Run without containers (external endpoint):**
 ```bash
 ansible-playbook audio-benchmark.yml \
   -e "test_scenario=transcription-throughput" \
+  -e '{"vllm_endpoint": {"mode": "external", "external": {"url": "http://your-vllm-host:8000"}}}' \
   -e "guidellm_use_container=false" \
   -e "ansible_become=false"
 ```

@@ -101,7 +101,7 @@ See [Embedding Models Test Suite](embedding-models/embedding-models.md) for deta
 
 ### Audio Models
 
-Performance evaluation for audio transcription, translation, and audio chat on CPU.
+Performance evaluation for audio transcription (ASR) on CPU. Translation and audio chat endpoints are supported by the models but have no dedicated benchmark scenarios yet.
 
 - **Test types**: Throughput (N files), Latency (under load), Duration scaling, Format comparison, Stress testing
 - **Metrics focus**: Files/sec, Audio seconds/sec, Real-time factor, Latency distributions

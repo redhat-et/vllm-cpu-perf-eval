@@ -195,11 +195,12 @@ def calculate_audio_aggregates(
     for req in successful_requests:
         inp = req.get("input_metrics", {})
         audio_sec = inp.get("audio_seconds", 0)
-        latency = req.get("request_latency", 0)
+        latency = req.get("request_latency")
 
         if audio_sec and audio_sec > 0:
             audio_seconds_list.append(audio_sec)
-            rtf_list.append(latency / audio_sec)
+            if latency is not None and latency > 0:
+                rtf_list.append(latency / audio_sec)
 
         if s := inp.get("audio_samples"):
             audio_samples_list.append(s)

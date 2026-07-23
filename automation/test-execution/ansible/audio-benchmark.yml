@@ -476,6 +476,7 @@
               # We explicitly set 2 to prevent worker threads from starving control plane
               VLLM_CPU_NUM_OF_RESERVED_CPU: "{{ vllm_control_plane_cores | string }}"
               HF_TOKEN: "{{ hf_token | default('') }}"
+          no_log: true
 
         # For TP=1: Leave VLLM_CPU_OMP_THREADS_BIND unset (defaults to 'auto')
         # This allows VLLM_CPU_NUM_OF_RESERVED_CPU to work properly
@@ -521,6 +522,7 @@
             log_opt:
               tag: "vllm-audio-{{ actual_model | replace('/', '__') }}"
           register: vllm_container
+          no_log: true
 
         - name: Display vLLM container start info
           ansible.builtin.debug:

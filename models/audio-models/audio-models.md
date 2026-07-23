@@ -5,14 +5,16 @@ title: Audio Models
 
 ## Audio Models for vLLM CPU Performance Testing
 
-This document describes the audio model configurations used for benchmarking automatic speech recognition (ASR), translation, and audio chat tasks on vLLM CPU deployments.
+This document describes the audio model configurations used for benchmarking automatic speech recognition (ASR) on vLLM CPU deployments.
 
 ## Overview
 
-Audio models are tested across three primary task types:
+Audio models are currently benchmarked for:
 - **Transcription (ASR)** - Speech-to-text conversion
-- **Translation** - Speech translation to text
-- **Audio Chat** - Multimodal audio + text conversations
+
+Models also support these endpoints (no dedicated benchmark scenarios yet):
+- **Translation** - Speech translation via `/v1/audio/translations`
+- **Audio Chat** - Multimodal conversations via `/v1/chat/completions` (Ultravox)
 
 ## Model Selection
 

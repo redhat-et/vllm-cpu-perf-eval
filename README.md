@@ -130,7 +130,7 @@ See individual directory markdown files for detailed information.
 
 - **Concurrent Load**: Concurrent load testing (LLM models)
 - **Scalability**: Scalability and sweep testing (LLM models)
-- **Audio Models**: Audio transcription, translation, and chat benchmarking
+- **Audio Models**: Audio transcription (ASR) benchmarking
 - **Resource Contention**: Resource contention testing (planned)
 
 ### Enhanced Concurrent Load Testing
@@ -216,7 +216,7 @@ Multi-tenant and resource sharing scenarios.
 
 **✅ SUPPORTED** - Fully validated and ready for use.
 
-Tests audio transcription, translation, and chat models.
+Tests audio transcription (ASR) models.
 
 **Quick Start:**
 ```bash
@@ -239,7 +239,7 @@ ansible-playbook -i inventory/hosts.yml audio-benchmark.yml \
 
 **Models Supported:**
 - Whisper (tiny, small, medium) - ASR transcription
-- Ultravox - Audio chat
+- Ultravox - Audio chat (planned, no runnable scenarios yet)
 
 **Documentation:**
 - **[Audio Benchmarking Guide](docs/audio-benchmarking.md)** - Comprehensive guide with troubleshooting
@@ -291,7 +291,7 @@ See [docs/embedding-models.md](docs/embedding-models.md) for comprehensive guide
 **✅ SUPPORTED** - Fully validated and ready for use.
 
 - **Whisper (tiny, small, medium)** - Speech-to-text transcription
-- **Ultravox** - Multimodal audio chat
+- **Ultravox** - Multimodal audio chat (planned, no runnable scenarios yet)
 
 See [models/models.md](models/models.md) for complete model definitions,
 selection rationale, and how to add new models.
