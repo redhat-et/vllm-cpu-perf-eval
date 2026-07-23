@@ -14,9 +14,10 @@ audio_models:
     test_scenarios:
       - "transcription-throughput"
       - "transcription-latency"
-      - "transcription-sweep"
       - "audio-duration-scaling"
-      - "concurrent-transcription"
+      - "constant-rate-stress"
+      - "format-comparison"
+      - "quick-test"
     recommended_settings:
       dtype: "float16"
       max_model_len: 448
@@ -31,9 +32,10 @@ audio_models:
     test_scenarios:
       - "transcription-throughput"
       - "transcription-latency"
-      - "transcription-sweep"
       - "audio-duration-scaling"
-      - "concurrent-transcription"
+      - "constant-rate-stress"
+      - "format-comparison"
+      - "quick-test"
     recommended_settings:
       dtype: "float16"
       max_model_len: 448
@@ -47,22 +49,20 @@ audio_models:
       - "/v1/audio/translations"
     test_scenarios:
       - "transcription-throughput"
-      - "transcription-sweep"
       - "audio-duration-scaling"
+      - "quick-test"
     recommended_settings:
       dtype: "bfloat16"
       max_model_len: 448
 
-  # Audio Chat Models
+  # Audio Chat Models (future - no runnable scenarios yet)
   - name: "ultravox-v0_5-llama-3_2-1b"
     model_id: "fixie-ai/ultravox-v0_5-llama-3_2-1b"
     task_type: "audio_chat"
-    description: "Multimodal audio chat model, processes audio + text"
+    description: "Multimodal audio chat model, processes audio + text (scenarios not yet implemented)"
     supported_endpoints:
       - "/v1/chat/completions"
-    test_scenarios:
-      - "audio-chat-throughput"
-      - "audio-chat-latency"
+    test_scenarios: []
     recommended_settings:
       dtype: "bfloat16"
       max_model_len: 2048

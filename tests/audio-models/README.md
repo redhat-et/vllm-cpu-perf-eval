@@ -6,8 +6,6 @@ Comprehensive test suite for evaluating audio model performance on vLLM CPU depl
 
 This test suite provides automated benchmarking for:
 - **Audio Transcription (ASR)** - Speech-to-text conversion
-- **Audio Translation** - Speech translation to text
-- **Audio Chat** - Multimodal audio + text conversations
 
 ### Key Questions Answered
 
@@ -384,12 +382,6 @@ ansible-playbook audio-benchmark.yml \
 
 # Medium (high quality, 769M params)
 -e "test_model=openai/whisper-medium"
-```
-
-**Audio chat models:**
-```bash
--e "test_model=fixie-ai/ultravox-v0_5-llama-3_2-1b"
--e "test_scenario=audio-chat"
 ```
 
 ### Using Different Datasets

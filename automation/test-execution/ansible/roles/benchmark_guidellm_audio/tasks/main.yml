@@ -35,6 +35,18 @@
     mode: "0777"
     recurse: true
 
+- name: Write per-stage metadata
+  ansible.builtin.copy:
+    content: |
+      {
+        "stage_name": "{{ stage.name }}",
+        "audio_format": "{{ (stage.audio_config | default(scenario_config.test_scenario.audio_config | default({}))).format | default('mp3') }}",
+        "audio_bitrate": "{{ (stage.audio_config | default(scenario_config.test_scenario.audio_config | default({}))).bitrate | default('64k') }}",
+        "audio_sample_rate": {{ (stage.audio_config | default(scenario_config.test_scenario.audio_config | default({}))).sample_rate | default(16000) }}
+      }
+    dest: "{{ stage_results_path }}/stage-metadata.json"
+    mode: "0644"
+
 - name: Display GuideLLM configuration
   ansible.builtin.debug:
     msg:
@@ -273,7 +285,7 @@
     cmd: "podman wait guidellm-audio-{{ stage.name | replace(' ', '-') }}"
   register: guidellm_exit_code_container
   changed_when: false
-  failed_when: guidellm_exit_code_container.rc != 0
+  failed_when: false
   when: use_guidellm_container | bool
 
 - name: Get container exit details
@@ -286,7 +298,7 @@
   failed_when: false
   when: use_guidellm_container | bool
 
-- name: Capture container logs on failure
+- name: Capture container logs (always, for debugging)
   ansible.builtin.shell:
     cmd: "podman logs guidellm-audio-{{ stage.name | replace(' ', '-') }} 2>&1 | tail -100"
   args:
@@ -296,8 +308,6 @@
   failed_when: false
   when:
     - use_guidellm_container | bool
-    - container_exit_code.stdout is defined
-    - container_exit_code.stdout != '0'
 
 - name: Stream GuideLLM container logs to file
   ansible.builtin.shell:
@@ -323,10 +333,10 @@
   when:
     - use_guidellm_container | bool
 
-- name: Fetch GuideLLM logs to results directory
+- name: Fetch GuideLLM logs to controller results directory
   ansible.builtin.fetch:
     src: "/tmp/guidellm-audio-{{ stage.name | replace(' ', '-') }}.log"
-    dest: "{{ stage_results_path }}/guidellm.log"
+    dest: "{{ hostvars['localhost']['local_results_base'] }}/audio-models/{{ hostvars['localhost']['actual_model'] | replace('/', '__') }}/{{ hostvars['localhost']['test_scenario'] }}-{{ hostvars['localhost']['test_run_id'] }}/{{ stage.result_filename_suffix }}/guidellm.log"
     flat: true
   when:
     - use_guidellm_container | bool
@@ -334,7 +344,7 @@
 - name: Fetch benchmark results JSON to controller
   ansible.builtin.fetch:
     src: "{{ stage_results_path }}/benchmarks.json"
-    dest: "{{ stage_results_path }}/benchmarks.json"
+    dest: "{{ hostvars['localhost']['local_results_base'] }}/audio-models/{{ hostvars['localhost']['actual_model'] | replace('/', '__') }}/{{ hostvars['localhost']['test_scenario'] }}-{{ hostvars['localhost']['test_run_id'] }}/{{ stage.result_filename_suffix }}/benchmarks.json"
     flat: true
   when:
     - use_guidellm_container | bool
@@ -343,7 +353,7 @@
 - name: Fetch benchmark results CSV to controller
   ansible.builtin.fetch:
     src: "{{ stage_results_path }}/benchmarks.csv"
-    dest: "{{ stage_results_path }}/benchmarks.csv"
+    dest: "{{ hostvars['localhost']['local_results_base'] }}/audio-models/{{ hostvars['localhost']['actual_model'] | replace('/', '__') }}/{{ hostvars['localhost']['test_scenario'] }}-{{ hostvars['localhost']['test_run_id'] }}/{{ stage.result_filename_suffix }}/benchmarks.csv"
     flat: true
   when:
     - use_guidellm_container | bool
@@ -401,7 +411,7 @@
 - name: Fetch benchmark results JSON to controller (host mode)
   ansible.builtin.fetch:
     src: "{{ stage_results_path }}/benchmarks.json"
-    dest: "{{ stage_results_path }}/benchmarks.json"
+    dest: "{{ hostvars['localhost']['local_results_base'] }}/audio-models/{{ hostvars['localhost']['actual_model'] | replace('/', '__') }}/{{ hostvars['localhost']['test_scenario'] }}-{{ hostvars['localhost']['test_run_id'] }}/{{ stage.result_filename_suffix }}/benchmarks.json"
     flat: true
   when:
     - not (use_guidellm_container | bool)
@@ -410,7 +420,7 @@
 - name: Fetch benchmark results CSV to controller (host mode)
   ansible.builtin.fetch:
     src: "{{ stage_results_path }}/benchmarks.csv"
-    dest: "{{ stage_results_path }}/benchmarks.csv"
+    dest: "{{ hostvars['localhost']['local_results_base'] }}/audio-models/{{ hostvars['localhost']['actual_model'] | replace('/', '__') }}/{{ hostvars['localhost']['test_scenario'] }}-{{ hostvars['localhost']['test_run_id'] }}/{{ stage.result_filename_suffix }}/benchmarks.csv"
     flat: true
   when:
     - not (use_guidellm_container | bool)

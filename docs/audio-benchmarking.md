@@ -17,8 +17,6 @@ Comprehensive guide for benchmarking audio models (ASR, translation, chat) on vL
 ### What Audio Models Are Supported?
 
 - **Audio Transcription (ASR)** - Speech-to-text (Whisper family)
-- **Audio Translation** - Speech-to-text translation
-- **Audio Chat** - Multimodal audio + text conversations (Ultravox)
 
 ### Key Questions Answered
 
@@ -294,12 +292,6 @@ Examples:
 
 # Medium (best quality, 769M params)
 -e "test_model=openai/whisper-medium"
-```
-
-**Audio Chat Models:**
-```bash
--e "test_model=fixie-ai/ultravox-v0_5-llama-3_2-1b"
--e "test_scenario=audio-chat"
 ```
 
 ### Non-Container Mode

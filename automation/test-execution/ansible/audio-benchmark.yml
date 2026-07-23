@@ -87,6 +87,7 @@
     - name: Detect if running from AWX
       ansible.builtin.set_fact:
         is_awx_job: "{{ lookup('env', 'AWX_JOB_ID') | length > 0 }}"
+        local_results_base: "{{ lookup('env', 'HOME') ~ '/benchmark-results' if (lookup('env', 'AWX_JOB_ID') | length > 0) else playbook_dir ~ '/../../../results' }}"
 
     # ========================================================================
     # Input Validation
@@ -131,7 +132,7 @@
     - name: Validate test scenario is supported
       ansible.builtin.assert:
         that:
-          - test_scenario in ['transcription-throughput', 'transcription-latency', 'audio-duration-scaling', 'constant-rate-stress', 'format-comparison', 'translation-throughput', 'audio-chat', 'quick-test']
+          - test_scenario in ['transcription-throughput', 'transcription-latency', 'audio-duration-scaling', 'constant-rate-stress', 'format-comparison', 'quick-test']
         fail_msg: |
           Unsupported test_scenario: {{ test_scenario }}
           Supported scenarios:
@@ -140,8 +141,6 @@
             - audio-duration-scaling (performance vs audio length)
             - constant-rate-stress (sustained load stability)
             - format-comparison (audio format comparison)
-            - translation-throughput (audio translation)
-            - audio-chat (multimodal audio chat)
             - quick-test (fast 5-file test for validation)
 
     - name: Validate audio_num_files if provided
@@ -330,6 +329,45 @@
     container_name: "vllm-audio-{{ hostvars['localhost']['test_run_id'] }}"
 
   tasks:
+    - name: Detect DUT platform (managed mode)
+      when: vllm_mode == 'managed'
+      block:
+        - name: Get CPU model name for platform identification
+          ansible.builtin.shell: |
+            lscpu | grep -i '^Model name' | sed 's/^[Mm]odel name:[[:space:]]*//' | head -1
+          register: cpu_model_raw
+          changed_when: false
+
+        - name: Save sanitized platform name to localhost
+          ansible.builtin.set_fact:
+            dut_platform_name: "{{ cpu_model_raw.stdout | trim | regex_replace('[^a-zA-Z0-9]', '_') | regex_replace('_+', '_') | regex_replace('^_|_$', '') }}"
+          delegate_to: localhost
+          delegate_facts: true
+
+        - name: Display detected platform
+          ansible.builtin.debug:
+            msg: "Platform detected: {{ cpu_model_raw.stdout | trim }}"
+
+    - name: Detect vLLM version from endpoint
+      when: vllm_mode == 'external'
+      block:
+        - name: Query vLLM version from external endpoint
+          ansible.builtin.uri:
+            url: "{{ vllm_endpoint.external.url }}/version"
+            method: GET
+            status_code: [200]
+            validate_certs: false
+          register: vllm_version_response
+          failed_when: false
+          delegate_to: localhost
+
+        - name: Save vLLM version to localhost
+          ansible.builtin.set_fact:
+            vllm_version: "{{ vllm_version_response.json.version | default('unknown') }}"
+          delegate_to: localhost
+          delegate_facts: true
+          when: vllm_version_response.status | default(0) == 200
+
     - name: Start vLLM server (managed mode only)
       when: vllm_mode == 'managed'
       block:
@@ -401,19 +439,10 @@
               ansible.builtin.set_fact:
                 vllm_audio_image: "localhost/vllm-audio-cpu:{{ container_runtime.image.split(':')[1] }}"
 
-        - name: Find all existing vLLM containers (audio and LLM)
-          ansible.builtin.command:
-            cmd: podman ps -a --filter "name=vllm-" --format "{{ '{{' }}.Names{{ '}}' }}"
-          register: existing_vllm_containers
-          changed_when: false
-          failed_when: false
-
-        - name: Stop and remove all existing vLLM containers
+        - name: Stop and remove any previous audio vLLM container
           containers.podman.podman_container:
-            name: "{{ item }}"
+            name: "{{ container_name }}"
             state: absent
-          loop: "{{ existing_vllm_containers.stdout_lines }}"
-          when: existing_vllm_containers.stdout_lines | length > 0
           ignore_errors: true
 
         - name: Determine NUMA node from core range
@@ -510,6 +539,22 @@
             vllm_host: "{{ ansible_host }}"
             vllm_port: "{{ vllm_server.port }}"
 
+        - name: Query vLLM version from managed server
+          ansible.builtin.uri:
+            url: "http://{{ ansible_host }}:{{ vllm_server.port }}/version"
+            method: GET
+            status_code: [200]
+            validate_certs: false
+          register: managed_vllm_version
+          failed_when: false
+
+        - name: Save vLLM version to localhost (managed)
+          ansible.builtin.set_fact:
+            vllm_version: "{{ managed_vllm_version.json.version | default('unknown') }}"
+          delegate_to: localhost
+          delegate_facts: true
+          when: managed_vllm_version.status | default(0) == 200
+
 # ============================================================================
 # Run Audio Benchmark Stages
 # ============================================================================
@@ -531,7 +576,8 @@
     scenario_request_type: "{{ hostvars['localhost']['scenario_request_type'] }}"
     target_url: "{{ vllm_endpoint.external.url if vllm_mode == 'external' else 'http://' + bench_config.vllm_host + ':' + (vllm_server.port | string) }}"
     test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
-    results_base: "{{ playbook_dir }}/../../../results/audio-models/{{ actual_model | replace('/', '__') }}/{{ test_scenario }}-{{ hostvars['localhost']['test_run_id'] }}"
+    # Remote results path on load generator (matches LLM pattern)
+    results_base: "{{ bench_config.results_dir }}/audio-models/{{ actual_model | replace('/', '__') }}/{{ test_scenario }}-{{ hostvars['localhost']['test_run_id'] }}"
 
   pre_tasks:
     - name: Record benchmark start time
@@ -580,13 +626,12 @@
       when: loadgen_connectivity_check.status != 200
 
   tasks:
-    - name: Setup results directory
+    - name: Setup results directory on load generator
       ansible.builtin.file:
         path: "{{ results_base }}"
         state: directory
         mode: "0755"
         recurse: true
-      delegate_to: localhost
 
     - name: Run each benchmark stage
       ansible.builtin.include_role:
@@ -617,7 +662,7 @@
       delegate_to: localhost
       delegate_facts: true
 
-    - name: Create test metadata JSON
+    - name: Create test metadata JSON on load generator
       ansible.builtin.copy:
         content: |
           {
@@ -647,12 +692,39 @@
             "audio_bitrate": "{{ scenario_config.test_scenario.audio_config.bitrate | default('64k') }}",
             "audio_sample_rate": {{ scenario_config.test_scenario.audio_config.sample_rate | default(16000) }},
             "stages_completed": {{ scenario_stages | length }},
+            "stages": {{ scenario_stages | to_json }},
             "timestamp": "{{ lookup('pipe', 'date -Iseconds') }}",
             "test_duration": "{{ hostvars['localhost']['test_duration_string'] }}",
             "test_duration_seconds": {{ hostvars['localhost']['test_duration_seconds'] }}
           }
         dest: "{{ results_base }}/test-metadata.json"
+
+    - name: Ensure local results directory exists on controller
+      ansible.builtin.file:
+        path: "{{ hostvars['localhost']['local_results_base'] }}/audio-models/{{ actual_model | replace('/', '__') }}/{{ test_scenario }}-{{ test_run_id }}"
+        state: directory
+        mode: "0755"
       delegate_to: localhost
+
+    - name: Fetch results to controller
+      block:
+        - name: Fetch results via synchronize
+          ansible.posix.synchronize:
+            src: "{{ results_base }}/"
+            dest: "{{ hostvars['localhost']['local_results_base'] }}/audio-models/{{ actual_model | replace('/', '__') }}/{{ test_scenario }}-{{ test_run_id }}/"
+            mode: pull
+            recursive: true
+      rescue:
+        - name: Note synchronize fallback
+          ansible.builtin.debug:
+            msg: "Result sync via synchronize failed; falling back to per-file fetch."
+
+        - name: Fetch test-metadata.json (fallback)
+          ansible.builtin.fetch:
+            src: "{{ results_base }}/test-metadata.json"
+            dest: "{{ hostvars['localhost']['local_results_base'] }}/audio-models/{{ actual_model | replace('/', '__') }}/{{ test_scenario }}-{{ test_run_id }}/test-metadata.json"
+            flat: true
+          failed_when: false
 
     - name: Stop vLLM metrics collection
       ansible.builtin.include_tasks: tasks/stop-vllm-metrics-collection.yml
@@ -693,7 +765,7 @@
   gather_facts: false
 
   vars:
-    results_base: "{{ playbook_dir }}/../../../results/audio-models/{{ actual_model | replace('/', '__') }}/{{ test_scenario }}-{{ test_run_id }}"
+    local_results_dir: "{{ local_results_base }}/audio-models/{{ actual_model | replace('/', '__') }}/{{ test_scenario }}-{{ test_run_id }}"
 
   tasks:
     - name: Display completion message
@@ -705,5 +777,5 @@
           - "  Test Scenario: {{ scenario_name }}"
           - "  Model: {{ actual_model }}"
           - "  Stages Completed: {{ scenario_stages | length }}"
-          - "  Results Directory: {{ results_base }}"
+          - "  Results Directory: {{ local_results_dir }}"
           - "╚══════════════════════════════════════════════════════════════╝"

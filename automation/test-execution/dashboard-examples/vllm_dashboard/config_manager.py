@@ -67,6 +67,36 @@ class DashboardConfig:
         self.config['Paths']['results_directory'] = path
         self._save_config()
 
+    def get_audio_results_directory(self):
+        """Get configured audio results directory path.
+
+        Returns:
+            str: Path to audio results directory
+        """
+        env_path = os.getenv('VLLM_DASHBOARD_AUDIO_RESULTS_DIR')
+        if env_path:
+            return env_path
+
+        if 'Paths' in self.config:
+            return self.config['Paths'].get(
+                'audio_results_directory',
+                '../../../../results/audio-models'
+            )
+        return '../../../../results/audio-models'
+
+    def set_audio_results_directory(self, path: str):
+        """Set and persist audio results directory path.
+
+        Does not affect the LLM results directory.
+
+        Args:
+            path: Path to audio results directory
+        """
+        if 'Paths' not in self.config:
+            self.config['Paths'] = {}
+
+        self.config['Paths']['audio_results_directory'] = path
+        self._save_config()
 
 def normalize_vllm_version(version_string):
     """Normalize vLLM version for display.

@@ -8,15 +8,12 @@ import json
 import logging
 import sys
 from pathlib import Path
-from typing import Literal
-
 import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import plotly.io as pio
 import streamlit as st
-from plotly.subplots import make_subplots
 
 # Add parent directory to path for config_manager import
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -83,6 +80,16 @@ def load_audio_data(results_dir: str) -> pd.DataFrame:
             with open(metadata_file) as f:
                 metadata = json.load(f)
 
+            # Load per-stage metadata if available (overrides run-level for format info)
+            stage_metadata = {}
+            stage_metadata_file = json_file.parent / "stage-metadata.json"
+            if stage_metadata_file.exists():
+                try:
+                    with open(stage_metadata_file) as f:
+                        stage_metadata = json.load(f)
+                except Exception:
+                    pass
+
             # Extract each benchmark (load point)
             for bench in data.get('benchmarks', []):
                 metrics = bench['metrics']
@@ -119,10 +126,10 @@ def load_audio_data(results_dir: str) -> pd.DataFrame:
                     'guidellm_version': metadata.get('guidellm_version', 'unknown'),
                     'tensor_parallel': metadata.get('tensor_parallel', 1),
 
-                    # Audio file format metadata
-                    'audio_format': metadata.get('audio_format', 'unknown'),
-                    'audio_sample_rate': metadata.get('audio_sample_rate', 0),
-                    'audio_bitrate': metadata.get('audio_bitrate', 'unknown'),
+                    # Audio file format metadata (prefer per-stage over run-level)
+                    'audio_format': stage_metadata.get('audio_format', metadata.get('audio_format', 'unknown')),
+                    'audio_sample_rate': stage_metadata.get('audio_sample_rate', metadata.get('audio_sample_rate', 0)),
+                    'audio_bitrate': stage_metadata.get('audio_bitrate', metadata.get('audio_bitrate', 'unknown')),
                     'dataset_name': metadata.get('dataset_name', 'unknown'),
                     'dataset_config': metadata.get('dataset_config', 'unknown'),
 
@@ -296,22 +303,31 @@ def render_filters(df: pd.DataFrame) -> pd.DataFrame:
 
 def render_overview_metrics(df: pd.DataFrame):
     """Render overview metric cards."""
-    # Test Dataset Overview
+    # Test Dataset Overview — use one representative stage per run to avoid
+    # double-counting files/audio across sequential + concurrent + max-throughput.
+    representative = df.copy()
+    if 'sequential' in df['stage'].values:
+        representative = df[df['stage'] == 'sequential']
+    else:
+        representative = df.drop_duplicates(
+            subset=['test_run_id', 'model', 'scenario'], keep='first'
+        )
+
     st.markdown("### 📊 Test Dataset Overview")
 
     # First row: File statistics
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        total_files = df['successful_requests'].sum()
+        total_files = representative['successful_requests'].sum()
         st.metric(
             "Audio Files",
             f"{int(total_files)}",
-            help="Total number of audio files processed across all tests"
+            help="Total audio files (deduplicated by run, using representative stage)"
         )
 
     with col2:
-        avg_duration = df['mean_audio_seconds'].mean()
+        avg_duration = representative['mean_audio_seconds'].mean()
         st.metric(
             "Avg Duration",
             f"{avg_duration:.2f}s per file",
@@ -319,7 +335,7 @@ def render_overview_metrics(df: pd.DataFrame):
         )
 
     with col3:
-        total_audio = df['total_audio_seconds'].sum()
+        total_audio = representative['total_audio_seconds'].sum()
         if total_audio >= 3600:
             display_audio = f"{total_audio/3600:.2f}h"
         elif total_audio >= 60:
@@ -329,36 +345,44 @@ def render_overview_metrics(df: pd.DataFrame):
         st.metric(
             "Total Audio",
             display_audio,
-            help="Total audio content processed"
+            help="Total audio content (deduplicated by run)"
         )
 
     with col4:
-        total_mb = df['total_audio_bytes'].sum() / (1024 * 1024)
+        total_mb = representative['total_audio_bytes'].sum() / (1024 * 1024)
         st.metric(
             "Total Data",
             f"{total_mb:.1f} MB",
-            help="Total audio payload size"
+            help="Total audio payload size (deduplicated by run)"
         )
 
     # Second row: Audio format details
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        # Get audio format from first row
-        audio_format = df['audio_format'].iloc[0] if len(df) > 0 else 'unknown'
+        unique_formats = df['audio_format'].unique()
+        if len(unique_formats) == 1:
+            display_format = str(unique_formats[0]).upper()
+        else:
+            display_format = ", ".join(
+                sorted(str(f).upper() for f in unique_formats if f != 'unknown')
+            ) or "Mixed"
         st.metric(
             "Audio Format",
-            audio_format.upper(),
+            display_format,
             help="Audio file format (MP3, WAV, FLAC, etc.)"
         )
 
     with col2:
-        # Get sample rate
-        sample_rate = df['audio_sample_rate'].iloc[0] if len(df) > 0 else 0
-        if sample_rate >= 1000:
-            display_rate = f"{int(sample_rate/1000)}kHz"
+        unique_rates = df['audio_sample_rate'].unique()
+        if len(unique_rates) == 1:
+            sample_rate = unique_rates[0]
+            if sample_rate >= 1000:
+                display_rate = f"{int(sample_rate/1000)}kHz"
+            else:
+                display_rate = f"{int(sample_rate)}Hz"
         else:
-            display_rate = f"{int(sample_rate)}Hz"
+            display_rate = "Mixed"
         st.metric(
             "Sample Rate",
             display_rate,
@@ -366,11 +390,15 @@ def render_overview_metrics(df: pd.DataFrame):
         )
 
     with col3:
-        # Get bitrate
-        bitrate = df['audio_bitrate'].iloc[0] if len(df) > 0 else 'unknown'
+        unique_bitrates = df['audio_bitrate'].unique()
+        if len(unique_bitrates) == 1:
+            bitrate = unique_bitrates[0]
+            display_br = bitrate.upper() if isinstance(bitrate, str) else str(bitrate)
+        else:
+            display_br = "Mixed"
         st.metric(
             "Bitrate",
-            bitrate.upper() if isinstance(bitrate, str) else str(bitrate),
+            display_br,
             help="Audio encoding bitrate"
         )
 
@@ -386,42 +414,42 @@ def render_overview_metrics(df: pd.DataFrame):
 
     st.markdown("---")
 
-    # Performance Overview
+    # Performance Overview — show best-stage metrics explicitly
     st.markdown("### 📈 Performance Overview")
     col1, col2, col3, col4 = st.columns(4)
 
     with col1:
-        # Convert audio_sec/wall_sec to hours/hour for clarity
-        avg_throughput = df['audio_throughput'].mean()
+        best_throughput = df['audio_throughput'].max()
+        best_throughput_stage = df.loc[df['audio_throughput'].idxmax(), 'stage']
         st.metric(
-            "Audio Hours/Hour",
-            f"{avg_throughput:.1f}h/h",
-            help=f"Processing {avg_throughput:.1f} hours of audio per hour ({avg_throughput:.1f}x real-time)"
+            "Best Audio Hours/Hour",
+            f"{best_throughput:.1f}h/h",
+            help=f"Best throughput: {best_throughput:.1f}h/h at {best_throughput_stage} stage"
         )
 
     with col2:
-        # Files/hour at maximum throughput
         max_throughput_row = df.loc[df['requests_per_second'].idxmax()]
         files_per_hour = max_throughput_row['requests_per_second'] * 3600
         st.metric(
             "Max Files/Hour",
             f"{int(files_per_hour):,}",
-            help=f"Maximum capacity: {int(files_per_hour):,} files/hour at {max_throughput_row['stage']} stage"
+            help=f"Maximum capacity at {max_throughput_row['stage']} stage"
         )
 
     with col3:
-        avg_rtf = df['rtf_mean'].mean()
+        best_rtf = df['rtf_mean'].min()
+        best_rtf_stage = df.loc[df['rtf_mean'].idxmin(), 'stage']
         st.metric(
-            "Avg Real-Time Factor",
-            f"{avg_rtf:.3f}",
-            help="Processing time / audio duration (< 1.0 = faster than real-time)"
+            "Best RTF",
+            f"{best_rtf:.3f}",
+            help=f"Best (lowest) RTF at {best_rtf_stage} stage (< 1.0 = faster than real-time)"
         )
 
     with col4:
         st.metric(
             "Avg Success Rate",
             f"{df['success_rate'].mean():.1f}%",
-            help="Percentage of successful requests"
+            help="Percentage of successful requests across all stages"
         )
 
 
@@ -439,20 +467,16 @@ def plot_speedup_vs_sequential(df: pd.DataFrame):
     Example: If sequential takes 10 seconds and concurrent-8 takes 3.8 seconds, speedup = 2.6x
     """)
 
-    # Calculate speedup for each model
+    # Calculate speedup for each model+run combination
     speedup_data = []
-    for model in df['model_short'].unique():
-        model_df = df[df['model_short'] == model]
-
-        # Find sequential baseline (duration)
-        sequential_rows = model_df[model_df['stage'] == 'sequential']
+    for (model, run_id), group_df in df.groupby(['model_short', 'test_run_id']):
+        sequential_rows = group_df[group_df['stage'] == 'sequential']
         if sequential_rows.empty:
             continue
 
         sequential_duration = sequential_rows['duration'].iloc[0]
 
-        # Calculate speedup for each stage
-        for _, row in model_df.iterrows():
+        for _, row in group_df.iterrows():
             speedup = sequential_duration / row['duration'] if row['duration'] > 0 else 0
             speedup_data.append({
                 'model': model,
@@ -634,7 +658,9 @@ def plot_rtf(df: pd.DataFrame):
             'model': 'Model',
             'percentile': 'Percentile'
         },
-        title=f"Real-Time Factor - {selected_percentiles} (Lower = Better)"
+        title="Real-Time Factor - {} (Lower = Better)".format(
+            ", ".join(percentile_labels[p] for p in selected_percentiles)
+        )
     )
 
     # Add reference line at RTF=1.0 (real-time processing)
@@ -866,8 +892,8 @@ def main():
     # Load config
     config = DashboardConfig()
 
-    # Get default path - use audio-models instead of llm
-    default_results_dir = config.get_results_directory().replace('/llm', '/audio-models')
+    # Get default path from audio-specific config (does not touch LLM path)
+    default_results_dir = config.get_audio_results_directory()
 
     # Sidebar: Results directory
     st.sidebar.markdown("## 📁 Data Source")
@@ -877,9 +903,9 @@ def main():
         help="Path to audio-models results directory"
     )
 
-    # Update config if changed (save the audio path)
+    # Persist audio path separately (does not overwrite LLM results dir)
     if results_dir != default_results_dir:
-        config.set_results_directory(results_dir)
+        config.set_audio_results_directory(results_dir)
 
     # Load data
     with st.spinner("Loading audio benchmark data..."):
