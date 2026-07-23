@@ -602,12 +602,18 @@ operator questions with minimal wall-clock time.
 ```bash
 cd automation/test-execution/ansible
 
-for scenario in transcription-throughput transcription-latency; do
+for scenario in transcription-throughput transcription-latency transcription-quality; do
   ansible-playbook -i inventory/hosts.yml audio-benchmark.yml \
     -e "test_model=openai/whisper-small" \
     -e "test_scenario=$scenario" \
     -e "requested_cores=32"
 done
+```
+
+**Controller prerequisites for quality evaluation:**
+
+```bash
+pip install jiwer datasets soundfile requests
 ```
 
 **View results:**
@@ -685,20 +691,35 @@ Transcription accuracy is measured with `evaluate_audio_quality.py`, which
 sends audio clips to a running vLLM endpoint and computes WER/CER with
 [jiwer](https://github.com/jitsi/jiwer).
 
-**Prerequisites (on the machine running the script):**
+**Automated (recommended):** The playbook runs the evaluator automatically
+when `test_scenario=transcription-quality`.  It writes `quality-results.json`
+into the run directory (next to `test-metadata.json`) so the dashboard and
+CLI report can join WER to the correct run.
+
+**Prerequisites (on the Ansible controller):**
 
 ```bash
 pip install jiwer datasets soundfile requests
 ```
 
-**Run against a live endpoint:**
+If these are missing the playbook prints a warning but does not fail.
+
+**Manual standalone (against a live endpoint):**
 
 ```bash
+# Point --output-dir at a run directory that has test-metadata.json
 python3 automation/test-execution/scripts/ansible/evaluate_audio_quality.py \
   --endpoint http://dut:8000 \
-  --output-dir results/audio-models/openai__whisper-small/transcription-quality-run/ \
+  --output-dir results/audio-models/openai__whisper-small/transcription-quality-<run-id>/ \
   --model openai/whisper-small \
   --num-clips 50
+
+# Or pass --test-run-id and --cores explicitly when no test-metadata.json exists
+python3 automation/test-execution/scripts/ansible/evaluate_audio_quality.py \
+  --endpoint http://dut:8000 \
+  --output-dir /tmp/quality-eval/ \
+  --model openai/whisper-small \
+  --test-run-id my-run-001 --cores 32
 ```
 
 **Use local audio files instead of HuggingFace:**
@@ -712,7 +733,8 @@ python3 evaluate_audio_quality.py \
 ```
 
 The `--audio-dir` must contain audio files and a `references.json` mapping
-filenames to ground-truth text.
+filenames to ground-truth text.  Note: `--audio-format` applies only to local
+files; HuggingFace clips are always uploaded as WAV.
 
 Results are written to `quality-results.json` and automatically picked up by
 both the dashboard (Quality tab) and the terminal report.

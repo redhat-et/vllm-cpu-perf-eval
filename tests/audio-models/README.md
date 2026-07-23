@@ -534,12 +534,17 @@ ansible-playbook -i inventory/hosts.yml audio-benchmark.yml \
   -e "test_scenario=transcription-latency" \
   -e "requested_cores=32"
 
-# 3. Accuracy (requires jiwer + datasets on the controller)
-python3 automation/test-execution/scripts/ansible/evaluate_audio_quality.py \
-  --endpoint http://dut:8000 \
-  --output-dir results/audio-models/openai__whisper-small/transcription-quality-run/ \
-  --model openai/whisper-small
+# 3. Accuracy (requires jiwer + datasets + soundfile + requests on the controller)
+#    pip install jiwer datasets soundfile requests
+ansible-playbook -i inventory/hosts.yml audio-benchmark.yml \
+  -e "test_model=openai/whisper-small" \
+  -e "test_scenario=transcription-quality" \
+  -e "requested_cores=32"
 ```
+
+The `transcription-quality` scenario runs GuideLLM for RTF context, then
+automatically calls `evaluate_audio_quality.py` to compute WER/CER and write
+`quality-results.json` into the run directory.
 
 A terminal report prints automatically after each playbook run. See
 [docs/audio-benchmarking.md](../../docs/audio-benchmarking.md) for full details.

@@ -73,15 +73,22 @@ and writes `quality-results.json`.
 
 **Usage:**
 ```bash
+# Automated (called by playbook for transcription-quality scenario)
+# Manual:
 python3 evaluate_audio_quality.py \
   --endpoint http://dut:8000 \
-  --output-dir results/audio-models/openai__whisper-small/transcription-quality-run/ \
+  --output-dir results/audio-models/openai__whisper-small/transcription-quality-<run-id>/ \
   --model openai/whisper-small \
-  --num-clips 50
+  --num-clips 50 \
+  --test-run-id <run-id> --cores 32
 ```
 
+Note: `--audio-format` applies only to local `--audio-dir` files.
+HuggingFace clips are always uploaded as WAV.
+
 **Used by:**
-- Operators after running `transcription-quality` scenario
+- `automation/test-execution/ansible/audio-benchmark.yml` (automatic for `transcription-quality`)
+- Operators directly (standalone CLI against a live endpoint)
 - Dashboard Quality tab (reads `quality-results.json`)
 
 ## Conversion Scripts

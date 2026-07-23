@@ -4,13 +4,21 @@
 Sends audio clips to /v1/audio/transcriptions, compares hypotheses to
 ground-truth text, and writes quality-results.json.
 
-Prerequisites:
+Prerequisites (on the machine running this script):
     pip install jiwer datasets soundfile requests
 
 Usage:
+    # Automated (called by playbook for transcription-quality scenario):
     python3 evaluate_audio_quality.py \\
         --endpoint http://dut:8000 \\
-        --output-dir results/audio-models/openai__whisper-small/transcription-quality-run/ \\
+        --output-dir results/audio-models/openai__whisper-small/transcription-quality-<run-id>/ \\
+        --model openai/whisper-small \\
+        --test-run-id <run-id> --cores 32
+
+    # Manual standalone:
+    python3 evaluate_audio_quality.py \\
+        --endpoint http://dut:8000 \\
+        --output-dir results/audio-models/openai__whisper-small/transcription-quality-<run-id>/ \\
         --model openai/whisper-small
 
     # Use a local audio directory instead of HuggingFace:
@@ -22,6 +30,9 @@ Usage:
 
     The --audio-dir must contain .wav/.mp3/.flac files and a references.json:
       {"file1.mp3": "the ground truth text", ...}
+
+Note: --audio-format applies only to local files (--audio-dir).  When loading
+from HuggingFace, clips are always uploaded as WAV (soundfile default).
 """
 
 import argparse
@@ -142,7 +153,12 @@ def main():
     p.add_argument("--audio-column", default="audio")
     p.add_argument("--audio-dir", default=None,
                    help="Local dir with audio files + references.json")
-    p.add_argument("--audio-format", default="mp3")
+    p.add_argument("--audio-format", default="mp3",
+                   help="Audio format for local files (HF path always uploads WAV)")
+    p.add_argument("--test-run-id", default=None,
+                   help="Test run ID to embed in quality-results.json")
+    p.add_argument("--cores", type=int, default=None,
+                   help="Core count to embed in quality-results.json")
 
     args = p.parse_args()
 
@@ -217,6 +233,10 @@ def main():
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "per_clip": per_clip,
     }
+    if args.test_run_id:
+        result["test_run_id"] = args.test_run_id
+    if args.cores is not None:
+        result["cores"] = args.cores
 
     out_path = output_dir / "quality-results.json"
     with open(out_path, "w") as fh:

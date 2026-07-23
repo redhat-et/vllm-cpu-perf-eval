@@ -18,9 +18,11 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from config_manager import DashboardConfig
 from audio_enterprise import (
+    compute_batch_eta,
     compute_capacity_metrics,
     compute_warmup_metrics,
     discover_run_results,
+    format_duration,
     format_enterprise_report,
     load_quality_results,
 )
@@ -687,19 +689,29 @@ def render_quality_tab(quality_df: pd.DataFrame, perf_df: pd.DataFrame):
             perf_df.groupby('model_short')['rtf_mean'].min().reset_index(),
             on='model_short', how='inner',
         )
-        if not merged.empty and len(merged) > 1:
-            st.markdown("#### WER vs Best RTF (Pareto)")
-            fig2 = px.scatter(
-                merged,
-                x=merged['wer'] * 100,
-                y='rtf_mean',
-                text='model_short',
-                labels={'x': 'WER (%)', 'rtf_mean': 'Best RTF (lower=faster)'},
-                title="Accuracy vs Speed Trade-off",
-            )
-            fig2.update_traces(textposition='top center')
-            fig2.update_layout(height=400)
-            st.plotly_chart(fig2, use_container_width=True)
+        if not merged.empty:
+            st.markdown("#### WER vs Best RTF")
+            if len(merged) > 1:
+                fig2 = px.scatter(
+                    merged,
+                    x=merged['wer'] * 100,
+                    y='rtf_mean',
+                    text='model_short',
+                    labels={'x': 'WER (%)', 'rtf_mean': 'Best RTF (lower=faster)'},
+                    title="Accuracy vs Speed Trade-off",
+                )
+                fig2.update_traces(textposition='top center')
+                fig2.update_layout(height=400)
+                st.plotly_chart(fig2, use_container_width=True)
+            else:
+                row = merged.iloc[0]
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Model", row['model_short'])
+                with col2:
+                    st.metric("WER", f"{row['wer'] * 100:.1f}%")
+                with col3:
+                    st.metric("Best RTF", f"{row['rtf_mean']:.3f}")
 
     st.markdown("#### Quality Details")
     display = quality_df[['model_short', 'wer', 'cer', 'num_clips',
@@ -738,28 +750,34 @@ def render_capacity_tab(df: pd.DataFrame, p95_target: float):
         col1, col2, col3, col4 = st.columns(4)
         with col1:
             v = cap.get('audio_hours_per_hour')
-            st.metric("Audio Hours/Hour", f"{v:.1f}" if v else "n/a")
+            st.metric("Audio Hours/Hour",
+                       f"{v:.1f}" if v is not None else "n/a")
         with col2:
             v = cap.get('files_per_hour')
-            st.metric("Files/Hour", f"{int(v):,}" if v else "n/a")
+            st.metric("Files/Hour",
+                       f"{int(v):,}" if v is not None else "n/a")
         with col3:
             mc = cap.get('max_concurrency_at_p95')
-            label = f"{mc}" if mc else "n/a"
-            st.metric(f"Max Concurrency (P95 ≤ {p95_target}s)", label)
+            st.metric(f"Max Concurrency (P95 ≤ {p95_target}s)",
+                       f"{mc}" if mc is not None else "n/a")
         with col4:
             v = cap.get('core_hours_per_audio_hour')
-            st.metric("Core-Hours/Audio-Hour", f"{v:.2f}" if v else "n/a")
+            st.metric("Core-Hours/Audio-Hour",
+                       f"{v:.2f}" if v is not None else "n/a")
 
         col1, col2, col3 = st.columns(3)
         with col1:
             v = cap.get('throughput_per_core')
-            st.metric("Throughput/Core", f"{v:.3f}" if v else "n/a")
+            st.metric("Throughput/Core",
+                       f"{v:.3f}" if v is not None else "n/a")
         with col2:
             v = warmup.get('warmup_duration')
-            st.metric("Warmup (ready)", f"{v:.1f}s" if v else "n/a")
+            st.metric("Warmup (ready)",
+                       f"{v:.1f}s" if v is not None else "n/a")
         with col3:
             v = warmup.get('first_rtf')
-            st.metric("First RTF", f"{v:.2f}" if v else "n/a")
+            st.metric("First RTF",
+                       f"{v:.2f}" if v is not None else "n/a")
 
         # Concurrency vs P95 chart
         conc_data = [s for s in stages if s.get('concurrency') and s.get('e2e_p95')]
@@ -803,7 +821,6 @@ def render_capacity_tab(df: pd.DataFrame, p95_target: float):
             model = stages[0].get('model', 'unknown')
             cores = stages[0].get('cores', 0)
             cap = compute_capacity_metrics(stages, cores, p95_target)
-            from audio_enterprise import compute_batch_eta
             eta = compute_batch_eta(
                 files_per_second=cap.get('best_requests_per_second'),
                 total_files=int(eta_files) if eta_files else None,
@@ -812,11 +829,9 @@ def render_capacity_tab(df: pd.DataFrame, p95_target: float):
             )
             parts = [f"**{model} ({cores} cores):** "]
             if eta.get('eta_files_seconds'):
-                from audio_enterprise import _fmt_duration
-                parts.append(f"  {int(eta_files):,} files → {_fmt_duration(eta['eta_files_seconds'])}")
+                parts.append(f"  {int(eta_files):,} files → {format_duration(eta['eta_files_seconds'])}")
             if eta.get('eta_audio_hours_seconds'):
-                from audio_enterprise import _fmt_duration
-                parts.append(f"  {eta_hours:.1f} audio hours → {_fmt_duration(eta['eta_audio_hours_seconds'])}")
+                parts.append(f"  {eta_hours:.1f} audio hours → {format_duration(eta['eta_audio_hours_seconds'])}")
             st.markdown("\n".join(parts))
 
     # Terminal report button
@@ -929,7 +944,7 @@ def main():
         df = load_audio_data(results_dir)
         quality_df = load_quality_data(results_dir)
 
-    if df.empty:
+    if df.empty and quality_df.empty:
         st.warning(f"""
         No audio benchmark data found in: `{results_dir}`
 
@@ -960,14 +975,20 @@ def main():
         """)
         return
 
-    st.success(f"✅ Loaded {len(df)} test results from {len(df['test_run_id'].unique())} test runs")
+    has_perf = not df.empty
 
-    # Filters
-    filtered_df = render_filters(df)
+    if has_perf:
+        st.success(f"✅ Loaded {len(df)} test results from {len(df['test_run_id'].unique())} test runs")
+    else:
+        st.info("No performance data found. Quality data is available.")
 
-    if filtered_df.empty:
-        st.warning("No data matches the selected filters.")
-        return
+    # Filters (only when perf data exists)
+    filtered_df = pd.DataFrame()
+    if has_perf:
+        filtered_df = render_filters(df)
+        if filtered_df.empty:
+            st.warning("No data matches the selected filters.")
+            has_perf = False
 
     # Tabbed layout
     tab_perf, tab_quality, tab_capacity, tab_data = st.tabs(
@@ -975,30 +996,41 @@ def main():
     )
 
     with tab_perf:
-        render_overview_metrics(filtered_df)
-        st.markdown("---")
-        plot_total_time_comparison(filtered_df)
-        st.markdown("---")
-        plot_speedup_vs_sequential(filtered_df)
-        st.markdown("---")
-        plot_files_per_hour(filtered_df)
-        st.markdown("---")
-        plot_audio_throughput(filtered_df)
-        st.markdown("---")
-        plot_rtf(filtered_df)
-        st.markdown("---")
-        plot_latency_vs_audio_duration(filtered_df)
-        st.markdown("---")
-        plot_efficiency(filtered_df)
+        if has_perf:
+            render_overview_metrics(filtered_df)
+            st.markdown("---")
+            plot_total_time_comparison(filtered_df)
+            st.markdown("---")
+            plot_speedup_vs_sequential(filtered_df)
+            st.markdown("---")
+            plot_files_per_hour(filtered_df)
+            st.markdown("---")
+            plot_audio_throughput(filtered_df)
+            st.markdown("---")
+            plot_rtf(filtered_df)
+            st.markdown("---")
+            plot_latency_vs_audio_duration(filtered_df)
+            st.markdown("---")
+            plot_efficiency(filtered_df)
+        else:
+            st.info("No performance benchmark data available. "
+                    "Run a throughput or latency scenario to populate this tab.")
 
     with tab_quality:
         render_quality_tab(quality_df, filtered_df)
 
     with tab_capacity:
-        render_capacity_tab(filtered_df, p95_target)
+        if has_perf:
+            render_capacity_tab(filtered_df, p95_target)
+        else:
+            st.info("No performance data available for capacity analysis. "
+                    "Run a throughput scenario to populate this tab.")
 
     with tab_data:
-        render_data_table(filtered_df)
+        if has_perf:
+            render_data_table(filtered_df)
+        else:
+            st.info("No performance data available.")
 
 
 if __name__ == "__main__":

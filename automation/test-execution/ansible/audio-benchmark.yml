@@ -745,6 +745,63 @@
       ansible.builtin.include_tasks: tasks/stop-vllm-metrics-collection.yml
 
 # ============================================================================
+# Quality Evaluation (transcription-quality scenario only)
+# ============================================================================
+
+- name: "Run Quality Evaluation (WER/CER)"
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    vllm_mode: "{{ vllm_endpoint.mode | default('managed') }}"
+    actual_model: "{{ hostvars['localhost']['actual_model'] }}"
+    test_scenario: "{{ hostvars['localhost']['test_scenario'] }}"
+    test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
+    requested_cores: "{{ hostvars['localhost']['requested_cores'] | default(0) }}"
+    scenario_config: "{{ hostvars['localhost']['scenario_config'] }}"
+    scenario_dataset: "{{ hostvars['localhost']['scenario_dataset'] }}"
+    local_results_dir: "{{ hostvars['localhost']['local_results_base'] }}/audio-models/{{ actual_model | replace('/', '__') }}/{{ test_scenario }}-{{ test_run_id }}"
+    quality_endpoint: "{{ vllm_endpoint.external.url | default('') if vllm_mode == 'external' else 'http://' + hostvars['dut']['ansible_host'] + ':' + (vllm_server.port | default(8000) | string) }}"
+
+  tasks:
+    - name: Run evaluate_audio_quality.py
+      ansible.builtin.command:
+        cmd: >-
+          python3 {{ playbook_dir }}/../scripts/ansible/evaluate_audio_quality.py
+          --endpoint {{ quality_endpoint }}
+          --output-dir {{ local_results_dir }}
+          --model {{ actual_model }}
+          --num-clips {{ scenario_config.test_scenario.dataset.num_samples | default(50) }}
+          --dataset {{ scenario_dataset.name | default('openslr/librispeech_asr') }}
+          --dataset-config {{ scenario_dataset.config | default('clean') }}
+          --dataset-split {{ scenario_dataset.split | default('test') }}
+          --test-run-id {{ test_run_id }}
+          --cores {{ requested_cores }}
+      changed_when: false
+      failed_when: false
+      register: quality_eval_result
+      when:
+        - audio_run_quality_eval | default(true) | bool
+        - test_scenario == 'transcription-quality'
+
+    - name: Display quality evaluation result
+      ansible.builtin.debug:
+        msg: "{{ quality_eval_result.stdout_lines | default(['Quality evaluation skipped']) }}"
+      when:
+        - quality_eval_result is defined
+        - quality_eval_result.stdout_lines is defined
+
+    - name: Warn if quality evaluation failed (missing deps?)
+      ansible.builtin.debug:
+        msg: >-
+          Quality evaluation exited with rc={{ quality_eval_result.rc }}.
+          Ensure controller has: pip install jiwer datasets soundfile requests
+      when:
+        - quality_eval_result is defined
+        - quality_eval_result.rc is defined
+        - quality_eval_result.rc != 0
+
+# ============================================================================
 # Cleanup (Managed Mode Only)
 # ============================================================================
 

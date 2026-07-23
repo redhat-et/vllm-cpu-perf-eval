@@ -380,14 +380,17 @@ def load_quality_results(results_dir: str) -> list[dict]:
                         meta = json.load(fh)
                     break
 
+            # Prefer fields embedded in quality-results.json; fall back to metadata
+            run_id = qdata.get("test_run_id", meta.get("test_run_id", "unknown"))
+            model = qdata.get("model", meta.get("model", "unknown"))
+            cores = qdata.get("cores", meta.get("core_count", 0))
+
             out.append({
-                "test_run_id": meta.get("test_run_id", "unknown"),
-                "model": qdata.get("model", meta.get("model", "unknown")),
-                "model_short": qdata.get(
-                    "model", meta.get("model", "unknown"),
-                ).split("/")[-1],
+                "test_run_id": run_id,
+                "model": model,
+                "model_short": model.split("/")[-1],
                 "scenario": meta.get("scenario_name", "transcription-quality"),
-                "cores": meta.get("core_count", 0),
+                "cores": cores,
                 "wer": qdata.get("wer"),
                 "cer": qdata.get("cer"),
                 "num_clips": qdata.get("num_clips", 0),
@@ -408,7 +411,7 @@ def load_quality_results(results_dir: str) -> list[dict]:
 # Plain-text enterprise report
 # ---------------------------------------------------------------------------
 
-def _fmt_duration(seconds: float | None) -> str:
+def format_duration(seconds: float | None) -> str:
     if seconds is None:
         return "n/a"
     if seconds < 60:
@@ -483,12 +486,12 @@ def format_enterprise_report(
     if eta.get("eta_files_seconds") is not None:
         lines.append(
             f"  ETA for {eta_files:,} files: "
-            f"{_fmt_duration(eta['eta_files_seconds'])}",
+            f"{format_duration(eta['eta_files_seconds'])}",
         )
     if eta.get("eta_audio_hours_seconds") is not None:
         lines.append(
             f"  ETA for {eta_audio_hours:,.1f} audio hours: "
-            f"{_fmt_duration(eta['eta_audio_hours_seconds'])}",
+            f"{format_duration(eta['eta_audio_hours_seconds'])}",
         )
     lines.append("")
 
