@@ -580,6 +580,17 @@
     results_base: "{{ bench_config.results_dir }}/audio-models/{{ actual_model | replace('/', '__') }}/{{ test_scenario }}-{{ hostvars['localhost']['test_run_id'] }}"
 
   pre_tasks:
+    - name: Get SSH user home directory for tilde expansion
+      ansible.builtin.command: echo $HOME
+      register: ssh_user_home
+      changed_when: false
+      become: false
+
+    - name: Expand tilde in bench_config.results_dir
+      ansible.builtin.set_fact:
+        bench_config: "{{ bench_config | combine({'results_dir': bench_config.results_dir | regex_replace('^~', ssh_user_home.stdout)}) }}"
+      when: bench_config.results_dir is defined and bench_config.results_dir is string
+
     - name: Record benchmark start time
       ansible.builtin.set_fact:
         benchmark_start_time: "{{ lookup('pipe', 'date +%s') }}"
