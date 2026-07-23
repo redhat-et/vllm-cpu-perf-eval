@@ -132,12 +132,14 @@ Each model is tested across scenarios that stress different performance aspects:
 - **transcription-latency** - Per-request latency under load
 - **audio-duration-scaling** - Performance vs audio length
 - **constant-rate-stress** - Sustained load stability (larger models only)
+- **format-comparison** - Audio format impact on performance
+- **quick-test** - Fast validation (5 files)
 
-### Audio Chat Model Tests
+### Audio Chat Models
 
-**Ultravox runs:**
-- **audio-chat-throughput** - Multimodal conversation throughput
-- **audio-chat-latency** - Response time characteristics
+**Ultravox** - Scenarios not yet implemented. The model is defined in
+`model-matrix.yaml` with `test_scenarios: []` and will be enabled once
+audio chat benchmarking support is added.
 
 ## CPU Optimization Parameters
 

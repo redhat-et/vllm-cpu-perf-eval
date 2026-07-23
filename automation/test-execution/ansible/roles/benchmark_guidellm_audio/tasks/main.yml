@@ -359,6 +359,15 @@
     - use_guidellm_container | bool
   failed_when: false
 
+- name: Fetch stage metadata to controller
+  ansible.builtin.fetch:
+    src: "{{ stage_results_path }}/stage-metadata.json"
+    dest: "{{ hostvars['localhost']['local_results_base'] }}/audio-models/{{ hostvars['localhost']['actual_model'] | replace('/', '__') }}/{{ hostvars['localhost']['test_scenario'] }}-{{ hostvars['localhost']['test_run_id'] }}/{{ stage.result_filename_suffix }}/stage-metadata.json"
+    flat: true
+  when:
+    - use_guidellm_container | bool
+  failed_when: false
+
 - name: Remove completed container
   containers.podman.podman_container:
     name: "guidellm-audio-{{ stage.name | replace(' ', '-') }}"
@@ -421,6 +430,15 @@
   ansible.builtin.fetch:
     src: "{{ stage_results_path }}/benchmarks.csv"
     dest: "{{ hostvars['localhost']['local_results_base'] }}/audio-models/{{ hostvars['localhost']['actual_model'] | replace('/', '__') }}/{{ hostvars['localhost']['test_scenario'] }}-{{ hostvars['localhost']['test_run_id'] }}/{{ stage.result_filename_suffix }}/benchmarks.csv"
+    flat: true
+  when:
+    - not (use_guidellm_container | bool)
+  failed_when: false
+
+- name: Fetch stage metadata to controller (host mode)
+  ansible.builtin.fetch:
+    src: "{{ stage_results_path }}/stage-metadata.json"
+    dest: "{{ hostvars['localhost']['local_results_base'] }}/audio-models/{{ hostvars['localhost']['actual_model'] | replace('/', '__') }}/{{ hostvars['localhost']['test_scenario'] }}-{{ hostvars['localhost']['test_run_id'] }}/{{ stage.result_filename_suffix }}/stage-metadata.json"
     flat: true
   when:
     - not (use_guidellm_container | bool)

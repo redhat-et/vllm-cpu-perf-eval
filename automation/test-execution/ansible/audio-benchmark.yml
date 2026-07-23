@@ -581,7 +581,7 @@
 
   pre_tasks:
     - name: Get SSH user home directory for tilde expansion
-      ansible.builtin.command: echo $HOME
+      ansible.builtin.shell: "echo ~{{ ansible_user }}"
       register: ssh_user_home
       changed_when: false
       become: false
@@ -728,7 +728,10 @@
       rescue:
         - name: Note synchronize fallback
           ansible.builtin.debug:
-            msg: "Result sync via synchronize failed; falling back to per-file fetch."
+            msg: >-
+              Result sync via synchronize failed; falling back to per-file fetch.
+              Per-stage files (benchmarks.json, benchmarks.csv, stage-metadata.json)
+              were already fetched by the role; only test-metadata.json needs rescue.
 
         - name: Fetch test-metadata.json (fallback)
           ansible.builtin.fetch:
