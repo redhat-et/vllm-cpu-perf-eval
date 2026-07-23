@@ -12,7 +12,7 @@
 # Optional parameters:
 #   -e "dataset_path=/path/to/dataset.txt"  # Custom dataset file
 #   -e "input_len=512"                       # For random dataset
-#   -e "output_len=256"                      # For random/sharegpt/cnn_dailymail datasets
+#   -e "output_len=256"                      # For random/sharegpt datasets
 #   -e "vllm_container_image=vllm/vllm-openai:latest"  # Default (upstream vLLM)
 #   -e "vllm_container_image=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0"  # RHAIIS optimized
 #   -e "vllm_extra_args=--enforce-eager"                 # Extra args passed to vllm bench
@@ -26,7 +26,10 @@
 #
 # Dataset types: sonnet, random, sharegpt
 #   - sonnet: Classic sonnet text (needs dataset_path)
-#   - random: Synthetic random tokens (needs input_len, output_len)
+#   - random: Synthetic random tokens (needs input_len/output_len via
+#     --random-input-len/--random-output-len). Use for long-doc shapes
+#     (e.g. 4096→256); HF datasets like cnn_dailymail are not supported
+#     by vllm bench throughput in this path.
 #   - sharegpt: ShareGPT conversations (built-in dataset)
 
 - name: "Offline Batch Benchmark - Setup"
@@ -194,9 +197,9 @@
         dataset_file: "{{ dataset_path }}"
       when: dataset_path is defined
 
-    - name: Note for HuggingFace datasets
+    - name: Note for sharegpt dataset
       ansible.builtin.debug:
-        msg: "Using HuggingFace dataset: {{ dataset_name }} (built-in)"
+        msg: "Using ShareGPT built-in dataset (vllm bench throughput)"
       when: dataset_name == 'sharegpt'
 
 - name: "Offline Batch Benchmark - Run Benchmark"

@@ -55,6 +55,17 @@ MODEL_QWEN_W4A16="RedHatAI/Qwen3-8B-quantized.w4a16"
 # Use it explicitly for smoke tests: --models RedHatAI/TinyLlama-1.1B-Chat-v1.0-pruned2.4
 ALL_MODELS="$MODEL_LLAMA_W8A8,$MODEL_LLAMA_W4A16,$MODEL_QWEN_W4A16"
 
+# CVE/VLoc capacity models (capacity proxy — NOT localization quality)
+MODEL_GRANITE_4_1B="ibm-granite/granite-4.0-1b"
+MODEL_GRANITE_4_350M="ibm-granite/granite-4.0-350m"
+MODEL_GRANITE_4_MICRO="ibm-granite/granite-4.0-micro"
+MODEL_ANTARES_1B="fdtn-ai/antares-1b"
+MODEL_ANTARES_350M="fdtn-ai/antares-350m"
+MODEL_QWEN_CVE="Qwen/Qwen3.5-9B"
+CVE_CAPACITY_MODELS="$MODEL_GRANITE_4_350M,$MODEL_GRANITE_4_1B,$MODEL_GRANITE_4_MICRO"
+CVE_CAPACITY_GATED="$MODEL_ANTARES_1B,$MODEL_ANTARES_350M"
+CVE_CAPACITY_OPTIONAL="$MODEL_QWEN_CVE"
+
 # Legacy aliases for backward compatibility
 MODEL_TINY="TinyLlama/TinyLlama-1.1B-Chat-v1.0"
 MODEL_LLAMA_1B="meta-llama/Llama-3.2-1B-Instruct"
@@ -137,7 +148,9 @@ MODES:
     quantization [cores] [prompts]   Quantization comparison (Llama w8a8, w4a16, Qwen w4a16)
     kv-capacity <model> [cores]      KV-cache capacity sweep (100-5000 prompts)
     context-scaling <model> [cores]  Context length scaling (1024-8192 input tokens)
-    all <model> [cores]              Run all 8 technical tests
+    cve-capacity [cores] [--include-qwen]  CVE/VLoc capacity proxy (Granite + Antares if HF_TOKEN)
+                                     NOTE: Measures throughput, NOT localization quality.
+    all <model> [cores]              Run all 8 technical tests (excludes cve-capacity)
 
 EXAMPLES:
 
@@ -1052,6 +1065,88 @@ test_all() {
 }
 
 # ==============================================================================
+# CVE CAPACITY (proxy — NOT localization quality)
+# ==============================================================================
+
+test_cve_capacity() {
+    local cores="${1:-16}"
+
+    echo -e "${BLUE}========================================${NC}"
+    echo -e "${BLUE}CVE/VLoc Model Capacity Proxy${NC}"
+    echo -e "${BLUE}========================================${NC}"
+    echo ""
+    echo -e "${YELLOW}NOTE: This measures raw throughput under representative I/O shapes.${NC}"
+    echo -e "${YELLOW}It does NOT measure vulnerability localization quality (File F1).${NC}"
+    echo -e "${YELLOW}For actual CVE localization, use run-cve-vloc-suite.sh instead.${NC}"
+    echo ""
+
+    # Build model list: Granite (always) + Antares (if HF_TOKEN) + Qwen (if --include-qwen)
+    local cve_models
+    IFS=',' read -r -a cve_models <<< "${CVE_CAPACITY_MODELS}"
+
+    if [[ -n "${HF_TOKEN:-}" ]]; then
+        local gated_models
+        IFS=',' read -r -a gated_models <<< "${CVE_CAPACITY_GATED}"
+        cve_models+=("${gated_models[@]}")
+        echo -e "  Including Antares models (HF_TOKEN set)"
+    else
+        echo -e "  ${YELLOW}Skipping Antares models (HF_TOKEN not set)${NC}"
+    fi
+
+    if [[ "${INCLUDE_QWEN:-false}" == "true" ]]; then
+        local qwen_models
+        IFS=',' read -r -a qwen_models <<< "${CVE_CAPACITY_OPTIONAL}"
+        cve_models+=("${qwen_models[@]}")
+        echo -e "  Including Qwen3.5-9B (--include-qwen)"
+    else
+        echo -e "  Qwen3.5-9B skipped (pass --include-qwen to add; heavy on CPU)"
+    fi
+    echo ""
+
+    local shapes=(
+        "small-triage:128:64:100"
+        "medium-analysis:512:256:50"
+        "deep-inspection:2048:512:25"
+    )
+
+    local total=0
+    local passed=0
+    local failed=0
+
+    for model in "${cve_models[@]}"; do
+        echo ""
+        echo -e "${BLUE}--- Model: ${model} ---${NC}"
+
+        for shape_spec in "${shapes[@]}"; do
+            IFS=':' read -r shape_name input_len output_len prompts <<< "${shape_spec}"
+            total=$((total + 1))
+
+            echo "  Shape: ${shape_name} (input=${input_len}, output=${output_len}, prompts=${prompts})"
+
+            if run_test "$model" "random" "$prompts" "$cores" \
+                -e "input_len=${input_len}" \
+                -e "output_len=${output_len}" \
+                -e "use_case=cve_capacity"; then
+                passed=$((passed + 1))
+            else
+                failed=$((failed + 1))
+                echo -e "  ${RED}FAILED: ${model} / ${shape_name}${NC}"
+            fi
+        done
+    done
+
+    echo ""
+    echo -e "${BLUE}========================================${NC}"
+    echo "CVE Capacity Results: ${passed}/${total} passed, ${failed} failed"
+    echo -e "${BLUE}========================================${NC}"
+
+    if [ ${failed} -gt 0 ]; then
+        return 1
+    fi
+    return 0
+}
+
+# ==============================================================================
 # MAIN
 # ==============================================================================
 
@@ -1128,6 +1223,19 @@ main() {
                 exit 1
             fi
             test_context_scaling "$@"
+            ;;
+        cve-capacity)
+            for arg in "$@"; do
+                if [[ "$arg" == "--include-qwen" ]]; then
+                    export INCLUDE_QWEN=true
+                fi
+            done
+            # Strip --include-qwen from args before passing cores
+            local cve_args=()
+            for arg in "$@"; do
+                [[ "$arg" != "--include-qwen" ]] && cve_args+=("$arg")
+            done
+            test_cve_capacity "${cve_args[@]}"
             ;;
         all)
             if [ $# -lt 1 ]; then

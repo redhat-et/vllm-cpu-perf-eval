@@ -9,6 +9,7 @@ for the vLLM CPU performance evaluation project.
 | File | Description |
 |------|-------------|
 | [full-testing-deck.md](full-testing-deck.md) | Full testing methodology (Marp source; ~37 slides) |
+| [cve-testing-deck.md](cve-testing-deck.md) | CVE vulnerability localization testing (Marp source; ~15 slides) |
 
 Marp sources are **excluded from the MkDocs site build** (front matter would
 conflict). Preview or export with Marp CLI as below. CI → GitHub Pages HTML
