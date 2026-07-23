@@ -132,7 +132,7 @@
     - name: Validate test scenario is supported
       ansible.builtin.assert:
         that:
-          - test_scenario in ['transcription-throughput', 'transcription-latency', 'audio-duration-scaling', 'constant-rate-stress', 'format-comparison', 'quick-test']
+          - test_scenario in ['transcription-throughput', 'transcription-latency', 'audio-duration-scaling', 'constant-rate-stress', 'format-comparison', 'transcription-quality', 'quick-test']
         fail_msg: |
           Unsupported test_scenario: {{ test_scenario }}
           Supported scenarios:
@@ -141,6 +141,7 @@
             - audio-duration-scaling (performance vs audio length)
             - constant-rate-stress (sustained load stability)
             - format-comparison (audio format comparison)
+            - transcription-quality (WER/CER accuracy evaluation)
             - quick-test (fast 5-file test for validation)
 
     - name: Validate audio_num_files if provided
@@ -793,3 +794,13 @@
           - "  Stages Completed: {{ scenario_stages | length }}"
           - "  Results Directory: {{ local_results_dir }}"
           - "╚══════════════════════════════════════════════════════════════╝"
+
+    - name: Print enterprise report
+      ansible.builtin.command:
+        cmd: >-
+          python3 {{ playbook_dir }}/../scripts/ansible/audio_enterprise_report.py
+          {{ local_results_dir }}
+          --p95-target {{ audio_p95_target | default('2.0') }}
+      changed_when: false
+      failed_when: false
+      when: audio_print_enterprise_report | default(true) | bool

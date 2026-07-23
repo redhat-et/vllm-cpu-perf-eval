@@ -17,6 +17,7 @@ audio_models:
       - "audio-duration-scaling"
       - "constant-rate-stress"
       - "format-comparison"
+      - "transcription-quality"
       - "quick-test"
     recommended_settings:
       dtype: "float16"
@@ -35,6 +36,7 @@ audio_models:
       - "audio-duration-scaling"
       - "constant-rate-stress"
       - "format-comparison"
+      - "transcription-quality"
       - "quick-test"
     recommended_settings:
       dtype: "float16"

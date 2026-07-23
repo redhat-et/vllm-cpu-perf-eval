@@ -130,6 +130,7 @@ Each model is tested across scenarios that stress different performance aspects:
 **All Whisper variants run:**
 - **transcription-throughput** - Batch processing time (primary metric)
 - **transcription-latency** - Per-request latency under load
+- **transcription-quality** - WER/CER accuracy measurement
 - **audio-duration-scaling** - Performance vs audio length
 - **constant-rate-stress** - Sustained load stability (larger models only)
 - **format-comparison** - Audio format impact on performance

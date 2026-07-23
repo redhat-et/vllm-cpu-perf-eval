@@ -4,7 +4,6 @@ Audio-specific metrics for speech recognition, translation, and audio chat model
 Focuses on Real-Time Factor (RTF), audio throughput, and audio processing characteristics.
 """
 
-import json
 import logging
 import sys
 from pathlib import Path
@@ -18,6 +17,13 @@ import streamlit as st
 # Add parent directory to path for config_manager import
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from config_manager import DashboardConfig
+from audio_enterprise import (
+    compute_capacity_metrics,
+    compute_warmup_metrics,
+    discover_run_results,
+    format_enterprise_report,
+    load_quality_results,
+)
 
 # Set global Plotly template
 if "plotly_white_light" not in pio.templates:
@@ -56,206 +62,21 @@ st.markdown("""
 @st.cache_data(ttl=300)
 def load_audio_data(results_dir: str) -> pd.DataFrame:
     """Load audio benchmark results with audio-specific metrics."""
-    results_path = Path(results_dir)
-    all_results = []
-
-    if not results_path.exists():
-        logger.warning(f"Results directory not found: {results_path}")
+    rows = discover_run_results(results_dir)
+    if not rows:
         return pd.DataFrame()
 
-    # Scan for all benchmarks.json files
-    for json_file in results_path.rglob("benchmarks.json"):
-        try:
-            with open(json_file) as f:
-                data = json.load(f)
-
-            # Load metadata
-            metadata_file = json_file.parent.parent / "test-metadata.json"
-            if not metadata_file.exists():
-                # Try in same directory for flat structure
-                metadata_file = json_file.parent / "test-metadata.json"
-            if not metadata_file.exists():
-                continue
-
-            with open(metadata_file) as f:
-                metadata = json.load(f)
-
-            # Load per-stage metadata if available (overrides run-level for format info)
-            stage_metadata = {}
-            stage_metadata_file = json_file.parent / "stage-metadata.json"
-            if stage_metadata_file.exists():
-                try:
-                    with open(stage_metadata_file) as f:
-                        stage_metadata = json.load(f)
-                except Exception:
-                    pass
-
-            # Extract each benchmark (load point)
-            for bench in data.get('benchmarks', []):
-                metrics = bench['metrics']
-                config = bench['config']
-                requests = bench['requests']
-
-                # Extract concurrency/rate
-                concurrency = config.get('strategy', {}).get('max_concurrency', 0)
-                req_rate = metrics.get('requests_per_second', {}).get('successful', {}).get('mean', concurrency)
-
-                # Calculate audio-specific aggregates from successful requests
-                successful_requests = requests.get('successful', [])
-                benchmark_duration = bench['duration']  # Wall-clock time for the benchmark
-                audio_metrics = calculate_audio_aggregates(successful_requests, benchmark_duration)
-
-                # Skip if no audio metrics found (filters out LLM results)
-                if audio_metrics['total_audio_seconds'] == 0:
-                    continue
-
-                # Extract stage name from path (e.g., "sequential", "concurrent-2")
-                stage = json_file.parent.name
-
-                row = {
-                    # Metadata
-                    'test_run_id': metadata.get('test_run_id', 'unknown'),
-                    'platform': metadata.get('platform', 'unknown'),
-                    'model': metadata.get('model', 'unknown'),
-                    'model_short': metadata.get('model', 'unknown').split('/')[-1],
-                    'scenario': metadata.get('scenario_name', metadata.get('scenario', 'unknown')),
-                    'stage': stage,
-                    'cores': metadata.get('core_count', 0),
-                    'backend': metadata.get('backend', 'unknown'),
-                    'vllm_version': metadata.get('vllm_version', 'unknown'),
-                    'guidellm_version': metadata.get('guidellm_version', 'unknown'),
-                    'tensor_parallel': metadata.get('tensor_parallel', 1),
-
-                    # Audio file format metadata (prefer per-stage over run-level)
-                    'audio_format': stage_metadata.get('audio_format', metadata.get('audio_format', 'unknown')),
-                    'audio_sample_rate': stage_metadata.get('audio_sample_rate', metadata.get('audio_sample_rate', 0)),
-                    'audio_bitrate': stage_metadata.get('audio_bitrate', metadata.get('audio_bitrate', 'unknown')),
-                    'dataset_name': metadata.get('dataset_name', 'unknown'),
-                    'dataset_config': metadata.get('dataset_config', 'unknown'),
-
-                    # Load characteristics
-                    'concurrency': concurrency,
-                    'request_rate': req_rate,
-
-                    # General performance metrics
-                    'duration': bench['duration'],
-                    'requests_per_second': metrics['requests_per_second']['successful']['mean'],
-
-                    # Request latency (seconds)
-                    'e2e_mean': metrics['request_latency']['successful']['mean'],
-                    'e2e_p50': metrics['request_latency']['successful']['percentiles']['p50'],
-                    'e2e_p95': metrics['request_latency']['successful']['percentiles']['p95'],
-                    'e2e_p99': metrics['request_latency']['successful']['percentiles']['p99'],
-
-                    # Request stats
-                    'total_requests': metrics['request_totals']['total'],
-                    'successful_requests': metrics['request_totals']['successful'],
-                    'errored_requests': metrics['request_totals']['errored'],
-                    'success_rate': (metrics['request_totals']['successful'] /
-                                   metrics['request_totals']['total'] * 100)
-                                   if metrics['request_totals']['total'] > 0 else 0,
-
-                    # Audio-specific metrics (aggregated from requests)
-                    'total_audio_seconds': audio_metrics['total_audio_seconds'],
-                    'mean_audio_seconds': audio_metrics['mean_audio_seconds'],
-                    'total_audio_samples': audio_metrics['total_audio_samples'],
-                    'total_audio_bytes': audio_metrics['total_audio_bytes'],
-                    'audio_tokens': audio_metrics['audio_tokens'],
-
-                    # Calculated audio metrics
-                    'audio_throughput': audio_metrics['audio_throughput'],  # audio_seconds/wall_clock_second
-                    'rtf_mean': audio_metrics['rtf_mean'],  # Real-time factor
-                    'rtf_p50': audio_metrics['rtf_p50'],
-                    'rtf_p95': audio_metrics['rtf_p95'],
-                    'rtf_p99': audio_metrics['rtf_p99'],
-                }
-
-                all_results.append(row)
-
-        except Exception as e:
-            logger.warning(f"Failed to load {json_file}: {e}")
-            continue
-
-    if not all_results:
-        return pd.DataFrame()
-
-    df = pd.DataFrame(all_results)
-
-    # Calculate efficiency (audio throughput per core)
+    df = pd.DataFrame(rows)
     cores = pd.to_numeric(df['cores'], errors='coerce')
     df['efficiency'] = np.where(cores > 0, df['audio_throughput'] / cores, np.nan)
-
     return df
 
 
-def calculate_audio_aggregates(successful_requests: list, benchmark_duration: float) -> dict:
-    """Calculate audio-specific aggregate metrics from request list.
-
-    Args:
-        successful_requests: List of successful request objects
-        benchmark_duration: Wall-clock duration of the benchmark in seconds
-    """
-    if not successful_requests:
-        return {
-            'total_audio_seconds': 0,
-            'mean_audio_seconds': 0,
-            'total_audio_samples': 0,
-            'total_audio_bytes': 0,
-            'audio_tokens': 0,
-            'audio_throughput': 0,
-            'rtf_mean': 0,
-            'rtf_p50': 0,
-            'rtf_p95': 0,
-            'rtf_p99': 0,
-        }
-
-    audio_seconds_list = []
-    audio_samples_list = []
-    audio_bytes_list = []
-    audio_tokens_list = []
-    rtf_list = []
-
-    for req in successful_requests:
-        input_metrics = req.get('input_metrics', {})
-        audio_seconds = input_metrics.get('audio_seconds', 0)
-        audio_samples = input_metrics.get('audio_samples', 0)
-        audio_bytes = input_metrics.get('audio_bytes', 0)
-        audio_tokens = input_metrics.get('audio_tokens', 0)
-        request_latency = req.get('request_latency', 0)
-
-        if audio_seconds and audio_seconds > 0:
-            audio_seconds_list.append(audio_seconds)
-            # RTF = processing_time / audio_duration
-            # RTF < 1.0 = faster than real-time
-            rtf = request_latency / audio_seconds if audio_seconds > 0 else 0
-            rtf_list.append(rtf)
-
-        if audio_samples:
-            audio_samples_list.append(audio_samples)
-        if audio_bytes:
-            audio_bytes_list.append(audio_bytes)
-        if audio_tokens:
-            audio_tokens_list.append(audio_tokens)
-
-    total_audio_seconds = sum(audio_seconds_list)
-    mean_audio_seconds = np.mean(audio_seconds_list) if audio_seconds_list else 0
-
-    # Audio throughput: total audio seconds processed per wall-clock second
-    # E.g., if we process 17.5 seconds of audio in 1.17 wall-clock seconds, throughput = 15.0
-    audio_throughput = total_audio_seconds / benchmark_duration if benchmark_duration > 0 else 0
-
-    return {
-        'total_audio_seconds': total_audio_seconds,
-        'mean_audio_seconds': mean_audio_seconds,
-        'total_audio_samples': sum(audio_samples_list),
-        'total_audio_bytes': sum(audio_bytes_list),
-        'audio_tokens': sum(audio_tokens_list),
-        'audio_throughput': audio_throughput,
-        'rtf_mean': np.mean(rtf_list) if rtf_list else 0,
-        'rtf_p50': np.percentile(rtf_list, 50) if rtf_list else 0,
-        'rtf_p95': np.percentile(rtf_list, 95) if rtf_list else 0,
-        'rtf_p99': np.percentile(rtf_list, 99) if rtf_list else 0,
-    }
+@st.cache_data(ttl=300)
+def load_quality_data(results_dir: str) -> pd.DataFrame:
+    """Load quality-results.json files, if any."""
+    data = load_quality_results(results_dir)
+    return pd.DataFrame(data) if data else pd.DataFrame()
 
 
 def render_filters(df: pd.DataFrame) -> pd.DataFrame:
@@ -822,6 +643,196 @@ def render_data_table(df: pd.DataFrame):
     )
 
 
+def render_quality_tab(quality_df: pd.DataFrame, perf_df: pd.DataFrame):
+    """Render the Quality (WER/CER) tab."""
+    if quality_df.empty:
+        st.info(
+            "No quality data found.  Run `evaluate_audio_quality.py` against your "
+            "vLLM endpoint to generate WER/CER metrics, then reload this page."
+        )
+        return
+
+    st.markdown("### Transcription Quality (WER / CER)")
+
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        avg_wer = quality_df['wer'].mean()
+        st.metric("Avg WER", f"{avg_wer * 100:.1f}%" if pd.notna(avg_wer) else "n/a")
+    with col2:
+        if 'cer' in quality_df.columns and quality_df['cer'].notna().any():
+            avg_cer = quality_df['cer'].mean()
+            st.metric("Avg CER", f"{avg_cer * 100:.1f}%")
+        else:
+            st.metric("Avg CER", "n/a")
+    with col3:
+        total_clips = quality_df['num_clips'].sum()
+        st.metric("Total Clips Evaluated", f"{int(total_clips)}")
+
+    st.markdown("---")
+
+    if len(quality_df) > 1:
+        fig = px.bar(
+            quality_df,
+            x='model_short',
+            y=quality_df['wer'] * 100,
+            color='model_short',
+            labels={'y': 'WER (%)', 'model_short': 'Model'},
+            title="Word Error Rate by Model",
+        )
+        fig.update_layout(height=400, showlegend=False)
+        st.plotly_chart(fig, use_container_width=True)
+
+    if not perf_df.empty and 'model_short' in perf_df.columns:
+        merged = quality_df.merge(
+            perf_df.groupby('model_short')['rtf_mean'].min().reset_index(),
+            on='model_short', how='inner',
+        )
+        if not merged.empty and len(merged) > 1:
+            st.markdown("#### WER vs Best RTF (Pareto)")
+            fig2 = px.scatter(
+                merged,
+                x=merged['wer'] * 100,
+                y='rtf_mean',
+                text='model_short',
+                labels={'x': 'WER (%)', 'rtf_mean': 'Best RTF (lower=faster)'},
+                title="Accuracy vs Speed Trade-off",
+            )
+            fig2.update_traces(textposition='top center')
+            fig2.update_layout(height=400)
+            st.plotly_chart(fig2, use_container_width=True)
+
+    st.markdown("#### Quality Details")
+    display = quality_df[['model_short', 'wer', 'cer', 'num_clips',
+                          'dataset', 'audio_format']].copy()
+    display['wer'] = display['wer'].apply(
+        lambda v: f"{v * 100:.1f}%" if pd.notna(v) else "n/a",
+    )
+    display['cer'] = display['cer'].apply(
+        lambda v: f"{v * 100:.1f}%" if pd.notna(v) else "n/a",
+    )
+    st.dataframe(display, use_container_width=True, hide_index=True)
+
+
+def render_capacity_tab(df: pd.DataFrame, p95_target: float):
+    """Render the Capacity / Sizing tab."""
+    from collections import defaultdict
+
+    st.markdown("### Capacity Planning & Sizing")
+
+    runs: dict[str, list[dict]] = defaultdict(list)
+    for row in df.to_dict('records'):
+        runs[row['test_run_id']].append(row)
+
+    if not runs:
+        st.warning("No performance data available for capacity analysis.")
+        return
+
+    for run_id, stages in sorted(runs.items()):
+        model = stages[0].get('model', 'unknown')
+        cores = stages[0].get('cores', 0)
+        cap = compute_capacity_metrics(stages, cores, p95_target)
+        warmup = compute_warmup_metrics(stages)
+
+        st.markdown(f"#### {model} — {cores} cores (run: {run_id})")
+
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            v = cap.get('audio_hours_per_hour')
+            st.metric("Audio Hours/Hour", f"{v:.1f}" if v else "n/a")
+        with col2:
+            v = cap.get('files_per_hour')
+            st.metric("Files/Hour", f"{int(v):,}" if v else "n/a")
+        with col3:
+            mc = cap.get('max_concurrency_at_p95')
+            label = f"{mc}" if mc else "n/a"
+            st.metric(f"Max Concurrency (P95 ≤ {p95_target}s)", label)
+        with col4:
+            v = cap.get('core_hours_per_audio_hour')
+            st.metric("Core-Hours/Audio-Hour", f"{v:.2f}" if v else "n/a")
+
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            v = cap.get('throughput_per_core')
+            st.metric("Throughput/Core", f"{v:.3f}" if v else "n/a")
+        with col2:
+            v = warmup.get('warmup_duration')
+            st.metric("Warmup (ready)", f"{v:.1f}s" if v else "n/a")
+        with col3:
+            v = warmup.get('first_rtf')
+            st.metric("First RTF", f"{v:.2f}" if v else "n/a")
+
+        # Concurrency vs P95 chart
+        conc_data = [s for s in stages if s.get('concurrency') and s.get('e2e_p95')]
+        if len(conc_data) > 1:
+            conc_df = pd.DataFrame(conc_data).sort_values('concurrency')
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=conc_df['concurrency'], y=conc_df['e2e_p95'],
+                mode='lines+markers', name='P95 Latency',
+            ))
+            fig.add_hline(
+                y=p95_target, line_dash='dash', line_color='red',
+                annotation_text=f"Target ({p95_target}s)",
+            )
+            fig.update_layout(
+                title="Concurrency vs P95 Latency",
+                xaxis_title="Concurrency",
+                yaxis_title="P95 Latency (s)",
+                height=350,
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
+        st.markdown("---")
+
+    # Batch ETA calculator
+    st.markdown("### Batch ETA Calculator")
+    col1, col2 = st.columns(2)
+    with col1:
+        eta_files = st.number_input(
+            "Number of files to process", min_value=0, value=0, step=1000,
+            key="eta_files",
+        )
+    with col2:
+        eta_hours = st.number_input(
+            "Audio hours to process", min_value=0.0, value=0.0, step=10.0,
+            key="eta_hours",
+        )
+
+    if eta_files or eta_hours:
+        for run_id, stages in sorted(runs.items()):
+            model = stages[0].get('model', 'unknown')
+            cores = stages[0].get('cores', 0)
+            cap = compute_capacity_metrics(stages, cores, p95_target)
+            from audio_enterprise import compute_batch_eta
+            eta = compute_batch_eta(
+                files_per_second=cap.get('best_requests_per_second'),
+                total_files=int(eta_files) if eta_files else None,
+                audio_hours_per_hour=cap.get('audio_hours_per_hour'),
+                target_audio_hours=float(eta_hours) if eta_hours else None,
+            )
+            parts = [f"**{model} ({cores} cores):** "]
+            if eta.get('eta_files_seconds'):
+                from audio_enterprise import _fmt_duration
+                parts.append(f"  {int(eta_files):,} files → {_fmt_duration(eta['eta_files_seconds'])}")
+            if eta.get('eta_audio_hours_seconds'):
+                from audio_enterprise import _fmt_duration
+                parts.append(f"  {eta_hours:.1f} audio hours → {_fmt_duration(eta['eta_audio_hours_seconds'])}")
+            st.markdown("\n".join(parts))
+
+    # Terminal report button
+    st.markdown("---")
+    if st.button("Show Terminal Report"):
+        for run_id, stages in sorted(runs.items()):
+            model = stages[0].get('model', 'unknown')
+            scenario = stages[0].get('scenario', 'unknown')
+            cores = stages[0].get('cores', 0)
+            report = format_enterprise_report(
+                stages, cores, p95_target=p95_target,
+                model=model, scenario=scenario, run_id=run_id,
+            )
+            st.code(report, language='text')
+
+
 def main():
     """Main dashboard rendering."""
     st.title("🎧 Audio Performance Metrics")
@@ -907,9 +918,16 @@ def main():
     if results_dir != default_results_dir:
         config.set_audio_results_directory(results_dir)
 
+    # Sidebar: enterprise settings
+    p95_target = st.sidebar.number_input(
+        "P95 Latency Target (s)", min_value=0.1, value=2.0, step=0.5,
+        help="Max acceptable P95 latency for online serving",
+    )
+
     # Load data
     with st.spinner("Loading audio benchmark data..."):
         df = load_audio_data(results_dir)
+        quality_df = load_quality_data(results_dir)
 
     if df.empty:
         st.warning(f"""
@@ -951,42 +969,36 @@ def main():
         st.warning("No data matches the selected filters.")
         return
 
-    # Overview metrics
-    render_overview_metrics(filtered_df)
+    # Tabbed layout
+    tab_perf, tab_quality, tab_capacity, tab_data = st.tabs(
+        ["Performance", "Quality", "Capacity / Sizing", "Data"],
+    )
 
-    st.markdown("---")
+    with tab_perf:
+        render_overview_metrics(filtered_df)
+        st.markdown("---")
+        plot_total_time_comparison(filtered_df)
+        st.markdown("---")
+        plot_speedup_vs_sequential(filtered_df)
+        st.markdown("---")
+        plot_files_per_hour(filtered_df)
+        st.markdown("---")
+        plot_audio_throughput(filtered_df)
+        st.markdown("---")
+        plot_rtf(filtered_df)
+        st.markdown("---")
+        plot_latency_vs_audio_duration(filtered_df)
+        st.markdown("---")
+        plot_efficiency(filtered_df)
 
-    # Charts (ordered by user priority)
-    # 1. Total time - most important metric
-    plot_total_time_comparison(filtered_df)
-    st.markdown("---")
+    with tab_quality:
+        render_quality_tab(quality_df, filtered_df)
 
-    # 2. Speedup - shows benefit of concurrency
-    plot_speedup_vs_sequential(filtered_df)
-    st.markdown("---")
+    with tab_capacity:
+        render_capacity_tab(filtered_df, p95_target)
 
-    # 3. Files/hour - capacity planning
-    plot_files_per_hour(filtered_df)
-    st.markdown("---")
-
-    # 4. Audio hours/hour - clearer than sec/sec
-    plot_audio_throughput(filtered_df)
-    st.markdown("---")
-
-    # 5. RTF - real-time factor
-    plot_rtf(filtered_df)
-    st.markdown("---")
-
-    # 6. Latency vs duration - scaling analysis
-    plot_latency_vs_audio_duration(filtered_df)
-    st.markdown("---")
-
-    # 7. Efficiency - per-core utilization
-    plot_efficiency(filtered_df)
-    st.markdown("---")
-
-    # Data table
-    render_data_table(filtered_df)
+    with tab_data:
+        render_data_table(filtered_df)
 
 
 if __name__ == "__main__":

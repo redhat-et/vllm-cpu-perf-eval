@@ -29,6 +29,7 @@ Plus comprehensive coverage of scalability, format impact, and sustained load be
 |----------|--------------|-----------------|----------|
 | **[transcription-throughput](transcription-throughput.yaml)** | Total time to process N files | **Both** (Offline + Online) | Batch processing + concurrent user simulation |
 | **[transcription-latency](transcription-latency.yaml)** | Per-request latency under load | **Online Serving** | Real-time transcription, SLA validation |
+| **[transcription-quality](transcription-quality.yaml)** | WER/CER accuracy | **Quality** | Accuracy measurement vs ground truth |
 | **[audio-duration-scaling](audio-duration-scaling.yaml)** | Performance vs audio length | **Offline Batch** | Capacity planning, workload optimization |
 | **[constant-rate-stress](constant-rate-stress.yaml)** | Sustained load stability | **Online Serving** | Production readiness, resource planning |
 | **[format-comparison](format-comparison.yaml)** | Audio format impact | **Offline Batch** | Bandwidth optimization, quality tradeoffs |
@@ -514,6 +515,34 @@ vllm-cpu-perf-eval/
     ├── embedding-benchmark.yml
     └── audio-benchmark.yml    # ← New
 ```
+
+## Enterprise Pack (Quick Reference)
+
+The enterprise pack is a minimal set of scenarios that answers the most common
+operator questions:
+
+```bash
+# 1. Throughput + concurrency
+ansible-playbook -i inventory/hosts.yml audio-benchmark.yml \
+  -e "test_model=openai/whisper-small" \
+  -e "test_scenario=transcription-throughput" \
+  -e "requested_cores=32"
+
+# 2. Latency SLA
+ansible-playbook -i inventory/hosts.yml audio-benchmark.yml \
+  -e "test_model=openai/whisper-small" \
+  -e "test_scenario=transcription-latency" \
+  -e "requested_cores=32"
+
+# 3. Accuracy (requires jiwer + datasets on the controller)
+python3 automation/test-execution/scripts/ansible/evaluate_audio_quality.py \
+  --endpoint http://dut:8000 \
+  --output-dir results/audio-models/openai__whisper-small/transcription-quality-run/ \
+  --model openai/whisper-small
+```
+
+A terminal report prints automatically after each playbook run. See
+[docs/audio-benchmarking.md](../../docs/audio-benchmarking.md) for full details.
 
 ## Next Steps
 

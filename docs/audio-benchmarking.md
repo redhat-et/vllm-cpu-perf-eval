@@ -576,10 +576,164 @@ cat results/audio-models/.../test-metadata.json
 }
 ```
 
+## Default Enterprise Pack
+
+The enterprise pack is a recommended run list that answers the most common
+operator questions with minimal wall-clock time.
+
+**Models:** whisper-small (primary), whisper-tiny (fast baseline)
+
+**Default scenarios:**
+
+| Scenario | Purpose | ~Runtime (100 files, 32 cores) |
+|----------|---------|-------------------------------|
+| transcription-throughput | Batch capacity & online concurrency | ~5 min |
+| transcription-latency | SLA validation (P95/P99) | ~5 min |
+| transcription-quality | WER/CER accuracy (50 clips) | ~3 min |
+
+**Deep-dive only (run when needed):**
+- format-comparison — audio format impact on throughput
+- audio-duration-scaling — processing time vs clip length
+- constant-rate-stress — sustained load stability
+- whisper-medium — higher-accuracy model comparison
+
+**Run the pack:**
+
+```bash
+cd automation/test-execution/ansible
+
+for scenario in transcription-throughput transcription-latency; do
+  ansible-playbook -i inventory/hosts.yml audio-benchmark.yml \
+    -e "test_model=openai/whisper-small" \
+    -e "test_scenario=$scenario" \
+    -e "requested_cores=32"
+done
+```
+
+**View results:**
+
+```bash
+# Terminal report (prints automatically after each run)
+python3 automation/test-execution/scripts/ansible/audio_enterprise_report.py \
+  results/audio-models/
+
+# Dashboard
+cd automation/test-execution/dashboard-examples/vllm_dashboard
+./launch-dashboard.sh
+# Open Audio Metrics → tabs: Performance, Quality, Capacity / Sizing
+```
+
+## Terminal Report
+
+The CLI report summarises enterprise metrics without requiring the Streamlit
+dashboard.
+
+```bash
+# All runs in the results tree
+python3 scripts/ansible/audio_enterprise_report.py results/audio-models/
+
+# Filter to one run
+python3 scripts/ansible/audio_enterprise_report.py results/audio-models/ \
+  --run-id 20260723-103307
+
+# Custom P95 target + batch ETA
+python3 scripts/ansible/audio_enterprise_report.py results/audio-models/ \
+  --p95-target 1.5 --eta-files 100000 --eta-audio-hours 500
+
+# JSON output for scripts
+python3 scripts/ansible/audio_enterprise_report.py results/audio-models/ --json
+```
+
+**Example output:**
+
+```
+==================================================
+  Audio Enterprise Report
+  Model: openai/whisper-small | Cores: 32
+  Scenario: transcription-throughput
+  Run: 20260723-103307
+==================================================
+
+Quality
+  WER: 4.2% (n=50)
+
+Offline Batch
+  Audio hours/hour:  18.40
+  Files/hour:        12,400
+
+Online (P95 ≤ 2.0s)
+  Max concurrency: 8
+  P95 @ max:       1.70s
+
+Efficiency
+  Throughput/core:        0.58
+  Core-hours/audio-hour:  1.72
+
+Warmup
+  Ready time:       12.30s
+  First RTF:        1.10
+  Steady RTF:       0.062
+==================================================
+```
+
+The report prints automatically at the end of each playbook run.  Suppress
+with `-e audio_print_enterprise_report=false`.
+
+## Quality Evaluation (WER)
+
+Transcription accuracy is measured with `evaluate_audio_quality.py`, which
+sends audio clips to a running vLLM endpoint and computes WER/CER with
+[jiwer](https://github.com/jitsi/jiwer).
+
+**Prerequisites (on the machine running the script):**
+
+```bash
+pip install jiwer datasets soundfile requests
+```
+
+**Run against a live endpoint:**
+
+```bash
+python3 automation/test-execution/scripts/ansible/evaluate_audio_quality.py \
+  --endpoint http://dut:8000 \
+  --output-dir results/audio-models/openai__whisper-small/transcription-quality-run/ \
+  --model openai/whisper-small \
+  --num-clips 50
+```
+
+**Use local audio files instead of HuggingFace:**
+
+```bash
+python3 evaluate_audio_quality.py \
+  --endpoint http://dut:8000 \
+  --output-dir results/ \
+  --audio-dir /path/to/clips/ \
+  --model openai/whisper-small
+```
+
+The `--audio-dir` must contain audio files and a `references.json` mapping
+filenames to ground-truth text.
+
+Results are written to `quality-results.json` and automatically picked up by
+both the dashboard (Quality tab) and the terminal report.
+
+## Future Work
+
+The following areas are planned but not yet implemented:
+
+- **Streaming / chunked audio** — measure latency for real-time streaming ASR
+- **Distil-Whisper / large-v3** — additional model sizes for accuracy-speed trade-offs
+- **Backend comparison** — whisper.cpp, OpenVINO, CTranslate2 vs vLLM
+- **Poisson arrivals** — realistic request arrival patterns
+- **VAD → ASR pipeline** — voice activity detection feeding into transcription
+- **CI integration** — automated regression testing with quick-test + WER gate
+
 ## Reference
 
 - **Audio Test Suite:** [tests/audio-models/README.md](../tests/audio-models/README.md)
 - **Model Matrix:** [models/audio-models/model-matrix.yaml](../models/audio-models/model-matrix.yaml)
 - **Ansible Playbook:** [automation/test-execution/ansible/audio-benchmark.yml](../automation/test-execution/ansible/audio-benchmark.yml)
+- **Terminal Report:** [scripts/ansible/audio_enterprise_report.py](../automation/test-execution/scripts/ansible/audio_enterprise_report.py)
+- **Quality Evaluator:** [scripts/ansible/evaluate_audio_quality.py](../automation/test-execution/scripts/ansible/evaluate_audio_quality.py)
 - **GuideLLM Audio Docs:** [GuideLLM Audio Guide](https://github.com/vllm-project/guidellm/tree/main/docs/guides/multimodal/audio.md)
 - **vLLM Audio Support:** [vLLM Audio Documentation](https://docs.vllm.ai/en/latest/usage/audio.html)

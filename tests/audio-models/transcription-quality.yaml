@@ -1,0 +1,69 @@
+---
+# Audio Transcription Quality Test
+# Measures WER/CER accuracy using a pinned set of LibriSpeech clips.
+
+test_scenario:
+  name: "transcription-quality"
+  type: "quality"
+  description: "Transcription accuracy (WER/CER) with 50 pinned LibriSpeech clips"
+
+  # Test configuration
+  backend: "openai-audio"
+  endpoint: "/v1/audio/transcriptions"
+  request_type: "audio_transcriptions"
+
+  # Dataset configuration
+  dataset:
+    name: "openslr/librispeech_asr"
+    config: "clean"
+    split: "test"
+    audio_column: "audio"
+    num_samples: 50
+
+  # Audio preprocessing
+  audio_config:
+    format: "mp3"
+    bitrate: "64k"
+    sample_rate: 16000
+    mono: true
+    max_duration: null
+
+  # vLLM server configuration
+  server:
+    dtype: "float16"
+    env_vars:
+      VLLM_CPU_KVCACHE_SPACE: "2GiB"
+
+  # Single sequential stage — accuracy is the goal, not throughput
+  stages:
+    - name: "quality-evaluation"
+      description: "Sequential transcription of 50 clips for WER measurement"
+      profile: "synchronous"
+      max_requests: 50
+      result_filename_suffix: "quality"
+
+  # Key metrics to collect
+  metrics:
+    primary:
+      - "Word Error Rate (WER)"
+      - "Character Error Rate (CER)"
+      - "Number of clips evaluated"
+      - "Per-clip WER distribution"
+    derived:
+      - "WER by audio duration bucket"
+      - "WER vs RTF trade-off (combined with throughput results)"
+
+  # Success criteria
+  success_criteria:
+    - "All 50 clips transcribed successfully"
+    - "WER computed against ground truth"
+    - "quality-results.json written to output directory"
+
+  # Expected results
+  results:
+    format: "json"
+    location: "results/audio-models/{model}/transcription-quality/"
+    key_questions_answered:
+      - "What is the transcription accuracy on this CPU deployment?"
+      - "How does accuracy compare across Whisper model sizes?"
+      - "Are there specific audio clips where accuracy degrades?"
