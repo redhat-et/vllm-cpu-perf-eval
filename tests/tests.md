@@ -17,6 +17,10 @@ tests/
 │   └── scalability.md         # Test documentation
 ├── offline-batch/             # Offline batch processing tests
 │   └── offline-batch.md       # Test scenarios and documentation
+├── cve-scanning/              # CVE vulnerability localization
+│   ├── cve-scanning.md        # Test documentation
+│   ├── smoke-model-serve.sh   # Feasibility: vLLM model serve
+│   └── smoke-vloc-harness.sh  # Feasibility: VLoc Bench setup
 ├── resource-contention/       # Resource sharing tests (planned)
 └── embedding-models/          # Embedding model performance tests
     ├── embedding-models.md    # Detailed embedding test documentation
@@ -37,7 +41,7 @@ All test cases use a hierarchical naming scheme for easy identification and trac
 
 **Components:**
 
-- **Suite Prefix**: `CONC` (Concurrent Load), `SCALE` (Scalability), `OFFLINE` (Offline Batch), `CONT` (Resource Contention), `EMB` (Embedding)
+- **Suite Prefix**: `CONC` (Concurrent Load), `SCALE` (Scalability), `OFFLINE` (Offline Batch), `CVE` (CVE Scanning), `CONT` (Resource Contention), `EMB` (Embedding)
 - **Type** (not used for CONC suite): `SWEEP`, `SYNC` (Synchronous), `POISSON`, `BASELINE`, `LATENCY`
 - **Use Case** (offline batch): `SUMM` (Summarization), `CLASS` (Classification), `TRANS` (Translation), `ENTITY` (Entity Extraction), `DATAGEN` (Dataset Generation), `ETL` (ETL Pipelines), `CODEGEN` (Code Generation), `LONGSUM` (Long-Doc Summarization), `RAG` (Batch RAG), `PREFIX` (Shared-Prefix), `LABEL` (Ultra-Short Labeling)
 - **Model**: Short abbreviation (e.g., `LLAMA32`, `QWEN06`, `GRANITE32`, `GRANITE-EN`, `GRANITE-ML`)
@@ -50,6 +54,8 @@ All test cases use a hierarchical naming scheme for easy identification and trac
 - `SCALE-POISSON-GRANITE32-CHAT`: Scalability suite, Poisson distribution, Granite-3.2-2B, Chat
 - `OFFLINE-SUMM-LLAMA38`: Offline Batch suite, Summarization use case, Llama-3.1-8B
 - `OFFLINE-CLASS-QWEN38`: Offline Batch suite, Classification use case, Qwen3-8B
+- `CVE-VLOC-GRANITE1B`: CVE Scanning suite, VLoc localization, Granite-4.0-1B
+- `CVE-CAP-ANTARES1B`: CVE Scanning suite, Capacity proxy, Antares-1B
 - `EMB-BASELINE-GRANITE-EN-EMB512`: Embedding suite, Baseline test, Granite English model
 - `EMB-LATENCY-GRANITE-ML-EMB512`: Embedding suite, Latency test, Granite Multilingual model
 
@@ -83,6 +89,18 @@ Tests vLLM batch processing performance using the native Python API (not server 
 - **Use cases**: Summarization, Classification, Translation, Entity Extraction, Dataset Generation, ETL Pipelines, Code Generation, Long-Document Summarization, Batch RAG, Shared-Prefix/Template Batch, Ultra-Short Labeling
 
 See [Offline Batch Test Suite](offline-batch/offline-batch.md) for detailed documentation.
+
+### Test Suite: CVE Scanning / VLoc Bench
+
+Evaluates LLM vulnerability localization using the Cisco VLoc Bench harness.
+
+- **Online track**: VLoc Bench agent loop (Docker sandbox + tool calls) against vLLM-served models
+- **Offline track**: `vllm bench throughput` capacity proxy with representative I/O shapes
+- **Metrics focus**: File F1, Precision, Recall (online); tok/s, items/hr (offline)
+- **Model families**: Granite-4.0 (baseline), Qwen3.5-9B, Antares (specialized)
+- **Goal**: Evaluate vulnerability localization quality and model capacity on CPU
+
+See [CVE Scanning Test Suite](cve-scanning/cve-scanning.md) for detailed documentation.
 
 ### Test Suite: Resource Contention (Planned)
 
