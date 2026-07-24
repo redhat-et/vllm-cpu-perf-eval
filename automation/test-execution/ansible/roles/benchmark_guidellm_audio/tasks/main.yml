@@ -147,11 +147,14 @@
 - name: "v0.7.x: Build --data-preprocessor for audio encoding"
   ansible.builtin.set_fact:
     guidellm_v7_preprocessor: >-
+      {%- set fmt = encode_kwargs.format | default('mp3') -%}
+      {%- set ext_map = {'mp3': 'mp3', 'wav': 'wav', 'flac': 'flac', 'ogg': 'ogg'} -%}
       {{ {'kind': 'encode_media', 'audio_kwargs': {
-           'audio_format': encode_kwargs.format | default('mp3'),
+           'audio_format': fmt,
            'encode_sample_rate': encode_kwargs.sample_rate | default(16000),
            'bitrate': encode_kwargs.bitrate | default('64k'),
-           'mono': encode_kwargs.mono | default(true)
+           'mono': encode_kwargs.mono | default(true),
+           'file_name': 'audio.' ~ ext_map.get(fmt, fmt)
          }} | to_json }}
   when: encode_kwargs | length > 0
 
