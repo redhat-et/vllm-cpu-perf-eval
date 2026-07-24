@@ -144,19 +144,9 @@
         kind={{ stage.profile }}
       {%- endif -%}
 
-- name: "v0.7.x: Build --request-formatter-kwargs for audio encoding"
+- name: "v0.7.x: Build --data-preprocessor for audio encoding"
   ansible.builtin.set_fact:
-    guidellm_v7_formatter_kwargs: >-
-      {%- if scenario_request_type == 'chat_completions' -%}
-        {{ {'encode_kwargs': {'audio': encode_kwargs}} | to_json }}
-      {%- else -%}
-        {{ {'encode_kwargs': {
-             'audio_format': encode_kwargs.format | default('mp3'),
-             'encode_sample_rate': encode_kwargs.sample_rate | default(16000),
-             'bitrate': encode_kwargs.bitrate | default('64k'),
-             'mono': encode_kwargs.mono | default(true)
-           }} | to_json }}
-      {%- endif -%}
+    guidellm_v7_preprocessor: "{{ {'kind': 'encode_media', 'audio_kwargs': encode_kwargs} | to_json }}"
   when: encode_kwargs | length > 0
 
 - name: "v0.7.x: Build container command arguments"
@@ -191,9 +181,9 @@
     guidellm_cmd_args: "{{ guidellm_cmd_args + ['--constraint', 'kind=max_duration,seconds=' ~ stage.max_seconds | string] }}"
   when: stage.max_seconds is defined
 
-- name: "v0.7.x: Add request-formatter-kwargs for audio encoding"
+- name: "v0.7.x: Add data-preprocessor for audio encoding"
   ansible.builtin.set_fact:
-    guidellm_cmd_args: "{{ guidellm_cmd_args + ['--request-formatter-kwargs', guidellm_v7_formatter_kwargs] }}"
+    guidellm_cmd_args: "{{ guidellm_cmd_args + ['--data-preprocessor', guidellm_v7_preprocessor] }}"
   when: encode_kwargs | length > 0
 
 - name: "v0.7.x: Add tokenizer for chat completions"
@@ -219,7 +209,7 @@
       --constraint kind=max_duration,seconds={{ stage.max_seconds }}
       {% endif %}
       {% if encode_kwargs | length > 0 %}
-      --request-formatter-kwargs '{{ guidellm_v7_formatter_kwargs }}'
+      --data-preprocessor '{{ guidellm_v7_preprocessor }}'
       {% endif %}
       {% if scenario_request_type == 'chat_completions' %}
       --tokenizer kind=huggingface_auto,model={{ hostvars['localhost']['actual_model'] }}
