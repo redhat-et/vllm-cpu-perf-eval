@@ -856,12 +856,20 @@
           - "  Results Directory: {{ local_results_dir }}"
           - "╚══════════════════════════════════════════════════════════════╝"
 
-    - name: Print enterprise report
+    - name: Generate enterprise report
       ansible.builtin.command:
         cmd: >-
           python3 {{ playbook_dir }}/../scripts/ansible/audio_enterprise_report.py
           {{ local_results_dir }}
           --p95-target {{ audio_p95_target | default('2.0') }}
+      register: enterprise_report
       changed_when: false
       failed_when: false
       when: audio_print_enterprise_report | default(true) | bool
+
+    - name: Display enterprise report
+      ansible.builtin.debug:
+        msg: "{{ enterprise_report.stdout_lines }}"
+      when:
+        - enterprise_report is defined
+        - enterprise_report.stdout_lines | default([]) | length > 0
