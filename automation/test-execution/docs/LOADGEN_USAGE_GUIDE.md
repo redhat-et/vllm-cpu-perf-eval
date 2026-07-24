@@ -25,7 +25,7 @@ shared/loadgens/
 
 ### GuideLLM
 **Purpose**: Comprehensive LLM benchmarking with multiple profiles
-**Container**: `ghcr.io/vllm-project/guidellm:v0.7.1`
+**Container**: `ghcr.io/vllm-project/guidellm:v0.7.2`
 **Workloads**: chat, rag, code, summarization, reasoning, embedding
 **Profiles**: sweep, synchronous, concurrent, throughput, constant, poisson
 **Output**: JSON, HTML, CSV
@@ -60,8 +60,8 @@ python3 -m shared.loadgens get-loadgen guidellm
 ```json
 {
   "name": "guidellm",
-  "version": "0.7.1",
-  "image": "ghcr.io/vllm-project/guidellm:v0.7.1",
+  "version": "0.7.2",
+  "image": "ghcr.io/vllm-project/guidellm:v0.7.2",
   "output_format": "json",
   "supported_workloads": {
     "chat": true,
@@ -95,7 +95,7 @@ python3 -m shared.loadgens get-config guidellm \
     "GUIDELLM_MODEL": "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
     ...
   },
-  "image": "ghcr.io/vllm-project/guidellm:v0.7.1",
+  "image": "ghcr.io/vllm-project/guidellm:v0.7.2",
   "output_format": "json"
 }
 ```

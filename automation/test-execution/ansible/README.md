@@ -106,7 +106,7 @@ export HF_TOKEN=hf_xxxxx  # If using gated models like Llama
 
 # Container images (optional - defaults are provided)
 export VLLM_CONTAINER_IMAGE=docker.io/vllm/vllm-openai-cpu:v0.18.0
-export GUIDELLM_CONTAINER_IMAGE=ghcr.io/vllm-project/guidellm:v0.7.1
+export GUIDELLM_CONTAINER_IMAGE=ghcr.io/vllm-project/guidellm:v0.7.2
 
 # Health check timeout (optional - default: 600s)
 export VLLM_HEALTH_TIMEOUT=600

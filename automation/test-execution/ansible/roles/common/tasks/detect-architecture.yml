@@ -36,7 +36,7 @@
       {%- else -%}
       docker.io/vllm/vllm-openai-cpu:v0.25.1
       {%- endif -%}
-    guidellm_image_default: ghcr.io/vllm-project/guidellm:v0.7.1
+    guidellm_image_default: ghcr.io/vllm-project/guidellm:v0.7.2
 
 - name: Get actual vLLM image to be used
   ansible.builtin.set_fact:

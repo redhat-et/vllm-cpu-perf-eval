@@ -13,7 +13,7 @@ from .base import LoadGenerator, LoadGenConfig, LoadGenMetrics
 
 
 def _parse_version(ver: str) -> tuple:
-    """Parse a version string like '0.7.1' into a comparable tuple."""
+    """Parse a version string like '0.7.2' into a comparable tuple."""
     return tuple(int(x) for x in ver.split('.'))
 
 
@@ -26,7 +26,7 @@ class GuideLLMLoadGen(LoadGenerator):
 
     @property
     def version(self) -> str:
-        return "0.7.1"
+        return "0.7.2"
 
     @property
     def _is_v7_or_later(self) -> bool:

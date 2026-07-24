@@ -121,7 +121,7 @@ class LoadGenerator(ABC):
         """Return the container image URL for this load generator.
 
         Returns:
-            Container image URL (e.g., 'ghcr.io/vllm-project/guidellm:v0.7.1')
+            Container image URL (e.g., 'ghcr.io/vllm-project/guidellm:v0.7.2')
         """
         pass
 

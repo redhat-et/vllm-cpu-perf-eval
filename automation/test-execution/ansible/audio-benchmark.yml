@@ -873,3 +873,12 @@
       when:
         - enterprise_report is defined
         - enterprise_report.stdout_lines | default([]) | length > 0
+
+    - name: Display enterprise report failure
+      ansible.builtin.debug:
+        msg:
+          - "⚠️  Enterprise report script failed (rc={{ enterprise_report.rc | default('unknown') }})"
+          - "{{ enterprise_report.stderr_lines | default([]) }}"
+      when:
+        - enterprise_report is defined
+        - enterprise_report.rc | default(0) != 0
