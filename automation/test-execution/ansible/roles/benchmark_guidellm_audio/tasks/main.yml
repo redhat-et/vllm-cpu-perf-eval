@@ -146,7 +146,13 @@
 
 - name: "v0.7.x: Build --data-preprocessor for audio encoding"
   ansible.builtin.set_fact:
-    guidellm_v7_preprocessor: "{{ {'kind': 'encode_media', 'audio_kwargs': encode_kwargs} | to_json }}"
+    guidellm_v7_preprocessor: >-
+      {{ {'kind': 'encode_media', 'audio_kwargs': {
+           'audio_format': encode_kwargs.format | default('mp3'),
+           'encode_sample_rate': encode_kwargs.sample_rate | default(16000),
+           'bitrate': encode_kwargs.bitrate | default('64k'),
+           'mono': encode_kwargs.mono | default(true)
+         }} | to_json }}
   when: encode_kwargs | length > 0
 
 - name: "v0.7.x: Build container command arguments"
