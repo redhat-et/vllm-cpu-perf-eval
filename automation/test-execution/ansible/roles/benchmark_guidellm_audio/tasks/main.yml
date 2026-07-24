@@ -265,7 +265,7 @@
       - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       - "Container: {{ guidellm_container.container.Id[:12] if (guidellm_container.container is defined and guidellm_container.container.Id is defined) else 'N/A' }}"
       - "Stage: {{ stage.name }}"
-      - "Max Duration: {{ stage.max_seconds | default('N/A') }}s | Max Requests: {{ stage.max_requests | default('N/A') }}"
+      - "Max Duration: {{ (stage.max_seconds | string ~ 's') if stage.max_seconds is defined else 'N/A' }} | Max Requests: {{ stage.max_requests | default('N/A') }}"
       - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   when: use_guidellm_container | bool
 
@@ -276,6 +276,15 @@
   changed_when: false
   failed_when: false
   when: use_guidellm_container | bool
+
+- name: Stop hung container on wait timeout
+  ansible.builtin.command:
+    cmd: "podman stop -t 10 guidellm-audio-{{ stage.name | replace(' ', '-') }}"
+  changed_when: true
+  failed_when: false
+  when:
+    - use_guidellm_container | bool
+    - guidellm_exit_code_container.rc | default(0) == 124
 
 - name: Get container exit details
   ansible.builtin.shell:
@@ -438,15 +447,26 @@
 # COMMON COMPLETION & ERROR HANDLING
 # ============================================================================
 
+- name: Detect wait timeout
+  ansible.builtin.set_fact:
+    _wait_timed_out: "{{ (guidellm_exit_code_container.rc | default(0) == 124) if use_guidellm_container else false }}"
+
 - name: Set exit code (unified across modes)
   ansible.builtin.set_fact:
-    guidellm_exit_code: "{{ (container_exit_code.stdout | default('1')) if use_guidellm_container else ((guidellm_host_result.rc | default(1)) | string) }}"
+    guidellm_exit_code: >-
+      {%- if use_guidellm_container | bool -%}
+        {%- if _wait_timed_out | bool -%}124
+        {%- elif guidellm_exit_code_container.rc | default(0) != 0 -%}{{ guidellm_exit_code_container.rc }}
+        {%- else -%}{{ container_exit_code.stdout | default('1') }}
+        {%- endif -%}
+      {%- else -%}{{ (guidellm_host_result.rc | default(1)) | string }}
+      {%- endif -%}
 
 - name: Display GuideLLM completion status
   ansible.builtin.debug:
     msg:
       - "{{ '✓ Stage completed successfully' if guidellm_exit_code == '0' else '✗ Stage failed' }}"
-      - "Exit Code: {{ guidellm_exit_code }}"
+      - "Exit Code: {{ guidellm_exit_code }}{{ ' (wait timed out after ' ~ (guidellm_benchmark_timeout | default(7200)) ~ 's)' if _wait_timed_out | bool else '' }}"
       - "Results: {{ stage_results_path }}"
 
 - name: Display failure logs (containerized)
@@ -468,6 +488,15 @@
     - not (use_guidellm_container | bool)
     - guidellm_exit_code != '0'
     - guidellm_host_result is defined
+
+- name: Fail on wait timeout
+  ansible.builtin.fail:
+    msg: >-
+      GuideLLM wait timed out after {{ guidellm_benchmark_timeout | default(7200) }}s.
+      The container was stopped. Check logs above for details.
+      (Container exit code after stop: {{ container_exit_code.stdout | default('unknown') }})
+  when:
+    - _wait_timed_out | bool
 
 - name: Fail if GuideLLM encountered errors
   ansible.builtin.fail:

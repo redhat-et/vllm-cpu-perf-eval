@@ -523,7 +523,7 @@ def format_enterprise_report(
     # Warmup
     lines += [
         "Warmup",
-        f"  Ready time:       {_fmt(warmup.get('warmup_duration'))}s",
+        f"  Ready time:       {_fmt(warmup.get('warmup_duration'), suffix='s')}",
         f"  First RTF:        {_fmt(warmup.get('first_rtf'))}",
         f"  Steady RTF:       {_fmt(warmup.get('steady_rtf'), '.3f')}",
     ]

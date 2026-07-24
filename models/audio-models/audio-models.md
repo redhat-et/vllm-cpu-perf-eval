@@ -22,9 +22,9 @@ Models also support these endpoints (no dedicated benchmark scenarios yet):
 
 | Model | Parameters | Task Focus | CPU Suitability | Use Case |
 |-------|-----------|------------|----------------|----------|
-| **whisper-tiny** | 39M | Transcription/Translation | ✅ Excellent | Quick transcription, low latency |
-| **whisper-small** | 244M | Transcription/Translation | ✅ Good | Balanced speed/quality (recommended baseline) |
-| **whisper-medium** | 769M | Transcription/Translation | ⚠️ Moderate | High quality transcription |
+| **whisper-tiny** | 39M | Transcription (+ translation endpoint) | ✅ Excellent | Quick transcription, low latency |
+| **whisper-small** | 244M | Transcription (+ translation endpoint) | ✅ Good | Balanced speed/quality (recommended baseline) |
+| **whisper-medium** | 769M | Transcription (+ translation endpoint) | ⚠️ Moderate | High quality transcription |
 
 **Selection Rationale:**
 - **whisper-small** provides best balance for CPU benchmarking
