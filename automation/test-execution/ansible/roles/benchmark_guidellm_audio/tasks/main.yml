@@ -115,106 +115,117 @@
     dataset_config_name: "{{ scenario_dataset.config | default('clean') }}"
     dataset_split: "{{ scenario_dataset.split | default('test') }}"
 
-- name: Build dataset args JSON
+- name: "v0.7.x: Build --backend argument"
   ansible.builtin.set_fact:
-    dataset_args_json: "{{ {'name': dataset_config_name, 'split': dataset_split} | to_json }}"
+    guidellm_v7_backend: "kind=openai_http,target=http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }},request_format=/v1/{{ scenario_request_type | replace('_', '/') }}"
 
-- name: Build data column mapper JSON
+- name: "v0.7.x: Build --data argument (HuggingFace dataset)"
   ansible.builtin.set_fact:
-    data_column_mapper_json: "{{ {'audio_column': scenario_dataset.audio_column} | to_json }}"
+    guidellm_v7_data: "{{ {'kind': 'huggingface', 'source': scenario_dataset.name, 'load_kwargs': {'name': dataset_config_name, 'split': dataset_split}} | to_json }}"
 
-- name: Build encode kwargs JSON (preprocessor format for v0.6.0)
+- name: "v0.7.x: Build --data-column-mapper argument"
   ansible.builtin.set_fact:
-    # For audio_transcriptions/translations: flat structure (no wrapper)
-    # For chat_completions: nested under "audio" key
-    encode_kwargs_json: "{{ '{\"audio\": ' ~ (encode_kwargs | to_json) ~ '}' if scenario_request_type == 'chat_completions' else (encode_kwargs | to_json) }}"
+    guidellm_v7_column_mapper: "{{ {'kind': 'generative_column_mapper', 'column_mappings': {'audio_column': scenario_dataset.audio_column}} | to_json }}"
+
+- name: "v0.7.x: Build --profile argument"
+  ansible.builtin.set_fact:
+    guidellm_v7_profile: >-
+      {%- if stage.profile == 'synchronous' -%}
+        kind=synchronous
+      {%- elif stage.profile == 'concurrent' and stage.rate is defined -%}
+        kind=concurrent,streams={{ stage.rate }}
+      {%- elif stage.profile == 'concurrent' -%}
+        kind=concurrent
+      {%- elif stage.profile == 'constant' and stage.rate is defined -%}
+        kind=constant,rate={{ stage.rate }}
+      {%- elif stage.profile == 'throughput' and stage.rate is defined -%}
+        kind=throughput,max_concurrency={{ stage.rate }}
+      {%- else -%}
+        kind={{ stage.profile }}
+      {%- endif -%}
+
+- name: "v0.7.x: Build --request-formatter-kwargs for audio encoding"
+  ansible.builtin.set_fact:
+    guidellm_v7_formatter_kwargs: >-
+      {%- if scenario_request_type == 'chat_completions' -%}
+        {{ {'encode_kwargs': {'audio': encode_kwargs}} | to_json }}
+      {%- else -%}
+        {{ {'encode_kwargs': {
+             'audio_format': encode_kwargs.format | default('mp3'),
+             'encode_sample_rate': encode_kwargs.sample_rate | default(16000),
+             'bitrate': encode_kwargs.bitrate | default('64k'),
+             'mono': encode_kwargs.mono | default(true)
+           }} | to_json }}
+      {%- endif -%}
   when: encode_kwargs | length > 0
 
-- name: Build GuideLLM command arguments list (container mode)
+- name: "v0.7.x: Build container command arguments"
   ansible.builtin.set_fact:
     guidellm_cmd_args:
-      - "benchmark"
       - "run"
-      - "--target"
-      - "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}"
-      - "--request-format"
-      - "{{ scenario_request_type }}"
+      - "--backend"
+      - "{{ guidellm_v7_backend }}"
+      - "--data"
+      - "{{ guidellm_v7_data }}"
+      - "--data-column-mapper"
+      - "{{ guidellm_v7_column_mapper }}"
       - "--profile"
-      - "{{ stage.profile }}"
+      - "{{ guidellm_v7_profile }}"
+      - "--output"
+      - "kind=json,path=/results/benchmarks.json"
+      - "--output"
+      - "kind=csv,path=/results/benchmarks.csv"
 
-- name: Add rate for profile
+- name: "v0.7.x: Add data-loader with sample limit"
   ansible.builtin.set_fact:
-    guidellm_cmd_args: "{{ guidellm_cmd_args + ['--rate', stage.rate | string] }}"
-  when:
-    - stage.rate is defined
-    - stage.profile in ['concurrent', 'constant', 'throughput']
-
-- name: Add max-requests
-  ansible.builtin.set_fact:
-    guidellm_cmd_args: "{{ guidellm_cmd_args + ['--max-requests', stage.max_requests | string] }}"
+    guidellm_cmd_args: "{{ guidellm_cmd_args + ['--data-loader', 'kind=pytorch,samples=' ~ (stage.max_requests * 2) | string] }}"
   when: stage.max_requests is defined
 
-- name: Add max-seconds
+- name: "v0.7.x: Add constraint for max-requests"
   ansible.builtin.set_fact:
-    guidellm_cmd_args: "{{ guidellm_cmd_args + ['--max-seconds', stage.max_seconds | string] }}"
+    guidellm_cmd_args: "{{ guidellm_cmd_args + ['--constraint', 'kind=max_requests,count=' ~ stage.max_requests | string] }}"
+  when: stage.max_requests is defined
+
+- name: "v0.7.x: Add constraint for max-seconds"
+  ansible.builtin.set_fact:
+    guidellm_cmd_args: "{{ guidellm_cmd_args + ['--constraint', 'kind=max_duration,seconds=' ~ stage.max_seconds | string] }}"
   when: stage.max_seconds is defined
 
-- name: Add dataset parameters
+- name: "v0.7.x: Add request-formatter-kwargs for audio encoding"
   ansible.builtin.set_fact:
-    # Limit dataset samples to 2x max_requests to avoid downloading entire dataset
-    # For max_requests=5, load 10 samples; for 100, load 200 samples
-    guidellm_cmd_args: "{{ guidellm_cmd_args + ['--data', scenario_dataset.name, '--data-args', dataset_args_json, '--data-column-mapper', data_column_mapper_json, '--data-samples', (stage.max_requests * 2) | string] }}"
-  when: stage.max_requests is defined
-
-- name: Add dataset parameters (no sample limit)
-  ansible.builtin.set_fact:
-    guidellm_cmd_args: "{{ guidellm_cmd_args + ['--data', scenario_dataset.name, '--data-args', dataset_args_json, '--data-column-mapper', data_column_mapper_json] }}"
-  when: stage.max_requests is not defined
-
-- name: Add audio encoding preprocessor
-  ansible.builtin.set_fact:
-    guidellm_cmd_args: "{{ guidellm_cmd_args + ['--data-preprocessors', 'encode_media', '--data-preprocessors-kwargs', encode_kwargs_json] }}"
+    guidellm_cmd_args: "{{ guidellm_cmd_args + ['--request-formatter-kwargs', guidellm_v7_formatter_kwargs] }}"
   when: encode_kwargs | length > 0
 
-- name: Add processor for chat completions
+- name: "v0.7.x: Add tokenizer for chat completions"
   ansible.builtin.set_fact:
-    guidellm_cmd_args: "{{ guidellm_cmd_args + ['--processor', hostvars['localhost']['actual_model']] }}"
+    guidellm_cmd_args: "{{ guidellm_cmd_args + ['--tokenizer', 'kind=huggingface_auto,model=' ~ hostvars['localhost']['actual_model']] }}"
   when: scenario_request_type == 'chat_completions'
 
-- name: Add output directory
-  ansible.builtin.set_fact:
-    guidellm_cmd_args: "{{ guidellm_cmd_args + ['--output-dir', '/results'] }}"
-
-- name: Build GuideLLM command line (host mode - with 'guidellm' prefix)
+- name: "v0.7.x: Build host mode command line"
   ansible.builtin.set_fact:
     guidellm_cmd_host: >-
-      guidellm benchmark
-      --target "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}"
-      --request-format {{ scenario_request_type }}
-      --profile {{ stage.profile }}
-      {% if stage.rate is defined and stage.profile in ['concurrent', 'constant', 'throughput'] %}
-      --rate {{ stage.rate }}
-      {% endif %}
+      guidellm run
+      --backend {{ guidellm_v7_backend }}
+      --data '{{ guidellm_v7_data }}'
+      --data-column-mapper '{{ guidellm_v7_column_mapper }}'
       {% if stage.max_requests is defined %}
-      --max-requests {{ stage.max_requests }}
+      --data-loader kind=pytorch,samples={{ stage.max_requests * 2 }}
+      {% endif %}
+      --profile {{ guidellm_v7_profile }}
+      {% if stage.max_requests is defined %}
+      --constraint kind=max_requests,count={{ stage.max_requests }}
       {% endif %}
       {% if stage.max_seconds is defined %}
-      --max-seconds {{ stage.max_seconds }}
-      {% endif %}
-      --data "{{ scenario_dataset.name }}"
-      --data-args '{{ dataset_args_json }}'
-      --data-column-mapper '{{ data_column_mapper_json }}'
-      {% if stage.max_requests is defined %}
-      --data-samples {{ stage.max_requests * 2 }}
+      --constraint kind=max_duration,seconds={{ stage.max_seconds }}
       {% endif %}
       {% if encode_kwargs | length > 0 %}
-      --data-preprocessors encode_media
-      --data-preprocessors-kwargs '{{ encode_kwargs_json }}'
+      --request-formatter-kwargs '{{ guidellm_v7_formatter_kwargs }}'
       {% endif %}
       {% if scenario_request_type == 'chat_completions' %}
-      --processor "{{ hostvars['localhost']['actual_model'] }}"
+      --tokenizer kind=huggingface_auto,model={{ hostvars['localhost']['actual_model'] }}
       {% endif %}
-      --output-dir "{{ stage_results_path }}"
+      --output kind=json,path={{ stage_results_path }}/benchmarks.json
+      --output kind=csv,path={{ stage_results_path }}/benchmarks.csv
 
 # ============================================================================
 # CONTAINERIZED EXECUTION PATH
