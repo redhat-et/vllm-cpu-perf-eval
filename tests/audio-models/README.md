@@ -2,6 +2,24 @@
 
 Comprehensive test suite for evaluating audio model performance on vLLM CPU deployments.
 
+## ⚠️ Known Issues
+
+**vLLM v0.25.1 CPU Compatibility**
+
+vLLM v0.25.1 introduced CPU regressions for encoder-decoder models (Whisper). Use **v0.20.0** for CPU audio benchmarks:
+
+```bash
+export VLLM_CONTAINER_IMAGE=docker.io/vllm/vllm-openai-cpu:v0.20.0
+```
+
+**Issues in v0.25.1:**
+1. `pin_memory=True` crash in `encoder_decoder.py` (fix submitted upstream)
+2. Triton GPU kernel compilation failures on CPU in sampling path
+
+**Status:** Reported to Intel vLLM team. v0.20.0 confirmed working.
+
+**TODO:** Update to v0.25.1+ once Intel fixes V1 engine CPU support. Test with whisper-tiny before updating default.
+
 ## Overview
 
 This test suite provides automated benchmarking for:

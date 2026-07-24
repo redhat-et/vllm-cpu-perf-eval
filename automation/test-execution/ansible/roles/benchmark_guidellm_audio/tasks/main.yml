@@ -117,7 +117,8 @@
 
 - name: "v0.7.x: Build --backend argument"
   ansible.builtin.set_fact:
-    guidellm_v7_backend: "kind=openai_http,target=http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }},request_format=/v1/{{ scenario_request_type | replace('_', '/') }}"
+    guidellm_v7_backend: >-
+      kind=openai_http,target=http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }},request_format=/v1/{{ scenario_request_type | replace('_', '/') }}{% if scenario_request_type in ['audio_transcriptions', 'audio_translations'] %},stream=false{% endif %}
 
 - name: "v0.7.x: Build --data argument (HuggingFace dataset)"
   ansible.builtin.set_fact:
