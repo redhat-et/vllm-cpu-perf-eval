@@ -263,12 +263,12 @@ with tab2:
 
     **Default Results Paths**:
     - LLM models: `../../../results/llm`
-    - Audio models: `../../../results/audio-models`
+    - Audio models: `../../../../results/audio-models`
 
     You can change the path in each dashboard's sidebar configuration.
 
     **For audio results**: Go to 🎧 Audio Metrics page and update the results
-    directory to `../../../results/audio-models`
+    directory to `../../../../results/audio-models`
     """)
 
 with tab3:

@@ -125,8 +125,14 @@ def _transcribe(endpoint, audio_bytes, audio_ext, model):
     return resp.json().get("text", "")
 
 
+def _normalize_text(text):
+    """Lowercase and strip punctuation for fair WER/CER comparison."""
+    import re
+    return re.sub(r'[^\w\s]', '', text.lower()).strip()
+
+
 def _compute_metrics(references, hypotheses):
-    """Compute WER and CER."""
+    """Compute WER and CER after normalizing both sides."""
     try:
         import jiwer
     except ImportError:
@@ -134,8 +140,10 @@ def _compute_metrics(references, hypotheses):
               file=sys.stderr)
         sys.exit(1)
 
-    wer = jiwer.wer(references, hypotheses)
-    cer = jiwer.cer(references, hypotheses)
+    refs = [_normalize_text(r) for r in references]
+    hyps = [_normalize_text(h) for h in hypotheses]
+    wer = jiwer.wer(refs, hyps)
+    cer = jiwer.cer(refs, hyps)
     return wer, cer
 
 
@@ -194,8 +202,9 @@ def main():
 
         try:
             import jiwer
-            clip_wer = jiwer.wer(ref, hypothesis) if ref else None
-            clip_cer = jiwer.cer(ref, hypothesis) if ref else None
+            nr, nh = _normalize_text(ref), _normalize_text(hypothesis)
+            clip_wer = jiwer.wer(nr, nh) if nr else None
+            clip_cer = jiwer.cer(nr, nh) if nr else None
         except ImportError:
             clip_wer = clip_cer = None
 

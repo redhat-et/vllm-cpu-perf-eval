@@ -489,6 +489,7 @@
           when:
             - effective_requested_tensor_parallel | int > 1
             - effective_omp_num_threads is defined
+          no_log: true
 
         - name: Add VLLM_CPU_OMP_THREADS_BIND if TP > 1
           ansible.builtin.set_fact:
@@ -497,6 +498,7 @@
             - effective_requested_tensor_parallel | int > 1
             - omp_threads_bind is defined
             - omp_threads_bind != ''
+          no_log: true
           # NOTE: Setting VLLM_CPU_OMP_THREADS_BIND to explicit CPU list disables
           # VLLM_CPU_NUM_OF_RESERVED_CPU. Only set for TP>1 where we manage binding manually.
 

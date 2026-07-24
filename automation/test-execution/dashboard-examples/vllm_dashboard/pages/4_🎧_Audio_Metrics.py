@@ -128,6 +128,8 @@ def render_overview_metrics(df: pd.DataFrame):
     """Render overview metric cards."""
     # Test Dataset Overview — use one representative stage per run to avoid
     # double-counting files/audio across sequential + concurrent + max-throughput.
+    if df.empty:
+        return
     groups = []
     for _, grp in df.groupby(['test_run_id', 'model', 'scenario']):
         seq = grp[grp['stage'] == 'sequential']

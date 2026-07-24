@@ -18,7 +18,7 @@ Models also support these endpoints (no dedicated benchmark scenarios yet):
 
 ## Model Selection
 
-### Whisper Models (ASR & Translation)
+### Whisper Models (ASR)
 
 | Model | Parameters | Task Focus | CPU Suitability | Use Case |
 |-------|-----------|------------|----------------|----------|
@@ -49,12 +49,12 @@ Models also support these endpoints (no dedicated benchmark scenarios yet):
 - **Format**: OpenAI-compatible ASR API
 - **Models**: All Whisper variants
 
-### Audio Translation
+### Audio Translation (model capability — no dedicated benchmark scenario yet)
 - **Endpoint**: `/v1/audio/translations`
 - **Format**: OpenAI-compatible translation API
 - **Models**: All Whisper variants
 
-### Audio Chat
+### Audio Chat (model capability — no dedicated benchmark scenario yet)
 - **Endpoint**: `/v1/chat/completions`
 - **Format**: OpenAI-compatible chat API with audio support
 - **Models**: Ultravox and other audio-capable chat models
@@ -138,7 +138,7 @@ Each model is tested across scenarios that stress different performance aspects:
 - **format-comparison** - Audio format impact on performance
 - **quick-test** - Fast validation (5 files)
 
-### Audio Chat Models
+### Audio Chat Models (Scenario Status)
 
 **Ultravox** - Scenarios not yet implemented. The model is defined in
 `model-matrix.yaml` with `test_scenarios: []` and will be enabled once
@@ -158,14 +158,14 @@ Audio models have specific CPU tuning parameters:
 | `omp_num_threads` | Auto | OpenMP threads | CPU utilization |
 
 **Auto-calculation:**
-- `tensor_parallel` = largest power of 2 that divides cores
-- `omp_num_threads` = cores / tensor_parallel
+- `tensor_parallel` = 2 if cores ≥ 64, else 1
+- `omp_num_threads` = (cores − 2) / tensor_parallel (2 cores reserved for control plane)
 
 **Example:**
 ```bash
-requested_cores=64  # → TP=2, OMP=32
-→ requested_tensor_parallel=2 (auto)
-→ omp_num_threads=32 (auto)
+requested_cores=64  # → TP=2, OMP=31
+→ requested_tensor_parallel=2 (auto, cores ≥ 64)
+→ omp_num_threads=31 (auto, (64-2)/2)
 ```
 
 ## Performance Expectations
@@ -299,4 +299,4 @@ This is not exposed as a playbook parameter because it's deployment-specific and
 - **[Audio Test Scenarios](../../tests/audio-models/README.md)** - Detailed test documentation
 - **[Audio Benchmark Playbook](../../automation/test-execution/ansible/audio-benchmark.yml)** - Ansible automation
 - **[Model Matrix YAML](model-matrix.yaml)** - Full configuration reference
-- **[GuideLLM Audio Guide](https://github.com/vllm-project/guidellm/tree/main/docs/guides/multimodal/audio.md)** - GuideLLM documentation
+- **[GuideLLM Audio Guide](https://github.com/vllm-project/guidellm/blob/main/docs/guides/multimodal/audio.md)** - GuideLLM documentation

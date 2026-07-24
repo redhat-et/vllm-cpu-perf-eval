@@ -27,10 +27,17 @@ test_scenario:
       VLLM_CPU_KVCACHE_SPACE: "2GiB"
 
   # Test stages - Different audio duration buckets
+  #
+  # NOTE: GuideLLM's encode_media preprocessor only supports max_duration
+  # (truncation), not min_duration or exclusive range filtering.  Stages
+  # therefore use truncation-based buckets: a clip shorter than the
+  # previous stage's max_duration will appear at its natural length in
+  # later stages as well.  For mutually exclusive duration analysis,
+  # post-process per-request audio_seconds from benchmarks.json.
   stages:
-    # Stage 1: Short audio clips (1-5 seconds)
+    # Stage 1: Short audio clips (truncated to ≤5 seconds)
     - name: "short-clips"
-      description: "Process short audio clips (1-5 seconds)"
+      description: "Audio truncated to ≤5s"
       profile: "synchronous"
       max_requests: 100
       audio_config:
@@ -38,13 +45,13 @@ test_scenario:
         bitrate: "64k"
         sample_rate: 16000
         mono: true
-        max_duration: 5.0  # Truncate to max 5 seconds
+        max_duration: 5.0
       result_filename_suffix: "short-5sec"
       expected_behavior: "Lowest latency, highest files/sec"
 
-    # Stage 2: Medium audio clips (5-15 seconds)
+    # Stage 2: Medium audio clips (truncated to ≤15 seconds)
     - name: "medium-clips"
-      description: "Process medium audio clips (5-15 seconds)"
+      description: "Audio truncated to ≤15s"
       profile: "synchronous"
       max_requests: 100
       audio_config:
@@ -52,13 +59,13 @@ test_scenario:
         bitrate: "64k"
         sample_rate: 16000
         mono: true
-        max_duration: 15.0  # Truncate to max 15 seconds
+        max_duration: 15.0
       result_filename_suffix: "medium-15sec"
       expected_behavior: "Moderate latency"
 
-    # Stage 3: Long audio clips (15-30 seconds)
+    # Stage 3: Long audio clips (truncated to ≤30 seconds)
     - name: "long-clips"
-      description: "Process long audio clips (15-30 seconds)"
+      description: "Audio truncated to ≤30s"
       profile: "synchronous"
       max_requests: 100
       audio_config:
@@ -66,13 +73,13 @@ test_scenario:
         bitrate: "64k"
         sample_rate: 16000
         mono: true
-        max_duration: 30.0  # Truncate to max 30 seconds
+        max_duration: 30.0
       result_filename_suffix: "long-30sec"
       expected_behavior: "Higher latency, lower files/sec"
 
     # Stage 4: Full-length clips (no truncation)
     - name: "full-length"
-      description: "Process full-length audio (no truncation)"
+      description: "Full-length audio, no truncation"
       profile: "synchronous"
       max_requests: 100
       audio_config:
@@ -80,7 +87,7 @@ test_scenario:
         bitrate: "64k"
         sample_rate: 16000
         mono: true
-        max_duration: null  # No truncation
+        max_duration: null
       result_filename_suffix: "full-length"
       expected_behavior: "Highest latency, assess real audio distribution"
 

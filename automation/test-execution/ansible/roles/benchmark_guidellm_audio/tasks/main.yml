@@ -35,15 +35,17 @@
     mode: "0777"
     recurse: true
 
+- name: Resolve stage audio config
+  ansible.builtin.set_fact:
+    _stage_audio: "{{ stage.audio_config | default(scenario_config.test_scenario.audio_config | default({})) }}"
+
 - name: Write per-stage metadata
   ansible.builtin.copy:
-    content: |
-      {
-        "stage_name": "{{ stage.name }}",
-        "audio_format": "{{ (stage.audio_config | default(scenario_config.test_scenario.audio_config | default({}))).format | default('mp3') }}",
-        "audio_bitrate": "{{ (stage.audio_config | default(scenario_config.test_scenario.audio_config | default({}))).bitrate | default('64k') }}",
-        "audio_sample_rate": {{ (stage.audio_config | default(scenario_config.test_scenario.audio_config | default({}))).sample_rate | default(16000) }}
-      }
+    content: >-
+      {{ {'stage_name': stage.name,
+          'audio_format': _stage_audio.format | default('mp3'),
+          'audio_bitrate': _stage_audio.bitrate | default('64k'),
+          'audio_sample_rate': _stage_audio.sample_rate | default(16000)} | to_nice_json }}
     dest: "{{ stage_results_path }}/stage-metadata.json"
     mode: "0644"
 
@@ -73,6 +75,7 @@
     validate_certs: false
     timeout: 10
   register: audio_endpoint_check
+  until: (audio_endpoint_check.status | default(-1)) in [200, 405]
   retries: 3
   delay: 2
   failed_when: false
@@ -83,7 +86,7 @@
       - "Audio Endpoint Pre-flight Check:"
       - "  URL: http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/v1/{{ scenario_request_type.replace('_', '/') }}"
       - "  Status: {{ audio_endpoint_check.status | default('TIMEOUT/ERROR') }}"
-      - "  Result: {{ 'PASS ✓' if audio_endpoint_check.status in [200, 405] else 'FAIL ✗' }}"
+      - "  Result: {{ 'PASS ✓' if (audio_endpoint_check.status | default(-1)) in [200, 405] else 'FAIL ✗' }}"
 
 - name: Warn if endpoint check failed
   ansible.builtin.debug:
@@ -91,7 +94,7 @@
       - "⚠️  WARNING: Could not verify audio endpoint accessibility"
       - "GuideLLM backend validation may fail"
       - "Verify vLLM server supports {{ scenario_request_type }}"
-  when: audio_endpoint_check.status not in [200, 405]
+  when: (audio_endpoint_check.status | default(-1)) not in [200, 405]
 
 # ============================================================================
 # BUILD COMMAND LINE
@@ -114,11 +117,11 @@
 
 - name: Build dataset args JSON
   ansible.builtin.set_fact:
-    dataset_args_json: "{\"name\": \"{{ dataset_config_name }}\", \"split\": \"{{ dataset_split }}\"}"
+    dataset_args_json: "{{ {'name': dataset_config_name, 'split': dataset_split} | to_json }}"
 
 - name: Build data column mapper JSON
   ansible.builtin.set_fact:
-    data_column_mapper_json: "{\"audio_column\": \"{{ scenario_dataset.audio_column }}\"}"
+    data_column_mapper_json: "{{ {'audio_column': scenario_dataset.audio_column} | to_json }}"
 
 - name: Build encode kwargs JSON (preprocessor format for v0.6.0)
   ansible.builtin.set_fact:
@@ -139,20 +142,12 @@
       - "--profile"
       - "{{ stage.profile }}"
 
-- name: Add rate for concurrent profile
+- name: Add rate for profile
   ansible.builtin.set_fact:
     guidellm_cmd_args: "{{ guidellm_cmd_args + ['--rate', stage.rate | string] }}"
-  when: stage.profile == 'concurrent' and stage.rate is defined
-
-- name: Add rate for constant profile
-  ansible.builtin.set_fact:
-    guidellm_cmd_args: "{{ guidellm_cmd_args + ['--rate', stage.rate | string] }}"
-  when: stage.profile == 'constant' and stage.rate is defined
-
-- name: Add rate for throughput profile
-  ansible.builtin.set_fact:
-    guidellm_cmd_args: "{{ guidellm_cmd_args + ['--rate', stage.rate | string] }}"
-  when: stage.profile == 'throughput' and stage.rate is defined
+  when:
+    - stage.rate is defined
+    - stage.profile in ['concurrent', 'constant', 'throughput']
 
 - name: Add max-requests
   ansible.builtin.set_fact:
@@ -197,13 +192,7 @@
       --target "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}"
       --request-format {{ scenario_request_type }}
       --profile {{ stage.profile }}
-      {% if stage.profile == 'concurrent' and stage.rate is defined %}
-      --rate {{ stage.rate }}
-      {% endif %}
-      {% if stage.profile == 'constant' and stage.rate is defined %}
-      --rate {{ stage.rate }}
-      {% endif %}
-      {% if stage.profile == 'throughput' and stage.rate is defined %}
+      {% if stage.rate is defined and stage.profile in ['concurrent', 'constant', 'throughput'] %}
       --rate {{ stage.rate }}
       {% endif %}
       {% if stage.max_requests is defined %}
@@ -225,7 +214,7 @@
       {% if scenario_request_type == 'chat_completions' %}
       --processor "{{ hostvars['localhost']['actual_model'] }}"
       {% endif %}
-      --output-dir {{ stage_results_path }}
+      --output-dir "{{ stage_results_path }}"
 
 # ============================================================================
 # CONTAINERIZED EXECUTION PATH
@@ -282,7 +271,7 @@
 
 - name: Wait for GuideLLM benchmark to complete
   ansible.builtin.command:
-    cmd: "podman wait guidellm-audio-{{ stage.name | replace(' ', '-') }}"
+    cmd: "timeout {{ guidellm_benchmark_timeout | default(7200) }} podman wait guidellm-audio-{{ stage.name | replace(' ', '-') }}"
   register: guidellm_exit_code_container
   changed_when: false
   failed_when: false
@@ -402,6 +391,7 @@
   changed_when: false
   failed_when: false
   when: not (use_guidellm_container | bool)
+  no_log: true
 
 - name: Check benchmark result files on load generator (host mode)
   ansible.builtin.find:

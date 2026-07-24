@@ -222,11 +222,16 @@ ansible-playbook audio-benchmark.yml \
 ```
 
 **What it measures:**
-- Processing time for short (1-5s) clips
-- Medium (5-15s) clips
-- Long (15-30s) clips
+- Processing time for short (≤5s) clips
+- Medium (≤15s) clips
+- Long (≤30s) clips
 - Full-length (no truncation)
 - Linear vs non-linear scaling (is it O(n) with audio duration?)
+
+**Note:** Stages use truncation-based buckets (`max_duration`), not exclusive
+ranges. GuideLLM's `encode_media` preprocessor does not support `min_duration`.
+For exclusive duration analysis, filter per-request `audio_seconds` from
+`benchmarks.json` in post-processing.
 
 **Use case:** Capacity planning - "If our average audio file is 30 seconds, how many can we process per hour?"
 
