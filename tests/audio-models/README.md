@@ -6,19 +6,26 @@ Comprehensive test suite for evaluating audio model performance on vLLM CPU depl
 
 **vLLM v0.25.1 CPU Compatibility**
 
-vLLM v0.25.1 introduced CPU regressions for encoder-decoder models (Whisper). Use **v0.20.0** for CPU audio benchmarks:
+vLLM v0.25.1 V1 engine has CPU regressions for encoder-decoder models (Whisper). **Workaround:** Disable V1 engine using environment variable:
 
 ```bash
+# When using v0.25.1, add to vllm_env_vars in playbook:
+VLLM_USE_V2_MODEL_RUNNER: "0"
+
+# Or via Ansible extra vars:
+-e '{"vllm_env_vars": {"VLLM_USE_V2_MODEL_RUNNER": "0"}}'
+
+# Alternative: Use v0.20.0 (works but older)
 export VLLM_CONTAINER_IMAGE=docker.io/vllm/vllm-openai-cpu:v0.20.0
 ```
 
-**Issues in v0.25.1:**
+**Issues in v0.25.1 V1 engine:**
 1. `pin_memory=True` crash in `encoder_decoder.py` (fix submitted upstream)
 2. Triton GPU kernel compilation failures on CPU in sampling path
 
-**Status:** Reported to Intel vLLM team. v0.20.0 confirmed working.
+**Status:** Workaround verified working. Reported to Intel vLLM team.
 
-**TODO:** Update to v0.25.1+ once Intel fixes V1 engine CPU support. Test with whisper-tiny before updating default.
+**TODO:** Update once Intel fixes V1 engine CPU support. Test whisper-tiny before removing workaround.
 
 ## Overview
 

@@ -5,11 +5,14 @@
 # Comprehensive audio benchmarking for ASR (transcription), translation, and
 # audio chat tasks with CPU-optimized vLLM configuration
 #
-# ⚠️  IMPORTANT: vLLM v0.25.1 has CPU encoder-decoder bugs (pin_memory crash,
-#     Triton GPU kernel compilation). Use v0.20.0 for CPU audio benchmarks:
-#     export VLLM_CONTAINER_IMAGE=docker.io/vllm/vllm-openai-cpu:v0.20.0
+# ⚠️  IMPORTANT: vLLM v0.25.1 V1 engine has CPU encoder-decoder bugs.
+#     Workaround (Recommended): Disable V1 engine on v0.25.1
+#       Add to vllm_env_vars in your playbook:
+#         VLLM_USE_V2_MODEL_RUNNER: "0"
+#     Alternative: Use v0.20.0 (works but older)
+#       export VLLM_CONTAINER_IMAGE=docker.io/vllm/vllm-openai-cpu:v0.20.0
 #
-# TODO: Once vLLM fixes CPU encoder-decoder support in V1 engine, update back to v0.25.1+
+# TODO: Once vLLM fixes CPU encoder-decoder support in V1 engine, remove workaround
 #       Tracking: https://github.com/vllm-project/vllm/issues/XXXXX (add issue # when created)
 #       Test whisper-tiny works before removing this notice
 #
@@ -19,13 +22,13 @@
 #
 # Usage Examples:
 #
-#   # Managed mode with auto CPU configuration (use v0.20.0 until v0.25.1 CPU bugs fixed)
+#   # Managed mode with auto CPU configuration (v0.25.1 with V2 runner workaround)
 #   # Note: With 32 cores, auto-calculates: TP=1, OMP=30 (reserves 2 for control plane)
-#   export VLLM_CONTAINER_IMAGE=docker.io/vllm/vllm-openai-cpu:v0.20.0
 #   ansible-playbook audio-benchmark.yml \
 #     -e "test_model=openai/whisper-small" \
 #     -e "test_scenario=transcription-throughput" \
-#     -e "requested_cores=32"
+#     -e "requested_cores=32" \
+#     -e '{"vllm_env_vars": {"VLLM_USE_V2_MODEL_RUNNER": "0"}}'
 #
 #   # External endpoint mode
 #   ansible-playbook audio-benchmark.yml \
