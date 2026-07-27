@@ -1,0 +1,18 @@
+name: audio
+description: Audio model benchmarking - Whisper ASR matrix (3 models by default)
+runner: script
+target: automation/test-execution/scripts/bash/run-audio-suite.sh
+matrix: true
+
+defaults:
+  models: all
+  scenarios: transcription-throughput
+  cores: "32"
+
+param_mappings:
+  models: --models
+  model: --models
+  scenarios: --scenarios
+  scenario: --scenarios
+  cores: --cores
+  skip_models: --skip-models

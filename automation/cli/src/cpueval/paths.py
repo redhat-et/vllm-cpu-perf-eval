@@ -71,6 +71,11 @@ def get_last_run_hint_path() -> Path:
 
 def get_suites_dir() -> Path:
     """Get the suites directory."""
+    # Check for installed package data first
+    pkg_suites = Path(__file__).parent / "suites"
+    if pkg_suites.exists():
+        return pkg_suites
+    # Fall back to dev layout
     return Path(__file__).parent.parent.parent / "suites"
 
 
@@ -80,13 +85,12 @@ def get_profiles_dir() -> Path:
 
 
 def find_latest_result(
-    model: Optional[str] = None, suite: Optional[str] = None, audio: bool = False
+    model: Optional[str] = None, audio: bool = False
 ) -> Optional[Path]:
     """Find the latest result directory matching criteria.
 
     Args:
         model: Model name to filter by (optional)
-        suite: Suite name to filter by (optional)
         audio: Look in audio-models directory instead of llm
 
     Returns:
@@ -109,11 +113,11 @@ def find_latest_result(
     if model:
         # Model name is sanitized with __ instead of / in directory names
         model_safe = model.replace("/", "__")
-        result_dirs = [d for d in result_dirs if model_safe in str(d)]
-
-    # Filter by suite if specified
-    if suite and not audio:
-        result_dirs = [d for d in result_dirs if suite in str(d)]
+        # Match model directory name exactly, not as substring
+        result_dirs = [
+            d for d in result_dirs
+            if any(part == model_safe for part in d.parts)
+        ]
 
     # Sort by modification time and return the latest
     if result_dirs:

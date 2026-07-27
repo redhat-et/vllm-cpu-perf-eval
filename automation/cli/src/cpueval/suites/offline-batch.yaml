@@ -1,0 +1,22 @@
+name: offline-batch
+description: Offline batch processing - enterprise workload tiers
+runner: script
+target: automation/test-execution/scripts/bash/run-offline-batch-suite.sh
+matrix: true
+
+# Note: This script uses POSITIONAL args, not flags
+# Tier presets for enterprise priorities:
+#   tier1: Summarization, Classification, RAG, Entity Extraction (4 use-cases × 3 runs = 12 tests)
+#   tier2: Long-Doc Summary, ETL, Short Labeling (3 use-cases × 3 runs = 9 tests)
+#   tier3: Code Gen, Translation, Dataset Gen (3 use-cases × 3 runs = 9 tests)
+#   all: All 11 use-cases × 5 runs = 55 tests
+#
+# Override examples:
+#   --extra args="use-case-sweep summarization all 8,16,32 3"
+#   --extra args="use-cases 1 RedHatAI/TinyLlama-1.1B-Chat-v1.0-pruned2.4"
+
+defaults:
+  args: "use-cases 3"
+
+param_mappings:
+  args: direct

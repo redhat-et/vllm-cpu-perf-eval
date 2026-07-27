@@ -1,0 +1,19 @@
+name: concurrent-load
+description: Upstream LLM concurrent load - full matrix (15 combinations by default)
+runner: script
+target: automation/test-execution/scripts/bash/run-concurrent-load-suite.sh
+matrix: true
+
+defaults:
+  models: all
+  cores: "8,16,32"
+  workloads: "chat,code,summarization,rag"
+  phase: "1"
+
+param_mappings:
+  models: --models
+  model: --models
+  cores: --cores
+  workloads: --workloads
+  phase: --phase
+  skip_models: --skip-models

@@ -1,0 +1,19 @@
+name: embedding
+description: Embedding model performance - baseline + latency tests (small models by default)
+runner: script
+target: automation/test-execution/scripts/bash/run-embedding-suite.sh
+matrix: true
+
+defaults:
+  models: all
+  cores: "8,16,32"
+  scenario: all
+  num_prompts: "250"
+
+param_mappings:
+  models: --models
+  model: --models
+  cores: --cores
+  scenario: --scenario
+  num_prompts: --num-prompts
+  skip_models: --skip-models

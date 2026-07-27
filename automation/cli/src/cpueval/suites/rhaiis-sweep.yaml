@@ -1,0 +1,19 @@
+name: rhaiis-sweep
+description: RHAIIS model concurrent load sweep - full test matrix by default
+runner: script
+target: automation/test-execution/scripts/bash/run-rhaiis-concurrent-load.sh
+matrix: true
+
+defaults:
+  models: all
+  cores: "8,16,32"
+  workloads: "chat,code,summarization,rag"
+  phase: "1"
+
+param_mappings:
+  models: --models
+  model: --models
+  cores: --cores
+  workloads: --workloads
+  phase: --phase
+  skip_models: --skip-models

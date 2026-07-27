@@ -1,11 +1,9 @@
 """Results management for cpueval."""
 
 import json
-import os
 import subprocess
-import sys
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 
 from rich.console import Console
 from rich.table import Table
@@ -107,75 +105,75 @@ def load_metadata(result_dir: Path) -> Optional[Dict[str, Any]]:
         return None
 
 
-def extract_metrics(benchmarks: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+def extract_metrics(benchmarks: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Extract key metrics from benchmarks data.
 
     Args:
         benchmarks: Benchmarks data dict
 
     Returns:
-        Metrics dict with concurrency, req/s, tok/s, TTFT, TPOT, requests
+        List of metrics dicts (one per concurrency point), each with:
+        concurrency, req/s, tok/s, TTFT, TPOT, requests
     """
     try:
         # Handle list of benchmarks
         benchmark_list = benchmarks.get("benchmarks", [])
         if not benchmark_list:
-            return None
+            return []
 
-        # Take first benchmark
-        benchmark = benchmark_list[0]
+        results = []
 
-        # Extract config
-        config = benchmark.get("config", {})
-        strategy = config.get("strategy", {})
+        # Process ALL benchmarks (multiple concurrency points)
+        for benchmark in benchmark_list:
+            # Extract config
+            config = benchmark.get("config", {})
+            strategy = config.get("strategy", {})
 
-        # Concurrency from strategy
-        concurrency = strategy.get("max_concurrency") or strategy.get("streams")
+            # Concurrency from strategy
+            concurrency = strategy.get("max_concurrency") or strategy.get("streams")
 
-        # Extract metrics (handle both dict and list shapes safely)
-        metrics_data = benchmark.get("metrics", {})
+            # Extract metrics (GuideLLM v0.6+)
+            metrics_data = benchmark.get("metrics", {})
 
-        def safe_mean(value):
-            """Safely extract mean from value (handle scalar, dict, list)."""
-            if isinstance(value, dict):
-                successful = value.get("successful", {})
-                if isinstance(successful, dict):
-                    return successful.get("mean")
-            return None
+            def safe_mean(key):
+                """Safely extract mean from metrics dict."""
+                value = metrics_data.get(key)
+                if isinstance(value, dict):
+                    successful = value.get("successful", {})
+                    if isinstance(successful, dict):
+                        return successful.get("mean")
+                return None
 
-        req_per_sec = safe_mean(metrics_data.get("request_rate"))
-        tok_per_sec = safe_mean(metrics_data.get("output_token_throughput"))
-        ttft_ms = safe_mean(metrics_data.get("time_to_first_token"))
-        tpot_ms = safe_mean(metrics_data.get("inter_token_latency"))
+            # Real GuideLLM field names
+            req_per_sec = safe_mean("requests_per_second")
+            tok_per_sec = (
+                safe_mean("tokens_per_second")
+                or safe_mean("output_tokens_per_second")
+            )
+            ttft_ms = safe_mean("time_to_first_token_ms")
+            tpot_ms = (
+                safe_mean("time_per_output_token_ms")
+                or safe_mean("inter_token_latency_ms")
+            )
 
-        # Convert to ms if needed
-        if ttft_ms is not None:
-            ttft_ms = ttft_ms * 1000 if ttft_ms < 10 else ttft_ms
-        if tpot_ms is not None:
-            tpot_ms = tpot_ms * 1000 if tpot_ms < 10 else tpot_ms
+            # Request totals (GuideLLM v0.6+)
+            request_totals = metrics_data.get("request_totals", {})
+            ok_requests = request_totals.get("successful", 0)
+            total_requests = request_totals.get("total", 0)
 
-        # Request counts (handle scalar safely)
-        request_counts = benchmark.get("request_counts", {})
-        total_requests = request_counts.get("total", 0)
-        ok_requests = request_counts.get("completed", 0)
+            results.append({
+                "concurrency": concurrency,
+                "req_per_sec": req_per_sec,
+                "tok_per_sec": tok_per_sec,
+                "ttft_ms": ttft_ms,
+                "tpot_ms": tpot_ms,
+                "ok_requests": ok_requests,
+                "total_requests": total_requests,
+            })
 
-        # Ensure scalars
-        if isinstance(total_requests, list):
-            total_requests = total_requests[0] if total_requests else 0
-        if isinstance(ok_requests, list):
-            ok_requests = ok_requests[0] if ok_requests else 0
-
-        return {
-            "concurrency": concurrency,
-            "req_per_sec": req_per_sec,
-            "tok_per_sec": tok_per_sec,
-            "ttft_ms": ttft_ms,
-            "tpot_ms": tpot_ms,
-            "ok_requests": ok_requests,
-            "total_requests": total_requests,
-        }
+        return results
     except Exception:
-        return None
+        return []
 
 
 def print_result_summary(result_dir: Path, console: Console) -> None:
@@ -195,48 +193,72 @@ def print_result_summary(result_dir: Path, console: Console) -> None:
         table.add_column("Key", style="dim")
         table.add_column("Value")
 
+        # Real test-metadata.json structure
         table.add_row("Model", metadata.get("model", "unknown"))
-        table.add_row("Test Type", metadata.get("test_type", "unknown"))
+        table.add_row(
+            "Workload",
+            metadata.get("workload")
+            or metadata.get("use_case")
+            or metadata.get("test_type")
+            or "unknown",
+        )
         table.add_row("Timestamp", metadata.get("timestamp", "unknown"))
 
-        if "configuration" in metadata:
-            cfg = metadata["configuration"]
-            table.add_row("Cores", str(cfg.get("cores", "unknown")))
+        # Core count from top-level or configuration
+        cores = (
+            metadata.get("core_count")
+            or metadata.get("cores")
+            or (
+                metadata.get("configuration", {}).get("cores")
+                if "configuration" in metadata
+                else None
+            )
+        )
+        if cores:
+            table.add_row("Cores", str(cores))
 
         console.print(table)
         console.print()
 
     if benchmarks:
-        metrics = extract_metrics(benchmarks)
+        metrics_list = extract_metrics(benchmarks)
 
-        if metrics:
+        if metrics_list:
+            # Show all concurrency points
             table = Table(show_header=True, header_style="bold magenta")
-            table.add_column("Metric")
-            table.add_column("Value", justify="right")
+            table.add_column("Concurrency")
+            table.add_column("Req/s", justify="right")
+            table.add_column("Tok/s", justify="right")
+            table.add_column("TTFT (ms)", justify="right")
+            table.add_column("TPOT (ms)", justify="right")
+            table.add_column("Requests", justify="right")
 
-            if metrics.get("concurrency"):
-                table.add_row("Concurrency", str(metrics["concurrency"]))
-
-            if metrics.get("req_per_sec"):
-                table.add_row("Requests/sec", f'{metrics["req_per_sec"]:.2f}')
-
-            if metrics.get("tok_per_sec"):
-                table.add_row("Tokens/sec", f'{metrics["tok_per_sec"]:.2f}')
-
-            if metrics.get("ttft_ms"):
-                table.add_row("TTFT (ms)", f'{metrics["ttft_ms"]:.2f}')
-
-            if metrics.get("tpot_ms"):
-                table.add_row("TPOT (ms)", f'{metrics["tpot_ms"]:.2f}')
-
-            ok = metrics.get("ok_requests", 0)
-            total = metrics.get("total_requests", 0)
-            table.add_row("Requests", f"{ok}/{total}")
+            for m in metrics_list:
+                table.add_row(
+                    str(m.get("concurrency", "-")),
+                    (
+                        f'{m["req_per_sec"]:.2f}'
+                        if m.get("req_per_sec") is not None
+                        else "-"
+                    ),
+                    (
+                        f'{m["tok_per_sec"]:.2f}'
+                        if m.get("tok_per_sec") is not None
+                        else "-"
+                    ),
+                    f'{m["ttft_ms"]:.2f}' if m.get("ttft_ms") is not None else "-",
+                    f'{m["tpot_ms"]:.2f}' if m.get("tpot_ms") is not None else "-",
+                    f'{m.get("ok_requests", 0)}/{m.get("total_requests", 0)}',
+                )
 
             console.print(table)
             console.print()
         else:
-            console.print("[yellow]Could not extract metrics from benchmarks.json[/yellow]\n")
+            msg = (
+                "[yellow]Could not extract metrics "
+                "from benchmarks.json[/yellow]\n"
+            )
+            console.print(msg)
     else:
         console.print("[yellow]No benchmarks.json found[/yellow]\n")
 

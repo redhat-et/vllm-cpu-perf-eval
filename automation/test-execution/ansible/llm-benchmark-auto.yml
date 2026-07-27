@@ -478,8 +478,8 @@
       ansible.builtin.include_tasks: tasks/start-vllm-metrics-collection.yml
       vars:
         vllm_mode: "{{ hostvars['localhost']['vllm_mode'] }}"
-        results_path: "{{ bench_config.results_dir }}/{{ actual_model | replace('/', '__') }}/{{ workload_type }}-{{ test_run_id }}/{{ core_configuration.name }}"
-        test_run_id: "{{ test_run_id }}"
+        results_path: "{{ bench_config.results_dir }}/{{ actual_model | replace('/', '__') }}/{{ workload_type }}-{{ hostvars['localhost']['test_run_id'] }}/{{ core_configuration.name }}"
+        test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
 
   roles:
     - role: hf_token

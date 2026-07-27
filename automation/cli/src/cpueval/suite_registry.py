@@ -1,5 +1,6 @@
 """Suite registry and loader for cpueval."""
 
+import sys
 import yaml
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,6 +18,7 @@ class Suite:
     target: str  # playbook name or script path
     defaults: Dict[str, Any]
     param_mappings: Dict[str, str]  # CLI param -> ansible/script param
+    matrix: bool = False  # True = full matrix by default, --model optional
 
 
 class SuiteRegistry:
@@ -26,7 +28,8 @@ class SuiteRegistry:
         """Initialize the suite registry.
 
         Args:
-            suites_dir: Directory containing suite YAML files. Defaults to cpueval/suites.
+            suites_dir: Directory containing suite YAML files.
+                Defaults to cpueval/suites.
         """
         self.suites_dir = suites_dir or get_suites_dir()
         self._suites: Dict[str, Suite] = {}
@@ -42,18 +45,82 @@ class SuiteRegistry:
                 with open(suite_file) as f:
                     data = yaml.safe_load(f)
 
+                if not data:
+                    print(
+                        f"Warning: Empty suite file: {suite_file.name}",
+                        file=sys.stderr,
+                    )
+                    continue
+
+                # Validate required fields
+                required = ["name", "runner", "target"]
+                missing = [f for f in required if f not in data]
+                if missing:
+                    print(
+                        f"Warning: Suite {suite_file.name} missing "
+                        f"required fields: {', '.join(missing)}",
+                        file=sys.stderr,
+                    )
+                    continue
+
+                # Validate types
+                name = data["name"]
+                runner = data["runner"]
+                target = data["target"]
+                defaults = data.get("defaults", {})
+                param_mappings = data.get("param_mappings", {})
+
+                if not isinstance(name, str):
+                    print(
+                        f"Warning: Suite {suite_file.name} has non-string name",
+                        file=sys.stderr,
+                    )
+                    continue
+                if not isinstance(runner, str):
+                    print(
+                        f"Warning: Suite {suite_file.name} has non-string runner",
+                        file=sys.stderr,
+                    )
+                    continue
+                if not isinstance(target, str):
+                    print(
+                        f"Warning: Suite {suite_file.name} has non-string target",
+                        file=sys.stderr,
+                    )
+                    continue
+                if not isinstance(defaults, dict):
+                    print(
+                        f"Warning: Suite {suite_file.name} has non-mapping defaults",
+                        file=sys.stderr,
+                    )
+                    continue
+                if not isinstance(param_mappings, dict):
+                    print(
+                        f"Warning: Suite {suite_file.name} has non-mapping param_mappings",
+                        file=sys.stderr,
+                    )
+                    continue
+
                 suite = Suite(
-                    name=data["name"],
+                    name=name,
                     description=data.get("description", ""),
-                    runner=data["runner"],
-                    target=data["target"],
-                    defaults=data.get("defaults", {}),
-                    param_mappings=data.get("param_mappings", {}),
+                    runner=runner,
+                    target=target,
+                    defaults=defaults,
+                    param_mappings=param_mappings,
+                    matrix=data.get("matrix", False),
                 )
                 self._suites[suite.name] = suite
+            except yaml.YAMLError as e:
+                print(
+                    f"Warning: Invalid YAML in {suite_file.name}: {e}",
+                    file=sys.stderr,
+                )
             except Exception as e:
-                # Silently skip invalid suite files
-                pass
+                print(
+                    f"Warning: Failed to load suite {suite_file.name}: {e}",
+                    file=sys.stderr,
+                )
 
     def list_suites(self) -> List[Suite]:
         """Get all registered suites."""

@@ -7,6 +7,8 @@ title: Getting Started
 
 Complete guide to setting up and running your first vLLM performance tests.
 
+> **🚀 Quick Start:** For the fastest way to run benchmarks, see the **[cpueval CLI Guide](cpueval-cli.md)** - a thin wrapper that simplifies running test suites without writing Ansible commands.
+
 > **📝 Note:** This is a simplified quick start guide. For the complete Ansible documentation including all playbooks, roles, and advanced configuration, see the [full Ansible automation guide](https://github.com/redhat-et/vllm-cpu-perf-eval/blob/main/automation/test-execution/ansible/ansible.md) in the repository.
 
 ## Overview
@@ -118,14 +120,109 @@ export HF_TOKEN=$(cat ~/hf-token)
 
 ## Quick Start
 
-### 1. Clone the Repository
+There are two ways to run benchmarks:
+1. **cpueval CLI** (recommended) - Simple wrapper for common tasks
+2. **Direct Ansible** - Full control and customization
+
+### Method 1: Using cpueval CLI (Recommended)
+
+The `cpueval` CLI provides a simple interface for running standard benchmarks.
+
+#### 1. Clone and Install
+
+```bash
+git clone https://github.com/redhat-et/vllm-cpu-perf-eval.git
+cd vllm-cpu-perf-eval
+
+# Install cpueval
+cd automation/cli
+pip install -e .
+cd ../..
+```
+
+#### 2. Set Environment Variables
+
+```bash
+# Set hostnames
+export DUT_HOSTNAME=ec2-18-117-90-80.us-east-2.compute.amazonaws.com
+export LOADGEN_HOSTNAME=ec2-52-15-123-132.us-east-2.compute.amazonaws.com
+
+# SSH credentials
+export ANSIBLE_SSH_USER=ec2-user
+export ANSIBLE_PRIVATE_KEY_FILE=~/your-key.pem
+
+# HuggingFace token (for gated models)
+export HF_TOKEN=$(cat ~/hf-token)
+```
+
+#### 3. Check System Health
+
+```bash
+./cpueval doctor
+```
+
+#### 4. Run Platform Setup (Optional)
+
+```bash
+./cpueval run --suite setup-platform
+```
+
+This configures CPU isolation, performance governor, NUMA optimizations, etc.
+
+#### 5. Run Your First Test
+
+```bash
+# Quick chat test (matrix suite - no --model required)
+./cpueval run --suite rhaiis-sweep \
+  --extra models=tiny \
+  --extra cores="8,16" \
+  --extra workloads=chat
+
+# Or single model test
+./cpueval run --suite chat-smoke \
+  --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
+  --cores 16
+
+# Audio benchmarking
+./cpueval run --suite audio \
+  --model openai/whisper-small \
+  --cores 32
+
+# Embedding models
+./cpueval run --suite embedding \
+  --model RedHatAI/granite-embedding-english-r2 \
+  --cores 16
+```
+
+#### 6. View Results
+
+```bash
+# Show last run
+./cpueval results --last
+
+# List recent results
+./cpueval results --list
+
+# Launch dashboard
+./cpueval dashboard
+```
+
+For complete cpueval documentation, see **[cpueval CLI Guide](cpueval-cli.md)**.
+
+---
+
+### Method 2: Direct Ansible (Advanced)
+
+For custom configurations or when you need full control over Ansible variables.
+
+#### 1. Clone the Repository
 
 ```bash
 git clone https://github.com/redhat-et/vllm-cpu-perf-eval.git
 cd vllm-cpu-perf-eval/automation/test-execution/ansible
 ```
 
-### 2. Configure Your Environment
+#### 2. Configure Your Environment
 
 **Option A: Environment Variables (Recommended)**
 
@@ -169,7 +266,7 @@ load_generator:
       ansible_host: "192.168.1.20"  # Update this
 ```
 
-### 3. Test Connectivity
+#### 3. Test Connectivity
 
 ```bash
 ansible -i inventory/hosts.yml all -m ping
@@ -181,7 +278,7 @@ vllm-server | SUCCESS => {"ping": "pong"}
 guidellm-client | SUCCESS => {"ping": "pong"}
 ```
 
-### 4. Platform Setup (Optional but Recommended)
+#### 4. Platform Setup (Optional but Recommended)
 
 Configure your **DUT and Load Generator** hosts with performance optimizations for deterministic benchmarking:
 
@@ -211,7 +308,7 @@ ansible -i inventory/hosts.yml all -b -m reboot
 
 > **Note:** You can skip this step if you're just trying out the framework. It's mainly for production-grade deterministic benchmarking. See [Platform Setup Guide](platform-setup/x86/intel/deterministic-benchmarking) for details.
 
-### 5. Run Your First Test
+#### 5. Run Your First Test
 
 **Simple LLM test:**
 
@@ -230,7 +327,7 @@ ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
 
 **Test takes:** ~15-20 minutes (includes vLLM startup and 10-minute test)
 
-### 6. View Results
+#### 6. View Results
 
 Results are automatically collected to your local machine. The recommended way
 to view and analyze results is via the **Streamlit dashboard**:

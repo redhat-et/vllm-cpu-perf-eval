@@ -1,7 +1,5 @@
 """Main CLI for cpueval."""
 
-import sys
-from pathlib import Path
 from typing import List, Optional
 
 import typer
@@ -11,10 +9,13 @@ from rich.table import Table
 from cpueval import __version__
 from cpueval.doctor import run_doctor
 from cpueval.paths import get_profiles_dir
-from cpueval.results import run_results_command, run_dashboard_command, save_last_run_hint, find_latest_result
+from cpueval.results import (
+    run_results_command,
+    run_dashboard_command,
+    save_last_run_hint,
+    find_latest_result,
+)
 from cpueval.runners import (
-    build_ansible_command,
-    build_script_command,
     load_profile,
     merge_extra_vars,
     run_ansible,
@@ -42,7 +43,7 @@ def main(
     version: Optional[bool] = typer.Option(
         None,
         "--version",
-        "-v",
+        "-V",
         callback=version_callback,
         is_eager=True,
         help="Show version and exit",
@@ -64,20 +65,23 @@ def list():
 
     table = Table(show_header=True, header_style="bold magenta")
     table.add_column("Name", style="cyan", width=25)
+    table.add_column("Type", width=12)
     table.add_column("Runner", width=10)
-    table.add_column("Target", style="dim")
     table.add_column("Description")
 
     for suite in suites:
+        suite_type = "[green]Matrix[/green]" if suite.matrix else "[yellow]Single[/yellow]"
         table.add_row(
             suite.name,
+            suite_type,
             suite.runner,
-            suite.target,
             suite.description[:60] + "..." if len(suite.description) > 60 else suite.description,
         )
 
     console.print()
     console.print(table)
+    console.print()
+    console.print("[dim]Legend:[/dim] [green]Matrix[/green] = full test matrix by default, [yellow]Single[/yellow] = requires --model")
     console.print()
 
 
@@ -95,13 +99,30 @@ def show(suite_name: str = typer.Argument(..., help="Suite name")):
     console.print(f"\n[bold cyan]Suite: {suite.name}[/bold cyan]\n")
     console.print(f"[dim]Description:[/dim] {suite.description}")
     console.print(f"[dim]Runner:[/dim] {suite.runner}")
-    console.print(f"[dim]Target:[/dim] {suite.target}\n")
+    console.print(f"[dim]Target:[/dim] {suite.target}")
+
+    if suite.matrix:
+        console.print(f"[dim]Type:[/dim] [green]Matrix suite[/green] (runs full test matrix by default)")
+    else:
+        console.print(f"[dim]Type:[/dim] [yellow]Single-shot[/yellow] (--model required)")
+    console.print()
 
     if suite.defaults:
         console.print("[bold]Default Parameters:[/bold]")
         for key, value in suite.defaults.items():
             console.print(f"  {key}: {value}")
         console.print()
+
+        if suite.matrix:
+            console.print("[dim]This suite runs the full matrix by default.[/dim]")
+            console.print("[dim]Use CLI flags to narrow the scope:[/dim]")
+            if "models" in suite.defaults:
+                console.print("  --models <preset|list> to select specific models")
+            if "cores" in suite.defaults:
+                console.print("  --cores <list> to select specific core counts")
+            if "workloads" in suite.defaults:
+                console.print("  --workloads <list> to select specific workloads")
+            console.print()
 
     if suite.param_mappings:
         console.print("[bold]Parameter Mappings:[/bold]")
@@ -112,22 +133,24 @@ def show(suite_name: str = typer.Argument(..., help="Suite name")):
 
 @app.command()
 def doctor(
-    suite_name: Optional[str] = typer.Option(None, "--suite", "-s", help="Specific suite to check"),
     no_ping: bool = typer.Option(False, "--no-ping", help="Skip host connectivity check"),
 ):
     """Run system health checks."""
-    exit_code = run_doctor(suite_name=suite_name, no_ping=no_ping)
+    exit_code = run_doctor(no_ping=no_ping)
     raise typer.Exit(exit_code)
 
 
 @app.command()
 def run(
     suite: str = typer.Option(..., "--suite", "-s", help="Suite name (required)"),
-    model: Optional[str] = typer.Option(None, "--model", "-m", help="Model ID"),
-    cores: Optional[int] = typer.Option(None, "--cores", "-c", help="Number of CPU cores"),
+    model: Optional[str] = typer.Option(None, "--model", "-m", help="Model ID (single model)"),
+    models: Optional[str] = typer.Option(None, "--models", help="Models preset or comma-list (matrix suites)"),
+    cores: Optional[str] = typer.Option(None, "--cores", "-c", help="Core counts (comma-separated or single)"),
     workload: Optional[str] = typer.Option(None, "--workload", "-w", help="Workload type"),
-    scenario: Optional[str] = typer.Option(None, "--scenario", help="Test scenario (audio suites)"),
-    preset: Optional[str] = typer.Option(None, "--preset", help="Model preset (RHAIIS: all|llama|qwen|tiny)"),
+    workloads: Optional[str] = typer.Option(None, "--workloads", help="Workloads (comma-separated, matrix suites)"),
+    scenario: Optional[str] = typer.Option(None, "--scenario", help="Test scenario"),
+    mode: Optional[str] = typer.Option(None, "--mode", help="Test mode (offline-batch: use-cases|baseline|all)"),
+    preset: Optional[str] = typer.Option(None, "--preset", help="Model preset (deprecated, use --models)"),
     tensor_parallel: Optional[int] = typer.Option(None, "--tensor-parallel", help="Tensor parallel size"),
     vllm_cpu_start: Optional[int] = typer.Option(None, "--vllm-cpu-start", help="vLLM CPU start core"),
     vllm_numa: Optional[int] = typer.Option(None, "--vllm-numa", help="vLLM NUMA node"),
@@ -149,10 +172,17 @@ def run(
         console.print("\nRun 'cpueval list' to see available suites.")
         raise typer.Exit(1)
 
+    # Validate --model for non-matrix suites
+    if not suite_obj.matrix and not model and not models:
+        console.print(f"[red]Error: --model is required for suite '{suite}'[/red]")
+        console.print(f"\nSuite '{suite}' is not a matrix suite.")
+        console.print("Use --model to specify a single model.")
+        raise typer.Exit(1)
+
     # Run doctor unless skipped or dry-run
     if not skip_doctor and not dry_run:
         console.print("[cyan]Running pre-flight checks...[/cyan]")
-        doctor_exit = run_doctor(suite_name=suite, no_ping=True)
+        doctor_exit = run_doctor(no_ping=True)
         if doctor_exit != 0:
             console.print("\n[yellow]Warning: Some health checks failed. Use --skip-doctor to bypass.[/yellow]")
             raise typer.Exit(doctor_exit)
@@ -161,22 +191,65 @@ def run(
     # Build CLI vars from options
     cli_vars = {}
 
-    # Map common parameters
-    if model:
-        cli_vars[suite_obj.param_mappings.get("model", "test_model")] = model
+    # Handle model/models
+    # For script runners: store CLI key (models, model) for later flag mapping
+    # For ansible runners: store mapped ansible var name immediately
+    if model or models:
+        effective_models = models or model
+        if suite_obj.runner == "script":
+            # Script suites: keep as "models" or "model" key for param_mappings lookup
+            cli_vars["models" if models or suite_obj.matrix else "model"] = effective_models
+        else:
+            # Ansible suites: use mapped ansible var name
+            if models or (suite_obj.matrix and "models" in suite_obj.param_mappings):
+                mapped_key = suite_obj.param_mappings.get("models", "test_model")
+                cli_vars[mapped_key] = effective_models
+            elif "model" in suite_obj.param_mappings:
+                cli_vars[suite_obj.param_mappings["model"]] = effective_models
+            else:
+                cli_vars["test_model"] = effective_models
 
     if cores:
-        cli_vars[suite_obj.param_mappings.get("cores", "requested_cores")] = cores
+        if suite_obj.runner == "script":
+            # Script suites: keep as "cores" for param_mappings lookup
+            cli_vars["cores"] = cores
+        else:
+            # Ansible suites: use mapped ansible var name (e.g., requested_cores)
+            mapped_key = suite_obj.param_mappings.get("cores", "requested_cores")
+            try:
+                cli_vars[mapped_key] = int(cores)
+            except ValueError:
+                cli_vars[mapped_key] = cores
 
-    if workload:
-        # Use suite-specific mapping (base_workload vs workload_type)
-        cli_vars[suite_obj.param_mappings.get("workload", "base_workload")] = workload
+    if workload or workloads:
+        effective_workloads = workloads or workload
+        if suite_obj.runner == "script":
+            # Script suites: keep as "workloads" or "workload"
+            cli_vars["workloads" if workloads else "workload"] = effective_workloads
+        else:
+            # Ansible suites: use mapped ansible var name
+            mapped_key = suite_obj.param_mappings.get("workload", "base_workload")
+            cli_vars[mapped_key] = effective_workloads
 
     if scenario:
-        cli_vars[suite_obj.param_mappings.get("scenario", "test_scenario")] = scenario
+        if suite_obj.runner == "script":
+            # Script suites: keep as "scenario"
+            cli_vars["scenario"] = scenario
+        else:
+            # Ansible suites: use mapped ansible var name (e.g., test_scenario)
+            mapped_key = suite_obj.param_mappings.get("scenario", "test_scenario")
+            cli_vars[mapped_key] = scenario
+
+    if mode:
+        cli_vars["mode"] = mode
 
     if preset:
-        cli_vars[suite_obj.param_mappings.get("preset", "test_model_preset")] = preset
+        # Deprecated, but still support it
+        console.print("[yellow]Warning: --preset is deprecated, use --models instead[/yellow]")
+        if "models" in suite_obj.param_mappings:
+            cli_vars["models"] = preset
+        else:
+            cli_vars[suite_obj.param_mappings.get("preset", "test_model_preset")] = preset
 
     if tensor_parallel:
         cli_vars["requested_tensor_parallel"] = tensor_parallel
@@ -208,27 +281,30 @@ def run(
             raise typer.Exit(1)
 
     # Merge all extra vars
-    final_vars = merge_extra_vars(
-        suite_defaults=suite_obj.defaults,
-        profile_vars=profile_vars,
-        cli_vars=cli_vars,
-        extra_pairs=extra or [],
-        extra_vars_file=extra_vars_file,
-    )
+    try:
+        final_vars = merge_extra_vars(
+            suite_defaults=suite_obj.defaults,
+            profile_vars=profile_vars,
+            cli_vars=cli_vars,
+            extra_pairs=extra or [],
+            extra_vars_file=extra_vars_file,
+        )
+    except FileNotFoundError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1)
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1)
 
     # Execute based on runner type
     if suite_obj.runner == "ansible":
-        if dry_run:
-            cmd = build_ansible_command(suite_obj.target, final_vars, ansible_arg or [])
-            console.print("[bold cyan]Command:[/bold cyan]")
-            console.print(" ".join(cmd))
-            raise typer.Exit(0)
+        exit_code = run_ansible(suite_obj.target, final_vars, ansible_arg or [], dry_run=dry_run)
 
-        exit_code = run_ansible(suite_obj.target, final_vars, ansible_arg or [], dry_run=False)
-
-        # Save last run hint on success
-        if exit_code == 0:
-            result_dir = find_latest_result(model=model, audio="audio" in suite)
+        # Save last run hint on success (skip for dry-run)
+        if exit_code == 0 and not dry_run:
+            result_dir = find_latest_result(
+                model=model, audio="audio" in suite
+            )
             save_last_run_hint(suite, model, result_dir)
 
             if result_dir:
@@ -240,26 +316,35 @@ def run(
         raise typer.Exit(exit_code)
 
     elif suite_obj.runner == "script":
-        # Build script args from vars
+        # Build script args from param_mappings
         script_args = []
 
-        # rhaiis-concurrent-load example mapping
-        if "models" in final_vars:
-            script_args.extend(["--models", final_vars["models"]])
-        if "cores" in final_vars:
-            script_args.extend(["--cores", str(final_vars["cores"])])
-        if "workloads" in final_vars:
-            script_args.extend(["--workloads", final_vars["workloads"]])
-        if "phase" in final_vars:
-            script_args.extend(["--phase", final_vars["phase"]])
+        # For matrix suites, use the param_mappings to convert keys to CLI flags
+        for key, value in final_vars.items():
+            # Skip empty values
+            if value is None or value == "":
+                continue
 
-        if dry_run:
-            cmd = build_script_command(suite_obj.target, script_args)
-            console.print("[bold cyan]Command:[/bold cyan]")
-            console.print(" ".join(cmd))
-            raise typer.Exit(0)
+            # Find the script flag for this key
+            flag = suite_obj.param_mappings.get(key)
+            if flag:
+                # param_mappings for script suites should have --flag format
+                if not flag.startswith("--"):
+                    flag = f"--{flag}"
+                script_args.extend([flag, str(value)])
 
-        exit_code = run_script(suite_obj.target, script_args, dry_run=False)
+        # Special handling for "direct" args (e.g., offline-batch positional)
+        if "args" in final_vars and suite_obj.param_mappings.get("args") == "direct":
+            script_args = final_vars["args"]  # Pass as-is (string with spaces)
+
+        exit_code = run_script(suite_obj.target, script_args, dry_run=dry_run)
+
+        # Save last run hint on success (skip for dry-run)
+        if exit_code == 0 and not dry_run:
+            # For matrix sweeps, use models or mode as hint
+            model_hint = final_vars.get("models") or final_vars.get("mode") or suite
+            save_last_run_hint(suite, model_hint, None)
+
         raise typer.Exit(exit_code)
 
     else:

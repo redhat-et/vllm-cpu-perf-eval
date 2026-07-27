@@ -6,15 +6,22 @@ Comprehensive performance evaluation framework for vLLM on CPU platforms, with s
 
 ## Quick Start
 
+- **[cpueval CLI](cpueval-cli.md)** - Thin CLI wrapper for quick benchmarking (recommended)
 - **[Getting Started](getting-started.md)** - Set up your environment and run your first benchmarks
 - **[Embedding Models](embedding-models.md)** - Test embedding models with performance and quality metrics
 - **[Dashboards Quickstart](dashboards-quickstart.md)** - Visualize and analyze your results
 
 ## Features
 
+### Command-Line Interface
+- **[cpueval CLI](cpueval-cli.md)** - Thin wrapper over Ansible for quick benchmarking
+- **8 test suites** - LLM (online/offline), audio, embedding, RHAIIS sweeps
+- **Progressive CPU pinning** - Simple `--cores` to advanced socket separation
+- **Results viewing** - Terminal metrics display and dashboard integration
+
 ### Performance Testing
 - **Automated Ansible playbooks** for consistent, reproducible benchmarks
-- **Multi-scenario testing**: inference, chat, embedding workloads
+- **Multi-scenario testing**: inference, chat, embedding, audio workloads
 - **Comprehensive metrics**: throughput, latency (P50, P95, P99), resource utilization
 - **Core scaling analysis**: measure efficiency across different CPU configurations
 
@@ -43,9 +50,11 @@ See [Methodology](methodology/overview.md) for details.
 ## Documentation
 
 ### Getting Started
+- [cpueval CLI Guide](cpueval-cli.md) - **Recommended quick start**
 - [Installation Guide](getting-started.md)
 - [Quick Start Tutorial](getting-started.md#quick-start)
 - [Embedding Models Testing](embedding-models.md)
+- [Audio Benchmarking](audio-benchmarking.md)
 
 ### MTEB Quality Testing
 - [MTEB Quick Start Guide](mteb-sweep-guide.md) - Run quality tests quickly

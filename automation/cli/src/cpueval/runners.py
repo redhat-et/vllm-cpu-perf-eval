@@ -3,6 +3,8 @@
 import json
 import subprocess
 import sys
+import shlex
+import stat
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 import yaml
@@ -67,7 +69,7 @@ def run_ansible(
     cmd = build_ansible_command(playbook, extra_vars, ansible_args)
 
     if dry_run:
-        print(" ".join(cmd))
+        print(shlex.join(cmd))
         return 0
 
     # Run from ansible directory
@@ -83,7 +85,7 @@ def build_script_command(
 
     Args:
         script_path: Path to script relative to repo root
-        args: Script arguments
+        args: Script arguments (can be a string if direct mode)
 
     Returns:
         Command as list of strings
@@ -91,7 +93,11 @@ def build_script_command(
     cmd = [str(get_repo_root() / script_path)]
 
     if args:
-        cmd.extend(args)
+        # If args is a single string with spaces, split it (for positional scripts)
+        if isinstance(args, str):
+            cmd.extend(args.split())
+        elif isinstance(args, list):
+            cmd.extend(args)
 
     return cmd
 
@@ -112,8 +118,17 @@ def run_script(
     cmd = build_script_command(script_path, args)
 
     if dry_run:
-        print(" ".join(cmd))
+        print(shlex.join(cmd))
         return 0
+
+    # Make script executable if needed
+    script_full_path = get_repo_root() / script_path
+    if script_full_path.exists():
+        import stat
+        current_mode = script_full_path.stat().st_mode
+        script_full_path.chmod(
+            current_mode | stat.S_IXUSR | stat.S_IXGRP
+        )
 
     return subprocess.run(
         cmd, cwd=get_repo_root(), stdout=sys.stdout, stderr=sys.stderr
@@ -167,6 +182,10 @@ def merge_extra_vars(
 
     Returns:
         Merged extra vars dict
+
+    Raises:
+        FileNotFoundError: If extra_vars_file doesn't exist
+        ValueError: If --extra pair is missing '='
     """
     result = {}
 
@@ -182,7 +201,9 @@ def merge_extra_vars(
     # Apply --extra pairs
     for pair in extra_pairs or []:
         if "=" not in pair:
-            continue
+            raise ValueError(
+                f"Invalid --extra format: '{pair}' (expected KEY=VALUE)"
+            )
         key, value = pair.split("=", 1)
         # Try to parse as JSON for complex types
         try:
@@ -193,12 +214,23 @@ def merge_extra_vars(
     # Apply extra vars file (highest precedence)
     if extra_vars_file:
         file_path = Path(extra_vars_file)
-        if file_path.exists():
-            with open(file_path) as f:
-                if file_path.suffix == ".json":
-                    file_vars = json.load(f)
-                else:
-                    file_vars = yaml.safe_load(f)
-                result.update(file_vars or {})
+        if not file_path.exists():
+            raise FileNotFoundError(
+                f"Extra vars file not found: {extra_vars_file}"
+            )
+
+        with open(file_path) as f:
+            if file_path.suffix == ".json":
+                file_vars = json.load(f)
+            else:
+                file_vars = yaml.safe_load(f)
+
+            # Validate it's a mapping
+            if file_vars is not None and not isinstance(file_vars, dict):
+                raise ValueError(
+                    f"Extra vars file must contain a mapping, not {type(file_vars).__name__}"
+                )
+
+            result.update(file_vars or {})
 
     return result

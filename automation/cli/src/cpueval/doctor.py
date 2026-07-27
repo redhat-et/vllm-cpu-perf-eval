@@ -120,11 +120,10 @@ def ping_hosts(skip_dut_in_external: bool = False) -> Tuple[bool, str]:
         return False, str(e)
 
 
-def run_doctor(suite_name: str = None, no_ping: bool = False) -> int:
+def run_doctor(no_ping: bool = False) -> int:
     """Run system health checks.
 
     Args:
-        suite_name: Specific suite to check (optional)
         no_ping: Skip host ping check
 
     Returns:
