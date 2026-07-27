@@ -421,17 +421,6 @@ python -m pytest tests/ -v
 python -m pytest tests/test_results.py::test_extract_metrics_guidellm_v06 -v
 ```
 
-## Roadmap
-
-See [ROADMAP.md](https://github.com/redhat-et/vllm-cpu-perf-eval/blob/main/automation/cli/ROADMAP.md) for planned features:
-
-**Next release (v0.2.0):**
-1. Config file support (`~/.config/cpueval/config.yaml`)
-2. Shell completion (tab-complete suite names, models, scenarios)
-3. Extended pre-run validation
-4. RHAIIS sweep suite for batch testing
-5. Simple results comparison (`cpueval results diff A B`)
-
 ## See Also
 
 - [Getting Started Guide](getting-started.md) - Overall framework setup
