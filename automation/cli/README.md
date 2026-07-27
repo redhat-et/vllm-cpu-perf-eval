@@ -343,7 +343,7 @@ Model presets: `all` | `llama` | `qwen` | `tiny`
 | `chat-smoke` | ansible | Quick auto-configured LLM chat test |
 | `embedding` | ansible | Embedding model performance tests |
 | `audio` | ansible | Audio model benchmarking (ASR, transcription, translation) |
-| `offline-batch` | ansible | Offline batch processing (high-throughput static workloads) |
+| `offline-batch` | script | Offline batch processing (high-throughput static workloads) |
 | `rhaiis-sweep` | script | Multi-model sweep for RHAIIS quantized models |
 | `setup-platform` | ansible | Platform setup and configuration |
 | `health` | ansible | Health check for DUT and load generator |

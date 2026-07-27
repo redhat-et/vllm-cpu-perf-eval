@@ -292,6 +292,13 @@ echo "Summary"
 echo "========================================="
 echo "Total tests: $TOTAL_TESTS"
 echo "Failed: $FAILED_TESTS"
+
+if [[ $TOTAL_TESTS -eq 0 ]]; then
+    echo "Error: Empty benchmark matrix (0 tests run)"
+    echo "All models may have been filtered out by --models and --skip-models"
+    exit 1
+fi
+
 echo "Success rate: $(( (TOTAL_TESTS - FAILED_TESTS) * 100 / TOTAL_TESTS ))%"
 
 if [[ $FAILED_TESTS -gt 0 ]]; then

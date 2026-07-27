@@ -150,13 +150,20 @@ echo "==============================="
 echo
 
 TOTAL=$((${#FINAL_MODELS[@]} * ${#SCENARIOS[@]} * ${#CORES[@]}))
+
+if [[ $TOTAL -eq 0 ]]; then
+    echo "Error: Empty benchmark matrix (0 tests to run)"
+    echo "All models may have been filtered out by --models and --skip-models"
+    exit 1
+fi
+
 CURRENT=0
 FAILED=0
 
 for model in "${FINAL_MODELS[@]}"; do
     for scenario in "${SCENARIOS[@]}"; do
         for cores in "${CORES[@]}"; do
-            CURRENT=$((CURRENT + 1))
+            ((++CURRENT))
             echo "[$CURRENT/$TOTAL] $model | $scenario | ${cores} cores"
 
             CMD=(
@@ -176,7 +183,7 @@ for model in "${FINAL_MODELS[@]}"; do
                     echo "  ✓ Success"
                 else
                     echo "  ✗ Failed"
-                    FAILED=$((FAILED + 1))
+                    ((++FAILED))
                     if [[ "$CONTINUE_ON_ERROR" == false ]]; then
                         echo "Stopping (use --continue-on-error)"
                         exit 1

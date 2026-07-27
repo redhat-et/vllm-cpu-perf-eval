@@ -5,6 +5,11 @@
 # - Socket 0: cores 0-31, NUMA node 0
 # - Socket 1: cores 64-95, NUMA node 1
 #
+# To customize CPU pinning for your system:
+# 1. Copy this file to your own profile (e.g., my-profile.yaml)
+# 2. Modify the CPU ranges and NUMA node assignments below
+# 3. Use with: --profile path/to/my-profile.yaml
+#
 # Usage:
 #   cpueval run --suite concurrent-load \
 #     --model meta-llama/Llama-3.2-1B-Instruct \

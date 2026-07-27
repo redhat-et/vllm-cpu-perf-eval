@@ -172,8 +172,9 @@ def run(
         console.print("\nRun 'cpueval list' to see available suites.")
         raise typer.Exit(1)
 
-    # Validate --model for non-matrix suites
-    if not suite_obj.matrix and not model and not models:
+    # Validate --model for non-matrix suites (only if suite uses model/models mapping)
+    requires_model = "model" in suite_obj.param_mappings or "models" in suite_obj.param_mappings
+    if not suite_obj.matrix and requires_model and not model and not models:
         console.print(f"[red]Error: --model is required for suite '{suite}'[/red]")
         console.print(f"\nSuite '{suite}' is not a matrix suite.")
         console.print("Use --model to specify a single model.")

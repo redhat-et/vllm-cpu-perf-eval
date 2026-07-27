@@ -162,10 +162,9 @@ Keep simple — just concurrency table diff. No trend analysis.
 1. Config file (~4h) ✨
 2. Shell completion (~1h) ✨
 3. Extended validation (~2h) ✅
-4. RHAIIS sweep suite (~3h) 🔄
-5. Simple diff (~3h) 📊
+4. Simple diff (~3h) 📊
 
-**Total:** ~13 hours for high-impact UX improvements.
+**Total:** ~10 hours for high-impact UX improvements.
 
 **Later:** Export formats (if needed for automation).
 

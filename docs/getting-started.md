@@ -8,7 +8,6 @@ title: Getting Started
 Complete guide to setting up and running your first vLLM performance tests.
 
 > **🚀 Quick Start:** For the fastest way to run benchmarks, see the **[cpueval CLI Guide](cpueval-cli.md)** - a thin wrapper that simplifies running test suites without writing Ansible commands.
->
 > **📝 Note:** This is a simplified quick start guide. For the complete Ansible documentation including all playbooks, roles, and advanced configuration, see the [full Ansible automation guide](https://github.com/redhat-et/vllm-cpu-perf-eval/blob/main/automation/test-execution/ansible/ansible.md) in the repository.
 
 ## Overview
@@ -169,7 +168,7 @@ export HF_TOKEN=$(cat ~/hf-token)
 
 This configures CPU isolation, performance governor, NUMA optimizations, etc.
 
-#### 5. Run Your First Test (cpueval)
+#### 5. Run Your First Test with cpueval
 
 ```bash
 # Quick chat test (matrix suite - no --model required)
@@ -194,7 +193,7 @@ This configures CPU isolation, performance governor, NUMA optimizations, etc.
   --cores 16
 ```
 
-#### 6. View Results (cpueval)
+#### 6. View Results with cpueval
 
 ```bash
 # Show last run
@@ -308,7 +307,7 @@ ansible -i inventory/hosts.yml all -b -m reboot
 
 > **Note:** You can skip this step if you're just trying out the framework. It's mainly for production-grade deterministic benchmarking. See [Platform Setup Guide](platform-setup/x86/intel/deterministic-benchmarking) for details.
 
-#### 5. Run Your First Test (Ansible)
+#### 5. Run Your First Test with Ansible
 
 **Simple LLM test:**
 
@@ -327,7 +326,7 @@ ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
 
 **Test takes:** ~15-20 minutes (includes vLLM startup and 10-minute test)
 
-#### 6. View Results (Ansible)
+#### 6. View Results with Ansible
 
 Results are automatically collected to your local machine. The recommended way
 to view and analyze results is via the **Streamlit dashboard**:
