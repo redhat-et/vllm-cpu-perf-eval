@@ -1,0 +1,12 @@
+name: chat-smoke
+description: Quick auto-configured LLM chat test
+runner: ansible
+target: llm-benchmark-auto.yml
+
+defaults:
+  workload_type: chat
+
+param_mappings:
+  model: test_model
+  workload: workload_type
+  cores: requested_cores

@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=65.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cpueval"
+version = "0.1.0"
+description = "Thin CLI wrapper over Ansible CPU automation for LLM, audio, and embedding benchmarking"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    {name = "Red Hat AI Performance Team"}
+]
+dependencies = [
+    "typer>=0.9.0",
+    "pyyaml>=6.0",
+    "rich>=13.0.0",
+]
+
+[project.scripts]
+cpueval = "cpueval.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]

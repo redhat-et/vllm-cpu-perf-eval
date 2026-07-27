@@ -1,0 +1,20 @@
+# Example CPU pinning profile: dual-socket split
+# Use case: Pin vLLM to socket 1, GuideLLM to socket 0
+#
+# Assumes a dual-socket system with:
+# - Socket 0: cores 0-31, NUMA node 0
+# - Socket 1: cores 64-95, NUMA node 1
+#
+# Usage:
+#   cpueval run --suite concurrent-load \
+#     --model meta-llama/Llama-3.2-1B-Instruct \
+#     --cores 32 \
+#     --profile dual-socket-split
+
+# Pin vLLM to socket 1 (cores 64-95)
+vllm_cpu_start: 64
+vllm_numa_node: 1
+
+# Pin GuideLLM to socket 0 (cores 0-31)
+guidellm_cpus: "0-31"
+guidellm_numa_node: 0

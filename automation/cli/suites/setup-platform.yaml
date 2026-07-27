@@ -1,0 +1,8 @@
+name: setup-platform
+description: Platform setup and configuration
+runner: ansible
+target: setup-platform.yml
+
+defaults: {}
+
+param_mappings: {}

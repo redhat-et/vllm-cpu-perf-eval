@@ -1,0 +1,8 @@
+name: health
+description: Health check for DUT and load generator
+runner: ansible
+target: health-check.yml
+
+defaults: {}
+
+param_mappings: {}
