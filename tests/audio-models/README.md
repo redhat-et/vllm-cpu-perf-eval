@@ -106,7 +106,7 @@ Plus comprehensive coverage of scalability, format impact, and sustained load be
 
 3. **Container runtime:**
    - Podman installed on load generator host
-   - GuideLLM runs in container (ghcr.io/vllm-project/guidellm:v0.6.0)
+   - GuideLLM runs in container (ghcr.io/vllm-project/guidellm:v0.7.2)
    - No need to install guidellm on host
 
 ### Run Your First Test
