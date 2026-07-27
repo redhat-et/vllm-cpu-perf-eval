@@ -34,7 +34,7 @@ jobs:
 
       - name: Log in to Quay.io
         if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/container/'))
-        uses: redhat-actions/podman-login@v1
+        uses: redhat-actions/podman-login@v2
         with:
           registry: ${{ env.IMAGE_REGISTRY }}
           username: ${{ secrets.REDHAT_REGISTRY_USERNAME }}
