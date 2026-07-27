@@ -18,7 +18,7 @@
 #   --cores LIST            Comma-separated core counts
 #                           Default: 8,16,32
 #   --workloads LIST        Comma-separated workloads (chat|code|summarization|rag)
-#                           Default: chat (or per-model default_workloads)
+#                           Default: chat
 #   --phase PHASE           Test phase (1|2|3|all)
 #                           Default: 1 (Phase 1: baseline tests only)
 #   --skip-models LIST      Comma-separated models to skip
@@ -27,7 +27,7 @@
 #   -h, --help              Show this help
 #
 # Model Presets:
-#   all     - All 6 models with concurrent-load support (includes gated models)
+#   all     - All 5 models with concurrent-load support (includes gated models)
 #   llama   - Llama 3.2 models (1B, 3B) - GATED, requires HF_TOKEN
 #   tiny    - TinyLlama 1.1B
 #   granite - IBM Granite 3.2-2B
@@ -93,7 +93,7 @@ PRESET_QWEN=(
 # Default configuration
 MODELS_INPUT="all"
 CORES_INPUT="8,16,32"
-WORKLOADS_INPUT=""  # Empty = use per-model default_workloads
+WORKLOADS_INPUT=""  # Empty = default to chat
 PHASE="1"
 CONTINUE_ON_ERROR=false
 DRY_RUN=false

@@ -224,8 +224,8 @@ def run(
     if workload or workloads:
         effective_workloads = workloads or workload
         if suite_obj.runner == "script":
-            # Script suites: keep as "workloads" or "workload"
-            cli_vars["workloads" if workloads else "workload"] = effective_workloads
+            # Script suites: normalize to plural "workloads" to avoid alias conflicts
+            cli_vars["workloads"] = effective_workloads
         else:
             # Ansible suites: use mapped ansible var name
             mapped_key = suite_obj.param_mappings.get("workload", "base_workload")
@@ -233,8 +233,12 @@ def run(
 
     if scenario:
         if suite_obj.runner == "script":
-            # Script suites: keep as "scenario"
-            cli_vars["scenario"] = scenario
+            # Script suites: normalize to plural "scenarios" if that's what suite uses
+            # Check if suite defaults/mappings use plural form
+            if "scenarios" in suite_obj.param_mappings or "scenarios" in suite_obj.defaults:
+                cli_vars["scenarios"] = scenario
+            else:
+                cli_vars["scenario"] = scenario
         else:
             # Ansible suites: use mapped ansible var name (e.g., test_scenario)
             mapped_key = suite_obj.param_mappings.get("scenario", "test_scenario")

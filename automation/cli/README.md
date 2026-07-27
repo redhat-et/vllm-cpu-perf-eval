@@ -469,12 +469,12 @@ For comprehensive RHAIIS validation with results by end of week:
 ```bash
 # Tier 1 workloads: chat, code, summarization, rag
 ./cpueval run --suite concurrent-load \
-  --extra models=all \
-  --extra cores="8,16,32" \
-  --extra workloads="chat,code,summarization,rag" \
-  --extra phase=1
+  --models all \
+  --cores "8,16,32" \
+  --workloads "chat,code,summarization,rag" \
+  --phase 1
 
-# ~6 models × 3 cores × 4 workloads = 72 tests (~6-8 hours)
+# 5 models × 3 cores × 4 workloads = 60 tests (~5-7 hours)
 ```
 
 **Day 3: Offline Batch Processing**
@@ -496,21 +496,27 @@ For comprehensive RHAIIS validation with results by end of week:
 
 **Day 4: Embedding Models**
 ```bash
-# Small + fast models: all-MiniLM (22M), granite-english (109M)
+# All 5 embedding models (default: all)
 ./cpueval run --suite embedding \
-  --extra models=small \
-  --extra cores="8,16,32"
+  --models all \
+  --cores "8,16,32"
 
-# ~2 models × 3 cores × 2 scenarios (baseline+latency) = 12 tests (~4-6 hours)
+# 5 models × 3 cores × 2 scenarios (baseline+latency) = 30 tests (~6-8 hours)
+
+# Or just small/fast models:
+./cpueval run --suite embedding \
+  --models small \
+  --cores "8,16,32"
+# 2 models × 3 cores × 2 scenarios = 12 tests (~4-6 hours)
 ```
 
 **Day 5: Audio Workloads**
 ```bash
 # Whisper models: tiny, small, medium
 ./cpueval run --suite audio \
-  --extra models=all \
-  --extra scenarios=transcription-throughput \
-  --extra cores="32"
+  --models all \
+  --scenarios transcription-throughput \
+  --cores "32"
 
 # 3 models × 1 scenario × 1 core = 3 tests (~3-4 hours)
 ```

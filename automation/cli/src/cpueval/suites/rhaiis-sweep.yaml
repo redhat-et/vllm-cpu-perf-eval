@@ -15,5 +15,6 @@ param_mappings:
   model: --models
   cores: --cores
   workloads: --workloads
+  workload: --workloads
   phase: --phase
   skip_models: --skip-models

@@ -1,5 +1,5 @@
 name: embedding
-description: Embedding model performance - baseline + latency tests (small models by default)
+description: Embedding model performance - baseline + latency tests (5 models × 3 cores × 2 scenarios = 30 tests)
 runner: script
 target: automation/test-execution/scripts/bash/run-embedding-suite.sh
 matrix: true
