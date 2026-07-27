@@ -16,9 +16,9 @@ Matrix-first CLI for running comprehensive CPU benchmarks. Most suites run full 
 
 ```bash
 # Matrix suites - run full matrices (no --model required!)
-./cpueval run --suite rhaiis-sweep           # 60 combinations
-./cpueval run --suite embedding              # 20+ combinations  
-./cpueval run --suite offline-batch          # 55 runs
+./cpueval run --suite rhaiis-sweep           # 60 combinations: 5 models × 3 cores × 4 workloads
+./cpueval run --suite embedding              # 30 combinations: 5 models × 3 cores × 2 scenarios
+./cpueval run --suite offline-batch          # 33 runs: use-cases 3
 ./cpueval run --suite audio                  # Configurable matrix
 
 # Override to narrow
@@ -296,9 +296,9 @@ Launches the interactive results dashboard in your browser.
 
 | Suite | Default Matrix | Description |
 |-------|----------------|-------------|
-| `rhaiis-sweep` | 5 models × 3 cores × 4 workloads | RHAIIS model concurrent load sweep |
-| `embedding` | 5 models × 4 cores × scenarios | Embedding model performance matrix |
-| `offline-batch` | 11 use-cases × 5 runs | Offline batch processing suite |
+| `rhaiis-sweep` | 5 models × 3 cores × 4 workloads | RHAIIS model concurrent load sweep (60 tests) |
+| `embedding` | 5 models × 3 cores × 2 scenarios | Embedding model performance matrix (30 tests) |
+| `offline-batch` | 11 use-cases × 3 runs | Offline batch processing suite (33 tests) |
 | `audio` | Configurable (models × scenarios × cores) | Audio model benchmarking (Whisper ASR) |
 
 ### Single-Shot Suites (require `--model`)

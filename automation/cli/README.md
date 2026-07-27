@@ -12,7 +12,7 @@ Thin CLI wrapper for running full test matrices with easy overrides.
 
 ```bash
 # Matrix suites - run full test matrix (no --model required!)
-./cpueval run --suite rhaiis-sweep           # 15 combinations: 5 models × 3 cores × 1 workload (chat)
+./cpueval run --suite rhaiis-sweep           # 60 combinations: 5 models × 3 cores × 4 workloads
 ./cpueval run --suite embedding              # 30 combinations: 5 models × 3 cores × 2 scenarios
 ./cpueval run --suite offline-batch          # 33 runs: use-cases 3
 
@@ -99,8 +99,8 @@ done
   --extra guidellm_rate="[1,2,4,8,16,32]" \
   --extra test_name=EPYC-NO-SMT
 
-# Or run full RHAIIS matrix (60 combinations)
-./cpueval run --suite rhaiis-sweep \
+# Or run full concurrent-load matrix (15 combinations: 5 models × 3 cores × 1 workload)
+./cpueval run --suite concurrent-load \
   --vllm-cpu-start 96 \
   --vllm-numa 1 \
   --guidellm-cpus 0-31 \
@@ -467,8 +467,8 @@ For comprehensive RHAIIS validation with results by end of week:
 
 **Day 1-2: Online Inference (Concurrent Load)**
 ```bash
-# Tier 1 workloads: chat, code, summarization, rag
-./cpueval run --suite concurrent-load \
+# Tier 1 workloads: chat, code, summarization, rag (60 combinations)
+./cpueval run --suite rhaiis-sweep \
   --models all \
   --cores "8,16,32" \
   --workloads "chat,code,summarization,rag" \
@@ -485,7 +485,7 @@ For comprehensive RHAIIS validation with results by end of week:
 
 # Enterprise Tier Priorities:
 #   Tier 1 (Must-have): Summarization, Classification, RAG Batch, Entity Extraction
-#   Tier 2 (High value): Long-Doc Summary, ETL, Short Labeling  
+#   Tier 2 (High value): Long-Doc Summary, ETL, Short Labeling
 #   Tier 3 (Valuable): Code Gen, Translation, Dataset Gen
 #   Tier 4 (Deprioritize): Shared-Prefix
 
@@ -532,4 +532,3 @@ Verify everything works before starting week-long runs:
   --cores 8 \
   --skip-doctor
 ```
-
