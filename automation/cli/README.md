@@ -12,9 +12,9 @@ Thin CLI wrapper for running full test matrices with easy overrides.
 
 ```bash
 # Matrix suites - run full test matrix (no --model required!)
-./cpueval run --suite rhaiis-sweep           # 60 combinations: 5 models × 3 cores × 4 workloads
-./cpueval run --suite embedding              # 20+ combinations: 5 models × 4 cores × scenarios
-./cpueval run --suite offline-batch          # 55 runs: use-cases mode
+./cpueval run --suite rhaiis-sweep           # 15 combinations: 5 models × 3 cores × 1 workload (chat)
+./cpueval run --suite embedding              # 30 combinations: 5 models × 3 cores × 2 scenarios
+./cpueval run --suite offline-batch          # 33 runs: use-cases 3
 
 # Override to narrow scope
 ./cpueval run --suite rhaiis-sweep --models tiny --cores 8
