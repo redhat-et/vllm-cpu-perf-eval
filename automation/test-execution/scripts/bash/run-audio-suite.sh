@@ -156,7 +156,7 @@ FAILED=0
 for model in "${FINAL_MODELS[@]}"; do
     for scenario in "${SCENARIOS[@]}"; do
         for cores in "${CORES[@]}"; do
-            ((CURRENT++))
+            CURRENT=$((CURRENT + 1))
             echo "[$CURRENT/$TOTAL] $model | $scenario | ${cores} cores"
 
             CMD=(
@@ -176,7 +176,7 @@ for model in "${FINAL_MODELS[@]}"; do
                     echo "  ✓ Success"
                 else
                     echo "  ✗ Failed"
-                    ((FAILED++))
+                    FAILED=$((FAILED + 1))
                     if [[ "$CONTINUE_ON_ERROR" == false ]]; then
                         echo "Stopping (use --continue-on-error)"
                         exit 1
