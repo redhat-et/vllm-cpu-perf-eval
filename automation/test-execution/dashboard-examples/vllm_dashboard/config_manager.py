@@ -101,21 +101,21 @@ class DashboardConfig:
 def normalize_vllm_version(version_string):
     """Normalize vLLM version for display.
 
-    Maps the current RHAIIS vLLM version to a user-friendly display name.
-    Future versions are displayed as-is.
+    Maps RHAIIS vLLM version strings to user-friendly display names.
+    Future versions are displayed as-is until a new mapping is added.
 
     Args:
         version_string: Raw vLLM version from metadata
 
     Returns:
-        "RHAIIS_3.4" for current version, original string otherwise
+        Friendly RHAIIS label, or the original string if unmapped
     """
     if not version_string or version_string == 'unknown':
         return 'unknown'
 
-    # Current RHAIIS 3.4 version
-    if version_string == '0.18.0+rhaiv.7':
-        return 'RHAIIS_3.4'
+    _RHAIIS_VERSION_MAP = {
+        '0.18.0+rhaiv.7': 'RHAIIS_3.4',
+        '0.24.0+rhaiv.2': 'RHAIIS_3.5',
+    }
 
-    # All other versions (past or future) display as-is
-    return version_string
+    return _RHAIIS_VERSION_MAP.get(version_string, version_string)

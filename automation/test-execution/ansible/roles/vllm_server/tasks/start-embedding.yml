@@ -34,7 +34,7 @@
 
 - name: Detect Red Hat AI vLLM image
   ansible.builtin.set_fact:
-    is_redhat_ai_image: "{{ 'registry.redhat.io/rhaii' in (container_cfg.image | lower) or 'quay.io/intel_on_openshift' in (container_cfg.image | lower) }}"
+    is_redhat_ai_image: "{{ 'rhaii' in (container_cfg.image | lower) }}"
 
 - name: Prepare base environment variables
   ansible.builtin.set_fact:

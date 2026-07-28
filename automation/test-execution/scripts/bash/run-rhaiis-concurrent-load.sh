@@ -332,29 +332,14 @@ if [[ -n "${TENSOR_PARALLEL}" ]]; then
     fi
 fi
 
-# Check for LD_PRELOAD (CRITICAL for RHAIIS performance)
+# Check for LD_PRELOAD
+# RHAIIS 3.5.0+ bakes LD_PRELOAD into the container image, so host-level setting
+# is no longer required. Warn if unset but do not block.
 if [ -z "${LD_PRELOAD:-}" ]; then
-    log_error "LD_PRELOAD is not set!"
-    log_error ""
-    log_error "⚠️  CRITICAL: For optimal RHAIIS performance, you MUST set:"
-    log_error "  export LD_PRELOAD=/usr/lib64/libomp.so"
-    log_error ""
-    log_error "Without this, you will see significantly degraded latency (5-10x slower)."
-    log_error ""
-
-    # Skip prompt in non-interactive mode or when CI/NONINTERACTIVE is set
-    if [[ -t 0 ]] && [[ "${NONINTERACTIVE:-}" != "true" ]] && [[ "${CI:-}" != "true" ]]; then
-        read -p "Continue anyway? [y/N] " -n 1 -r
-        echo
-        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-            log_info "Aborted. Please set LD_PRELOAD and try again."
-            exit 0
-        fi
-        log_warning "Continuing without LD_PRELOAD - performance will be poor!"
-    else
-        log_error "Aborting in non-interactive mode. Set LD_PRELOAD or NONINTERACTIVE=true to override."
-        exit 1
-    fi
+    log_warning "LD_PRELOAD is not set on the host."
+    log_warning "RHAIIS 3.5.0+ sets LD_PRELOAD inside the container automatically."
+    log_warning "For older images, set on the host:"
+    log_warning "  export LD_PRELOAD=/usr/lib64/libtcmalloc_minimal.so.4:/usr/lib64/libomp.so"
     echo ""
 fi
 

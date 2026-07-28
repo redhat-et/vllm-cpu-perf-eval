@@ -159,7 +159,7 @@
 
 - name: Detect Red Hat AI vLLM image
   ansible.builtin.set_fact:
-    is_redhat_ai_image: "{{ 'registry.redhat.io/rhaii' in (container_cfg.image | lower) or 'quay.io/intel_on_openshift' in (container_cfg.image | lower) }}"
+    is_redhat_ai_image: "{{ 'rhaii' in (container_cfg.image | lower) }}"
 
 - name: Prepare base environment variables
   ansible.builtin.set_fact:
@@ -285,6 +285,20 @@
 - name: Set effective container image (use backend or default)
   ansible.builtin.set_fact:
     effective_container_image: "{{ backend_image | default(container_cfg.image) }}"
+
+- name: Recompute Red Hat AI image detection from effective container image
+  ansible.builtin.set_fact:
+    is_redhat_ai_image: "{{ 'rhaii' in (effective_container_image | lower) }}"
+
+- name: Re-apply Red Hat AI image specific environment variables (after backend image resolution)
+  ansible.builtin.set_fact:
+    vllm_env_vars: "{{ vllm_env_vars | combine({'HF_HOME': '/opt/app-root/src/.cache/huggingface', 'HF_HUB_OFFLINE': '0'}) }}"
+  when: is_redhat_ai_image
+  no_log: true
+
+- name: Re-set container cache path from effective image type
+  ansible.builtin.set_fact:
+    container_cache_path: "{{ '/opt/app-root/src/.cache/huggingface' if is_redhat_ai_image else '/root/.cache/huggingface' }}"
 
 - name: Extract effective max-model-len for validation
   ansible.builtin.set_fact:
