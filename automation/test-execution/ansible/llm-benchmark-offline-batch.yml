@@ -243,8 +243,8 @@
     - name: Set effective container name for offline batch
       ansible.builtin.set_fact:
         _batch_container_name: >-
-          {{ vllm_container_name_override
-             if (vllm_container_name_override is defined and vllm_container_name_override | length > 0)
+          {{ vllm_container_name
+             if (vllm_container_name != 'vllm-server')
              else 'vllm-batch-' + dataset_name + '-' + (requested_cores | string) + 'c' }}
 
     - name: Build benchmark command (sonnet dataset with file)

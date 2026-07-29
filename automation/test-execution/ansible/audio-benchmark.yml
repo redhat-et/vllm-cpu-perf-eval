@@ -389,12 +389,12 @@
     effective_requested_tensor_parallel: "{{ hostvars['localhost']['effective_requested_tensor_parallel'] }}"
     core_configuration: "{{ hostvars['localhost']['core_configuration'] }}"
     vllm_control_plane_cores: 2  # Reserve 2 cores for control plane (defined here for vllm-server play)
-    # vllm_container_name_override: set via VLLM_CONTAINER_NAME env var (forwarded by
-    # run-audio-suite.sh) for parallel instances. Not defined by default, so the
-    # is defined + length check cleanly detects an explicit override without a sentinel.
+    # vllm_container_name defaults to 'vllm-server' via group_vars. run-audio-suite.sh
+    # forwards VLLM_CONTAINER_NAME as -e vllm_container_name=...; any value other than
+    # the group_vars default signals an explicit caller override.
     container_name: >-
-      {{ vllm_container_name_override
-         if (vllm_container_name_override is defined and vllm_container_name_override | length > 0)
+      {{ vllm_container_name
+         if (vllm_container_name != 'vllm-server')
          else 'vllm-audio-' + hostvars['localhost']['test_run_id'] }}
 
   tasks:
@@ -880,8 +880,8 @@
     vllm_mode: "{{ vllm_endpoint.mode | default('managed') }}"
     test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
     container_name: >-
-      {{ vllm_container_name_override
-         if (vllm_container_name_override is defined and vllm_container_name_override | length > 0)
+      {{ vllm_container_name
+         if (vllm_container_name != 'vllm-server')
          else 'vllm-audio-' + hostvars['localhost']['test_run_id'] }}
 
   tasks:

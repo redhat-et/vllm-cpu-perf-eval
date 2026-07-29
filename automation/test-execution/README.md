@@ -253,6 +253,8 @@ DUT-only suites (`audio-benchmark.yml`, `llm-benchmark-offline-batch.yml`) detec
 topology on the DUT and use `allocate-cores-from-count.yml` to pin the container
 cpuset. Set `VLLM_NUMA_NODES` to restrict each parallel instance to a subset of nodes
 (e.g. `"0,1"`). Socket pinning via `-e vllm_numa_node=<N>` is also supported.
+When `VLLM_NUMA_NODES` is unset, core allocation still runs through `allocate-cores-from-count.yml`
+and may not start from core 0 on multi-socket hosts.
 
 #### VLLM_NUMA_NODE vs VLLM_NUMA_NODES
 
@@ -290,6 +292,10 @@ VLLM_CONTAINER_NAME=vllm-audio-0 VLLM_NUMA_NODES="0,1" \
 VLLM_CONTAINER_NAME=vllm-batch-0 VLLM_NUMA_NODES="2,3" \
   ./scripts/bash/run-offline-batch-suite.sh use-cases --cores 32
 ```
+
+**Container cleanup:** `llm-benchmark-auto.yml` removes the vLLM container after each run by
+default (`cleanup_after_test: true`); pass `-e cleanup_after_test=false` to keep it for debugging.
+`llm-benchmark.yml` still defaults to `cleanup_after_test: false`.
 
 ## Testing
 
