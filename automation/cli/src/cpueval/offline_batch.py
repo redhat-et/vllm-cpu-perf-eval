@@ -25,6 +25,7 @@ MODES_WITH_OPTIONAL_CORES = {
 DEFAULT_USE_CASE_SWEEP_MODELS = "all"
 DEFAULT_USE_CASE_SWEEP_CORES = "8,16,24,32"
 DEFAULT_BASELINE_CORES = "32"
+DEFAULT_QUANTIZATION_CORES = "32"
 
 
 def _resolve_models(vars: Dict[str, Any]) -> Optional[str]:
@@ -91,8 +92,11 @@ def build_offline_batch_args(vars: Dict[str, Any]) -> List[str]:
             args.append(str(num_prompts))
 
     elif mode == "quantization":
-        if cores:
-            args.append(str(cores))
+        effective_cores = cores
+        if num_prompts is not None and not cores:
+            effective_cores = DEFAULT_QUANTIZATION_CORES
+        if effective_cores:
+            args.append(str(effective_cores))
         if num_prompts is not None:
             args.append(str(num_prompts))
 

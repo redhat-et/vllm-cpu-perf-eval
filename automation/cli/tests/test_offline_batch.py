@@ -41,6 +41,17 @@ def test_use_case_sweep_only_use_case():
     ) == ["use-case-sweep", "summarization"]
 
 
+def test_use_case_sweep_inherited_runs_from_defaults():
+    """Suite defaults include runs: 3; must not pass 3 as the model slot."""
+    assert build_offline_batch_args(
+        {
+            "mode": "use-case-sweep",
+            "use_case": "summarization",
+            "runs": 3,
+        }
+    ) == ["use-case-sweep", "summarization", "all", "8,16,24,32", "3"]
+
+
 def test_use_case_sweep_runs_without_models_or_cores():
     assert build_offline_batch_args(
         {"mode": "use-case-sweep", "use_case": "summarization", "runs": 5}
@@ -61,6 +72,12 @@ def test_baseline_num_prompts_without_cores():
     assert build_offline_batch_args(
         {"mode": "baseline", "num_prompts": 100}
     ) == ["baseline", "32", "100"]
+
+
+def test_quantization_num_prompts_without_cores():
+    assert build_offline_batch_args(
+        {"mode": "quantization", "num_prompts": 100}
+    ) == ["quantization", "32", "100"]
 
 
 def test_run_test_with_input_output_len():
