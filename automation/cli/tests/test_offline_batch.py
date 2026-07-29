@@ -35,6 +35,34 @@ def test_use_case_sweep_requires_use_case():
         build_offline_batch_args({"mode": "use-case-sweep"})
 
 
+def test_use_case_sweep_only_use_case():
+    assert build_offline_batch_args(
+        {"mode": "use-case-sweep", "use_case": "summarization"}
+    ) == ["use-case-sweep", "summarization"]
+
+
+def test_use_case_sweep_runs_without_models_or_cores():
+    assert build_offline_batch_args(
+        {"mode": "use-case-sweep", "use_case": "summarization", "runs": 5}
+    ) == ["use-case-sweep", "summarization", "all", "8,16,24,32", "5"]
+
+
+def test_use_case_sweep_cores_without_models():
+    assert build_offline_batch_args(
+        {
+            "mode": "use-case-sweep",
+            "use_case": "summarization",
+            "cores": "16,32",
+        }
+    ) == ["use-case-sweep", "summarization", "all", "16,32"]
+
+
+def test_baseline_num_prompts_without_cores():
+    assert build_offline_batch_args(
+        {"mode": "baseline", "num_prompts": 100}
+    ) == ["baseline", "32", "100"]
+
+
 def test_run_test():
     assert build_offline_batch_args(
         {

@@ -22,6 +22,11 @@ MODES_WITH_OPTIONAL_CORES = {
 }
 
 
+DEFAULT_USE_CASE_SWEEP_MODELS = "all"
+DEFAULT_USE_CASE_SWEEP_CORES = "8,16,24,32"
+DEFAULT_BASELINE_CORES = "32"
+
+
 def _resolve_models(vars: Dict[str, Any]) -> Optional[str]:
     return vars.get("models") or vars.get("model")
 
@@ -51,16 +56,28 @@ def build_offline_batch_args(vars: Dict[str, Any]) -> List[str]:
                 "(e.g. summarization, classification, rag)"
             )
         args.append(str(use_case))
-        if models:
-            args.append(str(models))
-        if cores:
-            args.append(str(cores))
+
+        effective_models = models
+        effective_cores = cores
+        if runs is not None and not (models and cores):
+            effective_models = effective_models or DEFAULT_USE_CASE_SWEEP_MODELS
+            effective_cores = effective_cores or DEFAULT_USE_CASE_SWEEP_CORES
+        elif cores and not models:
+            effective_models = DEFAULT_USE_CASE_SWEEP_MODELS
+
+        if effective_models:
+            args.append(str(effective_models))
+        if effective_cores:
+            args.append(str(effective_cores))
         if runs is not None:
             args.append(str(runs))
 
     elif mode == "baseline":
-        if cores:
-            args.append(str(cores))
+        effective_cores = cores
+        if num_prompts is not None and not cores:
+            effective_cores = DEFAULT_BASELINE_CORES
+        if effective_cores:
+            args.append(str(effective_cores))
         if num_prompts is not None:
             args.append(str(num_prompts))
 
