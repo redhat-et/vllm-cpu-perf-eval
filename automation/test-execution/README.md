@@ -228,7 +228,7 @@ export HF_TOKEN=hf_your_token_here
 
 ### Parallel vLLM Instances
 
-Run multiple vLLM benchmark instances simultaneously on the same host by assigning each a unique container name and port via environment variables. NUMA node pinning (`VLLM_NUMA_NODES`) is additionally supported for the concurrent-load suites; see the capability matrix below. The bash suite scripts forward these to Ansible as `-e` overrides.
+Run multiple vLLM benchmark instances simultaneously on the same host by assigning each a unique container name, port, and (where supported) NUMA node set via environment variables. The bash suite scripts forward these to Ansible as `-e` overrides.
 
 | Variable | Description | Default |
 |---|---|---|
@@ -244,16 +244,15 @@ Run multiple vLLM benchmark instances simultaneously on the same host by assigni
 |---|---|---|---|
 | `run-concurrent-load-suite.sh` → `llm-benchmark-concurrent-load.yml` | ✓ | ✓ | ✓ |
 | `run-rhaiis-concurrent-load.sh` → `llm-benchmark-concurrent-load.yml` | ✓ | ✓ | ✓ |
-| `run-audio-suite.sh` → `audio-benchmark.yml` | ✓ | ✓ | ✗ (cpuset hardcoded; see note) |
+| `run-audio-suite.sh` → `audio-benchmark.yml` | ✓ | ✓ | ✓ |
 | `run-embedding-suite.sh` → `embedding-benchmark.yml` | ✓ | ✓ | ✗ (not wired to NUMA allocator) |
 | `run-mteb-model-sweep.sh` → `mteb-benchmark.yml` | ✓ | ✓ | ✗ (not wired to NUMA allocator) |
-| `run-offline-batch-suite.sh` → `llm-benchmark-offline-batch.yml` | ✓ | N/A (batch job, no server port) | ✗ (cpuset hardcoded; see note) |
+| `run-offline-batch-suite.sh` → `llm-benchmark-offline-batch.yml` | ✓ | N/A (batch job, no server port) | ✓ |
 
-**Note on `VLLM_NUMA_NODES` for audio and offline-batch**: these playbooks
-currently hardcode the cpuset to cores `0–(N-1)`. `VLLM_NUMA_NODES` is accepted
-as an Ansible variable but has no effect on cpuset allocation. For NUMA-pinned
-parallel instances, use `run-concurrent-load-suite.sh` or
-`run-rhaiis-concurrent-load.sh`.
+DUT-only suites (`audio-benchmark.yml`, `llm-benchmark-offline-batch.yml`) detect NUMA
+topology on the DUT and use `allocate-cores-from-count.yml` to pin the container
+cpuset. Set `VLLM_NUMA_NODES` to restrict each parallel instance to a subset of nodes
+(e.g. `"0,1"`). Socket pinning via `-e vllm_numa_node=<N>` is also supported.
 
 #### VLLM_NUMA_NODE vs VLLM_NUMA_NODES
 
@@ -278,6 +277,18 @@ VLLM_CONTAINER_NAME=vllm-0 VLLM_PORT=8000 VLLM_NUMA_NODES="0,1" \
 # Instance 1 — NUMA nodes 2,3, port 8001
 VLLM_CONTAINER_NAME=vllm-1 VLLM_PORT=8001 VLLM_NUMA_NODES="2,3" \
   ./scripts/bash/run-concurrent-load-suite.sh --models llama --cores 32
+```
+
+**DUT-only parallel example** (audio + offline-batch on the same host):
+
+```bash
+# Audio instance on NUMA nodes 0,1
+VLLM_CONTAINER_NAME=vllm-audio-0 VLLM_NUMA_NODES="0,1" \
+  ./scripts/bash/run-audio-suite.sh --models whisper-small --cores 32
+
+# Offline-batch instance on NUMA nodes 2,3
+VLLM_CONTAINER_NAME=vllm-batch-0 VLLM_NUMA_NODES="2,3" \
+  ./scripts/bash/run-offline-batch-suite.sh use-cases --cores 32
 ```
 
 ## Testing
