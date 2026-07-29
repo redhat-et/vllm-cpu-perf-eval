@@ -344,10 +344,14 @@ Model presets: `all` | `llama` | `qwen` | `tiny`
 ./cpueval results --last --convert --no-view
 ```
 
-### dashboard - Launch Streamlit dashboard
+### dashboard - Manage Streamlit dashboard
 
 ```bash
-./cpueval dashboard
+# Start dashboard in background (port 8501)
+./cpueval dashboard start
+
+# Stop running dashboard
+./cpueval dashboard stop
 ```
 
 ## Available Suites

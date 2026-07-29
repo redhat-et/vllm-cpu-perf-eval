@@ -203,7 +203,10 @@ This configures CPU isolation, performance governor, NUMA optimizations, etc.
 ./cpueval results --list
 
 # Launch dashboard
-./cpueval dashboard
+./cpueval dashboard start
+
+# Stop dashboard
+./cpueval dashboard stop
 ```
 
 For complete cpueval documentation, see **[cpueval CLI Guide](cpueval-cli.md)**.

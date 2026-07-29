@@ -357,7 +357,7 @@ def run(
                 console.print(f"\n[green]✓ Results saved to: {result_dir}[/green]")
                 console.print("\nView results:")
                 console.print("  cpueval results --last")
-                console.print("  cpueval dashboard\n")
+                console.print("  cpueval dashboard start\n")
 
         raise typer.Exit(exit_code)
 

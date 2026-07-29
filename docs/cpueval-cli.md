@@ -300,13 +300,18 @@ Results display includes:
 - Requests/sec, Tokens/sec, TTFT (ms), TPOT (ms)
 - Request success/total counts
 
-### dashboard - Launch Streamlit dashboard
+### dashboard - Manage Streamlit dashboard
 
 ```bash
-./cpueval dashboard
+# Start dashboard in background (port 8501)
+./cpueval dashboard start
+
+# Stop running dashboard
+./cpueval dashboard stop
 ```
 
-Launches the interactive results dashboard in your browser.
+Launches the interactive results dashboard in your browser. You can also open it
+via `./cpueval results --open`.
 
 ## Available Suites
 
