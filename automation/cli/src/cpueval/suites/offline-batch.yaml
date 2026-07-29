@@ -15,7 +15,8 @@ args_builder: offline_batch
 #   ./cpueval run --suite offline-batch --mode use-case-sweep \
 #     --use-case summarization --models all --cores 8,16,32 --runs 3
 #   ./cpueval run --suite offline-batch --mode run_test \
-#     --model all --dataset sonnet --num-prompts 1000 --cores 16
+#     --model all --dataset random --num-prompts 3 --cores 8 \
+#     --input-len 32 --output-len 16
 #
 # Escape hatch (full positional override):
 #   --extra args="use-cases 1 RedHatAI/TinyLlama-1.1B-Chat-v1.0-pruned2.4"

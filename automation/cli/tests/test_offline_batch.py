@@ -63,6 +63,30 @@ def test_baseline_num_prompts_without_cores():
     ) == ["baseline", "32", "100"]
 
 
+def test_run_test_with_input_output_len():
+    assert build_offline_batch_args(
+        {
+            "mode": "run_test",
+            "model": "RedHatAI/TinyLlama-1.1B-Chat-v1.0-pruned2.4",
+            "dataset": "random",
+            "num_prompts": 3,
+            "cores": "8",
+            "input_len": 32,
+            "output_len": 16,
+        }
+    ) == [
+        "run_test",
+        "RedHatAI/TinyLlama-1.1B-Chat-v1.0-pruned2.4",
+        "random",
+        "3",
+        "8",
+        "-e",
+        "input_len=32",
+        "-e",
+        "output_len=16",
+    ]
+
+
 def test_run_test():
     assert build_offline_batch_args(
         {

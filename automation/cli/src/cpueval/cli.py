@@ -131,6 +131,7 @@ def show(suite_name: str = typer.Argument(..., help="Suite name")):
                 console.print("  --models / --model for model selection")
                 console.print("  --cores <list> for core sweep modes")
                 console.print("  --dataset / --num-prompts for run_test mode")
+                console.print("  --input-len / --output-len for dataset token lengths")
             console.print()
 
     if suite.param_mappings:
@@ -178,6 +179,12 @@ def run(
     ),
     num_prompts: Optional[int] = typer.Option(
         None, "--num-prompts", help="Prompt count (offline-batch run_test / baseline)"
+    ),
+    input_len: Optional[int] = typer.Option(
+        None, "--input-len", help="Input token length (offline-batch random dataset)"
+    ),
+    output_len: Optional[int] = typer.Option(
+        None, "--output-len", help="Output token length (offline-batch random/sharegpt)"
     ),
     preset: Optional[str] = typer.Option(None, "--preset", help="Model preset (deprecated, use --models)"),
     tensor_parallel: Optional[int] = typer.Option(None, "--tensor-parallel", help="Tensor parallel size"),
@@ -288,6 +295,12 @@ def run(
 
     if num_prompts is not None:
         cli_vars["num_prompts"] = num_prompts
+
+    if input_len is not None:
+        cli_vars["input_len"] = input_len
+
+    if output_len is not None:
+        cli_vars["output_len"] = output_len
 
     if preset:
         # Deprecated, but still support it

@@ -180,13 +180,15 @@ Verifies:
   --cores 8,16,24,32 \
   --runs 3
 
-# Single test configuration
+# Fast smoke test (minimal tokens)
 ./cpueval run --suite offline-batch \
   --mode run_test \
-  --model all \
-  --dataset sonnet \
-  --num-prompts 1000 \
-  --cores 16
+  --model RedHatAI/TinyLlama-1.1B-Chat-v1.0-pruned2.4 \
+  --dataset random \
+  --num-prompts 3 \
+  --cores 8 \
+  --input-len 32 \
+  --output-len 16
 
 # Technical benchmarks
 ./cpueval run --suite offline-batch --mode batch-scaling --model <model> --cores 16
@@ -197,7 +199,8 @@ export VLLM_CONTAINER_IMAGE=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
 ```
 
 **Offline-batch flags:** `--mode`, `--runs`, `--use-case`, `--models`/`--model`,
-`--cores`, `--dataset`, `--num-prompts`. Escape hatch: `--extra args="..."`.
+`--cores`, `--dataset`, `--num-prompts`, `--input-len`, `--output-len`.
+Escape hatch: `--extra args="..."`.
 
 **Core Sweep (Multiple Core Counts):**
 

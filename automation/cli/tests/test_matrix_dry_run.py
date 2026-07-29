@@ -112,6 +112,43 @@ def test_offline_batch_run_test_flags():
     assert "run_test all sonnet 1000 16" in result.stdout
 
 
+def test_offline_batch_input_output_len_flags():
+    """Test --input-len and --output-len pass ansible -e flags through."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "cpueval",
+            "run",
+            "--suite",
+            "offline-batch",
+            "--mode",
+            "run_test",
+            "--model",
+            "RedHatAI/TinyLlama-1.1B-Chat-v1.0-pruned2.4",
+            "--dataset",
+            "random",
+            "--num-prompts",
+            "3",
+            "--cores",
+            "8",
+            "--input-len",
+            "32",
+            "--output-len",
+            "16",
+            "--dry-run",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(repo_root()),
+    )
+
+    assert result.returncode == 0, f"STDERR: {result.stderr}"
+    assert "run_test RedHatAI/TinyLlama-1.1B-Chat-v1.0-pruned2.4 random 3 8" in result.stdout
+    assert "-e input_len=32" in result.stdout
+    assert "-e output_len=16" in result.stdout
+
+
 def test_offline_batch_extra_args_override():
     """Test --extra args= still overrides structured flags."""
     result = subprocess.run(

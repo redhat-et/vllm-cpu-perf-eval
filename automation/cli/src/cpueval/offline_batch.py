@@ -31,6 +31,15 @@ def _resolve_models(vars: Dict[str, Any]) -> Optional[str]:
     return vars.get("models") or vars.get("model")
 
 
+def _append_ansible_extras(args: List[str], vars: Dict[str, Any]) -> List[str]:
+    """Append ansible-playbook -e flags passed through the bash script."""
+    if vars.get("input_len") is not None:
+        args.extend(["-e", f"input_len={vars['input_len']}"])
+    if vars.get("output_len") is not None:
+        args.extend(["-e", f"output_len={vars['output_len']}"])
+    return args
+
+
 def build_offline_batch_args(vars: Dict[str, Any]) -> List[str]:
     """Translate structured cpueval vars into bash script positional arguments."""
     mode = str(vars.get("mode", "use-cases"))
@@ -116,4 +125,4 @@ def build_offline_batch_args(vars: Dict[str, Any]) -> List[str]:
             "Use --extra args=\"...\" for unsupported modes."
         )
 
-    return args
+    return _append_ansible_extras(args, vars)
