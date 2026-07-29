@@ -311,6 +311,19 @@ for model in "${MODELS[@]}"; do
             -e "test_name=${TEST_NAME}"
         )
 
+        # Parallel instance overrides — set env vars to run multiple instances
+        # simultaneously on the same host (each with its own container, port, NUMA nodes):
+        #   VLLM_CONTAINER_NAME=vllm-0 VLLM_PORT=8000 VLLM_NUMA_NODES="0,1" ./run-embedding-suite.sh
+        if [[ -n "${VLLM_CONTAINER_NAME:-}" ]]; then
+            cmd+=(-e "vllm_container_name=${VLLM_CONTAINER_NAME}")
+        fi
+        if [[ -n "${VLLM_PORT:-}" ]]; then
+            cmd+=(-e "vllm_port=${VLLM_PORT}")
+        fi
+        if [[ -n "${VLLM_NUMA_NODES:-}" ]]; then
+            cmd+=(-e "vllm_numa_nodes=${VLLM_NUMA_NODES}")
+        fi
+
         if [[ "${DRY_RUN}" == true ]]; then
             log_info "DRY RUN: Would execute:"
             echo "  ${cmd[*]}"

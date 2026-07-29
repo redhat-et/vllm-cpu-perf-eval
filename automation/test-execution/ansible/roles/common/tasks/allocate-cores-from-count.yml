@@ -55,9 +55,74 @@
     _vllm_cpu_start_value: "{{ vllm_cpu_start if (vllm_cpu_start is defined and vllm_cpu_start != omit and vllm_cpu_start != None and vllm_cpu_start != '') else None }}"
     _vllm_numa_node_value: "{{ vllm_numa_node if (vllm_numa_node is defined and vllm_numa_node != omit and vllm_numa_node != None and vllm_numa_node != '') else None }}"
 
+# vllm_numa_nodes (comma-separated, e.g. "0,1") allows pinning a single vLLM
+# instance to a specific subset of NUMA nodes for parallel multi-instance runs.
+# Takes precedence over vllm_numa_node (single int) when both are provided.
+
+# Reset on every include so stale facts from a previous include cannot leak
+# into subsequent calls that omit vllm_numa_nodes.
+- name: Reset NUMA filtering facts
+  ansible.builtin.set_fact:
+    _vllm_node_ids: "{{ [] }}"
+
+- name: Parse vllm_numa_nodes into node-id list
+  when:
+    - vllm_numa_nodes is defined
+    - vllm_numa_nodes not in [None, ""]
+  ansible.builtin.set_fact:
+    _vllm_node_ids: "{{ vllm_numa_nodes | string | regex_findall('[0-9]+') | map('int') | list }}"
+
+- name: Validate vllm_numa_nodes produced non-empty node list
+  when:
+    - vllm_numa_nodes is defined
+    - vllm_numa_nodes not in [None, ""]
+  ansible.builtin.assert:
+    that:
+      - _vllm_node_ids | length > 0
+    fail_msg: >-
+      vllm_numa_nodes='{{ vllm_numa_nodes }}' produced no valid node IDs.
+      Expected comma-separated integers, e.g. '0,1'.
+
+- name: Validate all vllm_numa_nodes IDs exist in NUMA topology
+  when:
+    - vllm_numa_nodes is defined
+    - vllm_numa_nodes not in [None, ""]
+    - _vllm_node_ids | length > 0
+  ansible.builtin.assert:
+    that:
+      - (_vllm_node_ids | difference(numa_topology.nodes | map(attribute='id') | list)) | length == 0
+    fail_msg: >-
+      vllm_numa_nodes contains node IDs not present in NUMA topology:
+      {{ _vllm_node_ids | difference(numa_topology.nodes | map(attribute='id') | list) | join(', ') }}.
+      Available NUMA node IDs: {{ numa_topology.nodes | map(attribute='id') | list | join(', ') }}
+
+# When vllm_numa_nodes is active the filtered topology drives NUMA selection;
+# clear _vllm_numa_node_value so socket-pinning mode is not also triggered.
+- name: Clear socket-pinning node override when vllm_numa_nodes takes precedence
+  when:
+    - vllm_numa_nodes is defined
+    - vllm_numa_nodes not in [None, ""]
+    - _vllm_node_ids | length > 0
+  ansible.builtin.set_fact:
+    _vllm_numa_node_value: ~
+
+- name: Build filtered NUMA topology for specified nodes
+  when: _vllm_node_ids | length > 0
+  ansible.builtin.set_fact:
+    _effective_topology: >-
+      {{ numa_topology | combine({
+           'nodes': numa_topology.nodes | selectattr('id', 'in', _vllm_node_ids) | list,
+           'node_count': numa_topology.nodes | selectattr('id', 'in', _vllm_node_ids) | list | length
+         }, recursive=true) }}
+
 - name: Allocate cores using multi-NUMA algorithm
   ansible.builtin.set_fact:
-    core_allocation_result: "{{ numa_topology | allocate_cores_multi_numa(requested_cores | int, _tensor_parallel_value, _vllm_cpu_start_value, _vllm_numa_node_value) }}"
+    core_allocation_result: >-
+      {{ (numa_topology if (_vllm_node_ids | length == 0) else _effective_topology)
+         | allocate_cores_multi_numa(requested_cores | int,
+                                     _tensor_parallel_value,
+                                     _vllm_cpu_start_value,
+                                     _vllm_numa_node_value) }}
 
 - name: Build auto-allocated core configuration
   ansible.builtin.set_fact:

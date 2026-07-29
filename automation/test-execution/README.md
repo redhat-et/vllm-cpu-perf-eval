@@ -226,6 +226,34 @@ export VLLM_ENDPOINT_URL=http://your-endpoint:8000
 export HF_TOKEN=hf_your_token_here
 ```
 
+### Parallel vLLM Instances
+
+Run multiple vLLM benchmark instances simultaneously on the same host by assigning each a unique container name, port, and NUMA node set via environment variables. The bash suite scripts forward these to Ansible as `-e` overrides.
+
+| Variable | Description | Default |
+|---|---|---|
+| `VLLM_CONTAINER_NAME` | Container name for this instance | `vllm-server` |
+| `VLLM_PORT` | Host port for the vLLM API server | `8000` (`vllm_port` in `group_vars/all/endpoints.yml`) |
+| `VLLM_NUMA_NODES` | Comma-separated NUMA node IDs to pin this instance to | all nodes |
+
+`vllm_port` is the Ansible/inventory source of truth and can also be overridden directly with `-e vllm_port=8001`.
+
+**Two-instance example** (run in separate terminals):
+
+```bash
+# Instance 0 — NUMA nodes 0,1, port 8000
+VLLM_CONTAINER_NAME=vllm-0 VLLM_PORT=8000 VLLM_NUMA_NODES="0,1" \
+  ./scripts/bash/run-audio-suite.sh --models whisper-small --cores 32
+
+# Instance 1 — NUMA nodes 2,3, port 8001
+VLLM_CONTAINER_NAME=vllm-1 VLLM_PORT=8001 VLLM_NUMA_NODES="2,3" \
+  ./scripts/bash/run-audio-suite.sh --models whisper-small --cores 32
+```
+
+The same variables are supported by all suite scripts:
+`run-audio-suite.sh`, `run-concurrent-load-suite.sh`, `run-embedding-suite.sh`,
+`run-offline-batch-suite.sh`, `run-rhaiis-concurrent-load.sh`, and `run-mteb-model-sweep.sh`.
+
 ## Testing
 
 Run unit tests:

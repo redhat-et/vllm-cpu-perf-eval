@@ -198,6 +198,20 @@ run_ansible_with_timeout() {
     local attempt=1
     local max_attempts=$((MAX_RETRIES + 1))
 
+    # Parallel instance overrides — set env vars to run multiple instances
+    # simultaneously on the same host (each with its own container, port, NUMA nodes):
+    #   VLLM_CONTAINER_NAME=vllm-0 VLLM_PORT=8000 VLLM_NUMA_NODES="0,1" ./run-offline-batch-suite.sh use-cases
+    local parallel_args=()
+    if [[ -n "${VLLM_CONTAINER_NAME:-}" ]]; then
+        parallel_args+=(-e "vllm_container_name=${VLLM_CONTAINER_NAME}")
+    fi
+    if [[ -n "${VLLM_PORT:-}" ]]; then
+        parallel_args+=(-e "vllm_port=${VLLM_PORT}")
+    fi
+    if [[ -n "${VLLM_NUMA_NODES:-}" ]]; then
+        parallel_args+=(-e "vllm_numa_nodes=${VLLM_NUMA_NODES}")
+    fi
+
     while [ $attempt -le $max_attempts ]; do
         if [ -n "$TIMEOUT_CMD" ]; then
             echo -e "${BLUE}Attempt $attempt/$max_attempts (timeout: ${timeout_seconds}s)${NC}"
@@ -214,6 +228,7 @@ run_ansible_with_timeout() {
                 -e "num_prompts=$num_prompts" \
                 -e "requested_cores=$cores" \
                 -e "vllm_container_image=$VLLM_CONTAINER_IMAGE" \
+                "${parallel_args[@]}" \
                 "$@" || exit_code=$?
         else
             ansible-playbook -i "$INVENTORY" "$PLAYBOOK" \
@@ -222,6 +237,7 @@ run_ansible_with_timeout() {
                 -e "num_prompts=$num_prompts" \
                 -e "requested_cores=$cores" \
                 -e "vllm_container_image=$VLLM_CONTAINER_IMAGE" \
+                "${parallel_args[@]}" \
                 "$@" || exit_code=$?
         fi
 

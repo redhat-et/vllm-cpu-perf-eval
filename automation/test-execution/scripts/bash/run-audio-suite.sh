@@ -176,6 +176,19 @@ for model in "${FINAL_MODELS[@]}"; do
                 "-e" '{"vllm_env_vars": {"VLLM_USE_V2_MODEL_RUNNER": "0"}}'
             )
 
+            # Parallel instance overrides — set env vars to run multiple instances
+            # simultaneously on the same host (each with its own container, port, NUMA nodes):
+            #   VLLM_CONTAINER_NAME=vllm-0 VLLM_PORT=8000 VLLM_NUMA_NODES="0,1" ./run-audio-suite.sh
+            if [[ -n "${VLLM_CONTAINER_NAME:-}" ]]; then
+                CMD+=(-e "vllm_container_name=${VLLM_CONTAINER_NAME}")
+            fi
+            if [[ -n "${VLLM_PORT:-}" ]]; then
+                CMD+=(-e "vllm_port=${VLLM_PORT}")
+            fi
+            if [[ -n "${VLLM_NUMA_NODES:-}" ]]; then
+                CMD+=(-e "vllm_numa_nodes=${VLLM_NUMA_NODES}")
+            fi
+
             if [[ "$DRY_RUN" == true ]]; then
                 echo "  DRY-RUN: ${CMD[*]}"
             else

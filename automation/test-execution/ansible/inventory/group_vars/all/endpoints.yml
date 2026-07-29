@@ -5,10 +5,14 @@
 # vLLM server settings and endpoint mode (managed vs external)
 
 # vLLM server configuration
+# vllm_port is the single source of truth for the vLLM listen port.
+# Override with -e vllm_port=8001 (ansible) or VLLM_PORT=8001 (bash scripts)
+# to run multiple parallel instances on the same host.
 vllm_container_name: "vllm-server"
+vllm_port: 8000
 vllm_server:
   host: "0.0.0.0"
-  port: 8000
+  port: "{{ vllm_port }}"
 
 # vLLM Endpoint Mode Configuration
 # Supports testing against external vLLM deployments (cloud, k8s, production)
