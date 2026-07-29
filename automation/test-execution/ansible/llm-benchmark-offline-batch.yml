@@ -223,11 +223,18 @@
       ansible.builtin.debug:
         msg: "LD_PRELOAD={{ vllm_ld_preload | default('(not set - libomp not found in container)') }}"
 
+    - name: Set effective container name for offline batch
+      ansible.builtin.set_fact:
+        _batch_container_name: >-
+          {{ vllm_container_name
+             if (vllm_container_name is defined and vllm_container_name != 'vllm-server')
+             else 'vllm-batch-' + dataset_name + '-' + (requested_cores | string) + 'c' }}
+
     - name: Build benchmark command (sonnet dataset with file)
       ansible.builtin.set_fact:
         benchmark_cmd: |
           podman run --rm --replace \
-            --name vllm-batch-{{ dataset_name }}-{{ requested_cores }}c \
+            --name {{ _batch_container_name }} \
             --cpuset-cpus=0-{{ requested_cores | int - 1 }} \
             -v "{{ hostvars['localhost']['dut_cache_dir'] }}:/root/.cache/huggingface:z" \
             -v "{{ hostvars['localhost']['datasets_dir'] }}:/datasets:z" \
@@ -247,7 +254,7 @@
       ansible.builtin.set_fact:
         benchmark_cmd: |
           podman run --rm --replace \
-            --name vllm-batch-{{ dataset_name }}-{{ requested_cores }}c \
+            --name {{ _batch_container_name }} \
             --cpuset-cpus=0-{{ requested_cores | int - 1 }} \
             -v "{{ hostvars['localhost']['dut_cache_dir'] }}:/root/.cache/huggingface:z" \
             {{ '-e LD_PRELOAD=' + vllm_ld_preload if vllm_ld_preload is defined else '' }} \
@@ -267,7 +274,7 @@
       ansible.builtin.set_fact:
         benchmark_cmd: |
           podman run --rm --replace \
-            --name vllm-batch-random-{{ requested_cores }}c \
+            --name {{ _batch_container_name }} \
             --cpuset-cpus=0-{{ requested_cores | int - 1 }} \
             -v "{{ hostvars['localhost']['dut_cache_dir'] }}:/root/.cache/huggingface:z" \
             {{ '-e LD_PRELOAD=' + vllm_ld_preload if vllm_ld_preload is defined else '' }} \

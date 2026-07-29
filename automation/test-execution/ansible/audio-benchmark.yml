@@ -339,7 +339,12 @@
     effective_omp_num_threads: "{{ hostvars['localhost']['effective_omp_num_threads'] }}"
     effective_requested_tensor_parallel: "{{ hostvars['localhost']['effective_requested_tensor_parallel'] }}"
     vllm_control_plane_cores: 2  # Reserve 2 cores for control plane (defined here for vllm-server play)
-    container_name: "vllm-audio-{{ hostvars['localhost']['test_run_id'] }}"
+    # Use vllm_container_name when explicitly set (e.g. VLLM_CONTAINER_NAME=vllm-0 for parallel
+    # instances), otherwise generate a unique per-run name so sequential runs don't conflict.
+    container_name: >-
+      {{ vllm_container_name
+         if (vllm_container_name is defined and vllm_container_name != 'vllm-server')
+         else 'vllm-audio-' + hostvars['localhost']['test_run_id'] }}
 
   tasks:
     - name: Detect DUT platform (managed mode)
@@ -827,7 +832,10 @@
   vars:
     vllm_mode: "{{ vllm_endpoint.mode | default('managed') }}"
     test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
-    container_name: "vllm-audio-{{ hostvars['localhost']['test_run_id'] }}"
+    container_name: >-
+      {{ vllm_container_name
+         if (vllm_container_name is defined and vllm_container_name != 'vllm-server')
+         else 'vllm-audio-' + hostvars['localhost']['test_run_id'] }}
 
   tasks:
     - name: Stop vLLM audio server (managed mode only)

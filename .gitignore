@@ -57,6 +57,9 @@ results/*.csv
 !automation/test-execution/grafana/dashboards/*.json
 *.csv
 
+# Local test harnesses (not for commit)
+run-parallel-3inst.sh
+
 # Log directories
 logs/
 

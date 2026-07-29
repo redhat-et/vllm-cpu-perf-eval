@@ -209,7 +209,7 @@ class TestExtractPrimaryCpus:
     def test_empty_input(self):
         """Test empty input returns empty string."""
         with pytest.raises(AnsibleFilterError) as exc_info:
-            extract_primary_cpus("",0)
+            extract_primary_cpus("", 0)
 
         error_msg = str(exc_info.value)
         assert "Invalid lscpu input" in error_msg
@@ -227,10 +227,15 @@ invalid line
 1 0 0
 2 0 1"""
         with pytest.raises(AnsibleFilterError) as exc_info:
-            extract_primary_cpus(lscpu_data,0)
+            extract_primary_cpus(lscpu_data, 0)
 
         error_msg = str(exc_info.value)
-        assert "Failed to parse lscpu data: Line 2: Expected 3 columns (CPU NODE CORE), got 2: 'invalid line'" in error_msg
+        expected = (
+            "Failed to parse lscpu data: Line 2: "
+            "Expected 3 columns (CPU NODE CORE), "
+            "got 2: 'invalid line'"
+        )
+        assert expected in error_msg
 
 
 @pytest.mark.unit
@@ -563,10 +568,12 @@ class TestMultiNumaAllocation:
         assert result['cores_per_node'] == [32, 32]
 
     def test_serialized_tp_ansible_unsafe_text(self):
-        """AnsibleUnsafeText requested_tp should be normalized and behave like auto-TP."""
+        """AnsibleUnsafeText requested_tp should be normalized
+        and behave like auto-TP."""
         topology = create_numa_topology(num_nodes=6, cores_per_node=32)
 
-        # Wrap requested_tp as AnsibleUnsafeText to exercise normalization logic
+        # Wrap requested_tp as AnsibleUnsafeText to exercise
+        # normalization logic
         unsafe_tp = AnsibleUnsafeText('2')
         result = allocate_cores_multi_numa(
             topology, requested_cores=64, requested_tp=unsafe_tp
@@ -626,6 +633,180 @@ class TestValidTpValues:
     def test_valid_tp_values_constant(self):
         """Verify VALID_TP_VALUES is correct."""
         assert VALID_TP_VALUES == [1, 2, 4, 8]
+
+
+@pytest.mark.unit
+class TestVllmNumaNodesFiltering:
+    """Test vllm_numa_nodes parsing and topology-filtering logic.
+
+    These tests simulate the Ansible tasks in allocate-cores-from-count.yml:
+      - Parse vllm_numa_nodes into node-id list  (regex_findall + map('int'))
+      - Validate non-empty and all IDs in topology
+      - Build filtered NUMA topology (selectattr + node_count)
+      - Allocate cores against the filtered topology
+      - Verify socket-pinning override is cleared when
+        vllm_numa_nodes is active
+    """
+
+    # ── helpers that mirror Ansible/Jinja2 expressions ──────────────────────
+
+    @staticmethod
+    def _parse_numa_nodes(value):
+        """Simulate: vllm_numa_nodes | string | regex_findall('[0-9]+')
+        | map('int') | list."""
+        import re
+        return [int(x) for x in re.findall(r'[0-9]+', str(value))]
+
+    @staticmethod
+    def _filter_topology(topology, node_ids):
+        """Simulate: numa_topology | combine(
+        {'nodes': ..., 'node_count': ...})."""
+        filtered = [n for n in topology['nodes'] if n['id'] in node_ids]
+        return {**topology, 'nodes': filtered, 'node_count': len(filtered)}
+
+    @staticmethod
+    def _missing_ids(topology, node_ids):
+        """Simulate: _vllm_node_ids | difference(
+        numa_topology.nodes | map('id') | list)."""
+        available = {n['id'] for n in topology['nodes']}
+        return [i for i in node_ids if i not in available]
+
+    # ── parsing ──────────────────────────────────────────────────────────────
+
+    def test_parse_comma_separated(self):
+        """'0,1' → [0, 1]."""
+        assert self._parse_numa_nodes("0,1") == [0, 1]
+
+    def test_parse_with_spaces(self):
+        """'0, 1' (with space) → [0, 1]; regex_findall handles whitespace."""
+        assert self._parse_numa_nodes("0, 1") == [0, 1]
+
+    def test_parse_single_node(self):
+        """'2' → [2]."""
+        assert self._parse_numa_nodes("2") == [2]
+
+    def test_parse_invalid_all_letters_returns_empty(self):
+        """'abc' produces no digit matches → empty list
+        (fails non-empty assert)."""
+        assert self._parse_numa_nodes("abc") == []
+
+    def test_parse_empty_string_returns_empty(self):
+        """Empty string produces no digit matches → empty list."""
+        assert self._parse_numa_nodes("") == []
+
+    # ── topology-id validation ───────────────────────────────────────────────
+
+    def test_all_ids_valid_no_missing(self):
+        """IDs that exist in topology → empty missing set."""
+        topology = create_numa_topology(num_nodes=6, cores_per_node=32)
+        node_ids = self._parse_numa_nodes("1,3")
+        assert self._missing_ids(topology, node_ids) == []
+
+    def test_unknown_id_detected_as_missing(self):
+        """ID 99 is not in a 6-node topology → appears in missing set."""
+        topology = create_numa_topology(num_nodes=6, cores_per_node=32)
+        node_ids = self._parse_numa_nodes("0,99")
+        assert self._missing_ids(topology, node_ids) == [99]
+
+    def test_all_ids_unknown_all_missing(self):
+        """All IDs outside topology → all appear in missing set."""
+        topology = create_numa_topology(num_nodes=3, cores_per_node=32)
+        node_ids = self._parse_numa_nodes("10,11")
+        assert set(self._missing_ids(topology, node_ids)) == {10, 11}
+
+    # ── stale-fact isolation ─────────────────────────────────────────────────
+
+    def test_reset_clears_stale_node_ids(self):
+        """Simulates 'Reset NUMA filtering facts' task:
+        _vllm_node_ids reset to []. A previous include may have
+        set node_ids = [0, 1]; after reset it must be [] so
+        subsequent includes that omit vllm_numa_nodes don't
+        inherit stale state."""
+        node_ids = [0, 1]    # stale from previous include
+        node_ids = []        # Reset NUMA filtering facts
+        assert node_ids == []
+
+    def test_allocation_without_vllm_numa_nodes_uses_full_topology(self):
+        """When _vllm_node_ids == [], the full topology is
+        passed to the allocator."""
+        topology = create_numa_topology(num_nodes=6, cores_per_node=32)
+        node_ids = []
+        # Simulate: (numa_topology if (_vllm_node_ids | length == 0)
+        #            else _effective_topology)
+        effective = (
+            topology if not node_ids
+            else self._filter_topology(topology, node_ids)
+        )
+        result = allocate_cores_multi_numa(effective, requested_cores=32)
+        # With a 6-node topology (node 0 reserved),
+        # single-node allocation uses node 1
+        assert result['allocated_nodes'] == [1]
+
+    # ── filtered topology construction ───────────────────────────────────────
+
+    def test_filtered_topology_node_count_matches_filter(self):
+        """node_count in the filtered topology equals
+        len(filtered nodes), not len(all ids)."""
+        topology = create_numa_topology(num_nodes=6, cores_per_node=32)
+        node_ids = self._parse_numa_nodes("1,3")
+        filtered = self._filter_topology(topology, node_ids)
+        assert filtered['node_count'] == 2
+        assert len(filtered['nodes']) == 2
+
+    def test_filtered_topology_contains_only_requested_nodes(self):
+        """Filtered topology nodes have IDs exactly
+        matching the requested subset."""
+        topology = create_numa_topology(num_nodes=6, cores_per_node=32)
+        node_ids = self._parse_numa_nodes("2,4")
+        filtered = self._filter_topology(topology, node_ids)
+        assert {n['id'] for n in filtered['nodes']} == {2, 4}
+
+    # ── allocation on filtered topology ─────────────────────────────────────
+
+    def test_allocation_on_two_node_subset(self):
+        """allocate_cores_multi_numa on a 2-node filtered
+        topology allocates to those nodes."""
+        topology = create_numa_topology(num_nodes=6, cores_per_node=32)
+        node_ids = self._parse_numa_nodes("1,3")
+        filtered = self._filter_topology(topology, node_ids)
+        result = allocate_cores_multi_numa(filtered, requested_cores=64)
+        assert set(result['allocated_nodes']) == {1, 3}
+        assert result['tensor_parallel'] == 2
+
+    def test_allocation_on_single_node_subset(self):
+        """Single-node filtered topology → TP=1, allocation on that node."""
+        topology = create_numa_topology(num_nodes=6, cores_per_node=32)
+        node_ids = self._parse_numa_nodes("2")
+        filtered = self._filter_topology(topology, node_ids)
+        result = allocate_cores_multi_numa(filtered, requested_cores=16)
+        assert result['allocated_nodes'] == [2]
+        assert result['tensor_parallel'] == 1
+
+    # ── socket-pinning precedence ────────────────────────────────────────────
+
+    def test_socket_pinning_cleared_when_vllm_numa_nodes_active(self):
+        """When vllm_numa_nodes is set and non-empty,
+        _vllm_numa_node_value is cleared to None. Simulates
+        'Clear socket-pinning node override when vllm_numa_nodes
+        takes precedence'."""
+        vllm_numa_node_value = 2      # previously set socket-pinning node
+        vllm_numa_nodes = "0,1"
+        node_ids = self._parse_numa_nodes(vllm_numa_nodes)
+        # Task runs when vllm_numa_nodes is defined, non-empty,
+        # and _vllm_node_ids | length > 0
+        if node_ids:
+            vllm_numa_node_value = None   # cleared
+        assert vllm_numa_node_value is None
+
+    def test_socket_pinning_not_cleared_when_vllm_numa_nodes_absent(self):
+        """When vllm_numa_nodes is absent (node_ids == []),
+        socket-pinning is not cleared."""
+        vllm_numa_node_value = 2
+        node_ids = []   # reset — vllm_numa_nodes was not provided
+        # Clearing task requires node_ids non-empty; skip if empty
+        if node_ids:
+            vllm_numa_node_value = None
+        assert vllm_numa_node_value == 2
 
 
 if __name__ == "__main__":

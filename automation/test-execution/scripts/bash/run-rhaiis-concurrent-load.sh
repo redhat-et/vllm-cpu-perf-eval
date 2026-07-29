@@ -502,6 +502,15 @@ for model in "${MODELS[@]}"; do
             # Parallel instance overrides — set env vars to run multiple instances
             # simultaneously on the same host (each with its own container, port, NUMA nodes):
             #   VLLM_CONTAINER_NAME=vllm-0 VLLM_PORT=8000 VLLM_NUMA_NODES="0,1" ./run-rhaiis-concurrent-load.sh
+            #
+            # NOTE: Two separate NUMA variables serve different purposes:
+            #   VLLM_NUMA_NODE  (singular, --vllm-numa-node flag) — single-node socket pinning:
+            #                    start vLLM on the specified NUMA node for socket separation.
+            #   VLLM_NUMA_NODES (plural, this block) — comma-separated subset of NUMA nodes for
+            #                    parallel multi-instance runs, e.g. "0,1" pins one instance to
+            #                    nodes 0 and 1 while a second instance uses "2,3".
+            #   When both are set, VLLM_NUMA_NODES takes precedence (Ansible clears the
+            #   socket-pinning override when vllm_numa_nodes is active).
             if [[ -n "${VLLM_CONTAINER_NAME:-}" ]]; then
                 cmd+=(-e "vllm_container_name=${VLLM_CONTAINER_NAME}")
             fi

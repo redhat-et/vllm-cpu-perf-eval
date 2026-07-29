@@ -238,21 +238,47 @@ Run multiple vLLM benchmark instances simultaneously on the same host by assigni
 
 `vllm_port` is the Ansible/inventory source of truth and can also be overridden directly with `-e vllm_port=8001`.
 
+#### Variable support per suite
+
+| Suite script → Playbook | `VLLM_CONTAINER_NAME` | `VLLM_PORT` | `VLLM_NUMA_NODES` |
+|---|---|---|---|
+| `run-concurrent-load-suite.sh` → `llm-benchmark-concurrent-load.yml` | ✓ | ✓ | ✓ |
+| `run-rhaiis-concurrent-load.sh` → `llm-benchmark-concurrent-load.yml` | ✓ | ✓ | ✓ |
+| `run-audio-suite.sh` → `audio-benchmark.yml` | ✓ | ✓ | ✗ (cpuset hardcoded; see note) |
+| `run-embedding-suite.sh` → `embedding-benchmark.yml` | ✓ | ✓ | ✗ (not wired to NUMA allocator) |
+| `run-mteb-model-sweep.sh` → `mteb-benchmark.yml` | ✓ | ✓ | ✗ (not wired to NUMA allocator) |
+| `run-offline-batch-suite.sh` → `llm-benchmark-offline-batch.yml` | ✓ | N/A (batch job, no server port) | ✗ (cpuset hardcoded; see note) |
+
+**Note on `VLLM_NUMA_NODES` for audio and offline-batch**: these playbooks
+currently hardcode the cpuset to cores `0–(N-1)`. `VLLM_NUMA_NODES` is accepted
+as an Ansible variable but has no effect on cpuset allocation. For NUMA-pinned
+parallel instances, use `run-concurrent-load-suite.sh` or
+`run-rhaiis-concurrent-load.sh`.
+
+#### VLLM_NUMA_NODE vs VLLM_NUMA_NODES
+
+Two separate variables control NUMA affinity; they are **not** interchangeable:
+
+| Variable | Type | Purpose |
+|---|---|---|
+| `VLLM_NUMA_NODE` | single integer | Socket-pinning: start vLLM on the specified NUMA node (`vllm_numa_node`). Used in `run-rhaiis-concurrent-load.sh`. |
+| `VLLM_NUMA_NODES` | comma-separated integers | Multi-node filtering for parallel instances: restrict a single vLLM instance to a *subset* of NUMA nodes (`vllm_numa_nodes`), e.g. `"0,1"`. |
+
+When both are provided, `VLLM_NUMA_NODES` takes precedence — the Ansible
+`allocate-cores-from-count.yml` task file clears the socket-pinning override
+(`_vllm_numa_node_value`) when `vllm_numa_nodes` is active.
+
 **Two-instance example** (run in separate terminals):
 
 ```bash
 # Instance 0 — NUMA nodes 0,1, port 8000
 VLLM_CONTAINER_NAME=vllm-0 VLLM_PORT=8000 VLLM_NUMA_NODES="0,1" \
-  ./scripts/bash/run-audio-suite.sh --models whisper-small --cores 32
+  ./scripts/bash/run-concurrent-load-suite.sh --models llama --cores 32
 
 # Instance 1 — NUMA nodes 2,3, port 8001
 VLLM_CONTAINER_NAME=vllm-1 VLLM_PORT=8001 VLLM_NUMA_NODES="2,3" \
-  ./scripts/bash/run-audio-suite.sh --models whisper-small --cores 32
+  ./scripts/bash/run-concurrent-load-suite.sh --models llama --cores 32
 ```
-
-The same variables are supported by all suite scripts:
-`run-audio-suite.sh`, `run-concurrent-load-suite.sh`, `run-embedding-suite.sh`,
-`run-offline-batch-suite.sh`, `run-rhaiis-concurrent-load.sh`, and `run-mteb-model-sweep.sh`.
 
 ## Testing
 
