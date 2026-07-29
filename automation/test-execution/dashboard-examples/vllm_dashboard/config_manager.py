@@ -7,6 +7,47 @@ import configparser
 import os
 from pathlib import Path
 
+_LEGACY_LLM_RESULTS_DIRS = {
+    "../../../../results/llm",
+    "../../../../../results/llm",
+    "results/llm",
+}
+_LEGACY_AUDIO_RESULTS_DIRS = {
+    "../../../../results/audio-models",
+    "../../../../../results/audio-models",
+    "results/audio-models",
+}
+
+
+def _dashboard_dir() -> Path:
+    return Path(__file__).resolve().parent
+
+
+def _repo_root() -> Path:
+    # vllm_dashboard -> dashboard-examples -> test-execution -> automation -> repo
+    return _dashboard_dir().parent.parent.parent.parent
+
+
+def default_llm_results_dir() -> str:
+    return str(_repo_root() / "results" / "llm")
+
+
+def default_audio_results_dir() -> str:
+    return str(_repo_root() / "results" / "audio-models")
+
+
+def resolve_results_path(path: str) -> str:
+    """Resolve configured paths to an absolute path."""
+    if path in _LEGACY_LLM_RESULTS_DIRS:
+        return default_llm_results_dir()
+    if path in _LEGACY_AUDIO_RESULTS_DIRS:
+        return default_audio_results_dir()
+
+    expanded = Path(path).expanduser()
+    if expanded.is_absolute():
+        return str(expanded)
+    return str((_dashboard_dir() / expanded).resolve())
+
 
 class DashboardConfig:
     """Manage dashboard configuration with persistent storage."""
@@ -27,7 +68,8 @@ class DashboardConfig:
     def _create_default_config(self):
         """Create default configuration."""
         self.config['Paths'] = {
-            'results_directory': '../../../../results/llm'
+            'results_directory': default_llm_results_dir(),
+            'audio_results_directory': default_audio_results_dir(),
         }
         self._save_config()
 
@@ -35,6 +77,11 @@ class DashboardConfig:
         """Save configuration to file."""
         with open(self.config_file, 'w') as f:
             self.config.write(f)
+
+    def _normalize_results_path(self, path: str, legacy_paths: set[str], default: str) -> str:
+        if path in legacy_paths:
+            return default
+        return resolve_results_path(path)
 
     def get_results_directory(self):
         """Get configured results directory path.
@@ -45,15 +92,20 @@ class DashboardConfig:
         # Check environment variable first (highest priority)
         env_path = os.getenv('VLLM_DASHBOARD_RESULTS_DIR')
         if env_path:
-            return env_path
+            return resolve_results_path(env_path)
 
         # Fall back to config file
         if 'Paths' in self.config:
-            return self.config['Paths'].get(
+            stored = self.config['Paths'].get(
                 'results_directory',
-                '../../../../results/llm'
+                default_llm_results_dir(),
             )
-        return '../../../../results/llm'
+        else:
+            stored = default_llm_results_dir()
+
+        return self._normalize_results_path(
+            stored, _LEGACY_LLM_RESULTS_DIRS, default_llm_results_dir()
+        )
 
     def set_results_directory(self, path: str):
         """Set and persist results directory path.
@@ -64,7 +116,7 @@ class DashboardConfig:
         if 'Paths' not in self.config:
             self.config['Paths'] = {}
 
-        self.config['Paths']['results_directory'] = path
+        self.config['Paths']['results_directory'] = resolve_results_path(path)
         self._save_config()
 
     def get_audio_results_directory(self):
@@ -75,14 +127,19 @@ class DashboardConfig:
         """
         env_path = os.getenv('VLLM_DASHBOARD_AUDIO_RESULTS_DIR')
         if env_path:
-            return env_path
+            return resolve_results_path(env_path)
 
         if 'Paths' in self.config:
-            return self.config['Paths'].get(
+            stored = self.config['Paths'].get(
                 'audio_results_directory',
-                '../../../../results/audio-models'
+                default_audio_results_dir(),
             )
-        return '../../../../results/audio-models'
+        else:
+            stored = default_audio_results_dir()
+
+        return self._normalize_results_path(
+            stored, _LEGACY_AUDIO_RESULTS_DIRS, default_audio_results_dir()
+        )
 
     def set_audio_results_directory(self, path: str):
         """Set and persist audio results directory path.
@@ -95,7 +152,7 @@ class DashboardConfig:
         if 'Paths' not in self.config:
             self.config['Paths'] = {}
 
-        self.config['Paths']['audio_results_directory'] = path
+        self.config['Paths']['audio_results_directory'] = resolve_results_path(path)
         self._save_config()
 
 def normalize_vllm_version(version_string):

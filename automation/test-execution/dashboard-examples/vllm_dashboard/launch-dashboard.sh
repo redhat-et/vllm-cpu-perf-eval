@@ -9,6 +9,9 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+export VLLM_DASHBOARD_RESULTS_DIR="${VLLM_DASHBOARD_RESULTS_DIR:-$REPO_ROOT/results/llm}"
+export VLLM_DASHBOARD_AUDIO_RESULTS_DIR="${VLLM_DASHBOARD_AUDIO_RESULTS_DIR:-$REPO_ROOT/results/audio-models}"
 
 # Colors
 GREEN='\033[0;32m'

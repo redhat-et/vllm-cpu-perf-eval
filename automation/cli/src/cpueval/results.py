@@ -1,6 +1,7 @@
 """Results management for cpueval."""
 
 import json
+import os
 import subprocess
 from pathlib import Path
 from typing import Optional, Dict, Any, List
@@ -335,7 +336,12 @@ def run_results_command(
             return 1
 
         console.print("[cyan]Launching dashboard...[/cyan]")
-        return subprocess.run([str(dashboard_script)]).returncode
+        env = os.environ.copy()
+        env.setdefault("VLLM_DASHBOARD_RESULTS_DIR", str(get_llm_results_dir()))
+        env.setdefault(
+            "VLLM_DASHBOARD_AUDIO_RESULTS_DIR", str(get_audio_results_dir())
+        )
+        return subprocess.run([str(dashboard_script)], env=env).returncode
 
     # Handle --list
     if list_results_flag:
