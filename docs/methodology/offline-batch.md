@@ -14,6 +14,8 @@ raw inference performance.
 
 > **Tool:** `vllm bench throughput` (direct Python API via Podman container)
 >
+> **CLI:** `./cpueval run --suite offline-batch` (recommended)
+>
 > **Playbook:** `llm-benchmark-offline-batch.yml`
 >
 > **Test Suite:** `run-offline-batch-suite.sh`
@@ -174,6 +176,34 @@ reasonable per-core efficiency.
 
 ## Execution
 
+### Via cpueval (recommended)
+
+From the repository root:
+
+```bash
+# Default: all 11 use cases, 3 runs each
+./cpueval run --suite offline-batch
+
+# All use cases, all RedHatAI models, 5 runs each
+./cpueval run --suite offline-batch --mode use-cases --runs 5 --models all
+
+# Single use case with core sweep
+./cpueval run --suite offline-batch \
+  --mode use-case-sweep \
+  --use-case summarization \
+  --models all \
+  --cores 8,16,24,32 \
+  --runs 3
+
+# Technical benchmarks
+./cpueval run --suite offline-batch --mode core-scaling --model <model>
+./cpueval run --suite offline-batch --mode batch-scaling --model <model> --cores 16
+```
+
+cpueval maps `--mode`, `--runs`, `--use-case`, `--models`, `--cores`, `--dataset`,
+and `--num-prompts` to the bash script's positional arguments. See
+[cpueval CLI Guide](../cpueval-cli.md) for full options.
+
 ### Via Bash Test Suite
 
 ```bash
@@ -240,6 +270,7 @@ Offline batch results complement online serving tests:
 ## Related Documentation
 
 - [Testing Methodology Overview](overview.md)
+- [cpueval CLI Guide](../cpueval-cli.md) - Recommended entry point
 - [3-Phase Testing Methodology](testing-phases.md) (concurrent load only)
 - [Metrics Guide](metrics.md)
 - [Offline Batch Test Scenarios](../../tests/offline-batch/offline-batch.md)

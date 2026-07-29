@@ -229,19 +229,18 @@ with tab1:
 
     **Offline Batch Tests:**
     ```bash
-    # Run all 11 use cases with all 4 RedHatAI models (5 iterations each)
+    # Recommended: from repository root
+    ./cpueval run --suite offline-batch
+    ./cpueval run --suite offline-batch --mode use-cases --runs 5 --models all
+
+    # Advanced: bash script directly
     cd automation/test-execution/scripts/bash
     ./run-offline-batch-suite.sh use-cases 5 all
-
-    # Run single test configuration
     ./run-offline-batch-suite.sh run_test all sonnet 1000 16
 
-    # Test specific models (comma-separated or single)
-    ./run-offline-batch-suite.sh run_test "RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w8a8" sonnet 1000 16
-
-    # Use different container
+    # RHAIIS container
     export VLLM_CONTAINER_IMAGE=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
-    ./run-offline-batch-suite.sh run_test all sonnet 1000 16
+    ./cpueval run --suite offline-batch --mode use-cases --runs 3 --models all
     ```
 
     **Offline batch results are saved to:** `results/llm/`

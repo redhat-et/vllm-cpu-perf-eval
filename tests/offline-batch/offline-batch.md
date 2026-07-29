@@ -101,6 +101,10 @@ Performance characterization tests:
 
 The test scenarios are implemented in:
 
+**cpueval CLI (recommended entry point):**
+- `./cpueval run --suite offline-batch` — wraps the bash suite below
+- See [cpueval CLI Guide](../../docs/cpueval-cli.md) for suite options and overrides
+
 **Bash Test Suite:**
 - `automation/test-execution/scripts/bash/run-offline-batch-suite.sh`
 - See [Offline Batch Methodology](../../docs/methodology/offline-batch.md) for detailed usage
@@ -118,6 +122,47 @@ The test scenarios are implemented in:
 - `automation/test-execution/tests/scripts/test_run_offline_batch_suite.sh` - Bash script tests
 
 ## Quick Start
+
+### Via cpueval (recommended)
+
+From the repository root:
+
+```bash
+# Default: all 11 use cases, 3 runs each (TinyLlama pruned)
+./cpueval run --suite offline-batch
+
+# All use cases, 5 runs, all 4 RedHatAI models
+./cpueval run --suite offline-batch --mode use-cases --runs 5 --models all
+
+# Single use case with core sweep
+./cpueval run --suite offline-batch \
+  --mode use-case-sweep \
+  --use-case summarization \
+  --models all \
+  --cores 8,16,24,32 \
+  --runs 3
+
+# Single test configuration
+./cpueval run --suite offline-batch \
+  --mode run_test \
+  --model all \
+  --dataset sonnet \
+  --num-prompts 1000 \
+  --cores 16
+
+# RHAIIS container image
+export VLLM_CONTAINER_IMAGE=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
+./cpueval run --suite offline-batch --mode use-cases --runs 3 --models all
+```
+
+Modes: `use-cases`, `use-case-sweep`, `baseline`, `batch-scaling`, `input-scaling`,
+`output-scaling`, `core-scaling`, `quantization`, `kv-capacity`, `context-scaling`,
+`all`, `run_test`. See [cpueval CLI Guide](../../docs/cpueval-cli.md) for full options.
+
+For unsupported combinations, use the escape hatch:
+`--extra args="batch-scaling <model> 16"`.
+
+### Via bash script (advanced)
 
 ```bash
 cd automation/test-execution/scripts/bash
@@ -265,6 +310,7 @@ export HF_TOKEN=hf_your_token_here
 
 ## Related Documentation
 
+- [cpueval CLI Guide](../../docs/cpueval-cli.md) - Recommended entry point
 - [Automation README](../../automation/test-execution/README.md) - All test types overview
 - [Dashboard README](../../automation/test-execution/dashboard-examples/vllm_dashboard/README.md) - Visualization guide
 - [Main Tests Overview](../tests.md) - All test suites

@@ -524,9 +524,18 @@ def main():
     if df.empty:
         st.warning("No benchmark results found. Run some benchmarks first!")
         st.code(
-            "# Run a benchmark:\n"
+            "# Run a benchmark (from repository root):\n"
+            "./cpueval run --suite offline-batch\n"
+            "./cpueval run --suite offline-batch --mode use-cases --runs 5 --models all\n"
+            "\n"
+            "# Or via bash script:\n"
+            "cd automation/test-execution/scripts/bash\n"
+            "./run-offline-batch-suite.sh use-cases 5 all\n"
+            "./run-offline-batch-suite.sh run_test all sonnet 1000 16\n"
+            "\n"
+            "# Or single test via Ansible:\n"
             "cd automation/test-execution\n"
-            "ansible-playbook -i inventory/hosts.yml "
+            "ansible-playbook -i ansible/inventory/hosts.yml "
             "ansible/llm-benchmark-offline-batch.yml \\\n"
             '  -e "test_model=RedHatAI/'
             'TinyLlama-1.1B-Chat-v1.0-pruned2.4" \\\n'

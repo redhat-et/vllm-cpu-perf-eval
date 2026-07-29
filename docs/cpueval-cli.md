@@ -166,20 +166,38 @@ Verifies:
 **Offline Batch Example:**
 
 ```bash
-# Offline batch processing (high-throughput static workloads)
-./cpueval run --suite offline-batch \
-  --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
-  --cores 32 \
-  --extra dataset_name=random \
-  --extra num_prompts=100
+# Default: all 11 use cases, 3 runs each
+./cpueval run --suite offline-batch
 
-# RHAIIS offline batch
-export VLLM_CONTAINER_IMAGE=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
+# All use cases, all RedHatAI models, 5 runs each
+./cpueval run --suite offline-batch --mode use-cases --runs 5 --models all
+
+# Single use case with core sweep
 ./cpueval run --suite offline-batch \
-  --model RedHatAI/TinyLlama-1.1B-Chat-v1.0-pruned2.4 \
-  --cores 16 \
-  --extra dataset_name=sonnet
+  --mode use-case-sweep \
+  --use-case summarization \
+  --models all \
+  --cores 8,16,24,32 \
+  --runs 3
+
+# Single test configuration
+./cpueval run --suite offline-batch \
+  --mode run_test \
+  --model all \
+  --dataset sonnet \
+  --num-prompts 1000 \
+  --cores 16
+
+# Technical benchmarks
+./cpueval run --suite offline-batch --mode batch-scaling --model <model> --cores 16
+
+# RHAIIS container image
+export VLLM_CONTAINER_IMAGE=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
+./cpueval run --suite offline-batch --mode use-cases --runs 3 --models all
 ```
+
+**Offline-batch flags:** `--mode`, `--runs`, `--use-case`, `--models`/`--model`,
+`--cores`, `--dataset`, `--num-prompts`. Escape hatch: `--extra args="..."`.
 
 **Core Sweep (Multiple Core Counts):**
 

@@ -83,6 +83,7 @@ Tests vLLM batch processing performance using the native Python API (not server 
 - **Use cases**: Summarization, Classification, Translation, Entity Extraction, Dataset Generation, ETL Pipelines, Code Generation, Long-Document Summarization, Batch RAG, Shared-Prefix/Template Batch, Ultra-Short Labeling
 
 See [Offline Batch Test Suite](offline-batch/offline-batch.md) for detailed documentation.
+Run with `./cpueval run --suite offline-batch` or the bash script directly.
 
 ### Test Suite: Resource Contention (Planned)
 

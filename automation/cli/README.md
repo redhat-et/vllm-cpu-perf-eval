@@ -229,20 +229,35 @@ export VLLM_CONTAINER_IMAGE=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
 **Offline Batch Processing:**
 
 ```bash
-# Offline batch processing (high-throughput static workloads)
-./cpueval run --suite offline-batch \
-  --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
-  --cores 32 \
-  --extra dataset_name=random \
-  --extra num_prompts=100
+# Default: all 11 use cases, 3 runs each
+./cpueval run --suite offline-batch
 
-# RHAIIS offline batch
-export VLLM_CONTAINER_IMAGE=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
+# All use cases, all RedHatAI models, 5 runs each
+./cpueval run --suite offline-batch --mode use-cases --runs 5 --models all
+
+# Single use case with core sweep
 ./cpueval run --suite offline-batch \
-  --model RedHatAI/TinyLlama-1.1B-Chat-v1.0-pruned2.4 \
-  --cores 16 \
-  --extra dataset_name=sonnet
+  --mode use-case-sweep \
+  --use-case summarization \
+  --models all \
+  --cores 8,16,24,32 \
+  --runs 3
+
+# Single test configuration
+./cpueval run --suite offline-batch \
+  --mode run_test \
+  --model all \
+  --dataset sonnet \
+  --num-prompts 1000 \
+  --cores 16
+
+# RHAIIS container image
+export VLLM_CONTAINER_IMAGE=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
+./cpueval run --suite offline-batch --mode use-cases --runs 3 --models all
 ```
+
+**Offline-batch flags:** `--mode`, `--runs`, `--use-case`, `--models`/`--model`,
+`--cores`, `--dataset`, `--num-prompts`. Escape hatch: `--extra args="..."`.
 
 **Multi-model RHAIIS Sweeps:**
 
@@ -480,8 +495,7 @@ For comprehensive RHAIIS validation with results by end of week:
 **Day 3: Offline Batch Processing**
 ```bash
 # All 11 enterprise use-cases, 3 runs each = 33 tests
-./cpueval run --suite offline-batch \
-  --extra args="use-cases 3"
+./cpueval run --suite offline-batch
 
 # Enterprise Tier Priorities:
 #   Tier 1 (Must-have): Summarization, Classification, RAG Batch, Entity Extraction
@@ -489,9 +503,13 @@ For comprehensive RHAIIS validation with results by end of week:
 #   Tier 3 (Valuable): Code Gen, Translation, Dataset Gen
 #   Tier 4 (Deprioritize): Shared-Prefix
 
-# Run specific tier:
+# Run specific use case:
 ./cpueval run --suite offline-batch \
-  --extra args="use-case-sweep summarization all 8,16,32 3"
+  --mode use-case-sweep \
+  --use-case summarization \
+  --models all \
+  --cores 8,16,32 \
+  --runs 3
 ```
 
 **Day 4: Embedding Models**
