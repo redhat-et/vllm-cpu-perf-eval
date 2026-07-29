@@ -157,10 +157,6 @@
   ansible.builtin.set_fact:
     effective_kv_cache_space: "{{ model_kv_cache_space | default(workload_cfg.kv_cache_space) }}"
 
-- name: Detect Red Hat AI vLLM image
-  ansible.builtin.set_fact:
-    is_redhat_ai_image: "{{ 'rhaii' in (container_cfg.image | lower) }}"
-
 - name: Prepare base environment variables
   ansible.builtin.set_fact:
     vllm_env_vars:
@@ -168,22 +164,12 @@
       HF_TOKEN: "{{ hf_token }}"
   no_log: true  # Prevent HF_TOKEN from appearing in logs
 
-- name: Add Red Hat AI image specific environment variables
-  ansible.builtin.set_fact:
-    vllm_env_vars: "{{ vllm_env_vars | combine({'HF_HOME': '/opt/app-root/src/.cache/huggingface', 'HF_HUB_OFFLINE': '0'}) }}"
-  when: is_redhat_ai_image
-  no_log: true
-
 - name: Add LD_PRELOAD if specified (for Red Hat AI image)
   ansible.builtin.set_fact:
     vllm_env_vars: "{{ vllm_env_vars | combine({'LD_PRELOAD': lookup('env', 'LD_PRELOAD') }) }}"
   when:
     - lookup('env', 'LD_PRELOAD') | length > 0
   no_log: true
-
-- name: Set container cache path based on image type
-  ansible.builtin.set_fact:
-    container_cache_path: "{{ '/opt/app-root/src/.cache/huggingface' if is_redhat_ai_image else '/root/.cache/huggingface' }}"
 
 - name: Add OMP_NUM_THREADS if specified (ONLY for TP > 1)
   ansible.builtin.set_fact:
@@ -290,13 +276,17 @@
   ansible.builtin.set_fact:
     is_redhat_ai_image: "{{ 'rhaii' in (effective_container_image | lower) }}"
 
-- name: Re-apply Red Hat AI image specific environment variables (after backend image resolution)
+- name: Clear stale RHAIIS-specific environment variables
+  ansible.builtin.set_fact:
+    vllm_env_vars: "{{ vllm_env_vars | dict2items | rejectattr('key', 'in', ['HF_HOME', 'HF_HUB_OFFLINE']) | items2dict }}"
+
+- name: Add Red Hat AI image specific environment variables
   ansible.builtin.set_fact:
     vllm_env_vars: "{{ vllm_env_vars | combine({'HF_HOME': '/opt/app-root/src/.cache/huggingface', 'HF_HUB_OFFLINE': '0'}) }}"
   when: is_redhat_ai_image
   no_log: true
 
-- name: Re-set container cache path from effective image type
+- name: Set container cache path from effective image type
   ansible.builtin.set_fact:
     container_cache_path: "{{ '/opt/app-root/src/.cache/huggingface' if is_redhat_ai_image else '/root/.cache/huggingface' }}"
 
