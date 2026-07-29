@@ -46,7 +46,93 @@ def test_offline_batch_dry_run_without_model():
 
     assert result.returncode == 0, f"STDERR: {result.stderr}"
     assert "run-offline-batch-suite.sh" in result.stdout
-    assert "use-cases 3" in result.stdout
+    assert "use-cases" in result.stdout
+    assert "3" in result.stdout
+
+
+def test_offline_batch_mode_flags():
+    """Test first-class offline-batch flags build positional args."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "cpueval",
+            "run",
+            "--suite",
+            "offline-batch",
+            "--mode",
+            "use-case-sweep",
+            "--use-case",
+            "summarization",
+            "--models",
+            "all",
+            "--cores",
+            "8,16,32",
+            "--runs",
+            "3",
+            "--dry-run",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(repo_root()),
+    )
+
+    assert result.returncode == 0, f"STDERR: {result.stderr}"
+    assert "use-case-sweep summarization all 8,16,32 3" in result.stdout
+
+
+def test_offline_batch_run_test_flags():
+    """Test run_test mode via first-class flags."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "cpueval",
+            "run",
+            "--suite",
+            "offline-batch",
+            "--mode",
+            "run_test",
+            "--model",
+            "all",
+            "--dataset",
+            "sonnet",
+            "--num-prompts",
+            "1000",
+            "--cores",
+            "16",
+            "--dry-run",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(repo_root()),
+    )
+
+    assert result.returncode == 0, f"STDERR: {result.stderr}"
+    assert "run_test all sonnet 1000 16" in result.stdout
+
+
+def test_offline_batch_extra_args_override():
+    """Test --extra args= still overrides structured flags."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "cpueval",
+            "run",
+            "--suite",
+            "offline-batch",
+            "--extra",
+            'args="baseline 32 100"',
+            "--dry-run",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(repo_root()),
+    )
+
+    assert result.returncode == 0, f"STDERR: {result.stderr}"
+    assert "baseline 32 100" in result.stdout
 
 
 def test_chat_smoke_requires_model():

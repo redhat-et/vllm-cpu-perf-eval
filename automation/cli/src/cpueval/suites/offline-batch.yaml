@@ -3,20 +3,25 @@ description: Offline batch processing - enterprise workload tiers
 runner: script
 target: automation/test-execution/scripts/bash/run-offline-batch-suite.sh
 matrix: true
+args_builder: offline_batch
 
-# Note: This script uses POSITIONAL args, not flags
-# Tier presets for enterprise priorities:
-#   tier1: Summarization, Classification, RAG, Entity Extraction (4 use-cases × 3 runs = 12 tests)
-#   tier2: Long-Doc Summary, ETL, Short Labeling (3 use-cases × 3 runs = 9 tests)
-#   tier3: Code Gen, Translation, Dataset Gen (3 use-cases × 3 runs = 9 tests)
-#   all: All 11 use-cases × 5 runs = 55 tests
+# Modes: use-cases | use-case-sweep | baseline | batch-scaling | input-scaling |
+#        output-scaling | core-scaling | quantization | kv-capacity |
+#        context-scaling | all | run_test
 #
-# Override examples:
-#   --extra args="use-case-sweep summarization all 8,16,32 3"
+# Examples:
+#   ./cpueval run --suite offline-batch
+#   ./cpueval run --suite offline-batch --mode use-cases --runs 5 --models all
+#   ./cpueval run --suite offline-batch --mode use-case-sweep \
+#     --use-case summarization --models all --cores 8,16,32 --runs 3
+#   ./cpueval run --suite offline-batch --mode run_test \
+#     --model all --dataset sonnet --num-prompts 1000 --cores 16
+#
+# Escape hatch (full positional override):
 #   --extra args="use-cases 1 RedHatAI/TinyLlama-1.1B-Chat-v1.0-pruned2.4"
 
 defaults:
-  args: "use-cases 3"
+  mode: use-cases
+  runs: 3
 
-param_mappings:
-  args: direct
+param_mappings: {}

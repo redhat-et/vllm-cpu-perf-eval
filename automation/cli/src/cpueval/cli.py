@@ -16,6 +16,7 @@ from cpueval.results import (
     save_last_run_hint,
     find_latest_result,
 )
+from cpueval.offline_batch import build_offline_batch_args
 from cpueval.runners import (
     load_profile,
     merge_extra_vars,
@@ -123,6 +124,13 @@ def show(suite_name: str = typer.Argument(..., help="Suite name")):
                 console.print("  --cores <list> to select specific core counts")
             if "workloads" in suite.defaults:
                 console.print("  --workloads <list> to select specific workloads")
+            if suite.args_builder == "offline_batch":
+                console.print("  --mode <mode> to select test mode (default: use-cases)")
+                console.print("  --runs <n> for use-cases / use-case-sweep iteration count")
+                console.print("  --use-case <name> for use-case-sweep mode")
+                console.print("  --models / --model for model selection")
+                console.print("  --cores <list> for core sweep modes")
+                console.print("  --dataset / --num-prompts for run_test mode")
             console.print()
 
     if suite.param_mappings:
@@ -150,7 +158,27 @@ def run(
     workload: Optional[str] = typer.Option(None, "--workload", "-w", help="Workload type"),
     workloads: Optional[str] = typer.Option(None, "--workloads", help="Workloads (comma-separated, matrix suites)"),
     scenario: Optional[str] = typer.Option(None, "--scenario", help="Test scenario"),
-    mode: Optional[str] = typer.Option(None, "--mode", help="Test mode (offline-batch: use-cases|baseline|all)"),
+    mode: Optional[str] = typer.Option(
+        None,
+        "--mode",
+        help=(
+            "Offline-batch mode: use-cases, use-case-sweep, baseline, batch-scaling, "
+            "input-scaling, output-scaling, core-scaling, quantization, kv-capacity, "
+            "context-scaling, all, run_test"
+        ),
+    ),
+    runs: Optional[int] = typer.Option(
+        None, "--runs", help="Iteration count (offline-batch use-cases / use-case-sweep)"
+    ),
+    use_case: Optional[str] = typer.Option(
+        None, "--use-case", help="Use case name (offline-batch use-case-sweep mode)"
+    ),
+    dataset: Optional[str] = typer.Option(
+        None, "--dataset", help="Dataset name (offline-batch run_test mode)"
+    ),
+    num_prompts: Optional[int] = typer.Option(
+        None, "--num-prompts", help="Prompt count (offline-batch run_test / baseline)"
+    ),
     preset: Optional[str] = typer.Option(None, "--preset", help="Model preset (deprecated, use --models)"),
     tensor_parallel: Optional[int] = typer.Option(None, "--tensor-parallel", help="Tensor parallel size"),
     vllm_cpu_start: Optional[int] = typer.Option(None, "--vllm-cpu-start", help="vLLM CPU start core"),
@@ -249,6 +277,18 @@ def run(
     if mode:
         cli_vars["mode"] = mode
 
+    if runs is not None:
+        cli_vars["runs"] = runs
+
+    if use_case:
+        cli_vars["use_case"] = use_case
+
+    if dataset:
+        cli_vars["dataset"] = dataset
+
+    if num_prompts is not None:
+        cli_vars["num_prompts"] = num_prompts
+
     if preset:
         # Deprecated, but still support it
         console.print("[yellow]Warning: --preset is deprecated, use --models instead[/yellow]")
@@ -322,26 +362,29 @@ def run(
         raise typer.Exit(exit_code)
 
     elif suite_obj.runner == "script":
-        # Build script args from param_mappings
-        script_args = []
+        script_args: List[str] = []
 
-        # For matrix suites, use the param_mappings to convert keys to CLI flags
-        for key, value in final_vars.items():
-            # Skip empty values
-            if value is None or value == "":
-                continue
+        if "args" in final_vars:
+            # Explicit override via --extra args="..." (highest precedence)
+            raw_args = final_vars["args"]
+            script_args = raw_args.split() if isinstance(raw_args, str) else list(raw_args)
+        elif suite_obj.args_builder == "offline_batch":
+            try:
+                script_args = build_offline_batch_args(final_vars)
+            except ValueError as e:
+                console.print(f"[red]Error: {e}[/red]")
+                raise typer.Exit(1)
+        else:
+            # Flag-based script suites (e.g. rhaiis-sweep)
+            for key, value in final_vars.items():
+                if value is None or value == "":
+                    continue
 
-            # Find the script flag for this key
-            flag = suite_obj.param_mappings.get(key)
-            if flag:
-                # param_mappings for script suites should have --flag format
-                if not flag.startswith("--"):
-                    flag = f"--{flag}"
-                script_args.extend([flag, str(value)])
-
-        # Special handling for "direct" args (e.g., offline-batch positional)
-        if "args" in final_vars and suite_obj.param_mappings.get("args") == "direct":
-            script_args = final_vars["args"]  # Pass as-is (string with spaces)
+                flag = suite_obj.param_mappings.get(key)
+                if flag:
+                    if not flag.startswith("--"):
+                        flag = f"--{flag}"
+                    script_args.extend([flag, str(value)])
 
         exit_code = run_script(suite_obj.target, script_args, dry_run=dry_run)
 
