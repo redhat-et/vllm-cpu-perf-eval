@@ -203,7 +203,7 @@ run_ansible_with_timeout() {
     #   VLLM_CONTAINER_NAME=vllm-0 VLLM_PORT=8000 VLLM_NUMA_NODES="0,1" ./run-offline-batch-suite.sh use-cases
     local parallel_args=()
     if [[ -n "${VLLM_CONTAINER_NAME:-}" ]]; then
-        parallel_args+=(-e "vllm_container_name=${VLLM_CONTAINER_NAME}")
+        parallel_args+=(-e "vllm_container_name_override=${VLLM_CONTAINER_NAME}")
     fi
     if [[ -n "${VLLM_PORT:-}" ]]; then
         parallel_args+=(-e "vllm_port=${VLLM_PORT}")

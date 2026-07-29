@@ -218,7 +218,7 @@
               - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
               - "CPU Configuration (Managed Mode)"
               - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-              - "Container Cores: {{ requested_cores }} (cores 0-{{ (requested_cores | int) - 1 }})"
+              - "Container Cores: {{ requested_cores }} (NUMA allocation runs on DUT before container start)"
               - "Control Plane Reserve: {{ vllm_control_plane_cores }} cores (VLLM_CPU_NUM_OF_RESERVED_CPU={{ vllm_control_plane_cores }})"
               - "Tensor Parallel: {{ requested_tensor_parallel }}"
               - "{% if requested_tensor_parallel | int > 1 %}Worker Threads (OMP): {{ omp_num_threads }}{% else %}Worker Threads: Auto (TP=1, no OMP override){% endif %}"
@@ -320,6 +320,55 @@
           - "╚══════════════════════════════════════════════════════════════╝"
 
 # ============================================================================
+# Detect NUMA Topology and Allocate Cores (Managed Mode Only)
+# ============================================================================
+
+- name: "Audio Benchmark - Detect NUMA Topology"
+  hosts: dut
+  become: true
+  gather_facts: false
+  vars:
+    vllm_mode: "{{ vllm_endpoint.mode | default('managed') }}"
+
+  pre_tasks:
+    - name: Skip NUMA detection in external mode
+      ansible.builtin.meta: end_play
+      when: vllm_mode != 'managed'
+
+  tasks:
+    - name: Detect NUMA topology on DUT
+      ansible.builtin.include_role:
+        name: common
+        tasks_from: detect-numa-topology
+
+- name: "Audio Benchmark - Allocate Cores"
+  hosts: dut
+  become: true
+  gather_facts: false
+  vars:
+    vllm_mode: "{{ vllm_endpoint.mode | default('managed') }}"
+    requested_cores: "{{ hostvars['localhost']['requested_cores'] }}"
+    requested_tensor_parallel: "{{ hostvars['localhost']['requested_tensor_parallel'] | default(omit) }}"
+    vllm_numa_node: "{{ vllm_numa_node | default(None) }}"
+
+  pre_tasks:
+    - name: Skip core allocation in external mode
+      ansible.builtin.meta: end_play
+      when: vllm_mode != 'managed'
+
+  tasks:
+    - name: Allocate cores from NUMA topology
+      ansible.builtin.include_role:
+        name: common
+        tasks_from: allocate-cores-from-count
+
+    - name: Save auto-allocated config to localhost
+      ansible.builtin.set_fact:
+        core_configuration: "{{ auto_core_config }}"
+      delegate_to: localhost
+      delegate_facts: true
+
+# ============================================================================
 # Start vLLM Server (Managed Mode Only)
 # ============================================================================
 
@@ -338,12 +387,14 @@
     effective_vllm_kvcache_space: "{{ hostvars['localhost']['effective_vllm_kvcache_space'] }}"
     effective_omp_num_threads: "{{ hostvars['localhost']['effective_omp_num_threads'] }}"
     effective_requested_tensor_parallel: "{{ hostvars['localhost']['effective_requested_tensor_parallel'] }}"
+    core_configuration: "{{ hostvars['localhost']['core_configuration'] }}"
     vllm_control_plane_cores: 2  # Reserve 2 cores for control plane (defined here for vllm-server play)
-    # Use vllm_container_name when explicitly set (e.g. VLLM_CONTAINER_NAME=vllm-0 for parallel
-    # instances), otherwise generate a unique per-run name so sequential runs don't conflict.
+    # vllm_container_name_override: set via VLLM_CONTAINER_NAME env var (forwarded by
+    # run-audio-suite.sh) for parallel instances. Not defined by default, so the
+    # is defined + length check cleanly detects an explicit override without a sentinel.
     container_name: >-
-      {{ vllm_container_name
-         if (vllm_container_name is defined and vllm_container_name != 'vllm-server')
+      {{ vllm_container_name_override
+         if (vllm_container_name_override is defined and vllm_container_name_override | length > 0)
          else 'vllm-audio-' + hostvars['localhost']['test_run_id'] }}
 
   tasks:
@@ -463,10 +514,6 @@
             state: absent
           ignore_errors: true
 
-        - name: Determine NUMA node from core range
-          ansible.builtin.set_fact:
-            numa_node: "0"  # Default to node 0, can be enhanced with auto-detection
-
         - name: Build vLLM command arguments
           ansible.builtin.set_fact:
             vllm_command: >-
@@ -502,19 +549,19 @@
         # For TP>1: Set OMP variables explicitly for multi-rank configurations
         - name: Add OMP_NUM_THREADS if TP > 1
           ansible.builtin.set_fact:
-            vllm_env_vars: "{{ vllm_env_vars | combine({'OMP_NUM_THREADS': effective_omp_num_threads | string}) }}"
+            vllm_env_vars: "{{ vllm_env_vars | combine({'OMP_NUM_THREADS': (core_configuration.omp_num_threads | default(effective_omp_num_threads)) | string}) }}"
           when:
             - effective_requested_tensor_parallel | int > 1
-            - effective_omp_num_threads is defined
+            - core_configuration.omp_num_threads is defined or effective_omp_num_threads is defined
           no_log: true
 
         - name: Add VLLM_CPU_OMP_THREADS_BIND if TP > 1
           ansible.builtin.set_fact:
-            vllm_env_vars: "{{ vllm_env_vars | combine({'VLLM_CPU_OMP_THREADS_BIND': omp_threads_bind}) }}"
+            vllm_env_vars: "{{ vllm_env_vars | combine({'VLLM_CPU_OMP_THREADS_BIND': core_configuration.omp_threads_bind}) }}"
           when:
             - effective_requested_tensor_parallel | int > 1
-            - omp_threads_bind is defined
-            - omp_threads_bind != ''
+            - core_configuration.omp_threads_bind is defined
+            - core_configuration.omp_threads_bind != ''
           no_log: true
           # NOTE: Setting VLLM_CPU_OMP_THREADS_BIND to explicit CPU list disables
           # VLLM_CPU_NUM_OF_RESERVED_CPU. Only set for TP>1 where we manage binding manually.
@@ -527,8 +574,8 @@
             restart_policy: "no"
             detach: true
             network: "{{ container_runtime.network_mode }}"
-            cpuset_cpus: "{{ '0-' + ((requested_cores | int) - 1) | string }}"
-            cpuset_mems: "{{ numa_node }}"
+            cpuset_cpus: "{{ core_configuration.cpuset_cpus }}"
+            cpuset_mems: "{{ core_configuration.cpuset_mems }}"
             shm_size: "{{ container_runtime.shm_size }}"
             security_opt: "{{ container_runtime.security_opts }}"
             cap_add: "{{ container_runtime.capabilities }}"
@@ -833,8 +880,8 @@
     vllm_mode: "{{ vllm_endpoint.mode | default('managed') }}"
     test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
     container_name: >-
-      {{ vllm_container_name
-         if (vllm_container_name is defined and vllm_container_name != 'vllm-server')
+      {{ vllm_container_name_override
+         if (vllm_container_name_override is defined and vllm_container_name_override | length > 0)
          else 'vllm-audio-' + hostvars['localhost']['test_run_id'] }}
 
   tasks:

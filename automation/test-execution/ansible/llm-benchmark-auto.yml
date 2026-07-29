@@ -802,7 +802,7 @@
       ansible.builtin.meta: end_play
       when: >-
         hostvars['localhost']['vllm_mode'] | default('managed') == 'external' or
-        not (cleanup_after_test | default(false) | bool)
+        not (cleanup_after_test | default(true) | bool)
 
   tasks:
     - name: Stop and remove vLLM container

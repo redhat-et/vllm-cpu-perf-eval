@@ -228,7 +228,7 @@ export HF_TOKEN=hf_your_token_here
 
 ### Parallel vLLM Instances
 
-Run multiple vLLM benchmark instances simultaneously on the same host by assigning each a unique container name, port, and NUMA node set via environment variables. The bash suite scripts forward these to Ansible as `-e` overrides.
+Run multiple vLLM benchmark instances simultaneously on the same host by assigning each a unique container name and port via environment variables. NUMA node pinning (`VLLM_NUMA_NODES`) is additionally supported for the concurrent-load suites; see the capability matrix below. The bash suite scripts forward these to Ansible as `-e` overrides.
 
 | Variable | Description | Default |
 |---|---|---|

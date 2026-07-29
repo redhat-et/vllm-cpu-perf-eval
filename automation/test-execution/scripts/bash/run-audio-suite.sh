@@ -180,7 +180,7 @@ for model in "${FINAL_MODELS[@]}"; do
             # simultaneously on the same host (each with its own container, port, NUMA nodes):
             #   VLLM_CONTAINER_NAME=vllm-0 VLLM_PORT=8000 VLLM_NUMA_NODES="0,1" ./run-audio-suite.sh
             if [[ -n "${VLLM_CONTAINER_NAME:-}" ]]; then
-                CMD+=(-e "vllm_container_name=${VLLM_CONTAINER_NAME}")
+                CMD+=(-e "vllm_container_name_override=${VLLM_CONTAINER_NAME}")
             fi
             if [[ -n "${VLLM_PORT:-}" ]]; then
                 CMD+=(-e "vllm_port=${VLLM_PORT}")
