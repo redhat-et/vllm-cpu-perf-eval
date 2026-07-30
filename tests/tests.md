@@ -1,7 +1,3 @@
----
-nav_exclude: true
-layout: default
----
 
 # Tests Directory
 
@@ -11,8 +7,7 @@ layout: default
 > methodology docs below.
 
 This directory contains per-suite methodology and configuration documentation.
-
-## Test Suites
+# Test Suites
 
 | Suite | Documentation | cpueval suite |
 | --- | --- | --- |
@@ -26,8 +21,7 @@ This directory contains per-suite methodology and configuration documentation.
 
 Sub-pages for embedding: [baseline-sweep.md](embedding-models/baseline-sweep.md),
 [latency-concurrent.md](embedding-models/latency-concurrent.md).
-
-## Test ID Naming Convention
+# Test ID Naming Convention
 
 All test cases use a hierarchical naming scheme:
 
@@ -38,8 +32,7 @@ All test cases use a hierarchical naming scheme:
 
 See the [Test Suites Overview](../docs/test-suites.md#test-id-naming-convention)
 for examples and the full prefix table.
-
-## Running Tests
+# Running Tests
 
 ```bash
 # Recommended: cpueval CLI

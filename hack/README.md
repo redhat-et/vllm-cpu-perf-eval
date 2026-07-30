@@ -6,58 +6,54 @@ Developer utilities and helper scripts.
 
 ### preview-site.sh
 
-Preview the GitHub Pages site locally using Docker or Podman.
+Preview the documentation site locally with MkDocs.
 
 **Quick Start:**
-```bash
-# Start preview server
-./hack/preview-site.sh --port 4001
 
-# Stop preview server
-./hack/preview-site.sh --stop
+```bash
+# Start preview server (default port 8000)
+./hack/preview-site.sh
+
+# Custom port
+./hack/preview-site.sh --port 4000
 
 # Help
 ./hack/preview-site.sh --help
 ```
 
-**Features:**
-- Auto-detects Docker or Podman
-- Installs GitHub Pages gems automatically
-- Serves site with live reload at <http://localhost:PORT>
-- Clean start/stop commands
+**First run:** installs MkDocs and Material from `requirements-docs.txt` if needed.
 
-**First Run:**
-- Takes 2-3 minutes to install gems
-- Subsequent runs are instant
+**Making changes:**
 
-**Making Changes:**
-- Markdown files reload automatically
-- CSS/layout changes reload automatically
-- Config changes require restart
+- Markdown edits reload automatically
+- Changes to `mkdocs.yml` or theme overrides require a server restart
 
-**Troubleshooting:**
+**Build (production check):**
+
 ```bash
-# Port conflict
-./hack/preview-site.sh --port 8080
-
-# Clean restart
-./hack/preview-site.sh --stop
-./hack/preview-site.sh --port 4001
-
-# Hard refresh browser (Cmd+Shift+R / Ctrl+Shift+R)
+python3 -m venv .venv-docs
+source .venv-docs/bin/activate
+pip install -r requirements-docs.txt
+DISABLE_MKDOCS_2_WARNING=true mkdocs build --strict
 ```
 
-**See** [.github-pages/README.md](../.github-pages/README.md) for complete documentation, troubleshooting, and manual Docker usage.
+Output is written to `site/`.
+
+### strip_jekyll_for_mkdocs.py
+
+One-time maintenance script that removes Jekyll front matter and Liquid `{% raw %}` wrappers from site markdown. Navigation is defined in `mkdocs.yml` at the repo root.
 
 ## Future Utilities
 
 This directory is intended for:
+
 - Development helper scripts
 - Testing utilities
 - Code generation tools
 - Other developer conveniences
 
 Not for:
+
 - Production automation (use `automation/`)
 - Platform setup (use `automation/platform-setup/`)
 - Test execution (use `automation/test-execution/`)

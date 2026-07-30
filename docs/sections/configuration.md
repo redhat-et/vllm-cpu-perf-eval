@@ -1,10 +1,3 @@
----
-title: Configuration
-parent: Documentation
-nav_order: 9
-has_children: true
-layout: default
----
 
 # Configuration
 

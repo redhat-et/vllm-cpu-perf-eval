@@ -1,10 +1,3 @@
----
-title: Reporting
-parent: Methodology
-grand_parent: Documentation
-nav_order: 4
-layout: default
----
 
 ## Test Report
 

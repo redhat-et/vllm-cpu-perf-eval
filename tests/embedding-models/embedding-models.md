@@ -1,10 +1,3 @@
----
-title: Embedding Models
-parent: Test Suites
-grand_parent: Documentation
-nav_order: 5
-layout: default
----
 
 ## Embedding Models Performance Testing
 

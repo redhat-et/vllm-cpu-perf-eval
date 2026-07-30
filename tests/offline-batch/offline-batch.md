@@ -1,10 +1,3 @@
----
-title: Offline Batch
-parent: Test Suites
-grand_parent: Documentation
-nav_order: 4
-layout: default
----
 
 # Offline Batch Test Scenarios
 

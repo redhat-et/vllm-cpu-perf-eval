@@ -1,10 +1,3 @@
----
-title: MTEB Quality Testing
-parent: Documentation
-nav_order: 7
-has_children: true
-layout: default
----
 
 # MTEB Quality Testing
 

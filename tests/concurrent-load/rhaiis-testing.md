@@ -1,14 +1,8 @@
----
-nav_exclude: true
-layout: default
----
 # RHAIIS LLM Concurrent Load Testing Guide
-
-## Overview
+# Overview
 
 This guide covers running concurrent load tests on RHAIIS (Red Hat AI Inference Service) quantized models.
-
-## Prerequisites
+# Prerequisites
 
 1. **Pull the RHAIIS container image on the DUT:**
    ```bash
@@ -66,8 +60,7 @@ This guide covers running concurrent load tests on RHAIIS (Red Hat AI Inference 
    ```
 
    **Why this matters:** Shorter tests show erratic P95/P99 due to: (1) warmup effects dominating samples, (2) insufficient request count for statistical stability, (3) GC pauses causing visible spikes.
-
-## RHAIIS Models to Test
+# RHAIIS Models to Test
 
 The test suite includes 5 quantized models:
 

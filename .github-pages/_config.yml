@@ -1,5 +1,0 @@
-# Local preview overlay — merged with ../_config.yml by hack/preview-site.sh
-source: ..
-destination: ../_site
-baseurl: ""
-url: ""

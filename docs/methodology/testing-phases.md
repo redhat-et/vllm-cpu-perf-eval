@@ -1,10 +1,3 @@
----
-title: Testing Phases
-parent: Methodology
-grand_parent: Documentation
-nav_order: 2
-layout: default
----
 
 ## 3-Phase Testing Methodology
 

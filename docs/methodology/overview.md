@@ -1,10 +1,3 @@
----
-title: Methodology
-parent: Documentation
-nav_order: 8
-has_children: true
-layout: default
----
 
 ## vLLM Performance Evaluation Guide - CPU Inferencing
 

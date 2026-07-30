@@ -1,46 +1,17 @@
 ---
-marp: true
-theme: default
-paginate: true
-size: 16:9
-style: |
-  section {
-    font-size: 28px;
-  }
-  h1 {
-    font-size: 1.6em;
-  }
-  h2 {
-    font-size: 1.25em;
-  }
-  table {
-    font-size: 0.72em;
-  }
-  th, td {
-    padding: 0.25em 0.45em;
-  }
-  pre, code {
-    font-size: 0.78em;
-  }
-  ul, ol {
-    font-size: 0.92em;
-  }
-  blockquote {
-    font-size: 0.85em;
-  }
+nav_exclude: true
+layout: default
 ---
 
 <!-- markdownlint-disable MD024 MD025 -->
 
 # vLLM CPU Performance Evaluation
-
-## Full Testing Methodology
+# Full Testing Methodology
 
 Maryam Tahhan, John Harrigan
 
 ---
-
-## Overview
+# Overview
 
 **Purpose:** Comprehensive performance evaluation framework for vLLM on CPU
 platforms that aligns with the
@@ -56,8 +27,7 @@ platforms that aligns with the
 - Measure offline/batch processing throughput
 
 ---
-
-## Test Suites
+# Test Suites
 
 | Suite | Tool | Focus |
 |-------|------|-------|

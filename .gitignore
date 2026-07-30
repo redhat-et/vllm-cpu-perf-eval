@@ -63,11 +63,14 @@ run-parallel-3inst.sh
 # Log directories
 logs/
 
-# Jekyll HTML files
-# Note: Ignore all HTML first, then negate specific directories
+# Jekyll / MkDocs build output
+site/
+.venv-docs/
+
+# Legacy Jekyll HTML files
+# Note: Ignore all HTML first, then negate theme override templates
 *.html
-!_layouts/*.html
-!_includes/*.html
+!overrides/**/*.html
 
 
 # Temporary files

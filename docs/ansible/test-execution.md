@@ -1,10 +1,3 @@
----
-title: Ansible Automation
-parent: Running Tests
-grand_parent: Documentation
-nav_order: 1
-layout: default
----
 
 ## Ansible Test Execution Guide
 

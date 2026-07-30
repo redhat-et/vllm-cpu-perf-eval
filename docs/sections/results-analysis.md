@@ -1,10 +1,3 @@
----
-title: Results & Analysis
-parent: Documentation
-nav_order: 6
-has_children: true
-layout: default
----
 
 # Results & Analysis
 

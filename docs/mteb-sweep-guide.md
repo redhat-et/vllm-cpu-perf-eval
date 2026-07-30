@@ -1,10 +1,3 @@
----
-title: MTEB Quick Start
-parent: MTEB Quality Testing
-grand_parent: Documentation
-nav_order: 1
-layout: default
----
 
 ## Quick Answer: Timing
 

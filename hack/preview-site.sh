@@ -1,64 +1,42 @@
 #!/bin/bash
-# Preview GitHub Pages site locally using Docker or Podman
+# Preview the documentation site locally with MkDocs.
 #
 # Usage: ./preview-site.sh [OPTIONS]
 #
-# Environment Variables:
-#   CONTAINER_RUNTIME    Force specific runtime: 'docker' or 'podman'
-#                        If not set, auto-detects available runtime
-#
 # Options:
-#   --port PORT    Specify port (default: 4000)
-#   --stop         Stop the Jekyll preview server
+#   --port PORT    Specify port (default: 8000)
 #   --help         Show this help message
 
 set -e
 
-PORT=4000
-DOCKER_CMD=""
-STOP_SERVER=false
+PORT=8000
 
-# Parse arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
         --port)
             if [[ -z "$2" || "$2" == -* ]]; then
-                echo "❌ Error: --port requires a valid port number"
-                echo "Usage: $0 --port PORT"
+                echo "Error: --port requires a valid port number"
                 exit 1
             fi
             if ! [[ "$2" =~ ^[0-9]+$ ]] || [ "$2" -lt 1 ] || [ "$2" -gt 65535 ]; then
-                echo "❌ Error: Invalid port number '$2'"
-                echo "Port must be a number between 1 and 65535"
+                echo "Error: Invalid port number '$2'"
                 exit 1
             fi
             PORT="$2"
             shift 2
             ;;
-        --stop)
-            STOP_SERVER=true
-            shift
-            ;;
         --help)
-            echo "Preview GitHub Pages site locally using Docker or Podman"
+            echo "Preview the documentation site locally with MkDocs"
             echo ""
             echo "Usage: $0 [OPTIONS]"
             echo ""
-            echo "Environment Variables:"
-            echo "  CONTAINER_RUNTIME    Force specific runtime: 'docker' or 'podman'"
-            echo "                       If not set, auto-detects available runtime"
-            echo ""
             echo "Options:"
-            echo "  --port PORT    Specify port (default: 4000)"
-            echo "  --stop         Stop the Jekyll preview server"
+            echo "  --port PORT    Specify port (default: 8000)"
             echo "  --help         Show this help message"
             echo ""
             echo "Examples:"
-            echo "  $0                              # Auto-detect and start on port 4000"
-            echo "  $0 --port 8080                  # Auto-detect and start on port 8080"
-            echo "  CONTAINER_RUNTIME=podman $0     # Force Podman on port 4000"
-            echo "  CONTAINER_RUNTIME=docker $0     # Force Docker on port 4000"
-            echo "  $0 --stop                       # Stop the preview server"
+            echo "  $0                  # Start on port 8000"
+            echo "  $0 --port 4000      # Start on port 4000"
             exit 0
             ;;
         *)
@@ -69,112 +47,28 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Determine project root (parent of hack/ directory)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+cd "$PROJECT_ROOT"
 
-# Determine container runtime
-if [ -n "$CONTAINER_RUNTIME" ]; then
-    # User explicitly set CONTAINER_RUNTIME
-    CONTAINER_RUNTIME=$(echo "$CONTAINER_RUNTIME" | tr '[:upper:]' '[:lower:]')
-    if [[ "$CONTAINER_RUNTIME" != "docker" && "$CONTAINER_RUNTIME" != "podman" ]]; then
-        echo "❌ Error: Invalid CONTAINER_RUNTIME='$CONTAINER_RUNTIME'"
-        echo "Must be 'docker' or 'podman'"
-        exit 1
-    fi
-    if ! command -v "$CONTAINER_RUNTIME" &> /dev/null; then
-        echo "❌ Error: $CONTAINER_RUNTIME not found"
-        echo "Please install $CONTAINER_RUNTIME or unset CONTAINER_RUNTIME to auto-detect"
-        exit 1
-    fi
-    DOCKER_CMD="$CONTAINER_RUNTIME"
-    echo "✓ Using $CONTAINER_RUNTIME (forced via CONTAINER_RUNTIME)"
+if [ -x "$PROJECT_ROOT/.venv-docs/bin/mkdocs" ]; then
+    MKDOCS="$PROJECT_ROOT/.venv-docs/bin/mkdocs"
+elif command -v mkdocs &> /dev/null; then
+    MKDOCS="mkdocs"
 else
-    # Auto-detect
-    if command -v docker &> /dev/null; then
-        DOCKER_CMD="docker"
-        echo "✓ Using Docker (auto-detected)"
-    elif command -v podman &> /dev/null; then
-        DOCKER_CMD="podman"
-        echo "✓ Using Podman (auto-detected)"
-    else
-        echo "❌ Error: Neither Docker nor Podman found"
-        echo "Please install Docker or Podman to preview the site"
-        exit 1
-    fi
+    echo "Installing MkDocs dependencies into .venv-docs..."
+    python3 -m venv "$PROJECT_ROOT/.venv-docs"
+    "$PROJECT_ROOT/.venv-docs/bin/pip" install -q -r requirements-docs.txt
+    MKDOCS="$PROJECT_ROOT/.venv-docs/bin/mkdocs"
 fi
 
-# Handle stop command
-if [ "$STOP_SERVER" = true ]; then
-    echo "🛑 Stopping Jekyll preview server..."
-    if $DOCKER_CMD stop jekyll-preview &> /dev/null; then
-        $DOCKER_CMD rm jekyll-preview &> /dev/null
-        echo "✓ Jekyll preview server stopped"
-    else
-        echo "ℹ️  No running Jekyll preview server found"
-    fi
-    exit 0
-fi
+export DISABLE_MKDOCS_2_WARNING=true
 
-echo "📦 Starting Jekyll server in container..."
-echo "📍 Project: $PROJECT_ROOT"
-echo "📁 Config: _config.yml + .github-pages/_config.yml"
-echo "🌐 Preview will be available at: http://localhost:${PORT}"
+echo "Starting MkDocs preview server..."
+echo "Project: $PROJECT_ROOT"
+echo "Preview: http://localhost:${PORT}"
 echo ""
-echo "⚠️  First run will install GitHub Pages gems (takes 2-3 minutes)"
-echo "⚠️  Automation files are excluded to prevent Jinja2/Liquid conflicts"
-echo ""
-echo "Press Ctrl+C to stop the server"
+echo "Press Ctrl+C to stop"
 echo ""
 
-# Clean up _site directory for podman (use container to handle root-owned files)
-if [ "$DOCKER_CMD" = "podman" ] && [ -d "$PROJECT_ROOT/_site" ]; then
-  echo "🧹 Cleaning up _site directory for podman..."
-  $DOCKER_CMD run --rm \
-    -v "$PROJECT_ROOT:/srv/jekyll" \
-    --security-opt label=disable \
-    alpine sh -c 'rm -rf /srv/jekyll/_site'
-fi
-
-# Run Jekyll in container with GitHub Pages support
-# Mount project root and use config from .github-pages/
-
-# Podman-specific flags for rootless mode
-VOLUME_FLAGS="-v $PROJECT_ROOT:/srv/jekyll:Z"
-SECURITY_FLAGS=""
-USER_MAPPING=""
-if [ "$DOCKER_CMD" = "podman" ]; then
-  # For podman rootless, map host user to root inside container for full permissions
-  VOLUME_FLAGS="-v $PROJECT_ROOT:/srv/jekyll"
-  SECURITY_FLAGS="--security-opt label=disable"
-  USER_MAPPING="--userns=keep-id:uid=0,gid=0"
-fi
-
-if [ -t 0 ]; then
-  # Interactive mode
-  $DOCKER_CMD run --rm -it \
-    --name jekyll-preview \
-    $USER_MAPPING \
-    $SECURITY_FLAGS \
-    $VOLUME_FLAGS \
-    -p "${PORT}:4000" \
-    -e JEKYLL_ENV=development \
-    -w /srv/jekyll/.github-pages \
-    jekyll/jekyll:latest \
-    sh -c "git config --global --add safe.directory /srv/jekyll && bundle install && bundle exec jekyll serve --config ../_config.yml,_config.yml --watch --force_polling --livereload --host 0.0.0.0"
-else
-  # Non-interactive mode (background)
-  $DOCKER_CMD run --rm \
-    --name jekyll-preview \
-    $USER_MAPPING \
-    $SECURITY_FLAGS \
-    $VOLUME_FLAGS \
-    -p "${PORT}:4000" \
-    -e JEKYLL_ENV=development \
-    -w /srv/jekyll/.github-pages \
-    jekyll/jekyll:latest \
-    sh -c "git config --global --add safe.directory /srv/jekyll && bundle install && bundle exec jekyll serve --config ../_config.yml,_config.yml --watch --force_polling --livereload --host 0.0.0.0"
-fi
-
-echo ""
-echo "✓ Jekyll server stopped"
+"$MKDOCS" serve --dev-addr "0.0.0.0:${PORT}"

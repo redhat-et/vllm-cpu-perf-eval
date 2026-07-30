@@ -1,10 +1,3 @@
----
-title: Terminal Results Viewer
-parent: Results & Analysis
-grand_parent: Documentation
-nav_order: 3
-layout: default
----
 
 View benchmark results directly in the terminal without launching a
 dashboard.

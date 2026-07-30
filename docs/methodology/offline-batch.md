@@ -1,11 +1,5 @@
----
-layout: default
-title: Offline Batch Testing
----
-
-## Offline Batch Testing Methodology
-
-## Overview
+# Offline Batch Testing Methodology
+# Overview
 
 Offline batch testing measures vLLM throughput for bulk processing workloads
 using the native Python API (`vllm bench throughput`), bypassing the HTTP
@@ -29,8 +23,7 @@ raw inference performance.
 | **Use Case** | Bulk processing, ETL, dataset generation | Real-time serving, user requests |
 | **Overhead** | Minimal (direct API) | HTTP + queue management |
 | **Concurrency** | Internal batching | External concurrent requests |
-
-## Test Architecture
+# Test Architecture
 
 ```text
 +---------------------------------------------+

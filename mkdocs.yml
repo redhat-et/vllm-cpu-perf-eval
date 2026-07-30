@@ -1,0 +1,129 @@
+site_name: vLLM CPU Eval
+site_description: Comprehensive performance evaluation framework for vLLM on CPU platforms
+site_url: https://redhat-et.github.io/vllm-cpu-perf-eval/
+repo_url: https://github.com/redhat-et/vllm-cpu-perf-eval
+repo_name: redhat-et/vllm-cpu-perf-eval
+edit_uri: edit/main/
+
+docs_dir: documentation
+site_dir: site
+
+# Exclude Marp design sources (not published to the site).
+exclude_docs: |
+  docs/design/**
+
+theme:
+  name: material
+  custom_dir: overrides
+  palette:
+    - scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.indexes
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.action.edit
+  icon:
+    repo: fontawesome/brands/github
+
+extra_css:
+  - docs/stylesheets/extra.css
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/redhat-et/vllm-cpu-perf-eval
+
+plugins:
+  - search
+
+validation:
+  nav:
+    omitted_files: info
+  links:
+    not_found: ignore
+    absolute_links: ignore
+    unrecognized_links: info
+    anchors: warn
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+
+nav:
+  - Home: index.md
+  - Documentation:
+      - docs/index.md
+      - Getting Started:
+          - docs/sections/getting-started.md
+          - Quick Start: docs/getting-started.md
+          - Hello RHAIIS on RHEL CPU: docs/blog/rhaiis-hello-world.md
+          - cpueval CLI: docs/cpueval-cli.md
+      - Test Suites:
+          - Overview: docs/test-suites.md
+          - Concurrent Load: tests/concurrent-load/concurrent-load.md
+          - Scalability: tests/scalability/scalability.md
+          - Offline Batch: tests/offline-batch/offline-batch.md
+          - Embedding Models: tests/embedding-models/embedding-models.md
+          - Audio Models: tests/audio-models/README.md
+          - Resource Contention: tests/resource-contention/resource-contention.md
+      - Running Tests:
+          - docs/sections/running-tests.md
+          - Ansible Automation: docs/ansible/test-execution.md
+          - Model Pre-download: docs/ansible/model-predownload.md
+          - Scripts Reference: docs/scripts-reference.md
+          - Environment Variables: docs/environment-variables.md
+      - Models:
+          - Catalog: models/models.md
+          - Embedding Models Guide: docs/embedding-models.md
+          - Audio Benchmarking: docs/audio-benchmarking.md
+      - Results & Analysis:
+          - docs/sections/results-analysis.md
+          - Dashboards: docs/dashboards-quickstart.md
+          - MLflow Tracking: docs/mlflow.md
+          - Terminal Results Viewer: docs/terminal-results-viewer.md
+          - Metrics Collection: docs/metrics-collection.md
+      - MTEB Quality Testing:
+          - docs/sections/mteb-quality-testing.md
+          - MTEB Quick Start: docs/mteb-sweep-guide.md
+          - MTEB Timing Guide: docs/mteb-timing-guide.md
+          - MTEB Troubleshooting: docs/mteb-troubleshooting.md
+      - Methodology:
+          - docs/methodology/overview.md
+          - Testing Phases: docs/methodology/testing-phases.md
+          - Metrics: docs/methodology/metrics.md
+          - Reporting: docs/methodology/reporting.md
+          - Manual Sweep: docs/methodology/manual-sweep.md
+      - Configuration:
+          - docs/sections/configuration.md
+          - Platform Setup (Intel): docs/platform-setup/x86/intel/deterministic-benchmarking.md
+          - vLLM KV Cache: docs/vllm-kv-cache-configuration.md

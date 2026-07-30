@@ -1,0 +1,57 @@
+/* Ireland-inspired palette — header green with complementary link accent */
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: #169b62;
+  --md-primary-fg-color--light: #1fb876;
+  --md-primary-fg-color--dark: #0e6b45;
+  --md-primary-bg-color: #fff;
+  --md-primary-bg-color--light: #ffffffb3;
+  --md-accent-fg-color: #0066cc;
+  --md-typeset-a-color: #0066cc;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #169b62;
+  --md-primary-fg-color--light: #1fb876;
+  --md-primary-fg-color--dark: #0e6b45;
+  --md-primary-bg-color: #fff;
+  --md-primary-bg-color--light: #ffffffb3;
+  --md-accent-fg-color: #5eb8ff;
+  --md-typeset-a-color: #5eb8ff;
+}
+
+/* Homepage quick-link cards */
+.quick-links {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0 2rem;
+}
+
+.link-card {
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.2rem;
+  padding: 1rem 1.25rem;
+  background: var(--md-default-bg-color);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.link-card:hover {
+  border-color: var(--md-primary-fg-color);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.link-card h3 {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+  font-size: 1rem;
+}
+
+.link-card p {
+  margin-bottom: 0.75rem;
+  color: var(--md-default-fg-color--light);
+  font-size: 0.9rem;
+}
+
+.link-card a {
+  font-weight: 600;
+}

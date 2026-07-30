@@ -1,10 +1,3 @@
----
-title: Scripts Reference
-parent: Running Tests
-grand_parent: Documentation
-nav_order: 3
-layout: default
----
 
 Complete reference for all test execution and utility scripts in the repository.
 

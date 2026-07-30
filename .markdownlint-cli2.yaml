@@ -4,7 +4,7 @@ config:
   # Line length - disable for better readability of long technical content
   MD013: false
 
-  # Multiple top-level headings - disable for Jekyll frontmatter (title + H1 in body)
+  # Multiple top-level headings - some pages use a title line plus an H1 in the body
   MD025: false
 
   # Multiple consecutive blank lines - disable for better visual separation

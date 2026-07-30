@@ -1,7 +1,3 @@
----
-nav_exclude: true
-layout: default
----
 # LLM Models
 
 For comprehensive LLM model documentation, including:
@@ -12,8 +8,7 @@ For comprehensive LLM model documentation, including:
 - Adding new models
 
 See [models.md](../models.md).
-
-## Quick Reference
+# Quick Reference
 
 This directory contains:
 - [model-matrix.yaml](model-matrix.yaml) - LLM model definitions and test mappings

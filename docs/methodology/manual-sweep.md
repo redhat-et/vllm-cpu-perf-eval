@@ -1,10 +1,3 @@
----
-title: Manual Sweep
-parent: Methodology
-grand_parent: Documentation
-nav_order: 5
-layout: default
----
 # Manual Sweep Testing Guide
 
 <!-- markdownlint-disable MD013 MD024 MD032 MD031 MD033 -->

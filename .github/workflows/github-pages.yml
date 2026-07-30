@@ -5,20 +5,21 @@ on:
     branches:
       - main
     paths:
+      - "documentation/**"
       - "docs/**"
-      - "_config.yml"
-      - "README.md"
+      - "tests/**"
+      - "models/**"
+      - "mkdocs.yml"
+      - "requirements-docs.txt"
+      - "overrides/**"
       - ".github/workflows/github-pages.yml"
-  workflow_dispatch:  # Allow manual trigger
+  workflow_dispatch:
 
-# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
   contents: read
   pages: write
   id-token: write
 
-# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
-# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
 concurrency:
   group: "pages"
   cancel-in-progress: false
@@ -30,40 +31,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Setup Ruby
-        uses: ruby/setup-ruby@v1
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          ruby-version: "3.1"
-          bundler-cache: false
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-docs.txt
 
-      - name: Setup Pages
-        id: configure-pages
-        uses: actions/configure-pages@v6
+      - name: Install MkDocs
+        run: pip install -r requirements-docs.txt
 
-      - name: Install Jekyll dependencies
-        run: |
-          gem install bundler
-          cat > Gemfile <<EOF
-          source "https://rubygems.org"
-          gem "github-pages", group: :jekyll_plugins
-          gem "jekyll-remote-theme"
-          gem "jekyll-relative-links"
-          gem "jekyll-optional-front-matter"
-          gem "jekyll-readme-index"
-          gem "jekyll-titles-from-headings"
-          gem "jekyll-seo-tag"
-          gem "webrick", "~> 1.8"
-          EOF
-          bundle install
-
-      - name: Build with Jekyll
-        run: bundle exec jekyll build --baseurl "$BASE_PATH"
+      - name: Build site
         env:
-          JEKYLL_ENV: production
-          BASE_PATH: ${{ steps.configure-pages.outputs.base_path }}
+          DISABLE_MKDOCS_2_WARNING: true
+        run: mkdocs build --strict
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
 
   deploy:
     environment:
