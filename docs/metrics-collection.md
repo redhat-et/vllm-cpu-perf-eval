@@ -21,55 +21,39 @@ The framework collects three types of metrics:
 
 ## Metrics Collection Flow
 
-```
-┌─────────────────────────────────────────────────────────┐
-│ BENCHMARK EXECUTION                                     │
-│                                                         │
-│  1. vLLM Server Starts on DUT                          │
-│  2. Metrics Collector Starts (background)              │
-│      ├─ Scrapes http://DUT:8000/metrics every 10s     │
-│      └─ Saves to vllm-metrics.json                     │
-│  3. GuideLLM Benchmark Runs                           │
-│      └─ Saves to benchmarks.json                       │
-│  4. Metrics Collector Stops                            │
-│  5. System Metrics Collected                           │
-│      └─ Saves to system-metrics.log                    │
-│                                                         │
-└─────────────────────────────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────┐
-│ RESULT FILES (results/llm/model/test-id/config/)       │
-│                                                         │
-│  • benchmarks.json      ← Client-side (GuideLLM)      │
-│  • vllm-metrics.json    ← Server-side (vLLM)          │
-│  • system-metrics.log   ← System resources             │
-│  • test-metadata.json   ← Test configuration           │
-│  • vllm-server.log      ← Server logs                  │
-│                                                         │
-└─────────────────────────────────────────────────────────┘
-                         │
-                         ▼
-┌─────────────────────────────────────────────────────────┐
-│ POST-TEST ANALYSIS                                      │
-│                                                         │
-│  Streamlit Dashboard                                   │
-│   ├─ Client Metrics View                               │
-│   ├─ Server Metrics View                               │
-│   └─ Unified Analysis View                             │
-│                                                         │
-└─────────────────────────────────────────────────────────┘
+### During benchmark execution
 
-┌─────────────────────────────────────────────────────────┐
-│ OPTIONAL: REAL-TIME MONITORING (During Test)           │
-│                                                         │
-│  Grafana Dashboards (<http://localhost:3000>)            │
-│   ├─ vLLM Performance Statistics                       │
-│   └─ vLLM Query Statistics                             │
-│                                                         │
-│  (Requires: Grafana + Prometheus + SSH tunnel)         │
-└─────────────────────────────────────────────────────────┘
-```
+| Step | Action | Output file |
+| --- | --- | --- |
+| 1 | vLLM server starts on DUT | — |
+| 2 | Metrics collector starts (background) | Scrapes `http://DUT:8000/metrics` every 10s |
+| 3 | GuideLLM benchmark runs | `benchmarks.json` |
+| 4 | Metrics collector stops | `vllm-metrics.json` |
+| 5 | System metrics collected | `system-metrics.log` |
+
+### Result files
+
+Saved to `results/llm/<model>/<test-id>/<config>/`:
+
+| File | Source |
+| --- | --- |
+| `benchmarks.json` | Client-side (GuideLLM) |
+| `vllm-metrics.json` | Server-side (vLLM) |
+| `system-metrics.log` | System resources |
+| `test-metadata.json` | Test configuration |
+| `vllm-server.log` | Server logs |
+
+### Post-test analysis
+
+| Tool | Views |
+| --- | --- |
+| Streamlit Dashboard | Client Metrics, Server Metrics, Unified Analysis |
+
+### Optional: real-time monitoring (during test)
+
+| Tool | Views | Requires |
+| --- | --- | --- |
+| Grafana (`http://localhost:3000`) | vLLM Performance Statistics, vLLM Query Statistics | Grafana + Prometheus + SSH tunnel |
 
 ## 1. Client-Side Metrics (GuideLLM)
 
@@ -377,38 +361,18 @@ ansible-playbook llm-benchmark-auto.yml \
 
 ### Architecture
 
-```
-┌──────────────────────────────┐
-│ DUT (vLLM Server)            │
-│  http://DUT:8000/metrics     │
-└────────────┬─────────────────┘
-             │
-             ├─────────────────────────────┐
-             │                             │
-             ▼                             ▼
-┌────────────────────────┐    ┌────────────────────────┐
-│ Direct Collector       │    │ SSH Tunnel             │
-│ (Always Active)        │    │ (Optional for Grafana) │
-│                        │    │                        │
-│ Scrapes /metrics       │    │ Forwards :8000         │
-│ Saves to JSON          │    │ to localhost:8000      │
-└────────────────────────┘    └───────────┬────────────┘
-                                          │
-                                          ▼
-                              ┌────────────────────────┐
-                              │ Prometheus             │
-                              │ Scrapes localhost:8000 │
-                              │ Stores in TSDB         │
-                              └───────────┬────────────┘
-                                          │
-                                          ▼
-                              ┌────────────────────────┐
-                              │ Grafana Dashboards     │
-                              │ Real-time viz          │
-                              └────────────────────────┘
-```
+The DUT exposes metrics at `http://DUT:8000/metrics`. Two collection paths
+are available:
 
-**Key Points:**
+| Path | Component | Purpose |
+| --- | --- | --- |
+| Always active | Direct collector | Scrapes `/metrics`, saves to `vllm-metrics.json` |
+| Optional | SSH tunnel → Prometheus → Grafana | Real-time visualization during test |
+
+Flow: DUT `/metrics` → direct collector (JSON file) **and/or** SSH tunnel →
+Prometheus (TSDB) → Grafana dashboards.
+
+**Key points:**
 - Direct collector and Prometheus both scrape the same `/metrics` endpoint (read-only, no conflict)
 - Grafana is purely for live monitoring - not required for metrics collection
 - After test completes, both paths produce the same data
@@ -472,17 +436,16 @@ cd vllm_dashboard
 
 ### Directory Structure
 
-```
-results/llm/
-└── meta-llama__Llama-3.2-1B-Instruct/
-    └── chat-20260331-135911/
-        └── 16cores-numa0-tp1/
-            ├── benchmarks.json         # GuideLLM results
-            ├── vllm-metrics.json       # vLLM server metrics
-            ├── system-metrics.log      # System resources
-            ├── test-metadata.json      # Test configuration
-            └── vllm-server.log         # Server logs
-```
+Example path:
+`results/llm/meta-llama__Llama-3.2-1B-Instruct/chat-20260331-135911/16cores-numa0-tp1/`
+
+| File | Description |
+| --- | --- |
+| `benchmarks.json` | GuideLLM results |
+| `vllm-metrics.json` | vLLM server metrics |
+| `system-metrics.log` | System resources |
+| `test-metadata.json` | Test configuration |
+| `vllm-server.log` | Server logs |
 
 ### File Sizes
 

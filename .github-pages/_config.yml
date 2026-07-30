@@ -11,41 +11,6 @@ url: ""
 source: ..
 destination: ../_site
 
-# Navigation
-nav_links:
-  - title: vLLM CPU Performance Evaluation
-    url: /
-  - title: Getting Started
-    url: /docs/getting-started
-  - title: Embedding Models
-    url: /docs/embedding-models
-  - title: MTEB Quality Testing
-    url: /docs/mteb-sweep-guide
-  - title: MTEB Timing Guide
-    url: /docs/mteb-timing-guide
-  - title: MTEB Troubleshooting
-    url: /docs/mteb-troubleshooting
-  - title: Ansible Automation
-    url: /docs/ansible/test-execution
-  - title: Dashboards
-    url: /docs/dashboards-quickstart
-  - title: MLflow Tracking
-    url: /docs/mlflow
-  - title: Methodology
-    url: /docs/methodology/overview
-  - title: vLLM KV Cache Config
-    url: /docs/vllm-kv-cache-configuration
-  - title: Environment Variables
-    url: /docs/environment-variables
-  - title: Platform Setup (Intel)
-    url: /docs/platform-setup/x86/intel/deterministic-benchmarking
-  - title: Scripts Reference
-    url: /docs/scripts-reference
-  - title: Test Suites
-    url: https://github.com/redhat-et/vllm-cpu-perf-eval/tree/main/tests
-  - title: Models
-    url: https://github.com/redhat-et/vllm-cpu-perf-eval/blob/main/models/models.md
-
 # Markdown settings
 markdown: kramdown
 kramdown:
@@ -90,6 +55,7 @@ exclude:
   - results
   - utils
   - hack
+  - venv
   - PR_SUMMARY.md
   - .bundle
   - .sass-cache

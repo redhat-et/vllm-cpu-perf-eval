@@ -1,3 +1,8 @@
+---
+layout: default
+title: Offline Batch
+---
+
 # Offline Batch Test Scenarios
 
 This directory documents test scenarios for offline batch benchmarking with vLLM CPU.

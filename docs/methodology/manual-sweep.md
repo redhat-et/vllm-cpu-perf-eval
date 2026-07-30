@@ -882,37 +882,22 @@ Manual sweep testing provides fine-grained control over benchmarking and helps y
 
 The key advantage over automated sweeps is the ability to stop when you have enough data, adjust test points based on observations, and deeply understand your system's performance characteristics.
 
-### Quick Reference: Decision Tree
+### Quick Reference: Decision Flow
 
-```text
-Start
-  ↓
-Run Stage 1 (Synchronous)
-  → Record baseline_rate and baseline_TTFT
-  ↓
-Run Stage 2 (Throughput)
-  → Record max_capacity_rate
-  → Observe saturation level
-  ↓
-Calculate test rates (25%, 50%, 75% of max_capacity)
-  ↓
-For each rate (starting lowest):
-  ↓
-  Run async constant test
-  ↓
-  Is TTFT < 2x baseline?
-    ├─ YES → ✅ Healthy - continue to next higher rate
-    └─ NO → Is TTFT 2-5x baseline?
-        ├─ YES → ⚠️ Warning - test between current and previous rate
-        └─ NO → 🔴 Oversaturated - stop testing higher rates
-  ↓
-Have you found saturation boundary?
-    ├─ NO → Continue testing
-    └─ YES → Done!
-        ↓
-        Select optimal operating point
-        (Highest rate where TTFT < 2x baseline)
-```
+1. Run Stage 1 (Synchronous) — record `baseline_rate` and `baseline_TTFT`
+2. Run Stage 2 (Throughput) — record `max_capacity_rate` and saturation level
+3. Calculate test rates at 25%, 50%, 75% of `max_capacity`
+4. For each rate (starting lowest), run async constant test
+5. Evaluate TTFT against baseline:
+
+| TTFT vs baseline | Action |
+| --- | --- |
+| < 2× baseline | Healthy — continue to next higher rate |
+| 2–5× baseline | Warning — test between current and previous rate |
+| > 5× baseline | Oversaturated — stop testing higher rates |
+
+6. Once saturation boundary is found, select the highest rate where
+   TTFT < 2× baseline as the optimal operating point.
 
 ---
 

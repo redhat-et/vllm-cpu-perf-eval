@@ -54,25 +54,11 @@ For example, **Llama-3.2-1B** with 8192 context (bfloat16):
 
 ### Three Pillars of CPU Performance
 
-```
-┌─────────────────┐
-│ max_model_len   │ ──> Determines maximum context per request
-│                 │     • Higher = more memory per request
-│                 │     • Lower = more concurrent requests possible
-└─────────────────┘
-
-┌─────────────────┐
-│ KV cache size   │ ──> Total memory budget for all requests
-│                 │     • Higher = more concurrent requests
-│                 │     • Limited by available RAM
-└─────────────────┘
-
-┌─────────────────┐
-│ block_size      │ ──> Cache alignment and access pattern
-│                 │     • Must be multiple of 32 for CPU
-│                 │     • Default 128 is optimal
-└─────────────────┘
-```
+| Parameter | Effect | Tuning guidance |
+| --- | --- | --- |
+| `max_model_len` | Maximum context per request | Higher = more memory per request; lower = more concurrent requests |
+| KV cache size | Total memory budget for all requests | Higher = more concurrent requests; limited by available RAM |
+| `block_size` | Cache alignment and access pattern | Must be a multiple of 32 for CPU; default 128 is optimal |
 
 ---
 
@@ -368,31 +354,31 @@ vllm serve model --block-size 128  # Or 32, 64, 96, 160, etc.
 
 ---
 
-## Quick Decision Tree
+## Quick Reference
 
-```
-START
-  │
-  ├─ What's your workload?
-  │   ├─ Chat (512:512)         → max_model_len=2048
-  │   ├─ RAG (7680:512)         → max_model_len=8192
-  │   ├─ Code (1024:1024)       → max_model_len=4096
-  │   └─ Custom                 → max_model_len = 2 × (ISL + OSL)
-  │
-  ├─ How much RAM available?
-  │   ├─ 16 GB                  → KV cache = 4-8 GB
-  │   ├─ 32 GB                  → KV cache = 12-20 GB
-  │   ├─ 64 GB                  → KV cache = 24-40 GB
-  │   └─ 128+ GB                → KV cache = 48-80+ GB
-  │
-  └─ CPU architecture?
-      ├─ x86 (Intel/AMD)        → block_size=128 ✅
-      ├─ ARM (Graviton, etc.)   → block_size=128 ✅
-      ├─ RISC-V                 → block_size=128 ✅
-      └─ Any CPU                → block_size=128 ✅
+### Workload → `max_model_len`
 
-RESULT: Copy commands from "Practical Recommendations" section above
-```
+| Workload | Token ratio | Recommended `max_model_len` |
+| --- | --- | --- |
+| Chat | 512:512 | 2048 |
+| RAG | 7680:512 | 8192 |
+| Code | 1024:1024 | 4096 |
+| Custom | — | `2 × (ISL + OSL)` |
+
+### RAM → KV cache budget
+
+| Available RAM | Recommended KV cache |
+| --- | --- |
+| 16 GB | 4–8 GB |
+| 32 GB | 12–20 GB |
+| 64 GB | 24–40 GB |
+| 128+ GB | 48–80+ GB |
+
+### CPU architecture → `block_size`
+
+All CPU architectures (x86, ARM, RISC-V) should use `block_size=128`.
+
+Copy final values from the **Practical Recommendations** section above.
 
 ---
 

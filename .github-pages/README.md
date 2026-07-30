@@ -11,7 +11,10 @@ This directory contains the Jekyll configuration for generating GitHub Pages doc
 └── README.md      # This file
 
 (project root)/
-└── index.md       # Landing page for GitHub Pages site
+├── _data/nav_sections.yml  # Grouped sidebar navigation (single source of truth)
+├── _includes/sidebar.html  # Sidebar template
+├── index.md                # Landing page
+└── docs/                   # Documentation (see docs/test-suites.md for suite index)
 ```
 
 ## Local Preview

@@ -1,3 +1,8 @@
+---
+layout: default
+title: Audio Models
+---
+
 # Audio Model Testing Suite
 
 Comprehensive test suite for evaluating audio model performance on vLLM CPU deployments.

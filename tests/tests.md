@@ -3,177 +3,60 @@ layout: default
 title: Tests
 ---
 
-## Tests Directory
+# Tests Directory
 
-This directory contains all test suites organized by test type.
+> **For the complete test suite reference**, see the
+> [Test Suites Overview](../docs/test-suites.md) — it includes cpueval
+> commands, a suite selection guide, status table, and links to all detailed
+> methodology docs below.
 
-## Structure
-
-```text
-tests/
-├── concurrent-load/           # Concurrent load testing (online/server)
-│   └── concurrent-load.md     # Test documentation
-├── scalability/               # Sweep and throughput tests
-│   └── scalability.md         # Test documentation
-├── offline-batch/             # Offline batch processing tests
-│   └── offline-batch.md       # Test scenarios and documentation
-├── resource-contention/       # Resource sharing tests (planned)
-└── embedding-models/          # Embedding model performance tests
-    ├── embedding-models.md    # Detailed embedding test documentation
-    ├── baseline-sweep.md      # Baseline sweep test scenario
-    └── latency-concurrent.md  # Latency concurrent test scenario
-```
-
-## Test ID Naming Convention
-
-All test cases use a hierarchical naming scheme for easy identification and tracking:
-
-**Format:**
-- Concurrent Load: `CONC-{model}-{workload}`
-- Scalability: `SCALE-{TYPE}-{model}-{workload}`
-- Offline Batch: `OFFLINE-{USE-CASE}-{model}`
-- Resource Contention: `CONT-{TYPE}-{model}-{workload}`
-- Embedding: `EMB-{TYPE}-{model}-{workload}`
-
-**Components:**
-
-- **Suite Prefix**: `CONC` (Concurrent Load), `SCALE` (Scalability), `OFFLINE` (Offline Batch), `CONT` (Resource Contention), `EMB` (Embedding)
-- **Type** (not used for CONC suite): `SWEEP`, `SYNC` (Synchronous), `POISSON`, `BASELINE`, `LATENCY`
-- **Use Case** (offline batch): `SUMM` (Summarization), `CLASS` (Classification), `TRANS` (Translation), `ENTITY` (Entity Extraction), `DATAGEN` (Dataset Generation), `ETL` (ETL Pipelines), `CODEGEN` (Code Generation), `LONGSUM` (Long-Doc Summarization), `RAG` (Batch RAG), `PREFIX` (Shared-Prefix), `LABEL` (Ultra-Short Labeling)
-- **Model**: Short abbreviation (e.g., `LLAMA32`, `QWEN06`, `GRANITE32`, `GRANITE-EN`, `GRANITE-ML`)
-- **Workload**: `CHAT`, `RAG`, `CODE`, `SUMM`, `EMB` (embedding), `EMB512` (512-token embedding)
-
-**Examples:**
-
-- `CONC-LLAMA32-CHAT`: Concurrent Load suite, Llama-3.2-1B, Chat workload
-- `SCALE-SWEEP-QWEN06-CODE`: Scalability suite, Sweep test, Qwen3-0.6B, CodeGen workload
-- `SCALE-POISSON-GRANITE32-CHAT`: Scalability suite, Poisson distribution, Granite-3.2-2B, Chat
-- `OFFLINE-SUMM-LLAMA38`: Offline Batch suite, Summarization use case, Llama-3.1-8B
-- `OFFLINE-CLASS-QWEN38`: Offline Batch suite, Classification use case, Qwen3-8B
-- `EMB-BASELINE-GRANITE-EN-EMB512`: Embedding suite, Baseline test, Granite English model
-- `EMB-LATENCY-GRANITE-ML-EMB512`: Embedding suite, Latency test, Granite Multilingual model
-
-See individual test suite README files for complete test case listings.
+This directory contains per-suite methodology and configuration documentation.
 
 ## Test Suites
 
-### Test Suite: Concurrent Load
+| Suite | Documentation | cpueval suite |
+| --- | --- | --- |
+| Concurrent Load | [concurrent-load.md](concurrent-load/concurrent-load.md) | `concurrent-load` |
+| RHAIIS Sweep | [rhaiis-testing.md](concurrent-load/rhaiis-testing.md) | `rhaiis-sweep` |
+| Scalability | [scalability.md](scalability/scalability.md) | Ansible |
+| Offline Batch | [offline-batch.md](offline-batch/offline-batch.md) | `offline-batch` |
+| Embedding | [embedding-models.md](embedding-models/embedding-models.md) | `embedding` |
+| Audio | [audio-models/](audio-models/) | `audio` |
+| Resource Contention | [resource-contention.md](resource-contention/resource-contention.md) | Planned |
 
-Tests model performance under various concurrent request loads.
+Sub-pages for embedding: [baseline-sweep.md](embedding-models/baseline-sweep.md),
+[latency-concurrent.md](embedding-models/latency-concurrent.md).
 
-- **Concurrency levels**: 1, 2, 4, 8, 16, 32
-- **Metrics focus**: P95 latency, TTFT, throughput
-- **Goal**: Understand how models scale with parallel requests
+## Test ID Naming Convention
 
-### Test Suite: Scalability
+All test cases use a hierarchical naming scheme:
 
-Characterizes maximum throughput and performance curves.
+- **Concurrent Load**: `CONC-{model}-{workload}`
+- **Scalability**: `SCALE-{TYPE}-{model}-{workload}`
+- **Offline Batch**: `OFFLINE-{USE-CASE}-{model}`
+- **Embedding**: `EMB-{TYPE}-{model}-{workload}`
 
-- **Test types**: Sweep, Synchronous baseline, Poisson distribution
-- **Metrics focus**: Maximum capacity, saturation points
-- **Goal**: Determine optimal operating range
-
-### Test Suite: Offline Batch
-
-Tests vLLM batch processing performance using the native Python API (not server mode).
-
-- **Test types**: Use cases (11 scenarios), Technical benchmarks (batch/core/I/O scaling, KV-cache capacity, context scaling)
-- **Metrics focus**: Throughput (req/s, tokens/s), total batch time, processing capacity
-- **Goal**: Optimize bulk processing for ETL, dataset generation, document processing
-- **Use cases**: Summarization, Classification, Translation, Entity Extraction, Dataset Generation, ETL Pipelines, Code Generation, Long-Document Summarization, Batch RAG, Shared-Prefix/Template Batch, Ultra-Short Labeling
-
-See [Offline Batch Test Suite](offline-batch/offline-batch.md) for detailed documentation.
-Run with `./cpueval run --suite offline-batch` or the bash script directly.
-
-### Test Suite: Resource Contention (Planned)
-
-Multi-tenant and resource sharing scenarios.
-
-### Embedding Models
-
-Performance evaluation for embedding models on CPU.
-
-- **Test types**: Baseline (sweep), Latency (concurrent)
-- **Metrics focus**: Request throughput (RPS), P95/P99 latency
-- **Goal**: Establish baseline performance and optimal concurrency levels
-- **Architecture**: Two-node (DUT + Load Generator)
-
-See [Embedding Models Test Suite](embedding-models/embedding-models.md) for detailed documentation.
-
-### Audio Models
-
-Performance evaluation for audio transcription (ASR) on CPU. Translation and audio chat endpoints are supported by the models but have no dedicated benchmark scenarios yet.
-
-- **Test types**: Throughput (N files), Latency (under load), Duration scaling, Format comparison, Stress testing
-- **Metrics focus**: Files/sec, Audio seconds/sec, Real-time factor, Latency distributions
-- **Goal**: Understand batch transcription performance and interactive latency
-- **Architecture**: Two-node (DUT + Load Generator)
-- **Key question**: *How long to transcribe N audio files?*
-
-See [Audio Models Test Suite](audio-models/README.md) for detailed documentation.
+See the [Test Suites Overview](../docs/test-suites.md#test-id-naming-convention)
+for examples and the full prefix table.
 
 ## Running Tests
 
-### With Docker/Podman Compose
-
 ```bash
-# Run entire test suite
-cd tests/concurrent-load
-docker compose up  # or podman-compose up
+# Recommended: cpueval CLI
+./cpueval run --suite <suite-name> [options]
 
-# Run specific model and scenario
-MODEL_NAME=llama-3.2-1b SCENARIO=concurrent-8 docker compose up
-```
-
-### With Ansible
-
-```bash
-# Run entire test suite
+# Ansible
 cd automation/test-execution/ansible
-ansible-playbook playbooks/run-suite.yml -e "test_suite=concurrent-load"
+ansible-playbook llm-benchmark-auto.yml -e "test_model=<model>"
 
-# Run specific model
-ansible-playbook playbooks/run-model.yml \
-  -e "model_name=llama-3.2-1b" \
-  -e "test_suite=concurrent-load"
-```
-
-### With Bash Wrappers
-
-```bash
-# Run a test suite
+# Bash wrappers
 automation/test-execution/bash/run-suite.sh concurrent-load
-
-# Run a single model
-automation/test-execution/bash/run-model.sh llama-3.2-1b concurrent-load
 ```
 
-## Model Matrix
-
-Model definitions are centralized in the `models/` directory (e.g.,
-`models/embedding-models/model-matrix.yaml`), which defines which models run
-which test scenarios. This allows flexible testing without duplicating
-model configurations across test suites.
-
-Example:
-
-```yaml
-matrix:
-  test_suite: "concurrent-load"
-  llm_models:
-    - model: "llama-3.2-1b"
-      scenarios:
-        - concurrent-8
-        - concurrent-16
-        - concurrent-32
-```
+See [cpueval CLI](../docs/cpueval-cli.md) and
+[Ansible Test Execution](../docs/ansible/test-execution.md) for details.
 
 ## Results
 
-Test results are written to the `results/` directory, organized by:
-
-- Test Suite
-- Model
-- Host (for distributed testing)
-
-See `docs/methodology/reporting.md` for result formats and analysis.
+Test results are written to `results/`, organized by suite, model, and host.
+See [Reporting Guide](../docs/methodology/reporting.md).

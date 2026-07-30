@@ -315,22 +315,11 @@ Total Impact:
 
 ### Recommended Testing Sequence
 
-```
-1. Phase 1: Baseline Tests (Fixed, No Caching)
-   ├── Run all models on all workload types
-   ├── Document: P95/P99 latency, throughput, TTFT, ITL (Inter-Token Latency)
-   └── Establish performance baselines
-
-2. Phase 2: Realistic Tests (Variable, No Caching)
-   ├── Run priority models/workloads with variability
-   ├── Compare to Phase 1 fixed results
-   └── Document variance and stability
-
-3. Phase 3: Production Tests (Realistic Datasets, With Caching)
-   ├── Run select models with realistic datasets + caching enabled
-   ├── Compare to Phase 2 (caching impact) and Phase 1 (total improvement)
-   └── Document true production performance
-```
+| Phase | Name | Actions | Metrics to document |
+| --- | --- | --- | --- |
+| 1 | Baseline (fixed, no caching) | Run all models on all workload types | P95/P99 latency, throughput, TTFT, ITL |
+| 2 | Realistic (variable, no caching) | Run priority models/workloads with variability; compare to Phase 1 | Variance and stability |
+| 3 | Production (realistic datasets, caching) | Run select models with caching enabled; compare to Phases 1 and 2 | True production performance |
 
 ### Dependencies Between Phases
 

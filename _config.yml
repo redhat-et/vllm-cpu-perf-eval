@@ -10,29 +10,6 @@ url: "https://redhat-et.github.io"
 # Build settings
 destination: ./_site
 
-# Navigation
-nav_links:
-  - title: vLLM CPU Performance Evaluation
-    url: /
-  - title: Getting Started
-    url: /docs/getting-started
-  - title: Embedding Models
-    url: /docs/embedding-models
-  - title: MTEB Quality Testing
-    url: /docs/mteb-sweep-guide
-  - title: Ansible Automation
-    url: /docs/ansible/test-execution
-  - title: Dashboards
-    url: /docs/dashboards-quickstart
-  - title: MLflow Tracking
-    url: /docs/mlflow
-  - title: Methodology
-    url: /docs/methodology/overview
-  - title: Test Suites
-    url: /tests/tests
-  - title: Models
-    url: /models/models
-
 # Markdown settings
 markdown: kramdown
 kramdown:
@@ -75,6 +52,7 @@ exclude:
   - results
   - utils
   - hack
+  - venv
   - PR_SUMMARY.md
   - .bundle
   - .sass-cache

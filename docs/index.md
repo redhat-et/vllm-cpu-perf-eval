@@ -1,107 +1,116 @@
 ---
-title: vLLM CPU Performance Evaluation
+title: Documentation
+layout: default
 ---
 
-Comprehensive performance evaluation framework for vLLM on CPU platforms, with support for both generative and embedding models.
+# Documentation
 
-## Quick Start
+Central index for the vLLM CPU Performance Evaluation framework.
 
-- **[cpueval CLI](cpueval-cli.md)** - Thin CLI wrapper for quick benchmarking (recommended)
-- **[Getting Started](getting-started.md)** - Set up your environment and run your first benchmarks
-- **[Embedding Models](embedding-models.md)** - Test embedding models with performance and quality metrics
-- **[Dashboards Quickstart](dashboards-quickstart.md)** - Visualize and analyze your results
+## Start Here
 
-## Features
+| I want to… | Go to |
+| --- | --- |
+| Set up and run my first benchmark | [Getting Started](getting-started.md) |
+| See all supported test suites | **[Test Suites](test-suites.md)** |
+| Run benchmarks from the CLI | [cpueval CLI](cpueval-cli.md) |
+| Find supported models | [Model Catalog](../models/models.md) |
+| View and analyze results | [Dashboards Quickstart](dashboards-quickstart.md) |
 
-### Command-Line Interface
-- **[cpueval CLI](cpueval-cli.md)** - Thin wrapper over Ansible for quick benchmarking
-- **8 test suites** - LLM (online/offline), audio, embedding, RHAIIS sweeps
-- **Progressive CPU pinning** - Simple `--cores` to advanced socket separation
-- **Results viewing** - Terminal metrics display and dashboard integration
-
-### Performance Testing
-- **Automated Ansible playbooks** for consistent, reproducible benchmarks
-- **Multi-scenario testing**: inference, chat, embedding, audio workloads
-- **Comprehensive metrics**: throughput, latency (P50, P95, P99), resource utilization
-- **Core scaling analysis**: measure efficiency across different CPU configurations
-
-### Quality Testing (MTEB)
-- **[MTEB Integration](https://github.com/redhat-et/vllm-cpu-perf-eval/tree/main/container-images/vllm-mteb)** - Embedding quality evaluation
-- **Classification, Retrieval, Clustering, STS** task types
-- **Pre-configured task presets** for quick validation or comprehensive analysis
-- **Container-based deployment** for easy integration with existing workflows
-
-### Visualization & Analysis
-- **Interactive Streamlit dashboards** with Plotly visualizations
-- **MLflow integration** for experiment tracking
-- **Performance vs Quality trade-off analysis**
-- **Export capabilities** for custom analysis
-
-## Architecture
-
-This framework supports three execution modes:
-
-1. **Managed Mode** (2-node): Orchestrator + DUT for full automation
-2. **DUT-Only Mode** (1-node): Everything on one system
-3. **External Mode**: Test existing vLLM/RHAIIS endpoints
-
-See [Methodology](methodology/overview.md) for details.
-
-## Documentation
+## Documentation Map
 
 ### Getting Started
-- [cpueval CLI Guide](cpueval-cli.md) - **Recommended quick start**
-- [Installation Guide](getting-started.md)
-- [Quick Start Tutorial](getting-started.md#quick-start)
-- [Embedding Models Testing](embedding-models.md)
-- [Audio Benchmarking](audio-benchmarking.md)
+
+| Page | Description |
+| --- | --- |
+| [getting-started.md](getting-started.md) | Environment setup and first run |
+| [cpueval-cli.md](cpueval-cli.md) | CLI reference (recommended entry point) |
+| [test-suites.md](test-suites.md) | Central test suite reference |
+
+### Test Suites & Models
+
+| Page | Description |
+| --- | --- |
+| [test-suites.md](test-suites.md) | All suites, cpueval commands, and status |
+| [embedding-models.md](embedding-models.md) | Embedding model setup guide |
+| [audio-benchmarking.md](audio-benchmarking.md) | Audio model setup guide |
+| [models/models.md](../models/models.md) | Model catalog and selection rationale |
+| [tests/](../tests/tests.md) | Per-suite methodology docs |
+
+### Running Tests
+
+| Page | Description |
+| --- | --- |
+| [ansible/test-execution.md](ansible/test-execution.md) | Ansible playbook automation |
+| [ansible/model-predownload.md](ansible/model-predownload.md) | Model pre-download guide |
+| [scripts-reference.md](scripts-reference.md) | Utility scripts |
+| [environment-variables.md](environment-variables.md) | Configuration reference |
+
+### Methodology & Results
+
+| Page | Description |
+| --- | --- |
+| [methodology/overview.md](methodology/overview.md) | Testing approach |
+| [methodology/metrics.md](methodology/metrics.md) | Metric definitions |
+| [methodology/reporting.md](methodology/reporting.md) | Result formats |
+| [dashboards-quickstart.md](dashboards-quickstart.md) | Streamlit visualization |
+| [mlflow.md](mlflow.md) | Experiment tracking |
+| [terminal-results-viewer.md](terminal-results-viewer.md) | CLI results viewer |
 
 ### MTEB Quality Testing
-- [MTEB Quick Start Guide](mteb-sweep-guide.md) - Run quality tests quickly
-- [MTEB Timing Reference](mteb-timing-guide.md) - Understand test duration and planning
-- [MTEB Troubleshooting](mteb-troubleshooting.md) - Resolve common issues
 
-### Testing
-- [Ansible Automation](ansible/test-execution.md)
-- [Test Suites Overview](https://github.com/redhat-et/vllm-cpu-perf-eval/tree/main/tests)
-- [Model Support](https://github.com/redhat-et/vllm-cpu-perf-eval/blob/main/models/models.md)
-
-### Analysis
-- [Dashboard Quickstart](dashboards-quickstart.md)
-- [MLflow Tracking](mlflow.md)
-- [Metrics Collection](metrics-collection.md)
-
-### Methodology
-- [Overview](methodology/overview.md)
-- [Testing Phases](methodology/testing-phases.md)
-- [Metrics Guide](methodology/metrics.md)
-- [Reporting](methodology/reporting.md)
-
-### Design & Slides
-- [Design Documents](design/) - Slide decks and design documents
-- [Rendering Slides](design/README.md) - How to render Marp slide decks
+| Page | Description |
+| --- | --- |
+| [mteb-sweep-guide.md](mteb-sweep-guide.md) | MTEB quick start |
+| [mteb-timing-guide.md](mteb-timing-guide.md) | Test duration planning |
+| [mteb-troubleshooting.md](mteb-troubleshooting.md) | Common issues |
 
 ### Configuration
-- [vLLM KV Cache Configuration Guide](vllm-kv-cache-configuration.md) - Understanding max_model_len, KV cache size, and block_size for optimal CPU performance
-- [Environment Variables Reference](environment-variables.md) - Complete guide to configuration via environment variables
-- [Scripts Reference](scripts-reference.md) - All test execution and utility scripts
 
-## Container Images
+| Page | Description |
+| --- | --- |
+| [platform-setup/x86/intel/deterministic-benchmarking.md](platform-setup/x86/intel/deterministic-benchmarking.md) | Intel platform tuning |
+| [vllm-kv-cache-configuration.md](vllm-kv-cache-configuration.md) | KV cache settings |
 
-Pre-built containers available on Quay.io:
-- **MTEB Benchmarking**: `quay.io/vllm-cpu-perf-eval/vllm-mteb:latest`
-- **Model Downloader**: `quay.io/vllm-cpu-perf-eval/model-downloader:latest`
+## By Role
 
-## Contributing
+### New Users
 
-This project uses:
-- **Ansible** for automation
-- **Streamlit** for dashboards
-- **MLflow** for experiment tracking
-- **MTEB** for quality evaluation
+1. [Getting Started](getting-started.md) — Setup and first benchmark
+2. [Test Suites](test-suites.md) — Choose the right suite
+3. [cpueval CLI](cpueval-cli.md) — Run benchmarks
+4. [Dashboards Quickstart](dashboards-quickstart.md) — View results
 
-See the [repository](https://github.com/redhat-et/vllm-cpu-perf-eval) for contribution guidelines.
+### Running Benchmarks
 
-## License
+1. [Test Suites](test-suites.md) — Suite overview and quick reference
+2. [cpueval CLI](cpueval-cli.md) — CLI commands and options
+3. [Ansible Test Execution](ansible/test-execution.md) — Playbook automation
+4. [Scripts Reference](scripts-reference.md) — Utility scripts
 
-This project is licensed under the Apache License 2.0.
+### Understanding Results
+
+1. [Metrics Guide](methodology/metrics.md) — Metric definitions
+2. [Reporting Guide](methodology/reporting.md) — Result formats
+3. [Dashboards Quickstart](dashboards-quickstart.md) — Visualization
+4. [MLflow Integration](mlflow.md) — Experiment tracking
+
+### Platform & Configuration
+
+1. [Intel Platform Setup](platform-setup/x86/intel/deterministic-benchmarking.md)
+2. [Environment Variables](environment-variables.md)
+3. [vLLM KV Cache Configuration](vllm-kv-cache-configuration.md)
+
+### Quality Testing (MTEB)
+
+1. [MTEB Quick Start](mteb-sweep-guide.md)
+2. [MTEB Timing Guide](mteb-timing-guide.md)
+3. [MTEB Troubleshooting](mteb-troubleshooting.md)
+
+## Contributing to Documentation
+
+Documentation is written in Markdown. Run pre-commit checks before committing:
+
+```bash
+pre-commit run --all-files
+```

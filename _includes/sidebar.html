@@ -1,22 +1,40 @@
 <nav class="sidebar-nav">
-  <h3>Navigation</h3>
-  <ul>
-    {% for link in site.nav_links %}
-      <li>
-        {% if link.url contains 'http' %}
-          <a href="{{ link.url }}" target="_blank" rel="noopener">{{ link.title }}</a>
-        {% else %}
-          <a href="{{ link.url | relative_url }}">{{ link.title }}</a>
-        {% endif %}
-      </li>
+  {% if site.data.nav_sections %}
+    {% for section in site.data.nav_sections %}
+      {% if section.title and section.title != "" %}
+        <h3>{{ section.title }}</h3>
+      {% endif %}
+      <ul>
+        {% for link in section.links %}
+          <li>
+            {% if link.url contains 'http' %}
+              <a href="{{ link.url }}" target="_blank" rel="noopener">{{ link.title }}</a>
+            {% else %}
+              <a href="{{ link.url | relative_url }}">{{ link.title }}</a>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
     {% endfor %}
-  </ul>
+  {% elsif site.nav_links %}
+    <h3>Navigation</h3>
+    <ul>
+      {% for link in site.nav_links %}
+        <li>
+          {% if link.url contains 'http' %}
+            <a href="{{ link.url }}" target="_blank" rel="noopener">{{ link.title }}</a>
+          {% else %}
+            <a href="{{ link.url | relative_url }}">{{ link.title }}</a>
+          {% endif %}
+        </li>
+      {% endfor %}
+    </ul>
+  {% endif %}
 </nav>
 
 <script>
 // Highlight active navigation item
 document.addEventListener('DOMContentLoaded', function() {
-  // Normalize path: remove trailing slashes and query/hash fragments
   const normalizePath = (path) => {
     const cleanPath = (path || '/').split(/[?#]/)[0].replace(/\/+$/, '');
     return cleanPath || '/';
@@ -26,20 +44,17 @@ document.addEventListener('DOMContentLoaded', function() {
   const navLinks = document.querySelectorAll('.sidebar-nav a');
 
   navLinks.forEach(link => {
-    // Skip external links
     if (link.getAttribute('target') === '_blank') {
       return;
     }
 
     const linkPath = normalizePath(link.getAttribute('href'));
 
-    // For home link, only match exact path
     if (linkPath === '/') {
       if (currentPath === '/') {
         link.classList.add('active');
       }
     } else {
-      // For other links, match exact path or true parent routes
       if (currentPath === linkPath || currentPath.startsWith(linkPath + '/')) {
         link.classList.add('active');
       }

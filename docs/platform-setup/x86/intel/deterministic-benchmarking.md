@@ -649,17 +649,10 @@ sudo podman run --rm \
 When TP > 1, the `VLLM_CPU_OMP_THREADS_BIND` variable binds each TP instance
 to its allocated CPUs, ensuring NUMA-local memory access:
 
-```
-TP=2: "32-63|64-95"
-  └─ Instance 0: CPUs 32-63 on NUMA node 1
-  └─ Instance 1: CPUs 64-95 on NUMA node 2
-
-TP=4: "32-55|64-87|96-119|128-151"
-  └─ Instance 0: CPUs 32-55 on NUMA node 1
-  └─ Instance 1: CPUs 64-87 on NUMA node 2
-  └─ Instance 2: CPUs 96-119 on NUMA node 3
-  └─ Instance 3: CPUs 128-151 on NUMA node 4
-```
+| Tensor parallel | Binding string | Instance layout |
+| --- | --- | --- |
+| TP=2 | `"32-63\|64-95"` | Instance 0: CPUs 32–63 (NUMA 1); Instance 1: CPUs 64–95 (NUMA 2) |
+| TP=4 | `"32-55\|64-87\|96-119\|128-151"` | Instance 0: CPUs 32–55 (NUMA 1); Instance 1: CPUs 64–87 (NUMA 2); Instance 2: CPUs 96–119 (NUMA 3); Instance 3: CPUs 128–151 (NUMA 4) |
 
 This binding ensures each TP worker:
 - Runs only on its designated NUMA node

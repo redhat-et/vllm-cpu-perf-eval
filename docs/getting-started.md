@@ -160,6 +160,25 @@ export HF_TOKEN=$(cat ~/hf-token)
 ./cpueval doctor
 ```
 
+Example output:
+
+```text
+cpueval system health check
+
+┏━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Check                ┃ Status       ┃ Details                                ┃
+┡━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ ansible-playbook     │ ✓            │ unknown                                │
+│ Inventory file       │ ✓            │ .../ansible/inventory/hosts.yml        │
+│ Environment vars     │ ✓            │ DUT_HOSTNAME, LOADGEN_HOSTNAME set     │
+│ Host connectivity    │ ✓            │ dut: ok, loadgen: ok                   │
+└──────────────────────┴──────────────┴────────────────────────────────────────┘
+
+✓ All checks passed
+```
+
+Use `./cpueval doctor --no-ping` to skip host connectivity checks.
+
 #### 4. Run Platform Setup (Optional)
 
 ```bash
@@ -171,32 +190,42 @@ This configures CPU isolation, performance governor, NUMA optimizations, etc.
 #### 5. Run Your First Test with cpueval
 
 ```bash
-# Quick chat test (matrix suite - no --model required)
-./cpueval run --suite rhaiis-sweep \
-  --extra models=tiny \
-  --extra cores="8,16" \
-  --extra workloads=chat
+# List available suites
+./cpueval list
 
-# Or single model test
+# Inspect suite defaults
+./cpueval show rhaiis-sweep
+
+# Preview the command before running
+./cpueval run --suite chat-smoke \
+  --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
+  --cores 16 --dry-run
+
+# Quick chat test
 ./cpueval run --suite chat-smoke \
   --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
   --cores 16
 
+# Matrix sweep (narrowed scope)
+./cpueval run --suite rhaiis-sweep --models tiny --cores 8 --workloads chat
+
 # Audio benchmarking
 ./cpueval run --suite audio \
   --model openai/whisper-small \
+  --scenario quick-test \
   --cores 32
 
-# Embedding models
-./cpueval run --suite embedding \
-  --model RedHatAI/granite-embedding-english-r2 \
-  --cores 16
+# Embedding models (full matrix)
+./cpueval run --suite embedding
 ```
+
+`--dry-run` prints the underlying Ansible command without executing — useful
+for verifying parameters before a long run.
 
 #### 6. View Results with cpueval
 
 ```bash
-# Show last run
+# Show last run with metrics table
 ./cpueval results --last
 
 # List recent results
@@ -209,7 +238,27 @@ This configures CPU isolation, performance governor, NUMA optimizations, etc.
 ./cpueval dashboard stop
 ```
 
-For complete cpueval documentation, see **[cpueval CLI Guide](cpueval-cli.md)**.
+Example output (`./cpueval results --last`):
+
+```text
+Results: results/llm/Qwen__Qwen2.5-0.5B-Instruct/chat-20260729-165311/32cores-numa2-tp1
+
+┌───────────┬────────────────────────────┐
+│ Model     │ Qwen/Qwen2.5-0.5B-Instruct │
+│ Workload  │ chat                       │
+│ Cores     │ 32                         │
+└───────────┴────────────────────────────┘
+
+┏━━━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━┓
+┃ Concurrency ┃ Req/s ┃   Tok/s ┃ TTFT (ms) ┃ TPOT (ms) ┃ Requests ┃
+┡━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━┩
+│ 1           │  0.10 │  106.37 │     53.48 │     19.34 │    26/26 │
+│ 32          │  1.47 │ 1585.99 │    199.50 │     41.36 │  384/384 │
+└─────────────┴───────┴─────────┴───────────┴───────────┴──────────┘
+```
+
+For complete cpueval documentation, see **[cpueval CLI Guide](cpueval-cli.md)** and
+**[Test Suites Overview](test-suites.md)**.
 
 ---
 
@@ -503,10 +552,11 @@ ansible -i inventory/hosts.yml all -m shell -a "podman ps -a"
 ## Next Steps
 
 ### Learn More
+- **[Test Suites Overview](test-suites.md)** - All supported suites and cpueval commands
 - **[Testing Methodology](methodology/overview)** - Understand the testing approach
 - **[3-Phase Testing](methodology/testing-phases)** - Baseline, realistic, and production phases
 - **[Metrics Guide](methodology/metrics)** - Understanding the metrics
-- **[Test Suites](../tests/tests)** - Available test suites
+- **[Test Suites](test-suites.md)** - Available test suites
 
 ### Run More Tests
 - **[Concurrent Load Tests](../tests/concurrent-load/concurrent-load)** - P95 latency scaling

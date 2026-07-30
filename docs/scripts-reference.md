@@ -139,16 +139,16 @@ RESULTS_DIR=/path/to/results/mteb ./bash/fix-mteb-results-structure.sh
 - When you see nested `no_model_name_available` directories
 
 **Expected structure after fix:**
-```
-results/mteb/MODEL/TIMESTAMP/
-├── run_summary.json
-├── model_meta.json
-├── Banking77Classification/
-│   └── test.json
-├── EmotionClassification/
-│   └── test.json
-└── ...
-```
+
+Base path: `results/mteb/MODEL/TIMESTAMP/`
+
+| File / directory | Description |
+| --- | --- |
+| `run_summary.json` | Test metadata |
+| `model_meta.json` | Model metadata |
+| `Banking77Classification/test.json` | Classification metrics (accuracy, F1) |
+| `EmotionClassification/test.json` | Classification metrics |
+| `<TaskName>/test.json` | Per-task MTEB results |
 
 ---
 

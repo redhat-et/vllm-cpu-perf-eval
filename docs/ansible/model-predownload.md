@@ -176,23 +176,17 @@ The playbook automatically:
 
 ## Cache Directory Structure
 
-HuggingFace uses the following cache structure:
+HuggingFace uses the following cache structure under `{{ model_cache_dir }}/hub/`:
 
-```
-{{ model_cache_dir }}/
-└── hub/
-    ├── models--meta-llama--Llama-3.1-8B-Instruct/
-    │   ├── snapshots/
-    │   │   └── <commit-hash>/
-    │   │       ├── config.json
-    │   │       ├── tokenizer.json
-    │   │       ├── model-*.safetensors
-    │   │       └── ...
-    │   └── refs/
-    ├── models--ibm-granite--granite-embedding-278m-multilingual/
-    │   └── ...
-    └── ...
-```
+| Path | Contents |
+| --- | --- |
+| `models--meta-llama--Llama-3.1-8B-Instruct/snapshots/<commit-hash>/` | `config.json`, `tokenizer.json`, `model-*.safetensors` |
+| `models--meta-llama--Llama-3.1-8B-Instruct/refs/` | Git refs for the model |
+| `models--ibm-granite--granite-embedding-278m-multilingual/` | Same layout for other models |
+
+Example snapshot path:
+
+`{{ model_cache_dir }}/hub/models--meta-llama--Llama-3.1-8B-Instruct/snapshots/<commit-hash>/config.json`
 
 ## Benefits
 

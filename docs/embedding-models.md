@@ -490,16 +490,14 @@ done
 
 ### MTEB Results
 
-Quality test results are saved in:
-```
-results/mteb/<model-name>/<timestamp>/
-├── run_summary.json           # Test metadata
-├── Banking77Classification/   # Per-task results
-│   └── test.json              # Metrics: accuracy, f1, etc.
-├── ArguAna/
-│   └── test.json              # Metrics: ndcg@10, map, mrr
-└── ...
-```
+Quality test results are saved under `results/mteb/<model-name>/<timestamp>/`:
+
+| File / directory | Description |
+| --- | --- |
+| `run_summary.json` | Test metadata |
+| `Banking77Classification/test.json` | Classification metrics (accuracy, F1) |
+| `ArguAna/test.json` | Retrieval metrics (NDCG@10, MAP, MRR) |
+| `<TaskName>/test.json` | Per-task MTEB results |
 
 ### Dashboard Visualization
 
@@ -536,24 +534,25 @@ See the [MTEB Integration README](https://github.com/redhat-et/vllm-cpu-perf-eva
 
 ## Performance Results Collection
 
-Performance test results are collected in:
-```
-results/embedding/<model-name>/<timestamp>/
-├── baseline/                # Created when scenario=baseline or all
-│   ├── sweep-inf.json       # Max throughput test
-│   ├── sweep-25pct.json     # 25% load test
-│   ├── sweep-50pct.json     # 50% load test
-│   └── sweep-75pct.json     # 75% load test
-├── latency/                 # Created when scenario=latency or all
-│   ├── concurrent-16.json   # Concurrency level tests
-│   ├── concurrent-32.json
-│   ├── concurrent-64.json
-│   ├── concurrent-128.json
-│   └── concurrent-196.json
-├── test-metadata.json       # Test run metadata
-└── logs/
-    └── vllm-server.log      # vLLM server logs (managed/dut-only modes only)
-```
+Performance test results are collected under
+`results/embedding/<model-name>/<timestamp>/`:
+
+| Path | Description |
+| --- | --- |
+| `baseline/sweep-inf.json` | Max throughput test |
+| `baseline/sweep-25pct.json` | 25% load test |
+| `baseline/sweep-50pct.json` | 50% load test |
+| `baseline/sweep-75pct.json` | 75% load test |
+| `latency/concurrent-16.json` | Concurrency level test |
+| `latency/concurrent-32.json` | Concurrency level test |
+| `latency/concurrent-64.json` | Concurrency level test |
+| `latency/concurrent-128.json` | Concurrency level test |
+| `latency/concurrent-196.json` | Concurrency level test |
+| `test-metadata.json` | Test run metadata |
+| `logs/vllm-server.log` | vLLM server logs (managed/dut-only modes) |
+
+The `baseline/` directory is created when `scenario=baseline` or `all`.
+The `latency/` directory is created when `scenario=latency` or `all`.
 
 ## Adding Custom Models
 

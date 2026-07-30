@@ -367,14 +367,15 @@ in the full Ansible guide.
 
 Test results are saved to `results/llm/<model>/<test-run-id>/`:
 
-```text
-results/llm/meta-llama__Llama-3.2-1B-Instruct/20240428-120000/
-├── benchmarks.json          # GuideLLM benchmark results
-├── benchmarks.csv           # CSV format
-├── test-metadata.json       # Test configuration
-├── vllm-metrics.log         # vLLM server metrics
-└── guidellm.log             # Load generator logs
-```
+| File | Description |
+| --- | --- |
+| `benchmarks.json` | GuideLLM benchmark results |
+| `benchmarks.csv` | CSV format |
+| `test-metadata.json` | Test configuration |
+| `vllm-metrics.log` | vLLM server metrics |
+| `guidellm.log` | Load generator logs |
+
+Example path: `results/llm/meta-llama__Llama-3.2-1B-Instruct/20240428-120000/`
 
 ## Workload Types
 

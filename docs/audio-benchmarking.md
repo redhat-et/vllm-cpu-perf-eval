@@ -187,21 +187,21 @@ ansible-playbook -i inventory/hosts.yml audio-benchmark.yml \
 
 ### Result Directory Structure
 
-```
-results/audio-models/openai__whisper-small/transcription-throughput-20260423-103307/
-├── sequential/               # Offline batch baseline
-│   ├── benchmarks.json      # Full GuideLLM results
-│   ├── benchmarks.csv       # Summary CSV
-│   └── guidellm.log         # Benchmark logs
-├── concurrent-2/             # 2 concurrent users
-│   ├── benchmarks.json
-│   └── benchmarks.csv
-├── concurrent-4/             # 4 concurrent users
-├── concurrent-8/             # 8 concurrent users
-├── max-throughput/           # Maximum capacity
-├── vllm-metrics.json         # vLLM server metrics
-└── test-metadata.json        # Test configuration
-```
+Base path:
+`results/audio-models/openai__whisper-small/transcription-throughput-20260423-103307/`
+
+| Path | Description |
+| --- | --- |
+| `sequential/benchmarks.json` | Full GuideLLM results (offline batch baseline) |
+| `sequential/benchmarks.csv` | Summary CSV |
+| `sequential/guidellm.log` | Benchmark logs |
+| `concurrent-2/benchmarks.json` | 2 concurrent users |
+| `concurrent-2/benchmarks.csv` | Summary CSV |
+| `concurrent-4/` | 4 concurrent users |
+| `concurrent-8/` | 8 concurrent users |
+| `max-throughput/` | Maximum capacity test |
+| `vllm-metrics.json` | vLLM server metrics |
+| `test-metadata.json` | Test configuration |
 
 ### Key Metrics Explained
 
@@ -268,16 +268,19 @@ ansible-playbook audio-benchmark.yml \
 
 ### CPU Allocation Formula
 
-```
-Container cores:    requested_cores (e.g., 32)
-├── Control plane:  2 cores (scheduler, KV cache, async ops)
-└── Worker threads: (requested_cores - 2) / tensor_parallel
+| Component | Cores | Formula |
+| --- | --- | --- |
+| Container total | `requested_cores` | e.g. 32 |
+| Control plane | 2 | Scheduler, KV cache, async ops |
+| Worker threads | remaining | `(requested_cores - 2) / tensor_parallel` |
 
 Examples:
-  cores=32, TP=1 → OMP=30
-  cores=64, TP=2 → OMP=31 per rank
-  cores=16, TP=1 → OMP=14
-```
+
+| `requested_cores` | `tensor_parallel` | OMP threads |
+| --- | --- | --- |
+| 32 | 1 | 30 |
+| 64 | 2 | 31 per rank |
+| 16 | 1 | 14 |
 
 ### Using Different Models
 
@@ -550,13 +553,13 @@ podman ps -a | grep vllm-
 
 ### 6. Organize Results
 
-```bash
-# Results auto-organized by timestamp:
-transcription-throughput-20260423-103307/
-├── sequential/
-├── concurrent-2/
-└── ...
+Results are auto-organized by timestamp under
+`results/audio-models/<model>/<scenario>-<timestamp>/`. Each run directory
+contains subdirectories for each concurrency level (`sequential/`,
+`concurrent-2/`, `concurrent-4/`, etc.) plus top-level `vllm-metrics.json`
+and `test-metadata.json`.
 
+```bash
 # Export to CSV for analysis
 cp results/audio-models/.../*/benchmarks.csv /analysis/
 ```

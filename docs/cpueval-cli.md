@@ -75,7 +75,27 @@ export VLLM_ENDPOINT_URL=http://your-vllm-host:8000
 ./cpueval list
 ```
 
-Shows all available test suites with descriptions.
+Example output:
+
+```text
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Name                      ┃ Type         ┃ Runner     ┃ Description          ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━┩
+│ rhaiis-sweep              │ Matrix       │ script     │ RHAIIS model         │
+│                           │              │            │ concurrent load      │
+│ embedding                 │ Matrix       │ script     │ Embedding model      │
+│                           │              │            │ performance          │
+│ offline-batch             │ Matrix       │ script     │ Offline batch        │
+│                           │              │            │ processing           │
+│ audio                     │ Matrix       │ script     │ Audio model          │
+│                           │              │            │ benchmarking         │
+│ concurrent-load           │ Matrix       │ script     │ LLM concurrent load  │
+│ chat-smoke                │ Single       │ ansible    │ Quick LLM chat test  │
+│ health                    │ Single       │ ansible    │ Health check         │
+└───────────────────────────┴──────────────┴────────────┴──────────────────────┘
+
+Legend: Matrix = full test matrix by default, Single = requires --model
+```
 
 ### show - Suite details
 
@@ -83,11 +103,31 @@ Shows all available test suites with descriptions.
 ./cpueval show <suite-name>
 
 # Examples
-./cpueval show audio
-./cpueval show concurrent-load
+./cpueval show rhaiis-sweep
+./cpueval show embedding
 ```
 
-Displays suite description, default parameters, and CLI parameter mappings.
+Example output (`./cpueval show rhaiis-sweep`):
+
+```text
+Suite: rhaiis-sweep
+
+Description: RHAIIS model concurrent load sweep - full test matrix by default
+Runner: script
+Type: Matrix suite (runs full test matrix by default)
+
+Default Parameters:
+  models: all
+  cores: 8,16,32
+  workloads: chat,code,summarization,rag
+  phase: 1
+
+Parameter Mappings:
+  --models → --models
+  --cores → --cores
+  --workloads → --workloads
+  --workload → --workloads
+```
 
 ### doctor - Health checks
 
@@ -97,6 +137,23 @@ Displays suite description, default parameters, and CLI parameter mappings.
 
 # Skip ping (faster, good for CI)
 ./cpueval doctor --no-ping
+```
+
+Example output:
+
+```text
+cpueval system health check
+
+┏━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Check                ┃ Status       ┃ Details                                ┃
+┡━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ ansible-playbook     │ ✓            │ unknown                                │
+│ Ansible collections  │ ✗            │ containers.podman collection not found │
+│ Inventory file       │ ✓            │ .../ansible/inventory/hosts.yml        │
+│ Environment vars     │ ✗            │ Missing: DUT_HOSTNAME, LOADGEN_HOSTNAME│
+└──────────────────────┴──────────────┴────────────────────────────────────────┘
+
+✗ Some checks failed
 ```
 
 Verifies:
@@ -137,6 +194,15 @@ Verifies:
   --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
   --cores 16 \
   --dry-run
+```
+
+`--dry-run` prints the underlying Ansible command without executing:
+
+```text
+ansible-playbook -i .../inventory/hosts.yml .../llm-benchmark-auto.yml \
+  -e workload_type=chat \
+  -e test_model=TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
+  -e requested_cores=16
 ```
 
 **Audio Examples:**
@@ -297,6 +363,38 @@ export VLLM_CONTAINER_IMAGE=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
 ./cpueval results --convert
 ```
 
+Example output (`./cpueval results --last`):
+
+```text
+Results: results/llm/Qwen__Qwen2.5-0.5B-Instruct/chat-20260729-165311/32cores-numa2-tp1
+
+┌───────────┬────────────────────────────┐
+│ Model     │ Qwen/Qwen2.5-0.5B-Instruct │
+│ Workload  │ chat                       │
+│ Timestamp │ 2026-07-29T17:26:30+01:00  │
+│ Cores     │ 32                         │
+└───────────┴────────────────────────────┘
+
+┏━━━━━━━━━━━━━┳━━━━━━━┳━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━━━┓
+┃ Concurrency ┃ Req/s ┃   Tok/s ┃ TTFT (ms) ┃ TPOT (ms) ┃ Requests ┃
+┡━━━━━━━━━━━━━╇━━━━━━━╇━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━━━┩
+│ 1           │  0.10 │  106.37 │     53.48 │     19.34 │    26/26 │
+│ 8           │  0.67 │  710.55 │    142.20 │     23.14 │  168/168 │
+│ 32          │  1.47 │ 1585.99 │    199.50 │     41.36 │  384/384 │
+└─────────────┴───────┴─────────┴───────────┴───────────┴──────────┘
+```
+
+Example output (`./cpueval results --list`):
+
+```text
+Recent results (10)
+
+  Qwen__Qwen2.5-0.5B-Instruct/chat-20260729-165311/32cores-numa2-tp1
+  Qwen__Qwen2.5-0.5B-Instruct/summarization-20260729-165210/32cores-numa0-tp1
+  Qwen__Qwen2.5-0.5B-Instruct/chat-20260729-161939/16cores-numa2-tp1
+  ...
+```
+
 Results display includes:
 - Model, workload, timestamp, cores
 - **All concurrency points** (not just first)
@@ -449,6 +547,7 @@ python -m pytest tests/test_results.py::test_extract_metrics_guidellm_v06 -v
 
 ## See Also
 
+- [Test Suites Overview](test-suites.md) - All supported suites and how to choose
 - [Getting Started Guide](getting-started.md) - Overall framework setup
 - [Ansible Test Execution](ansible/test-execution.md) - Underlying playbooks
 - [Dashboards Quickstart](dashboards-quickstart.md) - Results visualization

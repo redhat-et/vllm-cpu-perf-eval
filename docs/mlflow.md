@@ -484,20 +484,13 @@ cd automation/test-execution/mlflow
 
 Experiments are automatically organized hierarchically:
 
-```
-LLM-Benchmarks/
-├── meta-llama_Llama-3.1-8B-Instruct/
-│   ├── chat/
-│   ├── summarization/
-│   └── code/
-├── Qwen_Qwen2.5-7B-Instruct/
-│   ├── chat/
-│   └── chat_lite/
-├── RedHatAI_Meta-Llama-3.1-8B-Instruct-quantized.w8a8/
-│   ├── chat/
-│   └── summarization/
-└── ...
-```
+| Experiment | Workloads |
+| --- | --- |
+| `meta-llama_Llama-3.1-8B-Instruct` | `chat`, `summarization`, `code` |
+| `Qwen_Qwen2.5-7B-Instruct` | `chat`, `chat_lite` |
+| `RedHatAI_Meta-Llama-3.1-8B-Instruct-quantized.w8a8` | `chat`, `summarization` |
+
+Path pattern: `LLM-Benchmarks/<model>/<workload>/`
 
 Run names follow the pattern: `{platform}_{cores}c_{test_run_id}`
 
