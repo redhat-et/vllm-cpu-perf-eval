@@ -39,6 +39,9 @@ DISABLE_MKDOCS_2_WARNING=true mkdocs build --strict
 
 Output is written to `site/`.
 
+Edit links are mapped to real repo paths via `hooks/edit_url.py` (homepage →
+`documentation/index.md`, symlinked pages → `docs/`, `tests/`, `models/`).
+
 ### strip_jekyll_for_mkdocs.py
 
 One-time maintenance script that removes Jekyll front matter and Liquid `{% raw %}` wrappers from site markdown. Navigation is defined in `mkdocs.yml` at the repo root.

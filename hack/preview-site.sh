@@ -51,12 +51,22 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_ROOT"
 
-if [ ! -x "$PROJECT_ROOT/.venv-docs/bin/mkdocs" ]; then
-    echo "Creating .venv-docs and installing MkDocs dependencies..."
-    python3 -m venv "$PROJECT_ROOT/.venv-docs"
-    "$PROJECT_ROOT/.venv-docs/bin/pip" install -q -r requirements-docs.txt
+VENV="$PROJECT_ROOT/.venv-docs"
+REQ_HASH="$(shasum -a 256 requirements-docs.txt | awk '{print $1}')"
+REQ_MARKER="$VENV/.requirements-hash"
+
+if [ ! -x "$VENV/bin/mkdocs" ]; then
+    echo "Creating .venv-docs..."
+    python3 -m venv "$VENV"
 fi
-MKDOCS="$PROJECT_ROOT/.venv-docs/bin/mkdocs"
+
+if [ ! -f "$REQ_MARKER" ] || [ "$(cat "$REQ_MARKER")" != "$REQ_HASH" ]; then
+    echo "Installing MkDocs dependencies..."
+    "$VENV/bin/pip" install -q -r requirements-docs.txt
+    echo "$REQ_HASH" > "$REQ_MARKER"
+fi
+
+MKDOCS="$VENV/bin/mkdocs"
 
 export DISABLE_MKDOCS_2_WARNING=true
 

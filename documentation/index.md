@@ -49,14 +49,14 @@ configurations for evaluating vLLM inference performance on CPU-based systems.
 
 | Suite | Status | Focus |
 | --- | --- | --- |
-| [Concurrent Load](tests/concurrent-load/concurrent-load.md) | Validated | P95 latency under concurrent requests |
-| [Offline Batch](tests/offline-batch/offline-batch.md) | Validated | Bulk document processing |
-| [Embedding Models](tests/embedding-models/embedding-models.md) | Validated | Embedding throughput and latency |
-| [Audio Models](tests/audio-models/README.md) | Validated | Whisper ASR performance |
-| [Scalability](tests/scalability/scalability.md) | WIP | Maximum throughput and sweep curves |
-| [Resource Contention](tests/resource-contention/resource-contention.md) | Planned | Multi-tenant scenarios |
+| [Concurrent Load](tests/concurrent-load/concurrent-load/) | Validated | P95 latency under concurrent requests |
+| [Offline Batch](tests/offline-batch/offline-batch/) | Validated | Bulk document processing |
+| [Embedding Models](tests/embedding-models/embedding-models/) | Validated | Embedding throughput and latency |
+| [Audio Models](tests/audio-models/) | Validated | Whisper ASR performance |
+| [Scalability](tests/scalability/scalability/) | WIP | Maximum throughput and sweep curves |
+| [Resource Contention](tests/resource-contention/resource-contention/) | Planned | Multi-tenant scenarios |
 
-See the [Test Suites Overview](docs/test-suites.md) for cpueval commands,
+See the [Test Suites Overview](docs/test-suites/) for cpueval commands,
 suite selection guidance, and links to detailed documentation.
 
 ## Key Features
@@ -68,5 +68,5 @@ suite selection guidance, and links to detailed documentation.
 - **Streamlit dashboards** — Interactive results analysis
 - **MLflow tracking** — Experiment comparison and history
 
-Browse the full [Documentation](docs/index.md) index or use the sidebar
+Browse the full [Documentation](docs/) index or use the sidebar
 navigation to explore guides by topic.

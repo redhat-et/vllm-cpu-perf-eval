@@ -3,10 +3,13 @@ site_description: Comprehensive performance evaluation framework for vLLM on CPU
 site_url: https://redhat-et.github.io/vllm-cpu-perf-eval/
 repo_url: https://github.com/redhat-et/vllm-cpu-perf-eval
 repo_name: redhat-et/vllm-cpu-perf-eval
-edit_uri: edit/main/documentation/
+edit_uri: edit/main/
 
 docs_dir: documentation
 site_dir: site
+
+hooks:
+  - hooks/edit_url.py
 
 # Exclude Marp design sources (not published to the site).
 exclude_docs: |

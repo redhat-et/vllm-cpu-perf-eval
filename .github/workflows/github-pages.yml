@@ -7,8 +7,10 @@ on:
     paths:
       - "documentation/**"
       - "docs/**"
+      - "docs/stylesheets/**"
       - "tests/**"
       - "models/**"
+      - "hooks/**"
       - "mkdocs.yml"
       - "requirements-docs.txt"
       - "overrides/**"
@@ -44,7 +46,9 @@ jobs:
       - name: Build site
         env:
           DISABLE_MKDOCS_2_WARNING: true
-        run: mkdocs build --strict
+        run: |
+          mkdocs build --strict
+          touch site/.nojekyll
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5
