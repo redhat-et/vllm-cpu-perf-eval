@@ -86,7 +86,6 @@ nav:
       - Getting Started:
           - docs/sections/getting-started.md
           - Quick Start: docs/getting-started.md
-          - Hello RHAIIS on RHEL CPU: docs/blog/rhaiis-hello-world.md
           - cpueval CLI: docs/cpueval-cli.md
       - Test Suites:
           - Overview: docs/test-suites.md
