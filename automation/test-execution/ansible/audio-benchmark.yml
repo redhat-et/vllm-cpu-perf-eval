@@ -598,7 +598,7 @@
               - "   Image: {{ vllm_audio_image }} (with audio support)"
               - "   URL: http://{{ ansible_host }}:{{ vllm_server.port }}"
               - "   Model: {{ actual_model }}"
-              - "   Cores: {{ requested_cores }} ({{ '0-' + ((requested_cores | int) - 1) | string }})"
+              - "   Cores: {{ requested_cores }} ({{ core_configuration.cpuset_cpus }})"
               - "   Tensor Parallel: {{ effective_requested_tensor_parallel }}"
               - "   Logs: journalctl -t vllm-audio-{{ actual_model | replace('/', '__') }} -f"
 

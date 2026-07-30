@@ -245,7 +245,7 @@
         _batch_container_name: >-
           {{ vllm_container_name
              if (vllm_container_name != 'vllm-server')
-             else 'vllm-batch-' + dataset_name + '-' + (requested_cores | string) + 'c' }}
+             else 'vllm-batch-' + dataset_name + '-' + (requested_cores | string) + 'c-' + hostvars['localhost']['test_run_id'] }}
 
     - name: Build benchmark command (sonnet dataset with file)
       ansible.builtin.set_fact:

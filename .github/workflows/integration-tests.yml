@@ -38,7 +38,7 @@ jobs:
       - name: Run fast integration tests
         run: |
           cd automation/test-execution/ansible/tests
-          pytest -m "integration and not slow and not e2e and not requires_numa" -v --tb=short
+          pytest -m "integration and not slow and not e2e and not requires_numa and not requires_container" -v --tb=short
 
   integration-standard:
     name: Integration Tests (Standard)
