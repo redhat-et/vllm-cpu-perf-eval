@@ -51,16 +51,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_ROOT"
 
-if [ -x "$PROJECT_ROOT/.venv-docs/bin/mkdocs" ]; then
-    MKDOCS="$PROJECT_ROOT/.venv-docs/bin/mkdocs"
-elif command -v mkdocs &> /dev/null; then
-    MKDOCS="mkdocs"
-else
-    echo "Installing MkDocs dependencies into .venv-docs..."
+if [ ! -x "$PROJECT_ROOT/.venv-docs/bin/mkdocs" ]; then
+    echo "Creating .venv-docs and installing MkDocs dependencies..."
     python3 -m venv "$PROJECT_ROOT/.venv-docs"
     "$PROJECT_ROOT/.venv-docs/bin/pip" install -q -r requirements-docs.txt
-    MKDOCS="$PROJECT_ROOT/.venv-docs/bin/mkdocs"
 fi
+MKDOCS="$PROJECT_ROOT/.venv-docs/bin/mkdocs"
 
 export DISABLE_MKDOCS_2_WARNING=true
 

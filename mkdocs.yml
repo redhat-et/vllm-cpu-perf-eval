@@ -3,7 +3,7 @@ site_description: Comprehensive performance evaluation framework for vLLM on CPU
 site_url: https://redhat-et.github.io/vllm-cpu-perf-eval/
 repo_url: https://github.com/redhat-et/vllm-cpu-perf-eval
 repo_name: redhat-et/vllm-cpu-perf-eval
-edit_uri: edit/main/
+edit_uri: edit/main/documentation/
 
 docs_dir: documentation
 site_dir: site

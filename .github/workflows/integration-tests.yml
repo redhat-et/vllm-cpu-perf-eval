@@ -63,7 +63,9 @@ jobs:
       - name: Install container runtime
         run: |
           sudo apt-get update
-          sudo apt-get install -y podman
+          sudo apt-get install -y podman runc
+          mkdir -p ~/.config/containers
+          printf '[engine]\nruntime = "runc"\n' > ~/.config/containers/containers.conf
 
       - name: Pull required images
         run: |
@@ -107,7 +109,9 @@ jobs:
       - name: Install container runtime
         run: |
           sudo apt-get update
-          sudo apt-get install -y podman
+          sudo apt-get install -y podman runc
+          mkdir -p ~/.config/containers
+          printf '[engine]\nruntime = "runc"\n' > ~/.config/containers/containers.conf
 
       - name: Pull required images
         run: |

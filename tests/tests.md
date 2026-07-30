@@ -42,8 +42,9 @@ for examples and the full prefix table.
 cd automation/test-execution/ansible
 ansible-playbook llm-benchmark-auto.yml -e "test_model=<model>"
 
-# Bash wrappers
-automation/test-execution/bash/run-suite.sh concurrent-load
+# Bash wrappers (from automation/test-execution/)
+cd ..
+./bash/run-suite.sh concurrent-load
 ```
 
 See [cpueval CLI](../docs/cpueval-cli.md) and

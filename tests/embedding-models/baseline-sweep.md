@@ -1,12 +1,15 @@
 
 # Baseline Performance and Scalability Test
-# Overview
+
+## Overview
 
 The baseline sweep test establishes maximum request throughput (RPS) and analyzes how performance scales across different load levels for embedding models.
-# Test Type
+
+## Test Type
 
 **Baseline Performance Testing**
-# Objectives
+
+## Objectives
 
 1. **Find Maximum Throughput** - Determine the maximum sustained requests per second (RPS)
 2. **Analyze Performance Scaling** - Measure how latency and throughput change at various load levels

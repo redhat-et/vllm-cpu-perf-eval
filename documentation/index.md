@@ -11,37 +11,37 @@ configurations for evaluating vLLM inference performance on CPU-based systems.
   <div class="link-card">
     <h3>Getting Started</h3>
     <p>Configure your test environment and run your first benchmark</p>
-    <a href="docs/getting-started.md">Quick Start Guide →</a>
+    <a href="docs/getting-started/">Quick Start Guide →</a>
   </div>
 
   <div class="link-card">
     <h3>Test Suites</h3>
     <p>All supported benchmarks, cpueval commands, and suite documentation</p>
-    <a href="docs/test-suites.md">Test Suites Overview →</a>
+    <a href="docs/test-suites/">Test Suites Overview →</a>
   </div>
 
   <div class="link-card">
     <h3>cpueval CLI</h3>
     <p>Recommended entry point for running benchmarks</p>
-    <a href="docs/cpueval-cli.md">CLI Guide →</a>
+    <a href="docs/cpueval-cli/">CLI Guide →</a>
   </div>
 
   <div class="link-card">
     <h3>Models</h3>
     <p>Supported LLM, embedding, and audio models</p>
-    <a href="models/models.md">Model Catalog →</a>
+    <a href="models/models/">Model Catalog →</a>
   </div>
 
   <div class="link-card">
     <h3>Results</h3>
     <p>Analyze results with dashboards and experiment tracking</p>
-    <a href="docs/dashboards-quickstart.md">Dashboards Guide →</a>
+    <a href="docs/dashboards-quickstart/">Dashboards Guide →</a>
   </div>
 
   <div class="link-card">
     <h3>Methodology</h3>
     <p>Testing approach, metrics, and 3-phase strategy</p>
-    <a href="docs/methodology/overview.md">Testing Methodology →</a>
+    <a href="docs/methodology/overview/">Testing Methodology →</a>
   </div>
 </div>
 

@@ -3,7 +3,8 @@
 This document describes how the vLLM CPU Performance Evaluation project aligns
 with the IETF LLM benchmarking drafts, maps our terminology to the standard,
 and identifies known gaps.
-# Referenced IETF Drafts
+
+## Referenced IETF Drafts
 
 <!-- markdownlint-disable MD013 MD060 -->
 
@@ -14,7 +15,8 @@ and identifies known gaps.
 | [draft-gaikwad-llm-benchmarking-terminology-00](https://datatracker.ietf.org/doc/draft-gaikwad-llm-benchmarking-terminology/) | Benchmarking Terminology for Large Language Models | Active |
 
 <!-- markdownlint-enable MD013 MD060 -->
-# SUT Boundary
+
+## SUT Boundary
 
 The IETF profiles draft defines four System Under Test (SUT) boundaries:
 

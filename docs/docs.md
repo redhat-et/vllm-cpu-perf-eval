@@ -5,7 +5,8 @@ Comprehensive documentation for vLLM CPU performance evaluation.
 > **Looking for test suites?** Start with the
 > [Test Suites Overview](test-suites.md) — the central reference for all
 > supported benchmarks, cpueval commands, and detailed methodology links.
-# Quick Links
+
+## Quick Links
 
 - **New users**: [Getting Started](getting-started.md)
 - **Test suites**: [Test Suites Overview](test-suites.md)
@@ -13,11 +14,13 @@ Comprehensive documentation for vLLM CPU performance evaluation.
 - **Models**: [Model Catalog](../models/models.md)
 - **Results**: [Dashboards](dashboards-quickstart.md) · [MLflow](mlflow.md)
 - **Methodology**: [Overview](methodology/overview.md) · [Metrics](methodology/metrics.md)
-# Full Index
+
+## Full Index
 
 See the [Documentation Map](index.md#documentation-map) on the docs landing page
 for the complete file tree and role-based guides.
-# Documentation Status
+
+## Documentation Status
 
 <!-- markdownlint-disable MD013 -->
 
