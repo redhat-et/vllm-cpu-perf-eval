@@ -54,8 +54,8 @@
         cache_dir: "{{ lookup('env', 'HOME') }}/.cache/huggingface"
         datasets_dir: "{{ lookup('env', 'HOME') }}/datasets"
         results_base: "{{ playbook_dir }}/../../../results/llm"
-        test_run_id: "{{ lookup('pipe', 'date +%Y%m%d_%H%M%S') }}"
-        test_timestamp: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
+        test_run_id: "{{ now(utc=true, fmt='%Y%m%d_%H%M%S_%f') }}"
+        test_timestamp: "{{ now(utc=true, fmt='%Y%m%d-%H%M%S-%f') }}"
 
     - name: Sanitize model name for filesystem
       ansible.builtin.set_fact:
