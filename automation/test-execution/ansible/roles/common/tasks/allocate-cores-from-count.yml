@@ -71,7 +71,7 @@
     - vllm_numa_nodes not in [None, ""]
   ansible.builtin.assert:
     that:
-      - vllm_numa_nodes | string | regex_search('^[0-9]+(,[0-9]+)*$') is not none
+      - vllm_numa_nodes | string | trim | regex_search('^[0-9]+(\s*,\s*[0-9]+)*$') is not none
     fail_msg: >-
       vllm_numa_nodes='{{ vllm_numa_nodes }}' is not a valid comma-separated list of
       non-negative integers (e.g. '0' or '0,1'). Negative values and non-integer
@@ -82,7 +82,7 @@
     - vllm_numa_nodes is defined
     - vllm_numa_nodes not in [None, ""]
   ansible.builtin.set_fact:
-    _vllm_node_ids: "{{ vllm_numa_nodes | string | split(',') | map('int') | list }}"
+    _vllm_node_ids: "{{ vllm_numa_nodes | string | split(',') | map('trim') | map('int') | list }}"
 
 - name: Validate vllm_numa_nodes produced non-empty node list
   when:
