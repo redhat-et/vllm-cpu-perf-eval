@@ -1,3 +1,4 @@
+# Terminal Results Viewer
 
 View benchmark results directly in the terminal without launching a
 dashboard.

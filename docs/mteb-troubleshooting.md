@@ -1,3 +1,4 @@
+# MTEB Troubleshooting
 
 ## MTEB Results Not Showing in Dashboard
 

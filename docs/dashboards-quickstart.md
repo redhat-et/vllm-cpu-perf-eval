@@ -1,3 +1,4 @@
+# Dashboards
 
 Quick guide to accessing and using the dashboards for vLLM performance analysis.
 

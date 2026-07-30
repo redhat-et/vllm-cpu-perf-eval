@@ -1,5 +1,4 @@
-
-## Embedding Models Performance Testing
+# Embedding Models Performance Testing
 
 Comprehensive guide for running and analyzing embedding model performance tests on vLLM CPU platforms.
 

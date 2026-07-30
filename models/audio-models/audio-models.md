@@ -2,7 +2,8 @@
 # Audio Models for vLLM CPU Performance Testing
 
 This document describes the audio model configurations used for benchmarking automatic speech recognition (ASR) on vLLM CPU deployments.
-# Overview
+
+## Overview
 
 Audio models are currently benchmarked for:
 - **Transcription (ASR)** - Speech-to-text conversion
@@ -10,7 +11,8 @@ Audio models are currently benchmarked for:
 Models also support these endpoints (no dedicated benchmark scenarios yet):
 - **Translation** - Speech translation via `/v1/audio/translations`
 - **Audio Chat** - Multimodal conversations via `/v1/chat/completions` (Ultravox)
-# Model Selection
+
+## Model Selection
 
 ### Whisper Models (ASR)
 
@@ -35,7 +37,8 @@ Models also support these endpoints (no dedicated benchmark scenarios yet):
 - Multimodal capability (audio + text)
 - Based on Llama 3.2 architecture (alignment with LLM tests)
 - Reasonable size for CPU deployment
-# Supported Endpoints
+
+## Supported Endpoints
 
 ### Audio Transcription
 - **Endpoint**: `/v1/audio/transcriptions`

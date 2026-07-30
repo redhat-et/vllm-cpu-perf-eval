@@ -1,3 +1,4 @@
+# Metrics Collection
 
 Comprehensive guide to how metrics are collected, stored, and visualized in the vLLM CPU Performance Evaluation framework.
 

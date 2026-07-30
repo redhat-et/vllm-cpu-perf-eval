@@ -1,5 +1,4 @@
-
-## Test Suite: Scalability
+# Test Suite: Scalability
 
 > **🚧 Status: Work in Progress**
 >

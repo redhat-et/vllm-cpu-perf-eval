@@ -1,3 +1,4 @@
+# Scripts Reference
 
 Complete reference for all test execution and utility scripts in the repository.
 

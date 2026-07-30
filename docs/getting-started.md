@@ -1,5 +1,4 @@
-
-## Getting Started
+# Getting Started
 
 Complete guide to setting up and running your first vLLM performance tests.
 

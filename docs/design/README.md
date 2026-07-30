@@ -3,7 +3,7 @@
 
 This directory contains design documents and presentation slide decks
 for the vLLM CPU performance evaluation project.
-# Available Decks
+## Available Decks
 
 | File | Description |
 |------|-------------|
@@ -12,7 +12,7 @@ for the vLLM CPU performance evaluation project.
 Marp sources are **excluded from the MkDocs site build** (front matter would
 conflict). Preview or export with Marp CLI as below. CI → GitHub Pages HTML
 publish can be added later once the deck layout is stable.
-# Rendering Slides with Marp
+## Rendering Slides with Marp
 
 Slide decks use [Marp](https://marp.app/) (Markdown Presentation Ecosystem).
 Each slide is separated by `---`. The deck includes Marp front matter

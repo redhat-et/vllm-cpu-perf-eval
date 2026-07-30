@@ -1,5 +1,4 @@
-
-## 3-Phase Testing Methodology
+# 3-Phase Testing Methodology
 
 ## Overview
 

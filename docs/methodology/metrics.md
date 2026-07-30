@@ -1,5 +1,4 @@
-
-## Collected Metrics
+# Collected Metrics
 
 ## Understanding Percentiles
 

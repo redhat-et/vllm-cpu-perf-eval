@@ -1,5 +1,4 @@
-
-## Ansible Test Execution Guide
+# Ansible Test Execution Guide
 
 Automated testing framework for vLLM performance evaluation with NUMA-aware CPU
 optimization.

@@ -72,11 +72,11 @@ The test suite includes 5 quantized models:
 | `RedHatAI/TinyLlama-1.1B-Chat-v1.0-pruned2.4` | TinyLlama 1.1B | Pruned | **2048** | ⚠️ **Chat only** |
 | `RedHatAI/Qwen3-8B-W8A8-INT8` | Qwen3 8B | W8A8-INT8 | 32768 | ⚠️ **Skip - Known Issue** |
 
-### TinyLlama Context Window Limitation
+## TinyLlama Context Window Limitation
 
 **⚠️ CRITICAL:** TinyLlama has a maximum context window of **2048 tokens** (`max_position_embeddings=2048`), which creates a hard limit on Input Sequence Length (ISL). This is a **model architecture limitation**, not a configuration issue.
 
-#### Workload Compatibility Analysis
+### Workload Compatibility Analysis
 
 | Workload | ISL (Input) | OSL (Output) | Total Needed | TinyLlama Limit | Status |
 |----------|-------------|--------------|--------------|-----------------|--------|
@@ -85,7 +85,7 @@ The test suite includes 5 quantized models:
 | **Summarization** | **2048** | 256 | 2304 | 2048 | ❌ **ISL too large** |
 | **RAG** | **7680** | 512 | 8192 | 2048 | ❌ **ISL way too large** |
 
-#### Why Summarization and RAG Fail
+### Why Summarization and RAG Fail
 
 **Summarization workload:**
 ```
@@ -105,7 +105,7 @@ TinyLlama max context:        2048 tokens
 Result:                       Input exceeds model capacity by 3.75x ❌
 ```
 
-#### Technical Details
+### Technical Details
 
 **Why this is not a configuration issue:**
 - TinyLlama's `max_position_embeddings=2048` is hardcoded in the model architecture
@@ -121,7 +121,7 @@ pydantic_core._pydantic_core.ValidationError: 1 validation error for ModelConfig
   derived max_model_len (max_position_embeddings=2048.0)
 ```
 
-#### Recommendations
+### Recommendations
 
 **For testing:**
 - ✅ Use TinyLlama only for **chat workload** quick validation

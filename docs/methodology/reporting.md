@@ -1,5 +1,4 @@
-
-## Test Report
+# Test Report
 
 Test results should be recorded and shared with Red Hat in the form of a test
 report. The test report should layout the following information:

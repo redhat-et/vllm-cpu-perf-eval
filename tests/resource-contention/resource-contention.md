@@ -1,5 +1,4 @@
-
-## Test Suite: Resource Contention
+# Test Suite: Resource Contention
 
 > **📋 Status: Planned**
 >
