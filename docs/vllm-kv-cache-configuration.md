@@ -32,7 +32,7 @@ Three configuration parameters have **critical impact** on vLLM CPU inference pe
 4. [block_size: Cache Alignment](#block_size-cache-alignment)
 5. [Practical Recommendations](#practical-recommendations)
 6. [Common Pitfalls](#common-pitfalls)
-7. [Quick Decision Tree](#quick-decision-tree)
+7. [Quick Reference](#quick-reference)
 8. [References](#references)
 
 ---

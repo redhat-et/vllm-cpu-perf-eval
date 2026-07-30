@@ -318,11 +318,13 @@ Total Impact:
 
 ### Recommended Testing Sequence
 
+<!-- markdownlint-disable MD013 -->
 | Phase | Name | Actions | Metrics to document |
 | --- | --- | --- | --- |
 | 1 | Baseline (fixed, no caching) | Run all models on all workload types | P95/P99 latency, throughput, TTFT, ITL |
 | 2 | Realistic (variable, no caching) | Run priority models/workloads with variability; compare to Phase 1 | Variance and stability |
 | 3 | Production (realistic datasets, caching) | Run select models with caching enabled; compare to Phases 1 and 2 | True production performance |
+<!-- markdownlint-enable MD013 -->
 
 ### Dependencies Between Phases
 

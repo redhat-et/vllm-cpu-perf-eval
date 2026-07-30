@@ -298,6 +298,9 @@ def apply_excluded(rel_path: str) -> None:
         return
     body = strip_front_matter(path.read_text(encoding="utf-8"))
     front = {"nav_exclude": True, "layout": "default"}
+    # Jekyll front matter must precede the first heading; markdownlint expects H1 first.
+    if body.startswith("## "):
+        body = "# " + body[3:]
     path.write_text(render_front_matter(front) + body, encoding="utf-8")
 
 

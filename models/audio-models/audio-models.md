@@ -3,7 +3,7 @@ nav_exclude: true
 layout: default
 ---
 
-## Audio Models for vLLM CPU Performance Testing
+# Audio Models for vLLM CPU Performance Testing
 
 This document describes the audio model configurations used for benchmarking automatic speech recognition (ASR) on vLLM CPU deployments.
 

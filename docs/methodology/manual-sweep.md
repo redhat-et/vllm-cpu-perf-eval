@@ -903,8 +903,8 @@ The key advantage over automated sweeps is the ability to stop when you have eno
 | 2–5× baseline | Warning — test between current and previous rate |
 | > 5× baseline | Oversaturated — stop testing higher rates |
 
-6. Once saturation boundary is found, select the highest rate where
-   TTFT < 2× baseline as the optimal operating point.
+Once the saturation boundary is found, select the highest rate where
+TTFT < 2× baseline as the optimal operating point.
 
 ---
 
