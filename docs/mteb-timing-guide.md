@@ -1,6 +1,9 @@
 ---
-layout: default
 title: MTEB Timing Guide
+parent: MTEB Quality Testing
+grand_parent: Documentation
+nav_order: 2
+layout: default
 ---
 
 ## Quick Reference

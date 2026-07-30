@@ -1,6 +1,6 @@
 ---
+nav_exclude: true
 layout: default
-title: Latency Concurrent Test Methodology
 ---
 
 # Latency and Stability Under Load Test

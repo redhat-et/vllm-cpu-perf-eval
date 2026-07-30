@@ -1,3 +1,10 @@
+---
+title: Audio Benchmarking
+parent: Models
+grand_parent: Documentation
+nav_order: 3
+layout: default
+---
 # Audio Model Benchmarking Guide
 
 Comprehensive guide for benchmarking audio models (ASR, translation, chat) on vLLM CPU deployments.

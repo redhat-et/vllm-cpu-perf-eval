@@ -1,3 +1,7 @@
+---
+nav_exclude: true
+layout: default
+---
 # RHAIIS LLM Concurrent Load Testing Guide
 
 ## Overview

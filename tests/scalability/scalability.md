@@ -1,6 +1,9 @@
 ---
-layout: default
 title: Scalability
+parent: Test Suites
+grand_parent: Documentation
+nav_order: 3
+layout: default
 ---
 
 ## Test Suite: Scalability

@@ -1,6 +1,9 @@
 ---
-layout: default
 title: Metrics
+parent: Methodology
+grand_parent: Documentation
+nav_order: 3
+layout: default
 ---
 
 ## Collected Metrics

@@ -1,6 +1,6 @@
 ---
+nav_exclude: true
 layout: default
-title: Baseline Sweep Test Methodology
 ---
 
 # Baseline Performance and Scalability Test

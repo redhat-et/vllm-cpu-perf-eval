@@ -1,3 +1,10 @@
+---
+title: vLLM KV Cache
+parent: Configuration
+grand_parent: Documentation
+nav_order: 2
+layout: default
+---
 # vLLM CPU Performance: Understanding KV Cache, max_model_len, and block_size
 
 ## Executive Summary

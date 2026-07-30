@@ -1,6 +1,6 @@
-# Jekyll configuration for GitHub Pages
-# Use remote_theme for GitHub Pages compatibility
-remote_theme: pages-themes/cayman@v0.2.0
+# Jekyll configuration for GitHub Pages (Just the Docs)
+remote_theme: just-the-docs/just-the-docs@v0.10.1
+
 title: vLLM CPU Performance Evaluation
 description: Comprehensive performance evaluation framework for vLLM on CPU platforms
 repository: redhat-et/vllm-cpu-perf-eval
@@ -9,6 +9,20 @@ url: "https://redhat-et.github.io"
 
 # Build settings
 destination: ./_site
+
+# Just the Docs
+color_scheme: light
+search_enabled: true
+heading_anchors: true
+
+aux_links:
+  GitHub:
+    - "https://github.com/redhat-et/vllm-cpu-perf-eval"
+aux_links_new_tab: true
+
+gh_edit_link: true
+gh_edit_repository: "https://github.com/redhat-et/vllm-cpu-perf-eval"
+gh_edit_branch: "main"
 
 # Markdown settings
 markdown: kramdown
@@ -19,36 +33,22 @@ kramdown:
 # Plugins
 plugins:
   - jekyll-remote-theme
-  - jekyll-relative-links
-  - jekyll-optional-front-matter
-  - jekyll-readme-index
-  - jekyll-titles-from-headings
+  - jekyll-include-cache
   - jekyll-seo-tag
-
-# Relative links configuration
-relative_links:
-  enabled: true
-  collections: false
-
-# Titles from headings
-titles_from_headings:
-  enabled: true
-  strip_title: false
-  collections: false
 
 # File inclusions/exclusions
 # IMPORTANT: Exclude Ansible YAML files to prevent Jekyll from parsing Jinja2 templates
-include:
-  - README.md
+include: []
 
 exclude:
+  - README.md
   - .gitignore
   - .pre-commit-config.yaml
   - .yamllint.yaml
   - .markdownlint-cli2.yaml
   - .github-pages
   - vendor
-  - automation  # Exclude entire automation directory (contains Jinja2 templates)
+  - automation
   - results
   - utils
   - hack
@@ -58,6 +58,10 @@ exclude:
   - .sass-cache
   - .jekyll-cache
   - .jekyll-metadata
-  - image.tar  # Exclude container image to prevent podman permission issues
-  # Marp slide sources (rendered separately; Jekyll would mangle Marp front matter)
+  - image.tar
   - docs/design/full-testing-deck.md
+  - _data/nav_sections.yml
+
+sass:
+  sass_dir: _sass
+  style: compressed

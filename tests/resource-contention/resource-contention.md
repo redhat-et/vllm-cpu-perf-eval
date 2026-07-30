@@ -1,6 +1,9 @@
 ---
-layout: default
 title: Resource Contention
+parent: Test Suites
+grand_parent: Documentation
+nav_order: 7
+layout: default
 ---
 
 ## Test Suite: Resource Contention

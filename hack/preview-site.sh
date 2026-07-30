@@ -118,7 +118,7 @@ fi
 
 echo "📦 Starting Jekyll server in container..."
 echo "📍 Project: $PROJECT_ROOT"
-echo "📁 Config: .github-pages/_config.yml"
+echo "📁 Config: _config.yml + .github-pages/_config.yml"
 echo "🌐 Preview will be available at: http://localhost:${PORT}"
 echo ""
 echo "⚠️  First run will install GitHub Pages gems (takes 2-3 minutes)"
@@ -161,7 +161,7 @@ if [ -t 0 ]; then
     -e JEKYLL_ENV=development \
     -w /srv/jekyll/.github-pages \
     jekyll/jekyll:latest \
-    sh -c "git config --global --add safe.directory /srv/jekyll && bundle install && bundle exec jekyll serve --config _config.yml --watch --force_polling --livereload --host 0.0.0.0"
+    sh -c "git config --global --add safe.directory /srv/jekyll && bundle install && bundle exec jekyll serve --config ../_config.yml,_config.yml --watch --force_polling --livereload --host 0.0.0.0"
 else
   # Non-interactive mode (background)
   $DOCKER_CMD run --rm \
@@ -173,7 +173,7 @@ else
     -e JEKYLL_ENV=development \
     -w /srv/jekyll/.github-pages \
     jekyll/jekyll:latest \
-    sh -c "git config --global --add safe.directory /srv/jekyll && bundle install && bundle exec jekyll serve --config _config.yml --watch --force_polling --livereload --host 0.0.0.0"
+    sh -c "git config --global --add safe.directory /srv/jekyll && bundle install && bundle exec jekyll serve --config ../_config.yml,_config.yml --watch --force_polling --livereload --host 0.0.0.0"
 fi
 
 echo ""

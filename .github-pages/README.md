@@ -11,11 +11,27 @@ This directory contains the Jekyll configuration for generating GitHub Pages doc
 └── README.md      # This file
 
 (project root)/
-├── _data/nav_sections.yml  # Grouped sidebar navigation (single source of truth)
-├── _includes/sidebar.html  # Sidebar template
-├── index.md                # Landing page
-└── docs/                   # Documentation (see docs/test-suites.md for suite index)
+├── _config.yml             # Just the Docs theme + site settings
+├── _sass/custom/           # Branding and homepage card styles
+├── _includes/footer_custom.html
+├── hack/apply_jtd_front_matter.py  # Regenerate nav front matter
+├── index.md                # Home page (layout: home)
+└── docs/                   # Documentation
 ```
+
+## Navigation
+
+The site uses [Just the Docs](https://just-the-docs.github.io/just-the-docs/) with
+hierarchical navigation in page front matter (`parent`, `grand_parent`, `nav_order`,
+`has_children`).
+
+To update navigation after adding pages, edit `hack/apply_jtd_front_matter.py` and run:
+
+```bash
+python3 hack/apply_jtd_front_matter.py
+```
+
+Section landing pages live in `docs/sections/`.
 
 ## Local Preview
 

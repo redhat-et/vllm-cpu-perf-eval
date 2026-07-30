@@ -1,3 +1,7 @@
+---
+nav_exclude: true
+layout: default
+---
 # LLM Models
 
 For comprehensive LLM model documentation, including:

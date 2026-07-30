@@ -1,6 +1,9 @@
 ---
+title: Quick Start
+parent: Getting Started
+grand_parent: Documentation
+nav_order: 1
 layout: default
-title: Getting Started
 ---
 
 ## Getting Started

@@ -1,3 +1,10 @@
+---
+title: Platform Setup (Intel)
+parent: Configuration
+grand_parent: Documentation
+nav_order: 1
+layout: default
+---
 # Deterministic Benchmarking System Configuration
 
 ## Eliminating Scheduler, IRQ, and NUMA Noise on Bare-Metal Linux

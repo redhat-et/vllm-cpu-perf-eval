@@ -1,0 +1,41 @@
+// Brand accents (applied on top of the default light scheme).
+$link-color: #0066cc;
+$btn-primary-color: #ee0000;
+$body-heading-color: #151515;
+
+// Homepage quick-link cards
+.quick-links {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0 2rem;
+}
+
+.link-card {
+  border: 1px solid $border-color;
+  border-radius: $border-radius;
+  padding: 1rem 1.25rem;
+  background: $body-background-color;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.link-card:hover {
+  border-color: $link-color;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.link-card h3 {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+  font-size: 1rem;
+}
+
+.link-card p {
+  margin-bottom: 0.75rem;
+  color: $grey-dk-100;
+  font-size: 0.9rem;
+}
+
+.link-card a {
+  font-weight: 600;
+}

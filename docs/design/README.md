@@ -1,6 +1,6 @@
 ---
+nav_exclude: true
 layout: default
-title: Design & Slides
 ---
 
 ## Design Documents & Slide Decks

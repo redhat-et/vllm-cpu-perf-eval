@@ -1,3 +1,7 @@
+---
+nav_exclude: true
+layout: default
+---
 # Documentation
 
 Comprehensive documentation for vLLM CPU performance evaluation.

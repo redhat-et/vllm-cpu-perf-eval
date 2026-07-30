@@ -1,6 +1,9 @@
 ---
-layout: default
 title: Concurrent Load
+parent: Test Suites
+grand_parent: Documentation
+nav_order: 2
+layout: default
 ---
 
 ## Test Suite: Concurrent Load

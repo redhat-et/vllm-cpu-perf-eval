@@ -1,6 +1,9 @@
 ---
-layout: default
 title: MTEB Troubleshooting
+parent: MTEB Quality Testing
+grand_parent: Documentation
+nav_order: 3
+layout: default
 ---
 
 ## MTEB Results Not Showing in Dashboard

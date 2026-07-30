@@ -1,5 +1,9 @@
 ---
-title: cpueval CLI - Matrix-First CPU Benchmarking
+title: cpueval CLI
+parent: Getting Started
+grand_parent: Documentation
+nav_order: 2
+layout: default
 ---
 
 # cpueval CLI

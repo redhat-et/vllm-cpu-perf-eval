@@ -1,6 +1,9 @@
 ---
+title: Metrics Collection
+parent: Results & Analysis
+grand_parent: Documentation
+nav_order: 4
 layout: default
-title: Metrics Collection Architecture
 ---
 
 Comprehensive guide to how metrics are collected, stored, and visualized in the vLLM CPU Performance Evaluation framework.

@@ -1,3 +1,10 @@
+---
+title: Embedding Models Guide
+parent: Models
+grand_parent: Documentation
+nav_order: 2
+layout: default
+---
 # Embedding Models - Testing Guide
 
 ## Overview

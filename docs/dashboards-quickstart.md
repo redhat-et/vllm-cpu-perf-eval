@@ -1,6 +1,9 @@
 ---
+title: Dashboards
+parent: Results & Analysis
+grand_parent: Documentation
+nav_order: 1
 layout: default
-title: Dashboards Quick Start
 ---
 
 Quick guide to accessing and using the dashboards for vLLM performance analysis.

@@ -1,6 +1,6 @@
 ---
+nav_exclude: true
 layout: default
-title: Audio Models
 ---
 
 ## Audio Models for vLLM CPU Performance Testing
