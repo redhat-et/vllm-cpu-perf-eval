@@ -1,0 +1,30 @@
+name: Configure GitHub Pages Source
+
+# One-time (or occasional) setup: switch Pages publishing source to GitHub Actions.
+# Run manually from the Actions tab after forking or if Pages is set to "Deploy from branch".
+on:
+  workflow_dispatch:
+
+permissions:
+  administration: write
+
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set Pages build source to GitHub Actions
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          if ! response=$(gh api -X PUT "repos/${{ github.repository }}/pages" \
+            -f build_type=workflow 2>&1); then
+            echo "::error::Failed to configure GitHub Pages source."
+            echo "$response"
+            echo ""
+            echo "If this failed with a permissions error, a repository admin can set"
+            echo "Settings → Pages → Build and deployment → Source → GitHub Actions."
+            exit 1
+          fi
+          echo "$response"
+          echo "Pages source set to GitHub Actions (workflow)."

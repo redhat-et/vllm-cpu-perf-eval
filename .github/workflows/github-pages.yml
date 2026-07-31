@@ -30,13 +30,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Enforce GitHub Actions as Pages source
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh api -X PUT repos/${{ github.repository }}/pages \
-            -f build_type=workflow --silent || true
-
       - name: Checkout
         uses: actions/checkout@v7
 
