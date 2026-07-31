@@ -29,7 +29,11 @@ def summarize_csv(csv_file: Path) -> None:
         print(f"ERROR: CSV file not found: {csv_file}", file=sys.stderr)
         sys.exit(1)
 
-    df = pd.read_csv(csv_file)
+    try:
+        df = pd.read_csv(csv_file)
+    except (pd.errors.ParserError, pd.errors.EmptyDataError, UnicodeDecodeError, OSError) as exc:
+        print(f"ERROR: Failed to read CSV file {csv_file}: {exc}", file=sys.stderr)
+        sys.exit(1)
 
     required_columns = {
         "model",
@@ -63,6 +67,11 @@ def summarize_csv(csv_file: Path) -> None:
             file=sys.stderr,
         )
         sys.exit(1)
+
+    for col in ("success_rate", "throughput_mean"):
+        if not pd.api.types.is_numeric_dtype(df[col]):
+            print(f"ERROR: Column '{col}' must contain numeric values.", file=sys.stderr)
+            sys.exit(1)
 
     print("=" * 80)
     print("CLIENT METRICS DATA SUMMARY")
