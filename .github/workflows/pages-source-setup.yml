@@ -8,17 +8,13 @@ on:
 permissions:
   pages: write
 
-# Requires a secret named GH_PAGES_TOKEN: a classic PAT with repo+admin:repo
-# scope, or a fine-grained PAT with Pages read/write and administration
-# read/write for this repository.
-
 jobs:
   configure:
     runs-on: ubuntu-latest
     steps:
       - name: Set Pages build source to GitHub Actions
         env:
-          GH_TOKEN: ${{ secrets.GH_PAGES_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           if ! response=$(gh api -X PUT "repos/${{ github.repository }}/pages" \
