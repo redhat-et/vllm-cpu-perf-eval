@@ -21,8 +21,8 @@
         method: GET
         status_code: 200
       register: health_check_result
-      retries: "{{ health_check.timeout // health_check.interval }}"
-      delay: "{{ health_check.interval }}"
+      retries: "{{ health_check.timeout | int // health_check.interval | int }}"
+      delay: "{{ health_check.interval | int }}"
       until: health_check_result.status == 200
 
     - name: Display vLLM server status
