@@ -4,6 +4,11 @@
 # Results path (required - must be set by caller)
 stage_results_path: ""
 
+# Optional suffix appended to GuideLLM container names to avoid clashes when
+# multiple parallel benchmark instances share the same load-generator host.
+# Set to the vLLM port (e.g. "8001") when running parallel whisper benchmarks.
+guidellm_container_suffix: ""
+
 # Stage configuration (required - must be set by caller via loop_var)
 # stage:
 #   name: "Stage name"

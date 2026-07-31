@@ -39,6 +39,10 @@
   ansible.builtin.set_fact:
     _stage_audio: "{{ stage.audio_config | default(scenario_config.test_scenario.audio_config | default({})) }}"
 
+- name: Set GuideLLM container name (unique per parallel instance)
+  ansible.builtin.set_fact:
+    _guidellm_cname: "guidellm-audio-{{ stage.name | replace(' ', '-') }}{{ ('-' ~ guidellm_container_suffix) if guidellm_container_suffix | default('') else '' }}"
+
 - name: Write per-stage metadata
   ansible.builtin.copy:
     content: >-
@@ -247,7 +251,7 @@
 
 - name: Start GuideLLM benchmark container
   containers.podman.podman_container:
-    name: "guidellm-audio-{{ stage.name | replace(' ', '-') }}"
+    name: "{{ _guidellm_cname }}"
     image: "{{ guidellm_cfg.container_image }}"
     state: started
     rm: false
@@ -263,7 +267,7 @@
     command: "{{ guidellm_cmd_args }}"
     log_driver: journald
     log_opt:
-      tag: "guidellm-audio-{{ stage.name | replace(' ', '-') }}"
+      tag: "{{ _guidellm_cname }}"
   register: guidellm_container
   when: use_guidellm_container | bool
   no_log: true
@@ -282,7 +286,7 @@
 
 - name: Wait for GuideLLM benchmark to complete
   ansible.builtin.command:
-    cmd: "timeout {{ guidellm_benchmark_timeout | default(7200) }} podman wait guidellm-audio-{{ stage.name | replace(' ', '-') }}"
+    cmd: "timeout {{ guidellm_benchmark_timeout | default(7200) }} podman wait {{ _guidellm_cname }}"
   register: guidellm_exit_code_container
   changed_when: false
   failed_when: false
@@ -290,7 +294,7 @@
 
 - name: Stop hung container on wait timeout
   ansible.builtin.command:
-    cmd: "podman stop -t 10 guidellm-audio-{{ stage.name | replace(' ', '-') }}"
+    cmd: "podman stop -t 10 {{ _guidellm_cname }}"
   changed_when: true
   failed_when: false
   when:
@@ -299,7 +303,7 @@
 
 - name: Get container exit details
   ansible.builtin.shell:
-    cmd: "podman inspect guidellm-audio-{{ stage.name | replace(' ', '-') }} --format '{{ '{{' }} .State.ExitCode {{ '}}' }}' || echo 1"
+    cmd: "podman inspect {{ _guidellm_cname }} --format '{{ '{{' }} .State.ExitCode {{ '}}' }}' || echo 1"
   args:
     executable: /bin/bash
   register: container_exit_code
@@ -309,7 +313,7 @@
 
 - name: Capture container logs (always, for debugging)
   ansible.builtin.shell:
-    cmd: "podman logs guidellm-audio-{{ stage.name | replace(' ', '-') }} 2>&1 | tail -100"
+    cmd: "podman logs {{ _guidellm_cname }} 2>&1 | tail -100"
   args:
     executable: /bin/bash
   register: guidellm_failure_logs
@@ -320,7 +324,7 @@
 
 - name: Stream GuideLLM container logs to file
   ansible.builtin.shell:
-    cmd: "podman logs guidellm-audio-{{ stage.name | replace(' ', '-') }} > /tmp/guidellm-audio-{{ stage.name | replace(' ', '-') }}.log 2>&1"
+    cmd: "podman logs {{ _guidellm_cname }} > /tmp/{{ _guidellm_cname }}.log 2>&1"
   args:
     executable: /bin/bash
   changed_when: false
@@ -344,7 +348,7 @@
 
 - name: Fetch GuideLLM logs to controller results directory
   ansible.builtin.fetch:
-    src: "/tmp/guidellm-audio-{{ stage.name | replace(' ', '-') }}.log"
+    src: "/tmp/{{ _guidellm_cname }}.log"
     dest: "{{ hostvars['localhost']['local_results_base'] }}/audio-models/{{ hostvars['localhost']['actual_model'] | replace('/', '__') }}/{{ hostvars['localhost']['test_scenario'] }}-{{ hostvars['localhost']['test_run_id'] }}/{{ stage.result_filename_suffix }}/guidellm.log"
     flat: true
   when:
@@ -379,7 +383,7 @@
 
 - name: Remove completed container
   containers.podman.podman_container:
-    name: "guidellm-audio-{{ stage.name | replace(' ', '-') }}"
+    name: "{{ _guidellm_cname }}"
     state: absent
   when:
     - use_guidellm_container | bool

@@ -349,7 +349,7 @@
     vllm_mode: "{{ vllm_endpoint.mode | default('managed') }}"
     requested_cores: "{{ hostvars['localhost']['requested_cores'] }}"
     requested_tensor_parallel: "{{ hostvars['localhost']['requested_tensor_parallel'] | default(omit) }}"
-    vllm_numa_node: "{{ vllm_numa_node | default(None) }}"
+    vllm_numa_node: ~
 
   pre_tasks:
     - name: Skip core allocation in external mode
@@ -450,6 +450,7 @@
             - "{{ log_dir }}"
 
         - name: Build vLLM image with audio support
+          when: not (vllm_audio_deps_bundled | default(false) | bool)
           block:
             - name: Pull base vLLM image
               containers.podman.podman_image:
@@ -507,6 +508,11 @@
             - name: Set audio-enabled image name
               ansible.builtin.set_fact:
                 vllm_audio_image: "localhost/vllm-audio-cpu:{{ container_runtime.image.split(':')[1] }}"
+
+        - name: Use base image directly (audio deps already bundled)
+          ansible.builtin.set_fact:
+            vllm_audio_image: "{{ container_runtime.image }}"
+          when: vllm_audio_deps_bundled | default(false) | bool
 
         - name: Stop and remove any previous audio vLLM container
           containers.podman.podman_container:
@@ -718,6 +724,7 @@
         name: benchmark_guidellm_audio
       vars:
         stage_results_path: "{{ results_base }}/{{ stage.result_filename_suffix }}"
+        guidellm_container_suffix: "{{ bench_config.vllm_port | default('') }}"
       loop: "{{ scenario_stages }}"
       loop_control:
         loop_var: stage
