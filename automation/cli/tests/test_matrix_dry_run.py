@@ -344,10 +344,10 @@ def test_implicit_matches_explicit_run():
 # ---------------------------------------------------------------------------
 
 def test_offline_batch_use_case_summarization():
-    """Summarization: sharegpt, 1000 prompts, core sweep."""
+    """Summarization via implicit run (no subcommand): sharegpt, 1000 prompts, core sweep."""
     result = subprocess.run(
         [
-            sys.executable, "-m", "cpueval", "run",
+            sys.executable, "-m", "cpueval",
             "--suite", "offline-batch",
             "--mode", "use-case-sweep",
             "--use-case", "summarization",

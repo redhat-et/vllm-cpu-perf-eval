@@ -349,7 +349,11 @@ def main(
     dry_run: bool = typer.Option(False, "--dry-run", help="Print command without running"),
     skip_doctor: bool = typer.Option(False, "--skip-doctor", help="Skip pre-run health check"),
 ):
-    """cpueval - Thin CLI wrapper over Ansible CPU automation."""
+    """cpueval - Thin CLI wrapper over Ansible CPU automation.
+
+    Run options below apply when no subcommand is given (e.g. cpueval --suite …).
+    Subcommands (list, doctor, run) take precedence when specified.
+    """
     if ctx.invoked_subcommand is not None:
         return
     if suite is None:
@@ -527,6 +531,7 @@ def doctor(
     raise typer.Exit(exit_code)
 
 
+# Keep in sync with main() callback options.
 @app.command()
 def run(
     suite: str = typer.Option(..., "--suite", "-s", help="Suite name (required)"),
