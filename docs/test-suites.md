@@ -24,7 +24,7 @@ run, how to run it, and where to read the detailed methodology.
 
 | Your goal | Recommended suite | Example command |
 | --- | --- | --- |
-| LLM serving under concurrency (one model) | `concurrent-load` | `./cpueval run --suite concurrent-load --model meta-llama/Llama-3.2-1B-Instruct --cores 32` |
+| LLM serving under concurrency | `concurrent-load` | `./cpueval run --suite concurrent-load` |
 | RHAIIS model matrix sweep | `rhaiis-sweep` | `./cpueval run --suite rhaiis-sweep` |
 | Bulk/offline document processing | `offline-batch` | `./cpueval run --suite offline-batch` |
 | Embedding throughput and latency | `embedding` | `./cpueval run --suite embedding` |
@@ -170,19 +170,22 @@ without requiring `--model`.
 | Suite | Default matrix | Description |
 | --- | --- | --- |
 | `rhaiis-sweep` | 5 models × 3 cores × 4 workloads | RHAIIS quantized model concurrent load sweep |
+| `concurrent-load` | all models × 3 cores × 4 workloads (use `--models`/`--workload` to narrow) | Upstream LLM concurrent load sweep |
 | `embedding` | 5 models × 3 cores × 2 scenarios | Embedding model performance matrix |
 | `offline-batch` | 11 use-cases × 3 runs | Offline batch processing |
-| `audio` | models × scenarios × cores | Audio model benchmarking (Whisper ASR) |
+| `audio` | all models × `transcription-throughput` × 32 cores (override with `--scenario`, `--cores`) | Audio model benchmarking (Whisper ASR) |
 
 ```bash
 # Run full matrices
 ./cpueval run --suite rhaiis-sweep
+./cpueval run --suite concurrent-load
 ./cpueval run --suite embedding
 ./cpueval run --suite offline-batch
 ./cpueval run --suite audio
 
 # Narrow scope with overrides
 ./cpueval run --suite rhaiis-sweep --models tiny --cores 8
+./cpueval run --suite concurrent-load --models tiny --workload chat --cores 32
 ./cpueval run --suite embedding --models quick --cores 4
 ```
 
@@ -190,16 +193,11 @@ without requiring `--model`.
 
 | Suite | Description |
 | --- | --- |
-| `concurrent-load` | 3-phase concurrent load test for one model |
 | `chat-smoke` | Quick auto-configured LLM chat test |
 | `setup-platform` | Platform setup and configuration |
 | `health` | Health check for DUT and load generator |
 
 ```bash
-./cpueval run --suite concurrent-load \
-  --model meta-llama/Llama-3.2-1B-Instruct \
-  --cores 32 --workload chat
-
 ./cpueval run --suite chat-smoke \
   --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --cores 8
 ```

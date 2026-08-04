@@ -24,7 +24,6 @@ Matrix-first CLI for running comprehensive CPU benchmarks. Most suites run full 
 
 # Single-shot suites (--model required)
 ./cpueval run --suite chat-smoke --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --cores 8
-./cpueval run --suite concurrent-load --model meta-llama/Llama-3.2-1B-Instruct --cores 32
 
 # Explore
 ./cpueval list                    # Shows Matrix vs Single type
@@ -124,11 +123,13 @@ Parameter Mappings:
   --cores → --cores
   --workloads → --workloads
   --workload → --workloads
+
+Suite definition: .../automation/cli/src/cpueval/suites/rhaiis-sweep.yaml
+Edit that file to change permanent defaults.
 ```
 
-> **Tip:** The defaults shown above (e.g. `cores: 8,16,32`) come directly from the suite YAML at
-> `automation/cli/src/cpueval/suites/rhaiis-sweep.yaml`. Edit that file to permanently change the
-> defaults for every run; use `--cores` at the command line to override for a single run only.
+> **Tip:** The suite YAML path is printed at the bottom of every `show` output. Edit it to
+> permanently change defaults; use CLI flags (e.g. `--cores`) to override for a single run.
 
 ### doctor - Health checks
 
@@ -346,7 +347,7 @@ file anywhere on disk.
 To list profiles available on disk:
 
 ```bash
-ls automation/cli/profiles/
+./cpueval profiles
 ```
 
 **Advanced: extra vars:**
@@ -465,15 +466,15 @@ via `./cpueval results --open`.
 | Suite | Default Matrix | Description |
 |-------|----------------|-------------|
 | `rhaiis-sweep` | 5 models × 3 cores × 4 workloads | RHAIIS model concurrent load sweep (60 tests) |
+| `concurrent-load` | all models × 3 cores × 4 workloads | Upstream LLM concurrent load sweep |
 | `embedding` | 5 models × 3 cores × 2 scenarios | Embedding model performance matrix (30 tests) |
 | `offline-batch` | 11 use-cases × 3 runs | Offline batch processing suite (33 tests) |
-| `audio` | all models × `transcription-throughput` × 32 cores (override with `--scenario`, `--cores`) | Audio model benchmarking (Whisper ASR) |
+| `audio` | all models × `transcription-throughput` × 32 cores | Audio model benchmarking (Whisper ASR) |
 
 ### Single-Shot Suites (require `--model`)
 
 | Suite | Description |
 |-------|-------------|
-| `concurrent-load` | 3-phase concurrent load testing of one model (baseline, realistic, production) |
 | `chat-smoke` | Quick auto-configured LLM chat test |
 | `setup-platform` | Platform setup and configuration |
 | `health` | Health check for DUT and load generator |
@@ -496,7 +497,7 @@ You can also edit an existing suite YAML directly to change its permanent defaul
 (e.g. to add a new core count or workload to the default matrix) rather than creating
 a new suite from scratch.
 
-Create a YAML file in `automation/cli/suites/`:
+Create a YAML file in `automation/cli/src/cpueval/suites/`:
 
 ```yaml
 name: my-suite
