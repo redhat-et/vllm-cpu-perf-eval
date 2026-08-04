@@ -9,13 +9,13 @@ run, how to run it, and where to read the detailed methodology.
 
 | Suite | Type | Status | cpueval command | Detailed docs |
 | --- | --- | --- | --- | --- |
-| Concurrent Load | Matrix | Validated | `cpueval run --suite concurrent-load` | [Concurrent Load](../tests/concurrent-load/concurrent-load.md) |
-| RHAIIS Sweep | Matrix | Validated | `cpueval run --suite rhaiis-sweep` | [RHAIIS Testing](../tests/concurrent-load/rhaiis-testing.md) |
+| Concurrent Load | Matrix | Validated | `cpueval --suite concurrent-load` | [Concurrent Load](../tests/concurrent-load/concurrent-load.md) |
+| RHAIIS Sweep | Matrix | Validated | `cpueval --suite rhaiis-sweep` | [RHAIIS Testing](../tests/concurrent-load/rhaiis-testing.md) |
 | Scalability | Manual/Ansible | WIP | Ansible playbooks | [Scalability](../tests/scalability/scalability.md) |
-| Offline Batch | Matrix | Validated | `cpueval run --suite offline-batch` | [Offline Batch](../tests/offline-batch/offline-batch.md) |
-| Embedding | Matrix | Validated | `cpueval run --suite embedding` | [Embedding Models](../tests/embedding-models/embedding-models.md) |
-| Audio | Matrix | Validated | `cpueval run --suite audio` | [Audio Models](../tests/audio-models/) |
-| Chat Smoke | Single-shot | Validated | `cpueval run --suite chat-smoke --model <model>` | [cpueval CLI](cpueval-cli.md) |
+| Offline Batch | Matrix | Validated | `cpueval --suite offline-batch` | [Offline Batch](../tests/offline-batch/offline-batch.md) |
+| Embedding | Matrix | Validated | `cpueval --suite embedding` | [Embedding Models](../tests/embedding-models/embedding-models.md) |
+| Audio | Matrix | Validated | `cpueval --suite audio` | [Audio Models](../tests/audio-models/) |
+| Chat Smoke | Single-shot | Validated | `cpueval --suite chat-smoke --model <model>` | [cpueval CLI](cpueval-cli.md) |
 | Resource Contention | Planned | Planned | — | [Resource Contention](../tests/resource-contention/resource-contention.md) |
 
 **Status legend:** Validated = production-ready, WIP = in progress, Planned = not yet implemented.
@@ -24,13 +24,13 @@ run, how to run it, and where to read the detailed methodology.
 
 | Your goal | Recommended suite | Example command |
 | --- | --- | --- |
-| LLM serving under concurrency | `concurrent-load` | `./cpueval run --suite concurrent-load` |
-| RHAIIS model matrix sweep | `rhaiis-sweep` | `./cpueval run --suite rhaiis-sweep` |
-| Bulk/offline document processing | `offline-batch` | `./cpueval run --suite offline-batch` |
-| Embedding throughput and latency | `embedding` | `./cpueval run --suite embedding` |
-| Audio transcription (Whisper) | `audio` | `./cpueval run --suite audio --scenario quick-test` |
+| LLM serving under concurrency | `concurrent-load` | `./cpueval --suite concurrent-load` |
+| RHAIIS model matrix sweep | `rhaiis-sweep` | `./cpueval --suite rhaiis-sweep` |
+| Bulk/offline document processing | `offline-batch` | `./cpueval --suite offline-batch` |
+| Embedding throughput and latency | `embedding` | `./cpueval --suite embedding` |
+| Audio transcription (Whisper) | `audio` | `./cpueval --suite audio --scenario quick-test` |
 | Maximum throughput curves | `scalability` | Ansible playbooks (see [Scalability](../tests/scalability/scalability.md)) |
-| Quick sanity check | `chat-smoke` or `health` | `./cpueval run --suite chat-smoke --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --cores 8` |
+| Quick sanity check | `chat-smoke` or `health` | `./cpueval --suite chat-smoke --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --cores 8` |
 
 ## cpueval Workflow
 
@@ -47,11 +47,11 @@ A typical session looks like this:
 ./cpueval doctor
 
 # 4. Preview the underlying command (no execution)
-./cpueval run --suite chat-smoke \
+./cpueval --suite chat-smoke \
   --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --cores 8 --dry-run
 
 # 5. Run the benchmark
-./cpueval run --suite chat-smoke \
+./cpueval --suite chat-smoke \
   --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --cores 8
 
 # 6. View results
@@ -125,9 +125,9 @@ Tip: Set required environment variables:
   export LOADGEN_HOSTNAME=<loadgen-host>
 ```
 
-### `./cpueval run --dry-run` output
+### `./cpueval --dry-run` output
 
-Shows the underlying Ansible command without executing:
+Shows the underlying command without executing:
 
 ```text
 ansible-playbook -i .../inventory/hosts.yml .../llm-benchmark-auto.yml \
@@ -177,16 +177,16 @@ without requiring `--model`.
 
 ```bash
 # Run full matrices
-./cpueval run --suite rhaiis-sweep
-./cpueval run --suite concurrent-load
-./cpueval run --suite embedding
-./cpueval run --suite offline-batch
-./cpueval run --suite audio
+./cpueval --suite rhaiis-sweep
+./cpueval --suite concurrent-load
+./cpueval --suite embedding
+./cpueval --suite offline-batch
+./cpueval --suite audio
 
 # Narrow scope with overrides
-./cpueval run --suite rhaiis-sweep --models tiny --cores 8
-./cpueval run --suite concurrent-load --models tiny --workload chat --cores 32
-./cpueval run --suite embedding --models quick --cores 4
+./cpueval --suite rhaiis-sweep --models tiny --cores 8
+./cpueval --suite concurrent-load --models tiny --workload chat --cores 32
+./cpueval --suite embedding --models quick --cores 4
 ```
 
 ### Single-Shot Suites (require `--model`)
@@ -198,7 +198,7 @@ without requiring `--model`.
 | `health` | Health check for DUT and load generator |
 
 ```bash
-./cpueval run --suite chat-smoke \
+./cpueval --suite chat-smoke \
   --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --cores 8
 ```
 
@@ -275,7 +275,7 @@ See individual suite docs for complete test case listings.
 ### Recommended: cpueval CLI
 
 ```bash
-./cpueval run --suite <suite-name> [options]
+./cpueval --suite <suite-name> [options]
 ```
 
 See [cpueval CLI Guide](cpueval-cli.md) for full options, CPU pinning, and

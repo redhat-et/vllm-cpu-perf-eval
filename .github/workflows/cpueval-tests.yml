@@ -57,6 +57,12 @@ jobs:
           python -m cpueval run --help
           python -m cpueval results --help
 
+      - name: Smoke-test implicit run and backward compat
+        run: |
+          cd automation/cli
+          python -m cpueval --suite rhaiis-sweep --dry-run
+          python -m cpueval run --suite rhaiis-sweep --dry-run
+
   lint:
     runs-on: ubuntu-latest
     steps:

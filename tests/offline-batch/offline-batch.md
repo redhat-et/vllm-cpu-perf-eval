@@ -103,7 +103,7 @@ Performance characterization tests:
 The test scenarios are implemented in:
 
 **cpueval CLI (recommended entry point):**
-- `./cpueval run --suite offline-batch` — wraps the bash suite below
+- `./cpueval --suite offline-batch` — wraps the bash suite below
 - See [cpueval CLI Guide](../../docs/cpueval-cli.md) for suite options and overrides
 
 **Bash Test Suite:**
@@ -130,13 +130,13 @@ From the repository root:
 
 ```bash
 # Default: all 11 use cases, 3 runs each (TinyLlama pruned)
-./cpueval run --suite offline-batch
+./cpueval --suite offline-batch
 
 # All use cases, 5 runs, all 4 RedHatAI models
-./cpueval run --suite offline-batch --mode use-cases --runs 5 --models all
+./cpueval --suite offline-batch --mode use-cases --runs 5 --models all
 
 # Single use case with core sweep
-./cpueval run --suite offline-batch \
+./cpueval --suite offline-batch \
   --mode use-case-sweep \
   --use-case summarization \
   --models all \
@@ -144,7 +144,7 @@ From the repository root:
   --runs 3
 
 # Single test configuration
-./cpueval run --suite offline-batch \
+./cpueval --suite offline-batch \
   --mode run_test \
   --model all \
   --dataset sonnet \
@@ -153,7 +153,7 @@ From the repository root:
 
 # RHAIIS container image
 export VLLM_CONTAINER_IMAGE=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
-./cpueval run --suite offline-batch --mode use-cases --runs 3 --models all
+./cpueval --suite offline-batch --mode use-cases --runs 3 --models all
 ```
 
 Modes: `use-cases`, `use-case-sweep`, `baseline`, `batch-scaling`, `input-scaling`,

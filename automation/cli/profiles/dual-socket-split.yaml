@@ -11,7 +11,7 @@
 # 3. Use with: --profile path/to/my-profile.yaml
 #
 # Usage:
-#   cpueval run --suite concurrent-load \
+#   cpueval --suite concurrent-load \
 #     --model meta-llama/Llama-3.2-1B-Instruct \
 #     --cores 32 \
 #     --profile dual-socket-split

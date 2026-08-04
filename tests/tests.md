@@ -36,7 +36,7 @@ for examples and the full prefix table.
 
 ```bash
 # Recommended: cpueval CLI
-./cpueval run --suite <suite-name> [options]
+./cpueval --suite <suite-name> [options]
 
 # Ansible
 cd automation/test-execution/ansible

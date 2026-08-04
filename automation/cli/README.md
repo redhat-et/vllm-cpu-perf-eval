@@ -12,16 +12,16 @@ Thin CLI wrapper for running full test matrices with easy overrides.
 
 ```bash
 # Matrix suites - run full test matrix (no --model required!)
-./cpueval run --suite rhaiis-sweep           # 60 combinations: 5 models × 3 cores × 4 workloads
-./cpueval run --suite embedding              # 30 combinations: 5 models × 3 cores × 2 scenarios
-./cpueval run --suite offline-batch          # 33 runs: use-cases 3
+./cpueval --suite rhaiis-sweep           # 60 combinations: 5 models × 3 cores × 4 workloads
+./cpueval --suite embedding              # 30 combinations: 5 models × 3 cores × 2 scenarios
+./cpueval --suite offline-batch          # 33 runs: use-cases 3
 
 # Override to narrow scope
-./cpueval run --suite rhaiis-sweep --models tiny --cores 8
-./cpueval run --suite embedding --models quick --cores 4
+./cpueval --suite rhaiis-sweep --models tiny --cores 8
+./cpueval --suite embedding --models quick --cores 4
 
 # Single-shot suites (require --model)
-./cpueval run --suite chat-smoke --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --cores 16
+./cpueval --suite chat-smoke --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --cores 16
 
 # Explore
 ./cpueval list                    # Shows Matrix vs Single type
@@ -88,7 +88,7 @@ done
 **After** (simple cpueval):
 ```bash
 # Clean, simple - matrix runs automatically
-./cpueval run --suite concurrent-load \
+./cpueval --suite concurrent-load \
   --model meta-llama/Llama-3.2-1B-Instruct \
   --cores 32 \
   --vllm-cpu-start 96 \
@@ -100,7 +100,7 @@ done
   --extra test_name=EPYC-NO-SMT
 
 # Or run full concurrent-load matrix (60 combinations: all models × 3 cores × 4 workloads)
-./cpueval run --suite concurrent-load \
+./cpueval --suite concurrent-load \
   --vllm-cpu-start 96 \
   --vllm-numa 1 \
   --guidellm-cpus 0-31 \
@@ -143,19 +143,19 @@ done
 
 ```bash
 # Quick chat smoke test
-./cpueval run --suite chat-smoke \
+./cpueval --suite chat-smoke \
   --model meta-llama/Llama-3.2-1B-Instruct \
   --cores 16 \
   --workload chat
 
-# Concurrent load test (single model, single workload)
-./cpueval run --suite concurrent-load \
+# Concurrent load sweep (narrowed to single model/workload)
+./cpueval --suite concurrent-load \
   --model meta-llama/Llama-3.2-1B-Instruct \
   --cores 32 \
   --workload summarization
 
 # Dry run to see command
-./cpueval run --suite concurrent-load \
+./cpueval --suite concurrent-load \
   --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
   --cores 16 \
   --dry-run
@@ -165,19 +165,19 @@ done
 
 ```bash
 # Transcription throughput test
-./cpueval run --suite audio \
+./cpueval --suite audio \
   --models openai/whisper-small \
   --scenario transcription-throughput \
   --cores 32
 
 # Quick audio test
-./cpueval run --suite audio \
+./cpueval --suite audio \
   --models openai/whisper-tiny \
   --scenario quick-test \
   --cores 16
 
 # Transcription latency test
-./cpueval run --suite audio \
+./cpueval --suite audio \
   --models openai/whisper-medium \
   --scenario transcription-latency \
   --cores 64
@@ -195,7 +195,7 @@ Available audio scenarios:
 **Embedding Example:**
 
 ```bash
-./cpueval run --suite embedding \
+./cpueval --suite embedding \
   --model RedHatAI/granite-embedding-english-r2 \
   --cores 16
 ```
@@ -208,19 +208,19 @@ RHAIIS quantized models work with the standard concurrent-load suite:
 # Test RHAIIS model with custom container
 export VLLM_CONTAINER_IMAGE=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
 
-./cpueval run --suite concurrent-load \
+./cpueval --suite concurrent-load \
   --model RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w4a16 \
   --cores 16 \
   --workload chat
 
 # Test tiny quantized model
-./cpueval run --suite concurrent-load \
+./cpueval --suite concurrent-load \
   --model RedHatAI/TinyLlama-1.1B-Chat-v1.0-pruned2.4 \
   --cores 8 \
   --workload chat
 
 # Core sweep with RHAIIS
-./cpueval run --suite concurrent-load \
+./cpueval --suite concurrent-load \
   --model RedHatAI/TinyLlama-1.1B-Chat-v1.0-pruned2.4 \
   --extra core_sweep_counts="[8,16,32]" \
   --workload chat
@@ -230,13 +230,13 @@ export VLLM_CONTAINER_IMAGE=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
 
 ```bash
 # Default: all 11 use cases, 3 runs each
-./cpueval run --suite offline-batch
+./cpueval --suite offline-batch
 
 # All use cases, all RedHatAI models, 5 runs each
-./cpueval run --suite offline-batch --mode use-cases --runs 5 --models all
+./cpueval --suite offline-batch --mode use-cases --runs 5 --models all
 
 # Single use case with core sweep
-./cpueval run --suite offline-batch \
+./cpueval --suite offline-batch \
   --mode use-case-sweep \
   --use-case summarization \
   --models all \
@@ -244,7 +244,7 @@ export VLLM_CONTAINER_IMAGE=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
   --runs 3
 
 # Single test configuration
-./cpueval run --suite offline-batch \
+./cpueval --suite offline-batch \
   --mode run_test \
   --model all \
   --dataset sonnet \
@@ -253,7 +253,7 @@ export VLLM_CONTAINER_IMAGE=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
 
 # RHAIIS container image
 export VLLM_CONTAINER_IMAGE=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
-./cpueval run --suite offline-batch --mode use-cases --runs 3 --models all
+./cpueval --suite offline-batch --mode use-cases --runs 3 --models all
 ```
 
 **Offline-batch flags:** `--mode`, `--runs`, `--use-case`, `--models`/`--model`,
@@ -263,7 +263,7 @@ export VLLM_CONTAINER_IMAGE=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
 
 ```bash
 # Via cpueval (wraps bash script)
-./cpueval run --suite rhaiis-sweep \
+./cpueval --suite rhaiis-sweep \
   --extra models=llama \
   --extra cores="8,16,32" \
   --extra workloads="chat,rag"
@@ -283,7 +283,7 @@ Model presets: `all` | `llama` | `qwen` | `tiny`
 **Simple pinning via CLI flags:**
 
 ```bash
-./cpueval run --suite concurrent-load \
+./cpueval --suite concurrent-load \
   --model meta-llama/Llama-3.2-1B-Instruct \
   --cores 32 \
   --vllm-cpu-start 64 \
@@ -295,7 +295,7 @@ Model presets: `all` | `llama` | `qwen` | `tiny`
 **Using a profile:**
 
 ```bash
-./cpueval run --suite concurrent-load \
+./cpueval --suite concurrent-load \
   --model meta-llama/Llama-3.2-1B-Instruct \
   --cores 32 \
   --profile dual-socket-split
@@ -306,14 +306,14 @@ Model presets: `all` | `llama` | `qwen` | `tiny`
 **Advanced: extra vars:**
 
 ```bash
-./cpueval run --suite concurrent-load \
+./cpueval --suite concurrent-load \
   --model meta-llama/Llama-3.2-1B-Instruct \
   --cores 32 \
   --extra vllm_cpu_start=64 \
   --extra vllm_numa_node=1
 
 # Or from a file
-./cpueval run --suite concurrent-load \
+./cpueval --suite concurrent-load \
   --model meta-llama/Llama-3.2-1B-Instruct \
   --cores 32 \
   --extra-vars-file my-config.yaml
@@ -401,7 +401,7 @@ guidellm_numa_node: 0
 
 Use it:
 ```bash
-./cpueval run --suite concurrent-load --model my-model --cores 32 --profile my-profile
+./cpueval --suite concurrent-load --model my-model --cores 32 --profile my-profile
 ```
 
 ## Troubleshooting
@@ -487,7 +487,7 @@ For comprehensive RHAIIS validation with results by end of week:
 **Day 1-2: Online Inference (Concurrent Load)**
 ```bash
 # Tier 1 workloads: chat, code, summarization, rag (60 combinations)
-./cpueval run --suite rhaiis-sweep \
+./cpueval --suite rhaiis-sweep \
   --models all \
   --cores "8,16,32" \
   --workloads "chat,code,summarization,rag" \
@@ -499,7 +499,7 @@ For comprehensive RHAIIS validation with results by end of week:
 **Day 3: Offline Batch Processing**
 ```bash
 # All 11 enterprise use-cases, 3 runs each = 33 tests
-./cpueval run --suite offline-batch
+./cpueval --suite offline-batch
 
 # Enterprise Tier Priorities:
 #   Tier 1 (Must-have): Summarization, Classification, RAG Batch, Entity Extraction
@@ -508,7 +508,7 @@ For comprehensive RHAIIS validation with results by end of week:
 #   Tier 4 (Deprioritize): Shared-Prefix
 
 # Run specific use case:
-./cpueval run --suite offline-batch \
+./cpueval --suite offline-batch \
   --mode use-case-sweep \
   --use-case summarization \
   --models all \
@@ -519,14 +519,14 @@ For comprehensive RHAIIS validation with results by end of week:
 **Day 4: Embedding Models**
 ```bash
 # All 5 embedding models (default: all)
-./cpueval run --suite embedding \
+./cpueval --suite embedding \
   --models all \
   --cores "8,16,32"
 
 # 5 models × 3 cores × 2 scenarios (baseline+latency) = 30 tests (~6-8 hours)
 
 # Or just small/fast models:
-./cpueval run --suite embedding \
+./cpueval --suite embedding \
   --models small \
   --cores "8,16,32"
 # 2 models × 3 cores × 2 scenarios = 12 tests (~4-6 hours)
@@ -535,7 +535,7 @@ For comprehensive RHAIIS validation with results by end of week:
 **Day 5: Audio Workloads**
 ```bash
 # Whisper models: tiny, small, medium
-./cpueval run --suite audio \
+./cpueval --suite audio \
   --models all \
   --scenarios transcription-throughput \
   --cores "32"
@@ -549,7 +549,7 @@ Verify everything works before starting week-long runs:
 
 ```bash
 # 3-5 minute smoke test
-./cpueval run --suite chat-smoke \
+./cpueval --suite chat-smoke \
   --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
   --cores 8 \
   --skip-doctor

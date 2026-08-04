@@ -230,8 +230,8 @@ with tab1:
     **Offline Batch Tests:**
     ```bash
     # Recommended: from repository root
-    ./cpueval run --suite offline-batch
-    ./cpueval run --suite offline-batch --mode use-cases --runs 5 --models all
+    ./cpueval --suite offline-batch
+    ./cpueval --suite offline-batch --mode use-cases --runs 5 --models all
 
     # Advanced: bash script directly
     cd automation/test-execution/scripts/bash
@@ -240,7 +240,7 @@ with tab1:
 
     # RHAIIS container
     export VLLM_CONTAINER_IMAGE=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
-    ./cpueval run --suite offline-batch --mode use-cases --runs 3 --models all
+    ./cpueval --suite offline-batch --mode use-cases --runs 3 --models all
     ```
 
     **Offline batch results are saved to:** `results/llm/`

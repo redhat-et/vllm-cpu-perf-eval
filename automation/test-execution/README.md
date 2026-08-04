@@ -33,7 +33,7 @@ Tests vLLM in online serving mode with concurrent requests.
 Tests vLLM in offline batch mode (vllm bench throughput).
 
 **CLI (recommended):**
-- `../../cpueval run --suite offline-batch` — see [cpueval CLI Guide](../../docs/cpueval-cli.md)
+- `../../cpueval --suite offline-batch` — see [cpueval CLI Guide](../../docs/cpueval-cli.md)
 
 **Playbook:**
 - `ansible/llm-benchmark-offline-batch.yml` - Offline batch benchmark
@@ -103,13 +103,13 @@ ansible-playbook -i ansible/inventory/hosts.yml ansible/llm-benchmark-concurrent
 
 ```bash
 # Default: all 11 use cases, 3 runs each
-./cpueval run --suite offline-batch
+./cpueval --suite offline-batch
 
 # All use cases, all RedHatAI models, 5 runs each
-./cpueval run --suite offline-batch --mode use-cases --runs 5 --models all
+./cpueval --suite offline-batch --mode use-cases --runs 5 --models all
 
 # Single use case with core sweep
-./cpueval run --suite offline-batch \
+./cpueval --suite offline-batch \
   --mode use-case-sweep \
   --use-case summarization \
   --models all \
@@ -118,7 +118,7 @@ ansible-playbook -i ansible/inventory/hosts.yml ansible/llm-benchmark-concurrent
 
 # RHAIIS container image
 export VLLM_CONTAINER_IMAGE=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
-./cpueval run --suite offline-batch --mode use-cases --runs 3 --models all
+./cpueval --suite offline-batch --mode use-cases --runs 3 --models all
 ```
 
 **Via bash script (advanced):**

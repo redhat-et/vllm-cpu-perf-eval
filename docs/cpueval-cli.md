@@ -13,17 +13,17 @@ Matrix-first CLI for running comprehensive CPU benchmarks. Most suites run full 
 
 ```bash
 # Matrix suites - run full matrices (no --model required!)
-./cpueval run --suite rhaiis-sweep           # 60 combinations: 5 models × 3 cores × 4 workloads
-./cpueval run --suite embedding              # 30 combinations: 5 models × 3 cores × 2 scenarios
-./cpueval run --suite offline-batch          # 33 runs: use-cases 3
-./cpueval run --suite audio                  # Default: all models, transcription-throughput scenario, 32 cores
+./cpueval --suite rhaiis-sweep           # 60 combinations: 5 models × 3 cores × 4 workloads
+./cpueval --suite embedding              # 30 combinations: 5 models × 3 cores × 2 scenarios
+./cpueval --suite offline-batch          # 33 runs: use-cases 3
+./cpueval --suite audio                  # Default: all models, transcription-throughput scenario, 32 cores
 
 # Override to narrow
-./cpueval run --suite rhaiis-sweep --models tiny --cores 8
-./cpueval run --suite embedding --models quick --cores 4
+./cpueval --suite rhaiis-sweep --models tiny --cores 8
+./cpueval --suite embedding --models quick --cores 4
 
 # Single-shot suites (--model required)
-./cpueval run --suite chat-smoke --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --cores 8
+./cpueval --suite chat-smoke --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --cores 8
 
 # Explore
 ./cpueval list                    # Shows Matrix vs Single type
@@ -165,40 +165,42 @@ Verifies:
 - Required environment variables set
 - Host connectivity (unless --no-ping)
 
-### run - Execute benchmarks
+### Execute benchmarks
+
+> `cpueval run --suite …` is also accepted for backward compatibility.
 
 **Common options:**
-- `--suite/-s` (required) - Suite name
-- `--model/-m` - Model ID (overrides suite default)
-- `--cores/-c` - CPU core count
-- `--workload/-w` - Workload type
-- `--scenario` - Test scenario (audio suites)
-- `--dry-run` - Print command without running
-- `--skip-doctor` - Skip health checks
+- `--suite/-s` (required): Suite name
+- `--model/-m`: Model ID (overrides suite default)
+- `--cores/-c`: CPU core count
+- `--workload/-w`: Workload type
+- `--scenario`: Test scenario (audio suites)
+- `--dry-run`: Print command without running
+- `--skip-doctor`: Skip health checks
 
 **LLM Examples:**
 
 ```bash
 # Quick chat smoke test
-./cpueval run --suite chat-smoke \
+./cpueval --suite chat-smoke \
   --model meta-llama/Llama-3.2-1B-Instruct \
   --cores 16 \
   --workload chat
 
-# Concurrent load test (single model, single workload)
-./cpueval run --suite concurrent-load \
+# Concurrent load sweep (narrowed to single model/workload)
+./cpueval --suite concurrent-load \
   --model meta-llama/Llama-3.2-1B-Instruct \
   --cores 32 \
   --workload summarization
 
 # Dry run to see command
-./cpueval run --suite concurrent-load \
+./cpueval --suite concurrent-load \
   --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
   --cores 16 \
   --dry-run
 ```
 
-`--dry-run` prints the underlying Ansible command without executing:
+`--dry-run` prints the underlying command without executing (ansible-playbook for ansible suites, bash script for script suites):
 
 ```text
 ansible-playbook -i .../inventory/hosts.yml .../llm-benchmark-auto.yml \
@@ -211,13 +213,13 @@ ansible-playbook -i .../inventory/hosts.yml .../llm-benchmark-auto.yml \
 
 ```bash
 # Transcription throughput test (single model)
-./cpueval run --suite audio \
+./cpueval --suite audio \
   --models openai/whisper-small \
   --scenario transcription-throughput \
   --cores 32
 
 # Quick audio test (single model)
-./cpueval run --suite audio \
+./cpueval --suite audio \
   --models openai/whisper-tiny \
   --scenario quick-test \
   --cores 16
@@ -226,7 +228,7 @@ ansible-playbook -i .../inventory/hosts.yml .../llm-benchmark-auto.yml \
 **Embedding Example:**
 
 ```bash
-./cpueval run --suite embedding \
+./cpueval --suite embedding \
   --model RedHatAI/granite-embedding-english-r2 \
   --cores 16
 ```
@@ -235,13 +237,13 @@ ansible-playbook -i .../inventory/hosts.yml .../llm-benchmark-auto.yml \
 
 ```bash
 # Default: all 11 use cases, 3 runs each
-./cpueval run --suite offline-batch
+./cpueval --suite offline-batch
 
 # All use cases, all RedHatAI models, 5 runs each
-./cpueval run --suite offline-batch --mode use-cases --runs 5 --models all
+./cpueval --suite offline-batch --mode use-cases --runs 5 --models all
 
 # Single use case with core sweep
-./cpueval run --suite offline-batch \
+./cpueval --suite offline-batch \
   --mode use-case-sweep \
   --use-case summarization \
   --models all \
@@ -249,7 +251,7 @@ ansible-playbook -i .../inventory/hosts.yml .../llm-benchmark-auto.yml \
   --runs 3
 
 # Fast smoke test (minimal tokens)
-./cpueval run --suite offline-batch \
+./cpueval --suite offline-batch \
   --mode run_test \
   --model RedHatAI/TinyLlama-1.1B-Chat-v1.0-pruned2.4 \
   --dataset random \
@@ -259,11 +261,11 @@ ansible-playbook -i .../inventory/hosts.yml .../llm-benchmark-auto.yml \
   --output-len 16
 
 # Technical benchmarks
-./cpueval run --suite offline-batch --mode batch-scaling --model <model> --cores 16
+./cpueval --suite offline-batch --mode batch-scaling --model <model> --cores 16
 
 # RHAIIS container image
 export VLLM_CONTAINER_IMAGE=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
-./cpueval run --suite offline-batch --mode use-cases --runs 3 --models all
+./cpueval --suite offline-batch --mode use-cases --runs 3 --models all
 ```
 
 **Offline-batch flags:** `--mode`, `--runs`, `--use-case`, `--models`/`--model`,
@@ -274,13 +276,13 @@ Escape hatch: `--extra args="..."`.
 
 ```bash
 # Test with multiple core counts in one run
-./cpueval run --suite concurrent-load \
+./cpueval --suite concurrent-load \
   --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
   --extra core_sweep_counts="[8,16,32,64]" \
   --workload chat
 
 # Single core count (use --cores for clarity)
-./cpueval run --suite concurrent-load \
+./cpueval --suite concurrent-load \
   --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
   --cores 16 \
   --workload chat
@@ -292,13 +294,13 @@ Escape hatch: `--extra args="..."`.
 # RHAIIS models work with standard concurrent-load suite
 export VLLM_CONTAINER_IMAGE=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
 
-./cpueval run --suite concurrent-load \
+./cpueval --suite concurrent-load \
   --model RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w4a16 \
   --cores 16 \
   --workload chat
 
 # Core sweep with RHAIIS
-./cpueval run --suite concurrent-load \
+./cpueval --suite concurrent-load \
   --model RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w4a16 \
   --extra core_sweep_counts="[8,16,32]" \
   --workload chat
@@ -309,7 +311,7 @@ export VLLM_CONTAINER_IMAGE=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
 **Simple pinning via CLI flags:**
 
 ```bash
-./cpueval run --suite concurrent-load \
+./cpueval --suite concurrent-load \
   --model meta-llama/Llama-3.2-1B-Instruct \
   --cores 32 \
   --vllm-cpu-start 64 \
@@ -326,13 +328,13 @@ file anywhere on disk.
 
 ```bash
 # Built-in profile (resolved from automation/cli/profiles/)
-./cpueval run --suite concurrent-load \
+./cpueval --suite concurrent-load \
   --model meta-llama/Llama-3.2-1B-Instruct \
   --cores 32 \
   --profile dual-socket-split
 
 # Custom profile by path
-./cpueval run --suite concurrent-load \
+./cpueval --suite concurrent-load \
   --model meta-llama/Llama-3.2-1B-Instruct \
   --cores 32 \
   --profile ~/my-profiles/my-server.yaml
@@ -344,7 +346,7 @@ file anywhere on disk.
 |---------|----------|
 | `dual-socket-split` | Dual-socket system — vLLM pinned to socket 1 (cores 64–95, NUMA 1), GuideLLM pinned to socket 0 (cores 0–31, NUMA 0) |
 
-To list profiles available on disk:
+To list profiles available:
 
 ```bash
 ./cpueval profiles
@@ -353,14 +355,14 @@ To list profiles available on disk:
 **Advanced: extra vars:**
 
 ```bash
-./cpueval run --suite concurrent-load \
+./cpueval --suite concurrent-load \
   --model meta-llama/Llama-3.2-1B-Instruct \
   --cores 32 \
   --extra vllm_cpu_start=64 \
   --extra vllm_numa_node=1
 
 # Or from a file (path relative to your current working directory, or absolute)
-./cpueval run --suite concurrent-load \
+./cpueval --suite concurrent-load \
   --model meta-llama/Llama-3.2-1B-Instruct \
   --cores 32 \
   --extra-vars-file my-config.yaml        # relative to CWD
@@ -529,22 +531,22 @@ guidellm_numa_node: 0
 
 Use it:
 ```bash
-./cpueval run --suite concurrent-load --model my-model --cores 32 --profile my-profile
+./cpueval --suite concurrent-load --model my-model --cores 32 --profile my-profile
 ```
 
 ## Architecture
 
 cpueval is a **thin wrapper** that:
-- Generates `ansible-playbook` commands from suite definitions
-- Streams stdout/stderr (no log hiding)
-- Does **NOT** reimplement deploy/GuideLLM/vLLM logic
-- Provides progressive disclosure for CPU pinning
+- Generates `ansible-playbook` commands from suite definitions;
+- Streams stdout/stderr (no log hiding);
+- Does **NOT** reimplement deploy/GuideLLM/vLLM logic;
+- Provides progressive disclosure for CPU pinning.
 
 **Design principles:**
-- Thin wrapper only (subprocess invocation, not Python reimplementation)
-- Suites are YAML data, not hard-coded
-- Env-based inventory
-- Progressive disclosure (simple `--cores`, advanced pinning optional)
+- Thin wrapper only (subprocess invocation, not Python reimplementation);
+- Suites are YAML data, not hard-coded;
+- Env-based inventory;
+- Progressive disclosure (simple `--cores`, advanced pinning optional).
 
 ## Troubleshooting
 

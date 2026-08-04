@@ -9,7 +9,7 @@ raw inference performance.
 
 > **Tool:** `vllm bench throughput` (direct Python API via Podman container)
 >
-> **CLI:** `./cpueval run --suite offline-batch` (recommended)
+> **CLI:** `./cpueval --suite offline-batch` (recommended)
 >
 > **Playbook:** `llm-benchmark-offline-batch.yml`
 >
@@ -177,13 +177,13 @@ From the repository root:
 
 ```bash
 # Default: all 11 use cases, 3 runs each
-./cpueval run --suite offline-batch
+./cpueval --suite offline-batch
 
 # All use cases, all RedHatAI models, 5 runs each
-./cpueval run --suite offline-batch --mode use-cases --runs 5 --models all
+./cpueval --suite offline-batch --mode use-cases --runs 5 --models all
 
 # Single use case with core sweep
-./cpueval run --suite offline-batch \
+./cpueval --suite offline-batch \
   --mode use-case-sweep \
   --use-case summarization \
   --models all \
@@ -191,8 +191,8 @@ From the repository root:
   --runs 3
 
 # Technical benchmarks
-./cpueval run --suite offline-batch --mode core-scaling --model <model>
-./cpueval run --suite offline-batch --mode batch-scaling --model <model> --cores 16
+./cpueval --suite offline-batch --mode core-scaling --model <model>
+./cpueval --suite offline-batch --mode batch-scaling --model <model> --cores 16
 ```
 
 cpueval maps `--mode`, `--runs`, `--use-case`, `--models`, `--cores`, `--dataset`,

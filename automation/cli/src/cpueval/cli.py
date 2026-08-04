@@ -40,214 +40,34 @@ def version_callback(value: bool):
         raise typer.Exit()
 
 
-@app.callback()
-def main(
-    version: Optional[bool] = typer.Option(
-        None,
-        "--version",
-        "-V",
-        callback=version_callback,
-        is_eager=True,
-        help="Show version and exit",
-    ),
-):
-    """cpueval - Thin CLI wrapper over Ansible CPU automation."""
-    pass
-
-
-@app.command()
-def list():
-    """List available test suites."""
-    registry = SuiteRegistry()
-    suites = registry.list_suites()
-
-    if not suites:
-        console.print("[yellow]No suites found. Check automation/cli/suites/[/yellow]")
-        return
-
-    table = Table(show_header=True, header_style="bold magenta")
-    table.add_column("Name", style="cyan", width=25)
-    table.add_column("Type", width=12)
-    table.add_column("Runner", width=10)
-    table.add_column("Description")
-
-    for suite in suites:
-        suite_type = "[green]Matrix[/green]" if suite.matrix else "[yellow]Single[/yellow]"
-        table.add_row(
-            suite.name,
-            suite_type,
-            suite.runner,
-            suite.description[:60] + "..." if len(suite.description) > 60 else suite.description,
-        )
-
-    console.print()
-    console.print(table)
-    console.print()
-    console.print("[dim]Legend:[/dim] [green]Matrix[/green] = full test matrix by default, [yellow]Single[/yellow] = requires --model")
-    console.print()
-
-
-@app.command()
-def show(suite_name: str = typer.Argument(..., help="Suite name")):
-    """Show detailed information about a suite."""
-    registry = SuiteRegistry()
-    suite = registry.get_suite(suite_name)
-
-    if not suite:
-        console.print(f"[red]Suite not found: {suite_name}[/red]")
-        console.print("\nRun 'cpueval list' to see available suites.")
-        raise typer.Exit(1)
-
-    console.print(f"\n[bold cyan]Suite: {suite.name}[/bold cyan]\n")
-    console.print(f"[dim]Description:[/dim] {suite.description}")
-    console.print(f"[dim]Runner:[/dim] {suite.runner}")
-    console.print(f"[dim]Target:[/dim] {suite.target}")
-
-    if suite.matrix:
-        console.print(
-            "[dim]Type:[/dim] [green]Matrix suite[/green]"
-            " (runs full test matrix by default)"
-        )
-    else:
-        console.print(
-            "[dim]Type:[/dim] [yellow]Single-shot[/yellow] (--model required)"
-        )
-    console.print()
-
-    if suite.defaults:
-        console.print("[bold]Default Parameters:[/bold]")
-        for key, value in suite.defaults.items():
-            console.print(f"  {key}: {value}")
-        console.print()
-
-        if suite.matrix:
-            console.print("[dim]This suite runs the full matrix by default.[/dim]")
-            console.print("[dim]Use CLI flags to narrow the scope:[/dim]")
-            if "models" in suite.defaults:
-                console.print("  --models <preset|list> to select specific models")
-            if "cores" in suite.defaults:
-                console.print("  --cores <list> to select specific core counts")
-            if "workloads" in suite.defaults:
-                console.print("  --workloads <list> to select specific workloads")
-            if suite.args_builder == "offline_batch":
-                console.print("  --mode <mode> to select test mode (default: use-cases)")
-                console.print("  --runs <n> for use-cases / use-case-sweep iteration count")
-                console.print("  --use-case <name> for use-case-sweep mode")
-                console.print("  --models / --model for model selection")
-                console.print("  --cores <list> for core sweep modes")
-                console.print("  --dataset / --num-prompts for run_test mode")
-                console.print("  --input-len / --output-len for dataset token lengths")
-            console.print()
-
-    if suite.param_mappings:
-        console.print("[bold]Parameter Mappings:[/bold]")
-        for cli_param, ansible_param in suite.param_mappings.items():
-            console.print(f"  --{cli_param} → {ansible_param}")
-        console.print()
-
-    if suite.source_path:
-        console.print(f"[dim]Suite definition:[/dim] {suite.source_path}")
-        console.print(
-            "[dim]Edit that file to change permanent defaults.[/dim]"
-        )
-        console.print()
-
-
-@app.command()
-def profiles():
-    """List available CPU pinning profiles."""
-    profiles_dir = get_profiles_dir()
-    if not profiles_dir.exists():
-        console.print(
-            f"[yellow]No profiles directory found at {profiles_dir}[/yellow]"
-        )
-        return
-
-    profile_files = sorted(profiles_dir.glob("*.yaml"))
-    if not profile_files:
-        console.print("[yellow]No profiles found.[/yellow]")
-        console.print(
-            f"Add YAML files to {profiles_dir} to create profiles."
-        )
-        return
-
-    table = Table(show_header=True, header_style="bold magenta")
-    table.add_column("Name", style="cyan", width=25)
-    table.add_column("Path", style="dim")
-
-    for pf in profile_files:
-        table.add_row(pf.stem, str(pf))
-
-    console.print()
-    console.print(table)
-    console.print()
-    console.print(f"[dim]Profile directory:[/dim] {profiles_dir}")
-    console.print(
-        "[dim]Use with:[/dim] cpueval run --suite <suite>"
-        " --model <model> --profile <name>"
-    )
-    console.print()
-
-
-@app.command()
-def doctor(
-    no_ping: bool = typer.Option(False, "--no-ping", help="Skip host connectivity check"),
-):
-    """Run system health checks."""
-    exit_code = run_doctor(no_ping=no_ping)
-    raise typer.Exit(exit_code)
-
-
-@app.command()
-def run(
-    suite: str = typer.Option(..., "--suite", "-s", help="Suite name (required)"),
-    model: Optional[str] = typer.Option(None, "--model", "-m", help="Model ID (single model)"),
-    models: Optional[str] = typer.Option(None, "--models", help="Models preset or comma-list (matrix suites)"),
-    cores: Optional[str] = typer.Option(None, "--cores", "-c", help="Core counts (comma-separated or single)"),
-    workload: Optional[str] = typer.Option(None, "--workload", "-w", help="Workload type"),
-    workloads: Optional[str] = typer.Option(None, "--workloads", help="Workloads (comma-separated, matrix suites)"),
-    scenario: Optional[str] = typer.Option(None, "--scenario", help="Test scenario"),
-    mode: Optional[str] = typer.Option(
-        None,
-        "--mode",
-        help=(
-            "Offline-batch mode: use-cases, use-case-sweep, baseline, batch-scaling, "
-            "input-scaling, output-scaling, core-scaling, quantization, kv-capacity, "
-            "context-scaling, all, run_test"
-        ),
-    ),
-    runs: Optional[int] = typer.Option(
-        None, "--runs", help="Iteration count (offline-batch use-cases / use-case-sweep)"
-    ),
-    use_case: Optional[str] = typer.Option(
-        None, "--use-case", help="Use case name (offline-batch use-case-sweep mode)"
-    ),
-    dataset: Optional[str] = typer.Option(
-        None, "--dataset", help="Dataset name (offline-batch run_test mode)"
-    ),
-    num_prompts: Optional[int] = typer.Option(
-        None, "--num-prompts", help="Prompt count (offline-batch run_test / baseline)"
-    ),
-    input_len: Optional[int] = typer.Option(
-        None, "--input-len", help="Input token length (offline-batch random dataset)"
-    ),
-    output_len: Optional[int] = typer.Option(
-        None, "--output-len", help="Output token length (offline-batch random/sharegpt)"
-    ),
-    preset: Optional[str] = typer.Option(None, "--preset", help="Model preset (deprecated, use --models)"),
-    tensor_parallel: Optional[int] = typer.Option(None, "--tensor-parallel", help="Tensor parallel size"),
-    vllm_cpu_start: Optional[int] = typer.Option(None, "--vllm-cpu-start", help="vLLM CPU start core"),
-    vllm_numa: Optional[int] = typer.Option(None, "--vllm-numa", help="vLLM NUMA node"),
-    guidellm_cpus: Optional[str] = typer.Option(None, "--guidellm-cpus", help="GuideLLM CPU range (e.g., 0-31)"),
-    guidellm_numa: Optional[int] = typer.Option(None, "--guidellm-numa", help="GuideLLM NUMA node"),
-    profile: Optional[str] = typer.Option(None, "--profile", help="Load CPU pinning profile"),
-    extra: Optional[List[str]] = typer.Option(None, "--extra", help="Extra vars (KEY=VAL, repeatable)"),
-    extra_vars_file: Optional[str] = typer.Option(None, "--extra-vars-file", help="Load extra vars from YAML/JSON"),
-    ansible_arg: Optional[List[str]] = typer.Option(None, "--ansible-arg", help="Raw ansible-playbook args (repeatable)"),
-    dry_run: bool = typer.Option(False, "--dry-run", help="Print command without running"),
-    skip_doctor: bool = typer.Option(False, "--skip-doctor", help="Skip pre-run health check"),
-):
-    """Run a test suite."""
+def _execute_suite(
+    suite: str,
+    model: Optional[str],
+    models: Optional[str],
+    cores: Optional[str],
+    workload: Optional[str],
+    workloads: Optional[str],
+    scenario: Optional[str],
+    mode: Optional[str],
+    runs: Optional[int],
+    use_case: Optional[str],
+    dataset: Optional[str],
+    num_prompts: Optional[int],
+    input_len: Optional[int],
+    output_len: Optional[int],
+    preset: Optional[str],
+    tensor_parallel: Optional[int],
+    vllm_cpu_start: Optional[int],
+    vllm_numa: Optional[int],
+    guidellm_cpus: Optional[str],
+    guidellm_numa: Optional[int],
+    profile: Optional[str],
+    extra: Optional[List[str]],
+    extra_vars_file: Optional[str],
+    ansible_arg: Optional[List[str]],
+    dry_run: bool,
+    skip_doctor: bool,
+) -> None:
     registry = SuiteRegistry()
     suite_obj = registry.get_suite(suite)
 
@@ -469,6 +289,322 @@ def run(
     else:
         console.print(f"[red]Unknown runner type: {suite_obj.runner}[/red]")
         raise typer.Exit(1)
+
+
+@app.callback(invoke_without_command=True)
+def main(
+    ctx: typer.Context,
+    version: Optional[bool] = typer.Option(
+        None,
+        "--version",
+        "-V",
+        callback=version_callback,
+        is_eager=True,
+        help="Show version and exit",
+    ),
+    suite: Optional[str] = typer.Option(None, "--suite", "-s", help="Suite name"),
+    model: Optional[str] = typer.Option(None, "--model", "-m", help="Model ID (single model)"),
+    models: Optional[str] = typer.Option(None, "--models", help="Models preset or comma-list (matrix suites)"),
+    cores: Optional[str] = typer.Option(None, "--cores", "-c", help="Core counts (comma-separated or single)"),
+    workload: Optional[str] = typer.Option(None, "--workload", "-w", help="Workload type"),
+    workloads: Optional[str] = typer.Option(None, "--workloads", help="Workloads (comma-separated, matrix suites)"),
+    scenario: Optional[str] = typer.Option(None, "--scenario", help="Test scenario"),
+    mode: Optional[str] = typer.Option(
+        None,
+        "--mode",
+        help=(
+            "Offline-batch mode: use-cases, use-case-sweep, baseline, batch-scaling, "
+            "input-scaling, output-scaling, core-scaling, quantization, kv-capacity, "
+            "context-scaling, all, run_test"
+        ),
+    ),
+    runs: Optional[int] = typer.Option(
+        None, "--runs", help="Iteration count (offline-batch use-cases / use-case-sweep)"
+    ),
+    use_case: Optional[str] = typer.Option(
+        None, "--use-case", help="Use case name (offline-batch use-case-sweep mode)"
+    ),
+    dataset: Optional[str] = typer.Option(
+        None, "--dataset", help="Dataset name (offline-batch run_test mode)"
+    ),
+    num_prompts: Optional[int] = typer.Option(
+        None, "--num-prompts", help="Prompt count (offline-batch run_test / baseline)"
+    ),
+    input_len: Optional[int] = typer.Option(
+        None, "--input-len", help="Input token length (offline-batch random dataset)"
+    ),
+    output_len: Optional[int] = typer.Option(
+        None, "--output-len", help="Output token length (offline-batch random/sharegpt)"
+    ),
+    preset: Optional[str] = typer.Option(None, "--preset", help="Model preset (deprecated, use --models)"),
+    tensor_parallel: Optional[int] = typer.Option(None, "--tensor-parallel", help="Tensor parallel size"),
+    vllm_cpu_start: Optional[int] = typer.Option(None, "--vllm-cpu-start", help="vLLM CPU start core"),
+    vllm_numa: Optional[int] = typer.Option(None, "--vllm-numa", help="vLLM NUMA node"),
+    guidellm_cpus: Optional[str] = typer.Option(None, "--guidellm-cpus", help="GuideLLM CPU range (e.g., 0-31)"),
+    guidellm_numa: Optional[int] = typer.Option(None, "--guidellm-numa", help="GuideLLM NUMA node"),
+    profile: Optional[str] = typer.Option(None, "--profile", help="Load CPU pinning profile"),
+    extra: Optional[List[str]] = typer.Option(None, "--extra", help="Extra vars (KEY=VAL, repeatable)"),
+    extra_vars_file: Optional[str] = typer.Option(None, "--extra-vars-file", help="Load extra vars from YAML/JSON"),
+    ansible_arg: Optional[List[str]] = typer.Option(None, "--ansible-arg", help="Raw ansible-playbook args (repeatable)"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Print command without running"),
+    skip_doctor: bool = typer.Option(False, "--skip-doctor", help="Skip pre-run health check"),
+):
+    """cpueval - Thin CLI wrapper over Ansible CPU automation."""
+    if ctx.invoked_subcommand is not None:
+        return
+    if suite is None:
+        typer.echo(ctx.get_help())
+        raise typer.Exit()
+    _execute_suite(
+        suite=suite,
+        model=model,
+        models=models,
+        cores=cores,
+        workload=workload,
+        workloads=workloads,
+        scenario=scenario,
+        mode=mode,
+        runs=runs,
+        use_case=use_case,
+        dataset=dataset,
+        num_prompts=num_prompts,
+        input_len=input_len,
+        output_len=output_len,
+        preset=preset,
+        tensor_parallel=tensor_parallel,
+        vllm_cpu_start=vllm_cpu_start,
+        vllm_numa=vllm_numa,
+        guidellm_cpus=guidellm_cpus,
+        guidellm_numa=guidellm_numa,
+        profile=profile,
+        extra=extra,
+        extra_vars_file=extra_vars_file,
+        ansible_arg=ansible_arg,
+        dry_run=dry_run,
+        skip_doctor=skip_doctor,
+    )
+
+
+@app.command()
+def list():
+    """List available test suites."""
+    registry = SuiteRegistry()
+    suites = registry.list_suites()
+
+    if not suites:
+        console.print("[yellow]No suites found. Check automation/cli/suites/[/yellow]")
+        return
+
+    table = Table(show_header=True, header_style="bold magenta")
+    table.add_column("Name", style="cyan", width=25)
+    table.add_column("Type", width=12)
+    table.add_column("Runner", width=10)
+    table.add_column("Description")
+
+    for suite in suites:
+        suite_type = "[green]Matrix[/green]" if suite.matrix else "[yellow]Single[/yellow]"
+        table.add_row(
+            suite.name,
+            suite_type,
+            suite.runner,
+            suite.description[:60] + "..." if len(suite.description) > 60 else suite.description,
+        )
+
+    console.print()
+    console.print(table)
+    console.print()
+    console.print("[dim]Legend:[/dim] [green]Matrix[/green] = full test matrix by default, [yellow]Single[/yellow] = requires --model")
+    console.print()
+
+
+@app.command()
+def show(suite_name: str = typer.Argument(..., help="Suite name")):
+    """Show detailed information about a suite."""
+    registry = SuiteRegistry()
+    suite = registry.get_suite(suite_name)
+
+    if not suite:
+        console.print(f"[red]Suite not found: {suite_name}[/red]")
+        console.print("\nRun 'cpueval list' to see available suites.")
+        raise typer.Exit(1)
+
+    console.print(f"\n[bold cyan]Suite: {suite.name}[/bold cyan]\n")
+    console.print(f"[dim]Description:[/dim] {suite.description}")
+    console.print(f"[dim]Runner:[/dim] {suite.runner}")
+    console.print(f"[dim]Target:[/dim] {suite.target}")
+
+    if suite.matrix:
+        console.print(
+            "[dim]Type:[/dim] [green]Matrix suite[/green]"
+            " (runs full test matrix by default)"
+        )
+    else:
+        console.print(
+            "[dim]Type:[/dim] [yellow]Single-shot[/yellow] (--model required)"
+        )
+    console.print()
+
+    if suite.defaults:
+        console.print("[bold]Default Parameters:[/bold]")
+        for key, value in suite.defaults.items():
+            console.print(f"  {key}: {value}")
+        console.print()
+
+        if suite.matrix:
+            console.print("[dim]This suite runs the full matrix by default.[/dim]")
+            console.print("[dim]Use CLI flags to narrow the scope:[/dim]")
+            if "models" in suite.defaults:
+                console.print("  --models <preset|list> to select specific models")
+            if "cores" in suite.defaults:
+                console.print("  --cores <list> to select specific core counts")
+            if "workloads" in suite.defaults:
+                console.print("  --workloads <list> to select specific workloads")
+            if suite.args_builder == "offline_batch":
+                console.print("  --mode <mode> to select test mode (default: use-cases)")
+                console.print("  --runs <n> for use-cases / use-case-sweep iteration count")
+                console.print("  --use-case <name> for use-case-sweep mode")
+                console.print("  --models / --model for model selection")
+                console.print("  --cores <list> for core sweep modes")
+                console.print("  --dataset / --num-prompts for run_test mode")
+                console.print("  --input-len / --output-len for dataset token lengths")
+            console.print()
+
+    if suite.param_mappings:
+        console.print("[bold]Parameter Mappings:[/bold]")
+        for cli_param, ansible_param in suite.param_mappings.items():
+            console.print(f"  --{cli_param} → {ansible_param}")
+        console.print()
+
+    if suite.source_path:
+        console.print(f"[dim]Suite definition:[/dim] {suite.source_path}")
+        console.print(
+            "[dim]Edit that file to change permanent defaults.[/dim]"
+        )
+        console.print()
+
+
+@app.command()
+def profiles():
+    """List available CPU pinning profiles."""
+    profiles_dir = get_profiles_dir()
+    if not profiles_dir.exists():
+        console.print(
+            f"[yellow]No profiles directory found at {profiles_dir}[/yellow]"
+        )
+        return
+
+    profile_files = sorted(profiles_dir.glob("*.yaml"))
+    if not profile_files:
+        console.print("[yellow]No profiles found.[/yellow]")
+        console.print(
+            f"Add YAML files to {profiles_dir} to create profiles."
+        )
+        return
+
+    table = Table(show_header=True, header_style="bold magenta")
+    table.add_column("Name", style="cyan", width=25)
+    table.add_column("Path", style="dim")
+
+    for pf in profile_files:
+        table.add_row(pf.stem, str(pf))
+
+    console.print()
+    console.print(table)
+    console.print()
+    console.print(f"[dim]Profile directory:[/dim] {profiles_dir}")
+    console.print(
+        "[dim]Use with:[/dim] cpueval --suite <suite> --profile <name>"
+    )
+    console.print()
+
+
+@app.command()
+def doctor(
+    no_ping: bool = typer.Option(False, "--no-ping", help="Skip host connectivity check"),
+):
+    """Run system health checks."""
+    exit_code = run_doctor(no_ping=no_ping)
+    raise typer.Exit(exit_code)
+
+
+@app.command()
+def run(
+    suite: str = typer.Option(..., "--suite", "-s", help="Suite name (required)"),
+    model: Optional[str] = typer.Option(None, "--model", "-m", help="Model ID (single model)"),
+    models: Optional[str] = typer.Option(None, "--models", help="Models preset or comma-list (matrix suites)"),
+    cores: Optional[str] = typer.Option(None, "--cores", "-c", help="Core counts (comma-separated or single)"),
+    workload: Optional[str] = typer.Option(None, "--workload", "-w", help="Workload type"),
+    workloads: Optional[str] = typer.Option(None, "--workloads", help="Workloads (comma-separated, matrix suites)"),
+    scenario: Optional[str] = typer.Option(None, "--scenario", help="Test scenario"),
+    mode: Optional[str] = typer.Option(
+        None,
+        "--mode",
+        help=(
+            "Offline-batch mode: use-cases, use-case-sweep, baseline, batch-scaling, "
+            "input-scaling, output-scaling, core-scaling, quantization, kv-capacity, "
+            "context-scaling, all, run_test"
+        ),
+    ),
+    runs: Optional[int] = typer.Option(
+        None, "--runs", help="Iteration count (offline-batch use-cases / use-case-sweep)"
+    ),
+    use_case: Optional[str] = typer.Option(
+        None, "--use-case", help="Use case name (offline-batch use-case-sweep mode)"
+    ),
+    dataset: Optional[str] = typer.Option(
+        None, "--dataset", help="Dataset name (offline-batch run_test mode)"
+    ),
+    num_prompts: Optional[int] = typer.Option(
+        None, "--num-prompts", help="Prompt count (offline-batch run_test / baseline)"
+    ),
+    input_len: Optional[int] = typer.Option(
+        None, "--input-len", help="Input token length (offline-batch random dataset)"
+    ),
+    output_len: Optional[int] = typer.Option(
+        None, "--output-len", help="Output token length (offline-batch random/sharegpt)"
+    ),
+    preset: Optional[str] = typer.Option(None, "--preset", help="Model preset (deprecated, use --models)"),
+    tensor_parallel: Optional[int] = typer.Option(None, "--tensor-parallel", help="Tensor parallel size"),
+    vllm_cpu_start: Optional[int] = typer.Option(None, "--vllm-cpu-start", help="vLLM CPU start core"),
+    vllm_numa: Optional[int] = typer.Option(None, "--vllm-numa", help="vLLM NUMA node"),
+    guidellm_cpus: Optional[str] = typer.Option(None, "--guidellm-cpus", help="GuideLLM CPU range (e.g., 0-31)"),
+    guidellm_numa: Optional[int] = typer.Option(None, "--guidellm-numa", help="GuideLLM NUMA node"),
+    profile: Optional[str] = typer.Option(None, "--profile", help="Load CPU pinning profile"),
+    extra: Optional[List[str]] = typer.Option(None, "--extra", help="Extra vars (KEY=VAL, repeatable)"),
+    extra_vars_file: Optional[str] = typer.Option(None, "--extra-vars-file", help="Load extra vars from YAML/JSON"),
+    ansible_arg: Optional[List[str]] = typer.Option(None, "--ansible-arg", help="Raw ansible-playbook args (repeatable)"),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Print command without running"),
+    skip_doctor: bool = typer.Option(False, "--skip-doctor", help="Skip pre-run health check"),
+):
+    """Run a test suite (alias; prefer: cpueval --suite …)."""
+    _execute_suite(
+        suite=suite,
+        model=model,
+        models=models,
+        cores=cores,
+        workload=workload,
+        workloads=workloads,
+        scenario=scenario,
+        mode=mode,
+        runs=runs,
+        use_case=use_case,
+        dataset=dataset,
+        num_prompts=num_prompts,
+        input_len=input_len,
+        output_len=output_len,
+        preset=preset,
+        tensor_parallel=tensor_parallel,
+        vllm_cpu_start=vllm_cpu_start,
+        vllm_numa=vllm_numa,
+        guidellm_cpus=guidellm_cpus,
+        guidellm_numa=guidellm_numa,
+        profile=profile,
+        extra=extra,
+        extra_vars_file=extra_vars_file,
+        ansible_arg=ansible_arg,
+        dry_run=dry_run,
+        skip_doctor=skip_doctor,
+    )
 
 
 @app.command()

@@ -141,3 +141,90 @@ def test_baseline():
     assert build_offline_batch_args(
         {"mode": "baseline", "cores": "32", "num_prompts": 100}
     ) == ["baseline", "32", "100"]
+
+
+# ---------------------------------------------------------------------------
+# Tier 1 — use-case-sweep arg builder (highest enterprise ROI)
+# ---------------------------------------------------------------------------
+
+def test_use_case_sweep_classification():
+    assert build_offline_batch_args(
+        {
+            "mode": "use-case-sweep",
+            "use_case": "classification",
+            "models": "all",
+            "cores": "8,16,24,32",
+            "runs": 3,
+        }
+    ) == ["use-case-sweep", "classification", "all", "8,16,24,32", "3"]
+
+
+def test_use_case_sweep_rag():
+    assert build_offline_batch_args(
+        {
+            "mode": "use-case-sweep",
+            "use_case": "rag",
+            "models": "all",
+            "cores": "8,16,24,32",
+            "runs": 3,
+        }
+    ) == ["use-case-sweep", "rag", "all", "8,16,24,32", "3"]
+
+
+def test_use_case_sweep_entity_extraction():
+    assert build_offline_batch_args(
+        {
+            "mode": "use-case-sweep",
+            "use_case": "entity-extraction",
+            "models": "all",
+            "cores": "8,16,24,32",
+            "runs": 3,
+        }
+    ) == [
+        "use-case-sweep", "entity-extraction", "all", "8,16,24,32", "3",
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Tier 2 — use-case-sweep arg builder (high value, narrower audience)
+# ---------------------------------------------------------------------------
+
+def test_use_case_sweep_long_summarization():
+    assert build_offline_batch_args(
+        {
+            "mode": "use-case-sweep",
+            "use_case": "long-summarization",
+            "models": "all",
+            "cores": "8,16,24,32",
+            "runs": 3,
+        }
+    ) == [
+        "use-case-sweep", "long-summarization", "all", "8,16,24,32", "3",
+    ]
+
+
+def test_use_case_sweep_etl():
+    """ETL: core-scaling sweep directly answers capacity-planning questions."""
+    assert build_offline_batch_args(
+        {
+            "mode": "use-case-sweep",
+            "use_case": "etl",
+            "models": "all",
+            "cores": "8,16,24,32",
+            "runs": 3,
+        }
+    ) == ["use-case-sweep", "etl", "all", "8,16,24,32", "3"]
+
+
+def test_use_case_sweep_short_labeling():
+    assert build_offline_batch_args(
+        {
+            "mode": "use-case-sweep",
+            "use_case": "short-labeling",
+            "models": "all",
+            "cores": "8,16,24,32",
+            "runs": 3,
+        }
+    ) == [
+        "use-case-sweep", "short-labeling", "all", "8,16,24,32", "3",
+    ]

@@ -10,11 +10,11 @@ args_builder: offline_batch
 #        context-scaling | all | run_test
 #
 # Examples:
-#   ./cpueval run --suite offline-batch
-#   ./cpueval run --suite offline-batch --mode use-cases --runs 5 --models all
-#   ./cpueval run --suite offline-batch --mode use-case-sweep \
+#   ./cpueval --suite offline-batch
+#   ./cpueval --suite offline-batch --mode use-cases --runs 5 --models all
+#   ./cpueval --suite offline-batch --mode use-case-sweep \
 #     --use-case summarization --models all --cores 8,16,32 --runs 3
-#   ./cpueval run --suite offline-batch --mode run_test \
+#   ./cpueval --suite offline-batch --mode run_test \
 #     --model all --dataset random --num-prompts 3 --cores 8 \
 #     --input-len 32 --output-len 16
 #

@@ -177,7 +177,7 @@ Use `./cpueval doctor --no-ping` to skip host connectivity checks.
 #### 4. Run Platform Setup (Optional)
 
 ```bash
-./cpueval run --suite setup-platform
+./cpueval --suite setup-platform
 ```
 
 This configures CPU isolation, performance governor, NUMA optimizations, etc.
@@ -192,26 +192,26 @@ This configures CPU isolation, performance governor, NUMA optimizations, etc.
 ./cpueval show rhaiis-sweep
 
 # Preview the command before running
-./cpueval run --suite chat-smoke \
+./cpueval --suite chat-smoke \
   --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
   --cores 16 --dry-run
 
 # Quick chat test
-./cpueval run --suite chat-smoke \
+./cpueval --suite chat-smoke \
   --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
   --cores 16
 
 # Matrix sweep (narrowed scope)
-./cpueval run --suite rhaiis-sweep --models tiny --cores 8 --workloads chat
+./cpueval --suite rhaiis-sweep --models tiny --cores 8 --workloads chat
 
 # Audio benchmarking
-./cpueval run --suite audio \
+./cpueval --suite audio \
   --model openai/whisper-small \
   --scenario quick-test \
   --cores 32
 
 # Embedding models (full matrix)
-./cpueval run --suite embedding
+./cpueval --suite embedding
 ```
 
 `--dry-run` prints the underlying Ansible command without executing — useful

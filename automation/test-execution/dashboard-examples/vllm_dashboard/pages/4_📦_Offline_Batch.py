@@ -525,8 +525,8 @@ def main():
         st.warning("No benchmark results found. Run some benchmarks first!")
         st.code(
             "# Run a benchmark (from repository root):\n"
-            "./cpueval run --suite offline-batch\n"
-            "./cpueval run --suite offline-batch --mode use-cases --runs 5 --models all\n"
+            "./cpueval --suite offline-batch\n"
+            "./cpueval --suite offline-batch --mode use-cases --runs 5 --models all\n"
             "\n"
             "# Or via bash script:\n"
             "cd automation/test-execution/scripts/bash\n"
