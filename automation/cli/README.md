@@ -129,15 +129,17 @@ done
 ./cpueval doctor --no-ping
 ```
 
-### run - Execute benchmarks
+### Execute benchmarks
+
+> `cpueval run --suite …` is also accepted for backward compatibility.
 
 **Common options:**
-- `--suite/-s` (required) - Suite name
-- `--model/-m` - Model ID
-- `--cores/-c` - CPU core count
-- `--workload/-w` - Workload type
-- `--dry-run` - Print command without running
-- `--skip-doctor` - Skip health checks
+- `--suite/-s` (required): Suite name
+- `--model/-m`: Model ID
+- `--cores/-c`: CPU core count
+- `--workload/-w`: Workload type
+- `--dry-run`: Print command without running
+- `--skip-doctor`: Skip health checks
 
 **LLM Examples:**
 
