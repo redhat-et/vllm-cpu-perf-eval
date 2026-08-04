@@ -231,6 +231,13 @@ if [[ ${#SKIP_MODELS[@]} -gt 0 ]]; then
     MODELS=("${FILTERED_MODELS[@]}")
 fi
 
+# Validate max-seconds
+if [[ -n "${MAX_SECONDS}" && ! "${MAX_SECONDS}" =~ ^[0-9]+$ ]]; then
+    log_error "Invalid --max-seconds value: ${MAX_SECONDS}"
+    log_error "Must be a positive integer (seconds)"
+    exit 1
+fi
+
 # Validate scenario
 if [[ ! "${SCENARIO}" =~ ^(baseline|latency|all)$ ]]; then
     log_error "Invalid scenario: ${SCENARIO}"
