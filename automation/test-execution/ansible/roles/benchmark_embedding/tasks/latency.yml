@@ -14,6 +14,7 @@
     num_prompts: "{{ benchmark_tool.vllm_bench.num_prompts | default(250) }}"
     vllm_bench_cpuset_cpus: "{{ vllm_bench_cpus | default(benchmark_tool.vllm_bench.cpuset_cpus | default('')) }}"
     vllm_bench_cpuset_mems: "{{ vllm_bench_numa_node | default(benchmark_tool.vllm_bench.cpuset_mems | default('')) }}"
+    vllm_bench_max_seconds: "{{ guidellm_max_seconds | default(300) | int }}"
 
 - name: Validate NUMA pinning configuration
   ansible.builtin.assert:
@@ -67,6 +68,7 @@
 - name: "Latency Test - Run at each concurrency level"
   ansible.builtin.command:
     cmd: >
+      timeout {{ (vllm_bench_max_seconds | int) * 2 }}
       {{ vllm_bench_prefix }}
       --host {{ bench_config.vllm_host }}
       --port {{ bench_config.vllm_port }}

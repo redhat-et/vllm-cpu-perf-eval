@@ -14,6 +14,7 @@
     num_prompts: "{{ benchmark_tool.vllm_bench.num_prompts | default(250) }}"
     vllm_bench_cpuset_cpus: "{{ vllm_bench_cpus | default(benchmark_tool.vllm_bench.cpuset_cpus | default('')) }}"
     vllm_bench_cpuset_mems: "{{ vllm_bench_numa_node | default(benchmark_tool.vllm_bench.cpuset_mems | default('')) }}"
+    vllm_bench_max_seconds: "{{ guidellm_max_seconds | default(300) | int }}"
 
 - name: Validate NUMA pinning configuration
   ansible.builtin.assert:
@@ -167,10 +168,12 @@
       - "Maximum RPS achieved: {{ max_rps }}"
       - "Planned load tests: {{ baseline_load_percentages | join('%, ') }}%"
       - "{{ planned_rates | map(attribute='percent') | zip(planned_rates | map(attribute='rate')) | map('join', '% = ') | map('regex_replace', '^(.*)$', '  \\1 req/s') | list }}"
+      - "Time limit per test: {{ vllm_bench_max_seconds }}s (num_prompts capped to rate × time_limit, min 20)"
 
 - name: "Baseline Test - Run at each load percentage"
   ansible.builtin.command:
     cmd: >
+      timeout {{ (vllm_bench_max_seconds | int) * 2 }}
       {{ vllm_bench_prefix }}
       --host {{ bench_config.vllm_host }}
       --port {{ bench_config.vllm_port }}
@@ -178,7 +181,7 @@
       --model "{{ model_name }}"
       --dataset-name random
       --random-input-len {{ embedding_random_input_len | default(512) }}
-      --num-prompts {{ num_prompts }}
+      --num-prompts {{ [[((vllm_bench_max_seconds | int) * ((max_rps | float) * (item | float / 100))) | round | int, 20] | max, num_prompts | int] | min }}
       --request-rate {{ ((max_rps | float) * (item | float / 100)) | round(2) }}
       --endpoint /v1/embeddings
       --save-result
