@@ -20,6 +20,7 @@ class Suite:
     param_mappings: Dict[str, str]  # CLI param -> ansible/script param
     matrix: bool = False  # True = full matrix by default, --model optional
     args_builder: Optional[str] = None  # e.g. offline_batch for positional scripts
+    source_path: Optional[Path] = None  # YAML file this suite was loaded from
 
 
 class SuiteRegistry:
@@ -111,6 +112,7 @@ class SuiteRegistry:
                     param_mappings=param_mappings,
                     matrix=data.get("matrix", False),
                     args_builder=data.get("args_builder"),
+                    source_path=suite_file,
                 )
                 self._suites[suite.name] = suite
             except yaml.YAMLError as e:

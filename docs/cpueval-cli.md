@@ -368,6 +368,25 @@ ls automation/cli/profiles/
 
 **Precedence:** suite defaults → profile → CLI flags → --extra → --extra-vars-file
 
+### profiles - List CPU pinning profiles
+
+```bash
+./cpueval profiles
+```
+
+Lists all profiles available in `automation/cli/profiles/`, showing their name and
+file path. Use the name with `--profile` when running a suite.
+
+Example output:
+
+```text
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Name                      ┃ Path                                             ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ dual-socket-split         │ .../automation/cli/profiles/dual-socket-split... │
+└───────────────────────────┴──────────────────────────────────────────────────┘
+```
+
 ### results - View benchmark results
 
 ```bash

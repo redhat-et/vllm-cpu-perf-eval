@@ -139,8 +139,9 @@ def load_profile(profile_name: str, profiles_dir: Path) -> Dict[str, Any]:
     """Load a CPU pinning profile from YAML.
 
     Args:
-        profile_name: Profile name (without .yaml extension)
-        profiles_dir: Directory containing profiles
+        profile_name: Profile name (bare name resolved from profiles_dir) or a
+            relative/absolute file path (detected by .yaml/.yml suffix or path separators).
+        profiles_dir: Directory containing built-in profiles
 
     Returns:
         Profile extra vars as dict
@@ -149,7 +150,11 @@ def load_profile(profile_name: str, profiles_dir: Path) -> Dict[str, Any]:
         FileNotFoundError: If profile doesn't exist
         ValueError: If profile is invalid YAML
     """
-    profile_path = profiles_dir / f"{profile_name}.yaml"
+    candidate = Path(profile_name).expanduser()
+    if candidate.suffix in (".yaml", ".yml") or candidate.parent != Path("."):
+        profile_path = candidate
+    else:
+        profile_path = profiles_dir / f"{profile_name}.yaml"
 
     if not profile_path.exists():
         raise FileNotFoundError(f"Profile not found: {profile_path}")

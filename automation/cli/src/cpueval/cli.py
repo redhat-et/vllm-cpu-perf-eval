@@ -104,9 +104,14 @@ def show(suite_name: str = typer.Argument(..., help="Suite name")):
     console.print(f"[dim]Target:[/dim] {suite.target}")
 
     if suite.matrix:
-        console.print(f"[dim]Type:[/dim] [green]Matrix suite[/green] (runs full test matrix by default)")
+        console.print(
+            "[dim]Type:[/dim] [green]Matrix suite[/green]"
+            " (runs full test matrix by default)"
+        )
     else:
-        console.print(f"[dim]Type:[/dim] [yellow]Single-shot[/yellow] (--model required)")
+        console.print(
+            "[dim]Type:[/dim] [yellow]Single-shot[/yellow] (--model required)"
+        )
     console.print()
 
     if suite.defaults:
@@ -139,6 +144,49 @@ def show(suite_name: str = typer.Argument(..., help="Suite name")):
         for cli_param, ansible_param in suite.param_mappings.items():
             console.print(f"  --{cli_param} → {ansible_param}")
         console.print()
+
+    if suite.source_path:
+        console.print(f"[dim]Suite definition:[/dim] {suite.source_path}")
+        console.print(
+            "[dim]Edit that file to change permanent defaults.[/dim]"
+        )
+        console.print()
+
+
+@app.command()
+def profiles():
+    """List available CPU pinning profiles."""
+    profiles_dir = get_profiles_dir()
+    if not profiles_dir.exists():
+        console.print(
+            f"[yellow]No profiles directory found at {profiles_dir}[/yellow]"
+        )
+        return
+
+    profile_files = sorted(profiles_dir.glob("*.yaml"))
+    if not profile_files:
+        console.print("[yellow]No profiles found.[/yellow]")
+        console.print(
+            f"Add YAML files to {profiles_dir} to create profiles."
+        )
+        return
+
+    table = Table(show_header=True, header_style="bold magenta")
+    table.add_column("Name", style="cyan", width=25)
+    table.add_column("Path", style="dim")
+
+    for pf in profile_files:
+        table.add_row(pf.stem, str(pf))
+
+    console.print()
+    console.print(table)
+    console.print()
+    console.print(f"[dim]Profile directory:[/dim] {profiles_dir}")
+    console.print(
+        "[dim]Use with:[/dim] cpueval run --suite <suite>"
+        " --model <model> --profile <name>"
+    )
+    console.print()
 
 
 @app.command()
@@ -334,6 +382,15 @@ def run(
             console.print(f"[cyan]Loaded profile: {profile}[/cyan]")
         except FileNotFoundError:
             console.print(f"[red]Profile not found: {profile}[/red]")
+            available = sorted(get_profiles_dir().glob("*.yaml"))
+            if available:
+                names = ", ".join(p.stem for p in available)
+                console.print(
+                    f"[dim]Available profiles: {names}[/dim]"
+                )
+            console.print(
+                "[dim]Run 'cpueval profiles' to list profiles.[/dim]"
+            )
             raise typer.Exit(1)
         except ValueError as e:
             console.print(f"[red]Invalid profile: {e}[/red]")
