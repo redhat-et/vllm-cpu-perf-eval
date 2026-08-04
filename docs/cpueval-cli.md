@@ -16,7 +16,7 @@ Matrix-first CLI for running comprehensive CPU benchmarks. Most suites run full 
 ./cpueval run --suite rhaiis-sweep           # 60 combinations: 5 models × 3 cores × 4 workloads
 ./cpueval run --suite embedding              # 30 combinations: 5 models × 3 cores × 2 scenarios
 ./cpueval run --suite offline-batch          # 33 runs: use-cases 3
-./cpueval run --suite audio                  # Configurable matrix
+./cpueval run --suite audio                  # Default: all models, transcription-throughput scenario, 32 cores
 
 # Override to narrow
 ./cpueval run --suite rhaiis-sweep --models tiny --cores 8
@@ -125,6 +125,10 @@ Parameter Mappings:
   --workloads → --workloads
   --workload → --workloads
 ```
+
+> **Tip:** The defaults shown above (e.g. `cores: 8,16,32`) come directly from the suite YAML at
+> `automation/cli/src/cpueval/suites/rhaiis-sweep.yaml`. Edit that file to permanently change the
+> defaults for every run; use `--cores` at the command line to override for a single run only.
 
 ### doctor - Health checks
 
@@ -315,11 +319,34 @@ export VLLM_CONTAINER_IMAGE=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
 
 **Using a profile:**
 
+Pass the profile name (without `.yaml`) — cpueval looks it up in
+`automation/cli/profiles/`. You can also pass a relative or absolute path to a
+file anywhere on disk.
+
 ```bash
+# Built-in profile (resolved from automation/cli/profiles/)
 ./cpueval run --suite concurrent-load \
   --model meta-llama/Llama-3.2-1B-Instruct \
   --cores 32 \
   --profile dual-socket-split
+
+# Custom profile by path
+./cpueval run --suite concurrent-load \
+  --model meta-llama/Llama-3.2-1B-Instruct \
+  --cores 32 \
+  --profile ~/my-profiles/my-server.yaml
+```
+
+**Built-in profiles:**
+
+| Profile | Use case |
+|---------|----------|
+| `dual-socket-split` | Dual-socket system — vLLM pinned to socket 1 (cores 64–95, NUMA 1), GuideLLM pinned to socket 0 (cores 0–31, NUMA 0) |
+
+To list profiles available on disk:
+
+```bash
+ls automation/cli/profiles/
 ```
 
 **Advanced: extra vars:**
@@ -331,11 +358,12 @@ export VLLM_CONTAINER_IMAGE=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
   --extra vllm_cpu_start=64 \
   --extra vllm_numa_node=1
 
-# Or from a file
+# Or from a file (path relative to your current working directory, or absolute)
 ./cpueval run --suite concurrent-load \
   --model meta-llama/Llama-3.2-1B-Instruct \
   --cores 32 \
-  --extra-vars-file my-config.yaml
+  --extra-vars-file my-config.yaml        # relative to CWD
+  # --extra-vars-file /path/to/my-config.yaml  # or absolute
 ```
 
 **Precedence:** suite defaults → profile → CLI flags → --extra → --extra-vars-file
@@ -420,7 +448,7 @@ via `./cpueval results --open`.
 | `rhaiis-sweep` | 5 models × 3 cores × 4 workloads | RHAIIS model concurrent load sweep (60 tests) |
 | `embedding` | 5 models × 3 cores × 2 scenarios | Embedding model performance matrix (30 tests) |
 | `offline-batch` | 11 use-cases × 3 runs | Offline batch processing suite (33 tests) |
-| `audio` | Configurable (models × scenarios × cores) | Audio model benchmarking (Whisper ASR) |
+| `audio` | all models × `transcription-throughput` × 32 cores (override with `--scenario`, `--cores`) | Audio model benchmarking (Whisper ASR) |
 
 ### Single-Shot Suites (require `--model`)
 
@@ -444,6 +472,10 @@ Available scenarios for the `audio` suite (`--scenario` flag):
 - `quick-test` - Fast smoke test
 
 ## Creating Custom Suites
+
+You can also edit an existing suite YAML directly to change its permanent defaults
+(e.g. to add a new core count or workload to the default matrix) rather than creating
+a new suite from scratch.
 
 Create a YAML file in `automation/cli/suites/`:
 

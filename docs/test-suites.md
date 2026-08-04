@@ -9,7 +9,7 @@ run, how to run it, and where to read the detailed methodology.
 
 | Suite | Type | Status | cpueval command | Detailed docs |
 | --- | --- | --- | --- | --- |
-| Concurrent Load | Single-shot | Validated | `cpueval run --suite concurrent-load --model <model>` | [Concurrent Load](../tests/concurrent-load/concurrent-load.md) |
+| Concurrent Load | Matrix | Validated | `cpueval run --suite concurrent-load` | [Concurrent Load](../tests/concurrent-load/concurrent-load.md) |
 | RHAIIS Sweep | Matrix | Validated | `cpueval run --suite rhaiis-sweep` | [RHAIIS Testing](../tests/concurrent-load/rhaiis-testing.md) |
 | Scalability | Manual/Ansible | WIP | Ansible playbooks | [Scalability](../tests/scalability/scalability.md) |
 | Offline Batch | Matrix | Validated | `cpueval run --suite offline-batch` | [Offline Batch](../tests/offline-batch/offline-batch.md) |
