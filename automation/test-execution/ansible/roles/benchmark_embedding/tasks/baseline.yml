@@ -64,6 +64,7 @@
 - name: "Baseline Test - Find Maximum Throughput (inf rate)"
   ansible.builtin.command:
     cmd: >
+      timeout {{ (vllm_bench_max_seconds | int) * 2 }}
       {{ vllm_bench_prefix }}
       --host {{ bench_config.vllm_host }}
       --port {{ bench_config.vllm_port }}
