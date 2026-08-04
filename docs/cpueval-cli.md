@@ -185,7 +185,7 @@ Verifies:
   --cores 16 \
   --workload chat
 
-# Full 3-phase concurrent load test
+# Concurrent load test (single model, single workload)
 ./cpueval run --suite concurrent-load \
   --model meta-llama/Llama-3.2-1B-Instruct \
   --cores 32 \

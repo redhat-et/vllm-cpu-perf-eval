@@ -148,7 +148,7 @@ done
   --cores 16 \
   --workload chat
 
-# Full 3-phase concurrent load test
+# Concurrent load test (single model, single workload)
 ./cpueval run --suite concurrent-load \
   --model meta-llama/Llama-3.2-1B-Instruct \
   --cores 32 \
@@ -166,19 +166,19 @@ done
 ```bash
 # Transcription throughput test
 ./cpueval run --suite audio \
-  --model openai/whisper-small \
+  --models openai/whisper-small \
   --scenario transcription-throughput \
   --cores 32
 
 # Quick audio test
 ./cpueval run --suite audio \
-  --model openai/whisper-tiny \
+  --models openai/whisper-tiny \
   --scenario quick-test \
   --cores 16
 
 # Transcription latency test
 ./cpueval run --suite audio \
-  --model openai/whisper-medium \
+  --models openai/whisper-medium \
   --scenario transcription-latency \
   --cores 64
 ```
