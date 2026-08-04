@@ -170,7 +170,7 @@ without requiring `--model`.
 | Suite | Default matrix | Description |
 | --- | --- | --- |
 | `rhaiis-sweep` | 5 models × 3 cores × 4 workloads | RHAIIS quantized model concurrent load sweep |
-| `concurrent-load` | all models × 3 cores × 4 workloads (use `--models`/`--workload` to narrow) | Upstream LLM concurrent load sweep |
+| `concurrent-load` | all models × 3 cores × 4 workloads (60 tests, use `--models`/`--workload` to narrow) | Upstream LLM concurrent load sweep |
 | `embedding` | 5 models × 3 cores × 2 scenarios | Embedding model performance matrix |
 | `offline-batch` | 11 use-cases × 3 runs | Offline batch processing |
 | `audio` | all models × `transcription-throughput` × 32 cores (override with `--scenario`, `--cores`) | Audio model benchmarking (Whisper ASR) |

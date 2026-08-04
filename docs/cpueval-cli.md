@@ -210,15 +210,15 @@ ansible-playbook -i .../inventory/hosts.yml .../llm-benchmark-auto.yml \
 **Audio Examples:**
 
 ```bash
-# Transcription throughput test
+# Transcription throughput test (single model)
 ./cpueval run --suite audio \
-  --model openai/whisper-small \
+  --models openai/whisper-small \
   --scenario transcription-throughput \
   --cores 32
 
-# Quick audio test
+# Quick audio test (single model)
 ./cpueval run --suite audio \
-  --model openai/whisper-tiny \
+  --models openai/whisper-tiny \
   --scenario quick-test \
   --cores 16
 ```
@@ -466,7 +466,7 @@ via `./cpueval results --open`.
 | Suite | Default Matrix | Description |
 |-------|----------------|-------------|
 | `rhaiis-sweep` | 5 models × 3 cores × 4 workloads | RHAIIS model concurrent load sweep (60 tests) |
-| `concurrent-load` | all models × 3 cores × 4 workloads | Upstream LLM concurrent load sweep |
+| `concurrent-load` | all models × 3 cores × 4 workloads (60 tests) | Upstream LLM concurrent load sweep |
 | `embedding` | 5 models × 3 cores × 2 scenarios | Embedding model performance matrix (30 tests) |
 | `offline-batch` | 11 use-cases × 3 runs | Offline batch processing suite (33 tests) |
 | `audio` | all models × `transcription-throughput` × 32 cores | Audio model benchmarking (Whisper ASR) |

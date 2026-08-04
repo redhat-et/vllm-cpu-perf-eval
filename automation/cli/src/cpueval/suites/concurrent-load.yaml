@@ -1,5 +1,5 @@
 name: concurrent-load
-description: Upstream LLM concurrent load - full matrix (15 combinations by default)
+description: "Upstream LLM concurrent load - full matrix (60 combinations by default: all models × 3 cores × 4 workloads)"
 runner: script
 target: automation/test-execution/scripts/bash/run-concurrent-load-suite.sh
 matrix: true

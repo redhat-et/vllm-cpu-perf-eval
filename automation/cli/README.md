@@ -99,7 +99,7 @@ done
   --extra guidellm_rate="[1,2,4,8,16,32]" \
   --extra test_name=EPYC-NO-SMT
 
-# Or run full concurrent-load matrix (15 combinations: 5 models × 3 cores × 1 workload)
+# Or run full concurrent-load matrix (60 combinations: all models × 3 cores × 4 workloads)
 ./cpueval run --suite concurrent-load \
   --vllm-cpu-start 96 \
   --vllm-numa 1 \
@@ -356,20 +356,20 @@ Model presets: `all` | `llama` | `qwen` | `tiny`
 
 ## Available Suites
 
-| Suite | Runner | Description |
-|-------|--------|-------------|
-| `concurrent-load` | ansible | 3-phase concurrent load testing (baseline, realistic, production) |
-| `chat-smoke` | ansible | Quick auto-configured LLM chat test |
-| `embedding` | ansible | Embedding model performance tests |
-| `audio` | ansible | Audio model benchmarking (ASR, transcription, translation) |
-| `offline-batch` | script | Offline batch processing (high-throughput static workloads) |
-| `rhaiis-sweep` | script | Multi-model sweep for RHAIIS quantized models |
-| `setup-platform` | ansible | Platform setup and configuration |
-| `health` | ansible | Health check for DUT and load generator |
+| Suite | Type | Runner | Description |
+|-------|------|--------|-------------|
+| `concurrent-load` | Matrix | script | Upstream LLM concurrent load sweep (60 tests: all models × 3 cores × 4 workloads) |
+| `rhaiis-sweep` | Matrix | script | RHAIIS quantized model sweep (60 tests: 5 models × 3 cores × 4 workloads) |
+| `embedding` | Matrix | script | Embedding model performance matrix (30 tests: 5 models × 3 cores × 2 scenarios) |
+| `offline-batch` | Matrix | script | Offline batch processing (33 tests: 11 use-cases × 3 runs) |
+| `audio` | Matrix | script | Audio model benchmarking — all models × transcription-throughput × 32 cores |
+| `chat-smoke` | Single | ansible | Quick auto-configured LLM chat test (requires --model) |
+| `setup-platform` | Single | ansible | Platform setup and configuration |
+| `health` | Single | ansible | Health check for DUT and load generator |
 
 ## Creating Custom Suites
 
-Create a YAML file in `automation/cli/suites/`:
+Create a YAML file in `automation/cli/src/cpueval/suites/`:
 
 ```yaml
 name: my-suite

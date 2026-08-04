@@ -217,7 +217,7 @@ def test_concurrent_load_workload_override():
 
 
 def test_concurrent_load_default():
-    """Test that concurrent-load default is chat only (15 combinations: 5×3×1)."""
+    """Test that concurrent-load default runs all 4 workloads (60 combinations: all×3×4)."""
     result = subprocess.run(
         [sys.executable, "-m", "cpueval", "run", "--suite", "concurrent-load",
          "--dry-run", "--skip-doctor"],
@@ -227,7 +227,7 @@ def test_concurrent_load_default():
     )
 
     assert result.returncode == 0
-    assert "--workloads chat" in result.stdout
+    assert "--workloads chat,code,summarization,rag" in result.stdout
     assert "--models all" in result.stdout
     assert "--cores 8,16,32" in result.stdout
 
