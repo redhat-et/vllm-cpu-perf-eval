@@ -288,6 +288,33 @@ Files are generated as `sweep-{percentage}pct.json` (e.g., `sweep-10pct.json`, `
 
 ## Benchmark Parameters
 
+### Per-Test Time Limit (`guidellm_max_seconds`)
+
+Embedding benchmarks resolve `guidellm_max_seconds` as `vllm_bench_max_seconds` inside the
+`benchmark_embedding` Ansible role. It controls two things:
+
+| What it affects | How |
+|---|---|
+| Hang guard | `timeout 2 × guidellm_max_seconds` wraps every `vllm-bench` command |
+| Load-% `--num-prompts` cap | `min(num_prompts, max(20, rate × guidellm_max_seconds))` — prevents low-throughput models from running far longer than the time limit |
+
+**Default: 300 seconds** (GuideLLM LLM tests default to 600 s; embedding uses 300 s intentionally for shorter runs).
+
+```bash
+# One-off override via ansible-playbook
+ansible-playbook -i inventory/hosts.yml embedding-benchmark.yml \
+  -e "test_model=RedHatAI/Qwen3-Embedding-8B" \
+  -e "guidellm_max_seconds=600"
+
+# Via run-embedding-suite.sh flag
+./run-embedding-suite.sh --max-seconds 600
+
+# Via environment variable (picked up by run-embedding-suite.sh)
+GUIDELLM_MAX_SECONDS=600 ./run-embedding-suite.sh --models large
+```
+
+### Other Parameters
+
 Override default benchmark settings:
 
 ```bash

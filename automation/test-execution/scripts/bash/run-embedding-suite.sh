@@ -16,6 +16,8 @@
 #                           Default: all
 #   --num-prompts NUM       Number of prompts per test
 #                           Default: 250
+#   --max-seconds SEC       Per-test time limit in seconds; sets guidellm_max_seconds
+#                           Default: Ansible default (300s); env var GUIDELLM_MAX_SECONDS also accepted
 #   --skip-models LIST      Comma-separated models to skip
 #   --continue-on-error     Continue testing if a model fails
 #   --dry-run               Show what would run without executing
@@ -47,6 +49,10 @@
 #
 #   # Baseline tests only on 16 cores
 #   ./run-embedding-suite.sh --scenario baseline --cores 16
+#
+#   # Increase per-test time limit for slow models (e.g. Qwen3-Embedding-8B)
+#   ./run-embedding-suite.sh --models large --max-seconds 600
+#   GUIDELLM_MAX_SECONDS=600 ./run-embedding-suite.sh --models large
 #
 # ==============================================================================
 
@@ -107,6 +113,7 @@ MODELS_INPUT="all"
 CORES_INPUT="4,8,16,32"
 SCENARIO="all"
 NUM_PROMPTS=250
+MAX_SECONDS="${GUIDELLM_MAX_SECONDS:-}"
 CONTINUE_ON_ERROR=false
 DRY_RUN=false
 SKIP_MODELS_INPUT=""
@@ -144,6 +151,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --num-prompts)
             NUM_PROMPTS="$2"
+            shift 2
+            ;;
+        --max-seconds)
+            MAX_SECONDS="$2"
             shift 2
             ;;
         --skip-models)
@@ -251,6 +262,7 @@ echo ""
 echo "Core counts: ${CORE_COUNTS[*]}"
 echo "Scenario: ${SCENARIO}"
 echo "Prompts per test: ${NUM_PROMPTS}"
+echo "Time limit: ${MAX_SECONDS:-300 (Ansible default)}s"
 echo "Continue on error: ${CONTINUE_ON_ERROR}"
 echo "Dry run: ${DRY_RUN}"
 echo "=========================================="
@@ -310,6 +322,8 @@ for model in "${MODELS[@]}"; do
             -e "num_prompts=${NUM_PROMPTS}"
             -e "test_name=${TEST_NAME}"
         )
+
+        [[ -n "${MAX_SECONDS}" ]] && cmd+=(-e "guidellm_max_seconds=${MAX_SECONDS}")
 
         # Parallel instance overrides — set env vars to run multiple instances
         # simultaneously on the same host (each with its own container, port, NUMA nodes):
