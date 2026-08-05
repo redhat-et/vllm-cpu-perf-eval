@@ -310,7 +310,7 @@ def plot_speedup_vs_sequential(df: pd.DataFrame):
         pd.DataFrame(speedup_data)
         .groupby(['stage', 'model_label', 'cores'], as_index=False)
         .agg({'speedup': 'mean', 'concurrency': 'first'})
-        .sort_values('concurrency')
+        .sort_values('stage', key=_stage_sort_key)
     )
 
     fig = px.bar(
@@ -478,7 +478,7 @@ def plot_rtf(df: pd.DataFrame):
     df_agg = (
         df_agg.groupby(['stage', 'model_label', 'cores'], as_index=False)
         .agg({'concurrency': 'first', **rtf_cols})
-        .sort_values('concurrency')
+        .sort_values('stage', key=_stage_sort_key)
     )
 
     plot_data = []
