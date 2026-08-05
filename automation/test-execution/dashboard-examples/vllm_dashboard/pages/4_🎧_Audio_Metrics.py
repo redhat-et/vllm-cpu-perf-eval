@@ -587,7 +587,7 @@ def plot_total_time_comparison(df: pd.DataFrame):
     )
     df_agg = _agg_for_bar(
         df_plot, 'seconds_per_file',
-        extra_mean=['successful_requests', 'duration'],
+        extra_mean=['successful_requests', 'duration', 'requests_per_second'],
     )
 
     fig = px.bar(
@@ -615,17 +615,13 @@ def plot_total_time_comparison(df: pd.DataFrame):
     fig.update_layout(height=500)
     st.plotly_chart(fig, use_container_width=True)
 
-    # Summary table — group by model_label + cores + stage so different core
-    # counts for the same model are never merged into one row.
+    # Summary table — reuse df_agg so table and chart always show the same values.
     st.markdown("#### Summary: Files Processed and Total Time")
-    summary = df_plot.groupby(
-        ['model_label', 'cores', 'stage']
-    ).agg({
-        'successful_requests': 'mean',
-        'duration': 'mean',
-        'seconds_per_file': 'mean',
-        'requests_per_second': 'mean',
-    }).reset_index()
+    summary = df_agg[
+        ['model_label', 'cores', 'stage',
+         'successful_requests', 'duration', 'seconds_per_file',
+         'requests_per_second']
+    ].copy()
     summary['files_per_hour'] = summary['requests_per_second'] * 3600
     summary = summary.rename(columns={
         'model_label': 'Model',
