@@ -460,6 +460,34 @@ def test_endpoint_url_sets_external_mode():
     """--endpoint-url enables external endpoint mode for ansible-backed runs."""
     result = subprocess.run(
         [
+            sys.executable, "-c",
+            "import os, sys; "
+            "sys.path.insert(0, 'automation/cli/src'); "
+            "from cpueval.cli import _apply_endpoint_env; "
+            "_apply_endpoint_env('http://lb.example:8080'); "
+            "print(os.environ.get('VLLM_ENDPOINT_MODE', '')); "
+            "print(os.environ.get('VLLM_ENDPOINT_URL', ''))",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(repo_root()),
+        env={
+            **dict(os.environ),
+            "VLLM_ENDPOINT_MODE": "",
+            "VLLM_ENDPOINT_URL": "",
+        },
+    )
+
+    assert result.returncode == 0, f"STDERR: {result.stderr}"
+    lines = result.stdout.strip().splitlines()
+    assert lines[0] == "external"
+    assert lines[1] == "http://lb.example:8080"
+
+
+def test_endpoint_url_dry_run_invokes_ansible():
+    """Integration: --endpoint-url still produces an ansible dry-run command."""
+    result = subprocess.run(
+        [
             sys.executable, "-m", "cpueval", "run",
             "--suite", "chat-smoke",
             "--model", "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
@@ -471,11 +499,6 @@ def test_endpoint_url_sets_external_mode():
         capture_output=True,
         text=True,
         cwd=str(repo_root()),
-        env={
-            **dict(os.environ),
-            "VLLM_ENDPOINT_MODE": "",
-            "VLLM_ENDPOINT_URL": "",
-        },
     )
 
     assert result.returncode == 0, f"STDERR: {result.stderr}"

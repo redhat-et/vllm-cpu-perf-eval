@@ -56,12 +56,57 @@ export ANSIBLE_SSH_USER=<user>
 export ANSIBLE_SSH_KEY=<path-to-key>
 ```
 
-**External endpoint mode** (test existing vLLM server):
+**External endpoint mode** (test existing vLLM server or load balancer):
 
 ```bash
 export VLLM_ENDPOINT_MODE=external
 export VLLM_ENDPOINT_URL=http://your-vllm-host:8000
 ```
+
+Or pass the URL per run with `--endpoint-url` (sets both variables automatically):
+
+```bash
+./cpueval --suite concurrent-load \
+  --models tiny --cores 8 --workloads chat \
+  --endpoint-url http://your-vllm-host:8080
+```
+
+### Scale-out workflow (nginx load balancer)
+
+Use this when multiple vLLM instances sit behind a load balancer (for example after
+`start-vllm-scaleout.yml` from the scale-out playbooks). cpueval does not deploy the
+stack today — point benchmarks at the LB URL instead of a single managed instance.
+
+```bash
+# 1. Deploy scale-out on the DUT (Ansible; see docs/vllm-scaleout.md when merged)
+ansible-playbook -i inventory/hosts.yml start-vllm-scaleout.yml \
+  -e "scaleout_num_instances=3 scaleout_cores_per_instance=16"
+
+# 2. Benchmark through the load balancer (port 8080 by default)
+./cpueval --suite concurrent-load \
+  --models tiny \
+  --cores 32 \
+  --workloads chat \
+  --endpoint-url http://<DUT_HOSTNAME>:8080 \
+  --skip-doctor
+
+# 3. Narrow matrix while validating a new instance count
+./cpueval --suite concurrent-load \
+  --models TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
+  --cores 8 \
+  --workload chat \
+  --endpoint-url http://<DUT_HOSTNAME>:8080 \
+  --extra guidellm_profile=synchronous \
+  --extra guidellm_max_seconds=120 \
+  --skip-doctor
+
+# 4. Tear down when done
+ansible-playbook -i inventory/hosts.yml stop-vllm-scaleout.yml
+```
+
+In external mode, `--cores`, `--vllm-cpu-start`, and `--profile` pinning are ignored
+(the endpoint manages its own CPUs). GuideLLM still runs on the load generator with
+normal inventory settings.
 
 ## Commands
 
