@@ -142,7 +142,8 @@ MODES:
 EXAMPLES:
 
   # Use cases (practical scenarios)
-  ./run-offline-batch-suite.sh use-cases 3                    # 3 runs, TinyLlama pruned only
+  ./run-offline-batch-suite.sh use-cases 3                    # 3 runs, 3 production models (default)
+  ./run-offline-batch-suite.sh use-cases 3 "$MODEL_TINY_PRUNED"  # 3 runs, TinyLlama smoke only
   ./run-offline-batch-suite.sh use-cases 5 all                # 5 runs, 3 production RedHatAI models
   ./run-offline-batch-suite.sh use-cases 1 "$MODEL_LLAMA_W8A8,$MODEL_QWEN_W4A16"  # Specific models
 
