@@ -129,7 +129,7 @@ MODES:
       Runs: number of iterations (default: 3)
 
   Technical Benchmarks (Performance analysis):
-    baseline [cores] [prompts]       Baseline throughput across 3 production RedHatAI models
+    baseline [cores] [prompts]       Baseline throughput across all 4 RedHatAI models (includes TinyLlama)
     batch-scaling <model> [cores]    Batch size scaling (10, 50, 100, 250, 500, 1000)
     input-scaling <model> [cores]    Input length variation (128-2048 tokens)
     output-scaling <model> [cores]   Output length variation (64-1024 tokens)

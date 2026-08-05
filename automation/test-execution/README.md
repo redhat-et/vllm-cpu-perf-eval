@@ -43,7 +43,7 @@ Tests vLLM in offline batch mode (vllm bench throughput).
 
 **Features:**
 - 11 real-world use cases (summarization, classification, translation, long-doc summarization, RAG, shared-prefix, ultra-short labeling, etc.)
-- Multi-model support (all 4 RedHatAI models)
+- Multi-model support (3 production models; TinyLlama available for baseline/smoke)
 - Core scaling, batch size scaling
 - Container image tracking
 
@@ -126,7 +126,7 @@ export VLLM_CONTAINER_IMAGE=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
 ```bash
 cd scripts/bash
 
-# Run all 11 use cases with all 4 RedHatAI models (5 iterations each)
+# Run all 11 use cases with 3 production RedHatAI models (5 iterations each)
 ./run-offline-batch-suite.sh use-cases 5 all
 
 # Single test configuration
