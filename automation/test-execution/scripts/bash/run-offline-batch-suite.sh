@@ -103,7 +103,7 @@ USAGE:
 MODES:
 
   Use Case Oriented (Real-world scenarios):
-    use-cases [runs] [models]        Run all 11 use cases (default: 5 runs each, TinyLlama pruned)
+    use-cases [runs] [models]        Run all 11 use cases (default: 5 runs each, production models)
       - Document summarization
       - Classification/tagging
       - Translation
@@ -208,6 +208,11 @@ run_ansible_with_timeout() {
     # See README "VLLM_NUMA_NODE vs VLLM_NUMA_NODES" for the distinction between the two.
     local parallel_args=()
     if [[ -n "${VLLM_CONTAINER_NAME:-}" ]]; then
+        # Reject names that could inject shell metacharacters into cleanup commands.
+        if [[ ! "${VLLM_CONTAINER_NAME}" =~ ^[a-zA-Z0-9][a-zA-Z0-9_-]*$ ]]; then
+            echo -e "${RED}✗ Invalid VLLM_CONTAINER_NAME '${VLLM_CONTAINER_NAME}': only alphanumerics, hyphens, and underscores allowed${NC}" >&2
+            return 1
+        fi
         parallel_args+=(-e "vllm_container_name=${VLLM_CONTAINER_NAME}")
     fi
     if [[ -n "${VLLM_PORT:-}" ]]; then
@@ -261,12 +266,14 @@ run_ansible_with_timeout() {
 
         # In parallel mode VLLM_CONTAINER_NAME is always set (one stable name per
         # instance).  Clean up only that container so we never kill sibling instances.
-        # In sequential mode the name is Ansible-generated and --replace handles it,
-        # so skip explicit cleanup here.
+        # In sequential mode the container is named vllm-server (stable default) and
+        # --replace handles replacement on retry, so no explicit cleanup needed here.
         if [[ -n "${VLLM_CONTAINER_NAME:-}" ]]; then
             echo -e "${YELLOW}Cleaning up hung container ${VLLM_CONTAINER_NAME}...${NC}"
-            ansible dut -i "$INVENTORY" -m shell \
-                -a "podman stop ${VLLM_CONTAINER_NAME} 2>/dev/null; podman rm ${VLLM_CONTAINER_NAME} 2>/dev/null" -b || true
+            ansible dut -i "$INVENTORY" -b -m command \
+                -a "podman stop ${VLLM_CONTAINER_NAME}" || true
+            ansible dut -i "$INVENTORY" -b -m command \
+                -a "podman rm ${VLLM_CONTAINER_NAME}" || true
         fi
 
         if [ $attempt -lt $max_attempts ]; then
@@ -322,7 +329,7 @@ run_test() {
 
 use_cases_suite() {
     local runs="${1:-5}"
-    local model_list="${2:-$MODEL_TINY_PRUNED}"
+    local model_list="${2:-$ALL_MODELS}"
 
     # Handle "all" keyword for all models
     if [[ "$model_list" == "all" ]]; then
