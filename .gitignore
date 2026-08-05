@@ -58,7 +58,8 @@ results/*.csv
 *.csv
 
 # Local test harnesses (not for commit)
-run-parallel-3inst.sh
+run-parallel-*.sh
+run-embed-*.sh
 
 # Log directories
 logs/

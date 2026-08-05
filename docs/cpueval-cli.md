@@ -170,13 +170,13 @@ Verifies:
 > `cpueval run --suite …` is also accepted for backward compatibility.
 
 **Common options:**
-- `--suite/-s` (required): Suite name
-- `--model/-m`: Model ID (overrides suite default)
-- `--cores/-c`: CPU core count
-- `--workload/-w`: Workload type
-- `--scenario`: Test scenario (audio suites)
-- `--dry-run`: Print command without running
-- `--skip-doctor`: Skip health checks
+- `--suite`/`-s` (required); Suite name
+- `--model`/`-m`; Model ID (overrides suite default)
+- `--cores`/`-c`; CPU core count
+- `--workload`/`-w`; Workload type
+- `--scenario`; Test scenario (audio suites)
+- `--dry-run`; Print command without running
+- `--skip-doctor`; Skip health checks
 
 **LLM Examples:**
 
