@@ -493,6 +493,89 @@ Available scenarios for the `audio` suite (`--scenario` flag):
 - `constant-rate-stress` - Stress testing
 - `quick-test` - Fast smoke test
 
+## Testing custom models
+
+Every suite accepts an arbitrary HuggingFace model ID — no changes to any YAML files are needed.
+
+### LLM suites (concurrent-load, rhaiis-sweep, chat-smoke, offline-batch)
+
+Pass any HuggingFace model ID directly:
+
+```bash
+# Single-shot test
+./cpueval --suite chat-smoke \
+  --model my-org/my-llm-model \
+  --cores 32 \
+  --workload chat
+
+# Concurrent load against a custom model
+./cpueval --suite concurrent-load \
+  --model my-org/my-llm-model \
+  --cores 16 \
+  --workload chat
+
+# Offline batch — use-cases mode (comma-separated list also works)
+./cpueval --suite offline-batch \
+  --mode use-cases \
+  --models my-org/my-llm-model \
+  --runs 3
+
+# Offline batch — single benchmark mode
+./cpueval --suite offline-batch \
+  --mode batch-scaling \
+  --model my-org/my-llm-model \
+  --cores 32
+```
+
+> **Gated models:** set `export HF_TOKEN=hf_xxxxx` before running.
+
+### Audio suite
+
+Whisper is the default but any vLLM-compatible audio model works. Non-Whisper models
+typically need a larger `max_model_len` (Whisper's encoder cap is 448 tokens) and
+may require an explicit `dtype`:
+
+```bash
+# Whisper model — defaults work, no overrides needed
+./cpueval --suite audio \
+  --models openai/whisper-small \
+  --scenario transcription-throughput \
+  --cores 32
+
+# Non-Whisper audio model — override max_model_len and dtype
+./cpueval --suite audio \
+  --models fixie-ai/ultravox-v0_5-llama-3_2-1b \
+  --extra dtype=bfloat16 \
+  --extra max_model_len=2048 \
+  --scenario transcription-throughput \
+  --cores 32
+```
+
+| Extra var | Bash flag | When to use |
+|---|---|---|
+| `dtype=float16\|bfloat16\|auto` | `--dtype` | Non-Whisper models that recommend a specific dtype |
+| `max_model_len=N` | `--max-model-len` | Any model whose max sequence length differs from Whisper's 448 |
+
+### Embedding suite
+
+```bash
+./cpueval --suite embedding \
+  --model my-org/my-embedding-model \
+  --cores 16
+```
+
+### Optional: register the model for KV cache metadata
+
+Running with a custom model ID works immediately. To also get accurate KV cache
+sizing (rather than the 40 GiB fallback) and include the model in future
+`--models all` sweeps, add an entry to the relevant model matrix:
+
+- LLM models: [models/llm-models/model-matrix.yaml](../models/llm-models/model-matrix.yaml)
+- Embedding models: [models/embedding-models/model-matrix.yaml](../models/embedding-models/model-matrix.yaml)
+- Audio models: [models/audio-models/model-matrix.yaml](../models/audio-models/model-matrix.yaml)
+
+See [models/models.md](../models/models.md) for the full schema and instructions.
+
 ## Creating Custom Suites
 
 You can also edit an existing suite YAML directly to change its permanent defaults

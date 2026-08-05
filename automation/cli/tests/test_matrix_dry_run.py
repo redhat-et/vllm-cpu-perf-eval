@@ -265,6 +265,26 @@ def test_audio_scenario_override():
     assert "transcription-throughput" not in result.stdout
 
 
+def test_audio_custom_model_dtype_and_max_model_len():
+    """dtype and max_model_len extras are forwarded as bash flags for non-Whisper models."""
+    result = subprocess.run(
+        [sys.executable, "-m", "cpueval", "run", "--suite", "audio",
+         "--models", "fixie-ai/ultravox-v0_5-llama-3_2-1b",
+         "--extra", "dtype=bfloat16",
+         "--extra", "max_model_len=2048",
+         "--scenario", "transcription-throughput",
+         "--dry-run", "--skip-doctor"],
+        capture_output=True,
+        text=True,
+        cwd=str(repo_root()),
+    )
+
+    assert result.returncode == 0, f"STDERR: {result.stderr}"
+    assert "--models fixie-ai/ultravox-v0_5-llama-3_2-1b" in result.stdout
+    assert "--dtype bfloat16" in result.stdout
+    assert "--max-model-len 2048" in result.stdout
+
+
 def test_dry_run_no_results_message():
     """Test that dry-run doesn't show 'Results saved' message."""
     result = subprocess.run(
@@ -344,7 +364,7 @@ def test_implicit_matches_explicit_run():
 # ---------------------------------------------------------------------------
 
 def test_offline_batch_use_case_summarization():
-    """Summarization via implicit run (no subcommand): sharegpt, 1000 prompts, core sweep."""
+    """Summarization via implicit run (no subcommand): sharegpt, 1000 prompts."""
     result = subprocess.run(
         [
             sys.executable, "-m", "cpueval",

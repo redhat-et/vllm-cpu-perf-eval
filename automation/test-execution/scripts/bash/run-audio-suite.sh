@@ -19,6 +19,12 @@
 #   --cores LIST            Comma-separated core counts
 #                           Default: 32
 #   --skip-models LIST      Comma-separated models to skip
+#   --dtype DTYPE           vLLM dtype override (auto|float16|bfloat16)
+#                           Default: auto (Whisper models work well with auto)
+#                           Set to bfloat16 for non-Whisper models that recommend it
+#   --max-model-len N       Maximum model sequence length override
+#                           Default: 448 (Whisper encoder max position embedding)
+#                           Non-Whisper audio models typically need a larger value
 #   --continue-on-error     Continue if a test fails
 #   --dry-run               Show commands without running
 #   -h, --help              Show this help
@@ -28,6 +34,7 @@
 #   whisper-tiny   - openai/whisper-tiny
 #   whisper-small  - openai/whisper-small
 #   whisper-medium - openai/whisper-medium
+#   Any HuggingFace model ID - passed directly without preset expansion
 #
 # Scenarios:
 #   transcription-throughput, transcription-latency, audio-duration-scaling,
@@ -42,6 +49,14 @@
 #
 #   # Full matrix
 #   ./run-audio-suite.sh --models all --scenarios all --cores "8,16,32"
+#
+#   # Custom (non-Whisper) audio model - override dtype and context length
+#   ./run-audio-suite.sh \
+#     --models fixie-ai/ultravox-v0_5-llama-3_2-1b \
+#     --dtype bfloat16 \
+#     --max-model-len 2048 \
+#     --scenarios transcription-throughput \
+#     --cores 32
 #
 # ==============================================================================
 
@@ -79,6 +94,8 @@ MODELS_INPUT="all"
 SCENARIOS_INPUT="transcription-throughput"
 CORES_INPUT="32"
 SKIP_MODELS_INPUT=""
+DTYPE_INPUT=""
+MAX_MODEL_LEN_INPUT=""
 CONTINUE_ON_ERROR=false
 DRY_RUN=false
 
@@ -92,6 +109,8 @@ while [[ $# -gt 0 ]]; do
         --scenarios) SCENARIOS_INPUT="$2"; shift 2 ;;
         --cores) CORES_INPUT="$2"; shift 2 ;;
         --skip-models) SKIP_MODELS_INPUT="$2"; shift 2 ;;
+        --dtype) DTYPE_INPUT="$2"; shift 2 ;;
+        --max-model-len) MAX_MODEL_LEN_INPUT="$2"; shift 2 ;;
         --continue-on-error) CONTINUE_ON_ERROR=true; shift ;;
         --dry-run) DRY_RUN=true; shift ;;
         -h|--help) show_help; exit 0 ;;
@@ -175,6 +194,13 @@ for model in "${FINAL_MODELS[@]}"; do
                 "-e" "requested_cores=$cores"
                 "-e" '{"vllm_env_vars": {"VLLM_USE_V2_MODEL_RUNNER": "0"}}'
             )
+
+            if [[ -n "${DTYPE_INPUT:-}" ]]; then
+                CMD+=(-e "vllm_dtype=${DTYPE_INPUT}")
+            fi
+            if [[ -n "${MAX_MODEL_LEN_INPUT:-}" ]]; then
+                CMD+=(-e "vllm_max_model_len=${MAX_MODEL_LEN_INPUT}")
+            fi
 
             # Parallel instance overrides — set env vars to run multiple instances
             # simultaneously on the same host (each with its own container, port, NUMA nodes):

@@ -16,3 +16,5 @@ param_mappings:
   scenario: --scenarios
   cores: --cores
   skip_models: --skip-models
+  dtype: --dtype
+  max_model_len: --max-model-len
