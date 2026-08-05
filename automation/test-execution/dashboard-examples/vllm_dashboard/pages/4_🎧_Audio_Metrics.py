@@ -88,6 +88,25 @@ def _model_label(df: pd.DataFrame) -> pd.Series:
     return df['model_short']
 
 
+def _stage_sort_key(stages: pd.Series) -> pd.Series:
+    """Map stage names to a tuple key for logical x-axis ordering.
+
+    sequential → (0, 0), concurrent-N → (1, N), max-throughput → (2, 0).
+    Avoids relying on the concurrency field, which may not order max-throughput
+    correctly relative to the highest concurrent-N stage.
+    """
+    def _key(s: str) -> tuple:
+        if s == 'sequential':
+            return (0, 0)
+        if s == 'max-throughput':
+            return (2, 0)
+        try:
+            return (1, int(s.split('-')[-1]))
+        except (ValueError, IndexError):
+            return (1, 999)
+    return stages.map(_key)
+
+
 def _agg_for_bar(df: pd.DataFrame, y_col: str,
                  extra_mean: list | None = None) -> pd.DataFrame:
     """Reduce df to one row per (stage, model_label) before passing to px.bar.
@@ -104,11 +123,8 @@ def _agg_for_bar(df: pd.DataFrame, y_col: str,
     for col in (extra_mean or []):
         if col in df.columns and col not in agg:
             agg[col] = 'mean'
-    return (
-        df.groupby(['stage', 'model_label'], as_index=False)
-        .agg(agg)
-        .sort_values('concurrency')
-    )
+    result = df.groupby(['stage', 'model_label'], as_index=False).agg(agg)
+    return result.sort_values('stage', key=_stage_sort_key)
 
 
 def render_filters(df: pd.DataFrame) -> pd.DataFrame:
@@ -527,11 +543,14 @@ def plot_latency_vs_audio_duration(df: pd.DataFrame):
 
     df_plot = df.copy()
     df_plot['model_label'] = _model_label(df_plot)
-    # Aggregate to one point per (model_label, stage/concurrency) so multiple
+    # Aggregate to one point per (model_label, cores, stage) so multiple
     # scenarios or runs don't produce overlapping points at the same coordinates.
+    # Key on stage (not concurrency) — two stages can share the same concurrency
+    # value (e.g. concurrent-8 and max-throughput at 8 workers).
     df_agg = (
-        df_plot.groupby(['model_label', 'cores', 'concurrency'], as_index=False)
-        .agg({'mean_audio_seconds': 'mean', 'e2e_mean': 'mean'})
+        df_plot.groupby(['model_label', 'cores', 'stage'], as_index=False)
+        .agg({'mean_audio_seconds': 'mean', 'e2e_mean': 'mean',
+              'concurrency': 'first'})
     )
 
     fig = px.scatter(
@@ -582,12 +601,15 @@ def plot_total_time_comparison(df: pd.DataFrame):
 
     df_plot = df.copy()
     df_plot['model_label'] = _model_label(df_plot)
-    df_plot['seconds_per_file'] = (
-        df_plot['duration'] / df_plot['successful_requests'].replace(0, float('nan'))
-    )
+    # Aggregate duration and N first, then derive seconds_per_file as
+    # ratio-of-means rather than mean-of-ratios so the bar height is consistent
+    # with the hover values when multiple runs are averaged into one slot.
     df_agg = _agg_for_bar(
-        df_plot, 'seconds_per_file',
-        extra_mean=['successful_requests', 'duration', 'requests_per_second'],
+        df_plot, 'duration',
+        extra_mean=['successful_requests', 'requests_per_second'],
+    )
+    df_agg['seconds_per_file'] = (
+        df_agg['duration'] / df_agg['successful_requests'].replace(0, float('nan'))
     )
 
     fig = px.bar(
