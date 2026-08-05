@@ -49,8 +49,11 @@ MODEL_LLAMA_W8A8="RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w8a8"
 MODEL_LLAMA_W4A16="RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w4a16"
 MODEL_QWEN_W4A16="RedHatAI/Qwen3-8B-quantized.w4a16"
 
-# Comma-separated list of all 4 models for use-cases testing
-ALL_MODELS="$MODEL_TINY_PRUNED,$MODEL_LLAMA_W8A8,$MODEL_LLAMA_W4A16,$MODEL_QWEN_W4A16"
+# Comma-separated list of production models for use-cases testing.
+# TinyLlama (2048-token context) is omitted from 'all' — it cannot handle RAG
+# (2048-token input) or long-summarization (4096-token input) use cases.
+# Use it explicitly for smoke tests: --models RedHatAI/TinyLlama-1.1B-Chat-v1.0-pruned2.4
+ALL_MODELS="$MODEL_LLAMA_W8A8,$MODEL_LLAMA_W4A16,$MODEL_QWEN_W4A16"
 
 # Legacy aliases for backward compatibility
 MODEL_TINY="TinyLlama/TinyLlama-1.1B-Chat-v1.0"
@@ -255,10 +258,12 @@ run_ansible_with_timeout() {
             echo -e "${RED}✗ FAILED with exit code $exit_code${NC}"
         fi
 
-        # Cleanup any hung containers on DUT
-        echo -e "${YELLOW}Cleaning up any hung containers...${NC}"
-        ansible dut -i "$INVENTORY" -m shell -a "podman ps -q --filter 'name=vllm-batch-*' | xargs -r podman stop" -b || true
-        ansible dut -i "$INVENTORY" -m shell -a "podman ps -aq --filter 'name=vllm-batch-*' | xargs -r podman rm" -b || true
+        # Cleanup only this instance's container — never use a wildcard here,
+        # as that would kill sibling parallel instances sharing the vllm-llm-* prefix.
+        local _cname="${VLLM_CONTAINER_NAME:-vllm-llm-0}"
+        echo -e "${YELLOW}Cleaning up hung container ${_cname}...${NC}"
+        ansible dut -i "$INVENTORY" -m shell \
+            -a "podman stop ${_cname} 2>/dev/null; podman rm ${_cname} 2>/dev/null" -b || true
 
         if [ $attempt -lt $max_attempts ]; then
             echo -e "${YELLOW}Retrying in ${RETRY_DELAY}s...${NC}"

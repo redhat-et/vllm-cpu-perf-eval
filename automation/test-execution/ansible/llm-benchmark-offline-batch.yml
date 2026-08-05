@@ -115,8 +115,10 @@
     - name: Download model using container
       ansible.builtin.shell: |
         podman run --rm \
+          --user root \
           -v "{{ dut_cache_dir }}:/root/.cache/huggingface:z" \
           -e HF_TOKEN \
+          -e HF_HUB_OFFLINE=0 \
           --entrypoint python3 \
           {{ hostvars['localhost']['vllm_container_image'] }} \
           -c "from huggingface_hub import snapshot_download; snapshot_download('{{ test_model }}', cache_dir='/root/.cache/huggingface')"
@@ -224,16 +226,18 @@
         msg: "LD_PRELOAD={{ vllm_ld_preload | default('(not set - libomp not found in container)') }}"
 
     - name: Detect NUMA topology on DUT
-      become: true
       ansible.builtin.include_role:
         name: common
         tasks_from: detect-numa-topology
+        apply:
+          become: true
 
     - name: Allocate cores from NUMA topology
-      become: true
       ansible.builtin.include_role:
         name: common
         tasks_from: allocate-cores-from-count
+        apply:
+          become: true
 
     - name: Set CPU pinning from NUMA allocation
       ansible.builtin.set_fact:
@@ -245,7 +249,7 @@
         _batch_container_name: >-
           {{ vllm_container_name
              if (vllm_container_name != 'vllm-server')
-             else 'vllm-batch-' + dataset_name + '-' + (requested_cores | string) + 'c-' + hostvars['localhost']['test_run_id'] }}
+             else 'vllm-llm-' + dataset_name + '-' + (requested_cores | string) + 'c-' + hostvars['localhost']['test_run_id'] }}
 
     - name: Build benchmark command (sonnet dataset with file)
       ansible.builtin.set_fact:
@@ -284,6 +288,7 @@
               --model /root/.cache/huggingface/{{ hostvars['localhost']['model_repo_name'] }}/snapshots/{{ hostvars['localhost']['model_snapshot_hash'] }} \
               --dataset-name sharegpt \
               --num-prompts {{ num_prompts }} \
+              {% if max_input_len is defined %}--max-input-len {{ max_input_len }}{% endif %} \
               {% if output_len is defined %}--output-len {{ output_len }}{% endif %} \
               {{ vllm_extra_args | default('') }}
       when: dataset_name == 'sharegpt'
@@ -321,7 +326,7 @@
         HF_TOKEN: "{{ lookup('env', 'HF_TOKEN') }}"
       register: benchmark_output
       changed_when: false
-      no_log: true
+      no_log: false
 
     - name: Display benchmark output
       ansible.builtin.debug:
