@@ -104,11 +104,10 @@ test_model_constants() {
     assert_equals "RedHatAI/Qwen3-8B-quantized.w4a16" "$MODEL_QWEN_W4A16" "MODEL_QWEN_W4A16 is defined"
 }
 
-# Test 4: Check ALL_MODELS contains all 4 models
+# Test 4: Check ALL_MODELS contains the 3 production models (not TinyLlama)
 test_all_models_list() {
     source_script_functions
 
-    assert_contains "$ALL_MODELS" "$MODEL_TINY_PRUNED" "ALL_MODELS contains TinyLlama"
     assert_contains "$ALL_MODELS" "$MODEL_LLAMA_W8A8" "ALL_MODELS contains Llama w8a8"
     assert_contains "$ALL_MODELS" "$MODEL_LLAMA_W4A16" "ALL_MODELS contains Llama w4a16"
     assert_contains "$ALL_MODELS" "$MODEL_QWEN_W4A16" "ALL_MODELS contains Qwen w4a16"
@@ -160,7 +159,7 @@ test_all_keyword_expansion() {
     # Parse the expanded list
     IFS=',' read -ra MODELS <<< "$model_list"
 
-    assert_equals "4" "${#MODELS[@]}" "'all' expands to 4 models"
+    assert_equals "3" "${#MODELS[@]}" "'all' expands to 3 production models"
 }
 
 # Main test execution
