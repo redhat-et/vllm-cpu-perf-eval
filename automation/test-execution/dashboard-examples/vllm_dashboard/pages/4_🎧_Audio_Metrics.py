@@ -81,6 +81,36 @@ def load_quality_data(results_dir: str) -> pd.DataFrame:
     return pd.DataFrame(data) if data else pd.DataFrame()
 
 
+def _model_label(df: pd.DataFrame) -> pd.Series:
+    """Return a model label that includes core count when multiple core counts are present."""
+    if df['cores'].nunique() > 1:
+        return df['model_short'] + ' (' + df['cores'].astype(str) + 'c)'
+    return df['model_short']
+
+
+def _agg_for_bar(df: pd.DataFrame, y_col: str,
+                 extra_mean: list | None = None) -> pd.DataFrame:
+    """Reduce df to one row per (stage, model_label) before passing to px.bar.
+
+    px.bar stacks every row that shares the same (x, color), so if multiple
+    scenarios or test runs exist for the same model+cores the bars stack even
+    with barmode='group'.  Averaging across them gives one clean bar per slot.
+    """
+    agg: dict = {
+        y_col: 'mean',
+        'concurrency': 'first',
+        'cores': 'first',
+    }
+    for col in (extra_mean or []):
+        if col in df.columns and col not in agg:
+            agg[col] = 'mean'
+    return (
+        df.groupby(['stage', 'model_label'], as_index=False)
+        .agg(agg)
+        .sort_values('concurrency')
+    )
+
+
 def render_filters(df: pd.DataFrame) -> pd.DataFrame:
     """Render filter UI and return filtered DataFrame."""
     st.markdown("### 🔍 Filter your data")
@@ -125,155 +155,91 @@ def render_filters(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def render_overview_metrics(df: pd.DataFrame):
-    """Render overview metric cards."""
-    # Test Dataset Overview — use one representative stage per run to avoid
-    # double-counting files/audio across sequential + concurrent + max-throughput.
+    """Render per-model × per-cores performance summary table."""
     if df.empty:
         return
+
+    # One representative row per run (sequential stage preferred) to get
+    # dataset metadata and file counts without double-counting stages.
     groups = []
     for _, grp in df.groupby(['test_run_id', 'model', 'scenario']):
         seq = grp[grp['stage'] == 'sequential']
         groups.append(seq if not seq.empty else grp.head(1))
     representative = pd.concat(groups)
 
-    st.markdown("### 📊 Test Dataset Overview")
-
-    # First row: File statistics
-    col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-        total_files = representative['successful_requests'].sum()
-        st.metric(
-            "Audio Files",
-            f"{int(total_files)}",
-            help="Total audio files (deduplicated by run, using representative stage)"
+    # Warn when runs used different file counts.
+    run_file_counts = representative.groupby(
+        ['model_short', 'cores', 'test_run_id']
+    )['successful_requests'].first()
+    unique_file_counts = run_file_counts.unique()
+    if len(unique_file_counts) > 1:
+        detail_lines = "  \n".join(
+            f"- {'/'.join(str(v) for v in idx)}: **{n} files**"
+            for idx, n in run_file_counts.items()
+        )
+        st.warning(
+            "⚠️ **Runs used different numbers of input files** — normalized "
+            "metrics (Files/Hour, RTF, Time per File) are still comparable, "
+            "but raw totals are not.  \n" + detail_lines
         )
 
-    with col2:
-        avg_duration = representative['mean_audio_seconds'].mean()
-        st.metric(
-            "Avg Duration",
-            f"{avg_duration:.2f}s per file",
-            help="Average audio file duration"
+    # One-line dataset/format context.
+    unique_datasets = df['dataset_name'].dropna().unique()
+    dataset_str = (
+        unique_datasets[0] if len(unique_datasets) == 1
+        else "Mixed: " + ", ".join(str(d) for d in unique_datasets)
+    )
+    unique_formats = [
+        str(f).upper() for f in df['audio_format'].dropna().unique()
+        if str(f).lower() != 'unknown'
+    ]
+    unique_rates = df['audio_sample_rate'].dropna().unique()
+    rate_str = (
+        f"{int(unique_rates[0]/1000)}kHz" if len(unique_rates) == 1
+        else "mixed sample rates"
+    )
+    format_str = "/".join(sorted(set(unique_formats))) or "unknown"
+    st.caption(
+        f"Dataset: **{dataset_str}** · Format: **{format_str}** "
+        f"· Sample rate: **{rate_str}**"
+    )
+
+    st.markdown("### 📊 Performance Summary by Model & Core Count")
+
+    # Build one row per (model_short, cores) with best-stage metrics.
+    rows = []
+    for (model, cores), grp in df.groupby(['model_short', 'cores']):
+        # File count from the representative (sequential) stage.
+        rep_rows = representative[
+            (representative['model_short'] == model)
+            & (representative['cores'] == cores)
+        ]
+        files_per_run = (
+            int(rep_rows['successful_requests'].mean())
+            if not rep_rows.empty else None
         )
+        best_fph_idx = grp['requests_per_second'].idxmax()
+        best_hh_idx = grp['audio_throughput'].idxmax()
+        best_rtf_idx = grp['rtf_p95'].idxmin()
+        rows.append({
+            'Model': model,
+            'Cores': int(cores),
+            'Files / Run': files_per_run,
+            'Best Files/Hour': int(grp.loc[best_fph_idx, 'requests_per_second'] * 3600),
+            'Best Files/Hour Stage': grp.loc[best_fph_idx, 'stage'],
+            'Best Audio h/h': round(grp.loc[best_hh_idx, 'audio_throughput'], 1),
+            'Best Audio h/h Stage': grp.loc[best_hh_idx, 'stage'],
+            'Best RTF P95': round(grp.loc[best_rtf_idx, 'rtf_p95'], 3),
+            'Best RTF P95 Stage': grp.loc[best_rtf_idx, 'stage'],
+            'Avg Success %': round(grp['success_rate'].mean(), 1),
+        })
 
-    with col3:
-        total_audio = representative['total_audio_seconds'].sum()
-        if total_audio >= 3600:
-            display_audio = f"{total_audio/3600:.2f}h"
-        elif total_audio >= 60:
-            display_audio = f"{total_audio/60:.1f}min"
-        else:
-            display_audio = f"{total_audio:.1f}s"
-        st.metric(
-            "Total Audio",
-            display_audio,
-            help="Total audio content (deduplicated by run)"
-        )
-
-    with col4:
-        total_mb = representative['total_audio_bytes'].sum() / (1024 * 1024)
-        st.metric(
-            "Total Data",
-            f"{total_mb:.1f} MB",
-            help="Total audio payload size (deduplicated by run)"
-        )
-
-    # Second row: Audio format details
-    col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-        unique_formats = df['audio_format'].unique()
-        if len(unique_formats) == 1:
-            display_format = str(unique_formats[0]).upper()
-        else:
-            display_format = ", ".join(
-                sorted(str(f).upper() for f in unique_formats if f != 'unknown')
-            ) or "Mixed"
-        st.metric(
-            "Audio Format",
-            display_format,
-            help="Audio file format (MP3, WAV, FLAC, etc.)"
-        )
-
-    with col2:
-        unique_rates = df['audio_sample_rate'].unique()
-        if len(unique_rates) == 1:
-            sample_rate = unique_rates[0]
-            if sample_rate >= 1000:
-                display_rate = f"{int(sample_rate/1000)}kHz"
-            else:
-                display_rate = f"{int(sample_rate)}Hz"
-        else:
-            display_rate = "Mixed"
-        st.metric(
-            "Sample Rate",
-            display_rate,
-            help="Audio sampling frequency"
-        )
-
-    with col3:
-        unique_bitrates = df['audio_bitrate'].unique()
-        if len(unique_bitrates) == 1:
-            bitrate = unique_bitrates[0]
-            display_br = bitrate.upper() if isinstance(bitrate, str) else str(bitrate)
-        else:
-            display_br = "Mixed"
-        st.metric(
-            "Bitrate",
-            display_br,
-            help="Audio encoding bitrate"
-        )
-
-    with col4:
-        # Get dataset
-        dataset = df['dataset_name'].iloc[0] if len(df) > 0 else 'unknown'
-        dataset_short = dataset.split('/')[-1] if '/' in dataset else dataset
-        st.metric(
-            "Dataset",
-            dataset_short,
-            help=f"Source dataset: {dataset}"
-        )
-
-    st.markdown("---")
-
-    # Performance Overview — show best-stage metrics explicitly
-    st.markdown("### 📈 Performance Overview")
-    col1, col2, col3, col4 = st.columns(4)
-
-    with col1:
-        best_throughput = df['audio_throughput'].max()
-        best_throughput_stage = df.loc[df['audio_throughput'].idxmax(), 'stage']
-        st.metric(
-            "Best Audio Hours/Hour",
-            f"{best_throughput:.1f}h/h",
-            help=f"Best throughput: {best_throughput:.1f}h/h at {best_throughput_stage} stage"
-        )
-
-    with col2:
-        max_throughput_row = df.loc[df['requests_per_second'].idxmax()]
-        files_per_hour = max_throughput_row['requests_per_second'] * 3600
-        st.metric(
-            "Max Files/Hour",
-            f"{int(files_per_hour):,}",
-            help=f"Maximum capacity at {max_throughput_row['stage']} stage"
-        )
-
-    with col3:
-        best_rtf = df['rtf_mean'].min()
-        best_rtf_stage = df.loc[df['rtf_mean'].idxmin(), 'stage']
-        st.metric(
-            "Best RTF",
-            f"{best_rtf:.3f}",
-            help=f"Best (lowest) RTF at {best_rtf_stage} stage (< 1.0 = faster than real-time)"
-        )
-
-    with col4:
-        st.metric(
-            "Avg Success Rate",
-            f"{df['success_rate'].mean():.1f}%",
-            help="Percentage of successful requests across all stages"
-        )
+    summary = (
+        pd.DataFrame(rows)
+        .sort_values(['Model', 'Cores'])
+        .reset_index(drop=True)
+    )
+    st.dataframe(summary, use_container_width=True, hide_index=True)
 
 
 def plot_speedup_vs_sequential(df: pd.DataFrame):
@@ -290,40 +256,57 @@ def plot_speedup_vs_sequential(df: pd.DataFrame):
     Example: If sequential takes 10 seconds and concurrent-8 takes 3.8 seconds, speedup = 2.6x
     """)
 
-    # Calculate speedup for each model+run combination
+    # Calculate speedup for each model+cores+run combination
+    multi_cores = df['cores'].nunique() > 1
     speedup_data = []
-    for (model, run_id), group_df in df.groupby(['model_short', 'test_run_id']):
+    for (model, cores, run_id), group_df in df.groupby(
+        ['model_short', 'cores', 'test_run_id']
+    ):
         sequential_rows = group_df[group_df['stage'] == 'sequential']
         if sequential_rows.empty:
             continue
 
         sequential_duration = sequential_rows['duration'].iloc[0]
+        label = f"{model} ({cores}c)" if multi_cores else model
 
         for _, row in group_df.iterrows():
-            speedup = sequential_duration / row['duration'] if row['duration'] > 0 else 0
+            speedup = (
+                sequential_duration / row['duration']
+                if row['duration'] > 0 else 0
+            )
             speedup_data.append({
-                'model': model,
+                'model_label': label,
+                'cores': cores,
                 'stage': row['stage'],
                 'speedup': speedup,
-                'concurrency': row['concurrency']
+                'concurrency': row['concurrency'],
             })
 
     if not speedup_data:
         st.warning("No sequential baseline found for speedup calculation")
         return
 
-    speedup_df = pd.DataFrame(speedup_data)
+    # Aggregate to one row per (stage, model_label) — multiple scenarios or
+    # test_run_ids with the same model+cores would otherwise stack in px.bar.
+    speedup_df = (
+        pd.DataFrame(speedup_data)
+        .groupby(['stage', 'model_label', 'cores'], as_index=False)
+        .agg({'speedup': 'mean', 'concurrency': 'first'})
+        .sort_values('concurrency')
+    )
 
     fig = px.bar(
-        speedup_df.sort_values('concurrency'),
+        speedup_df,
         x='stage',
         y='speedup',
-        color='model',
+        color='model_label',
         barmode='group',
+        hover_data={'cores': True},
         labels={
             'speedup': 'Speedup (vs Sequential)',
             'stage': 'Test Stage',
-            'model': 'Model'
+            'model_label': 'Model',
+            'cores': 'Cores',
         },
         title="Speedup Relative to Sequential Processing"
     )
@@ -342,12 +325,15 @@ def plot_speedup_vs_sequential(df: pd.DataFrame):
 
     # Show speedup summary
     st.markdown("#### Speedup Summary")
-    summary = speedup_df.groupby(['model', 'stage']).agg({'speedup': 'first', 'concurrency': 'first'}).reset_index()
+    summary = speedup_df[
+        ['model_label', 'cores', 'stage', 'speedup', 'concurrency']
+    ].copy()
     summary = summary.rename(columns={
-        'model': 'Model',
+        'model_label': 'Model',
+        'cores': 'Cores',
         'stage': 'Stage',
         'speedup': 'Speedup (x)',
-        'concurrency': 'Concurrency'
+        'concurrency': 'Concurrency',
     })
     summary['Speedup (x)'] = summary['Speedup (x)'].round(2)
     st.dataframe(summary, use_container_width=True, hide_index=True)
@@ -365,16 +351,22 @@ def plot_audio_throughput(df: pd.DataFrame):
     - Higher = faster processing
     """)
 
+    df_plot = df.copy()
+    df_plot['model_label'] = _model_label(df_plot)
+    df_agg = _agg_for_bar(df_plot, 'audio_throughput')
+
     fig = px.bar(
-        df.sort_values('concurrency'),
+        df_agg,
         x='stage',
         y='audio_throughput',
-        color='model_short',
+        color='model_label',
         barmode='group',
+        hover_data={'cores': True},
         labels={
             'audio_throughput': 'Audio Hours/Hour',
             'stage': 'Test Stage',
-            'model_short': 'Model'
+            'model_label': 'Model',
+            'cores': 'Cores',
         },
         title="Audio Processing Throughput (Hours of Audio per Hour)"
     )
@@ -402,20 +394,23 @@ def plot_files_per_hour(df: pd.DataFrame):
     Example: 15,840 files/hour means you can process almost 16K audio files per hour.
     """)
 
-    # Calculate files/hour from requests/second
     df_plot = df.copy()
     df_plot['files_per_hour'] = df_plot['requests_per_second'] * 3600
+    df_plot['model_label'] = _model_label(df_plot)
+    df_agg = _agg_for_bar(df_plot, 'files_per_hour')
 
     fig = px.bar(
-        df_plot.sort_values('concurrency'),
+        df_agg,
         x='stage',
         y='files_per_hour',
-        color='model_short',
+        color='model_label',
         barmode='group',
+        hover_data={'cores': True},
         labels={
             'files_per_hour': 'Files/Hour',
             'stage': 'Test Stage',
-            'model_short': 'Model'
+            'model_label': 'Model',
+            'cores': 'Cores',
         },
         title="Files Processed per Hour"
     )
@@ -455,15 +450,32 @@ def plot_rtf(df: pd.DataFrame):
         st.warning("⚠️ Select at least one percentile to display")
         return
 
-    # Prepare data for plotting selected percentiles only
+    # Aggregate to one row per (model_label, stage) before building plot_data.
+    # Multiple scenarios/runs with the same model+cores would otherwise produce
+    # duplicate (x, color) points that appear as a zigzag in the line chart.
+    multi_cores = df['cores'].nunique() > 1
+    rtf_cols = {f'rtf_{p}': 'mean' for p in ['mean', 'p50', 'p95', 'p99']
+                if f'rtf_{p}' in df.columns}
+    df_agg = df.copy()
+    df_agg['model_label'] = _model_label(df_agg)
+    df_agg = (
+        df_agg.groupby(['stage', 'model_label', 'cores'], as_index=False)
+        .agg({'concurrency': 'first', **rtf_cols})
+        .sort_values('concurrency')
+    )
+
     plot_data = []
-    for _, row in df.iterrows():
+    for _, row in df_agg.iterrows():
         for percentile in selected_percentiles:
+            col = f'rtf_{percentile}'
+            if col not in row:
+                continue
             plot_data.append({
                 'stage': row['stage'],
-                'model': row['model_short'],
+                'model_label': row['model_label'],
+                'cores': row['cores'],
                 'percentile': percentile_labels[percentile],
-                'rtf': row[f'rtf_{percentile}']
+                'rtf': row[col],
             })
 
     plot_df = pd.DataFrame(plot_data)
@@ -472,14 +484,16 @@ def plot_rtf(df: pd.DataFrame):
         plot_df,
         x='stage',
         y='rtf',
-        color='model',
+        color='model_label',
         line_dash='percentile',
         markers=True,
+        hover_data={'cores': True},
         labels={
             'rtf': 'Real-Time Factor',
             'stage': 'Test Stage',
-            'model': 'Model',
-            'percentile': 'Percentile'
+            'model_label': 'Model',
+            'percentile': 'Percentile',
+            'cores': 'Cores',
         },
         title="Real-Time Factor - {} (Lower = Better)".format(
             ", ".join(percentile_labels[p] for p in selected_percentiles)
@@ -510,17 +524,22 @@ def plot_latency_vs_audio_duration(df: pd.DataFrame):
     Linear scaling means processing time grows proportionally with audio duration.
     """)
 
+    df_plot = df.copy()
+    df_plot['model_label'] = _model_label(df_plot)
+
     fig = px.scatter(
-        df,
+        df_plot,
         x='mean_audio_seconds',
         y='e2e_mean',
-        color='model_short',
+        color='model_label',
         size='concurrency',
+        hover_data={'cores': True},
         labels={
             'mean_audio_seconds': 'Audio Duration (seconds)',
             'e2e_mean': 'Mean Request Latency (seconds)',
-            'model_short': 'Model',
-            'concurrency': 'Concurrency'
+            'model_label': 'Model',
+            'concurrency': 'Concurrency',
+            'cores': 'Cores',
         },
         title="Request Latency vs Audio Duration"
     )
@@ -541,52 +560,75 @@ def plot_latency_vs_audio_duration(df: pd.DataFrame):
 
 
 def plot_total_time_comparison(df: pd.DataFrame):
-    """Plot total time to process N files by stage."""
-    st.markdown("### ⏰ Total Time to Process N Files")
+    """Plot time-per-file by stage, normalized for fair cross-run comparison."""
+    st.markdown("### ⏰ Time per File by Stage")
     st.markdown("""
-    **Wall-clock time to transcribe all audio files** (lower = faster)
+    **Seconds to process a single audio file** (lower = faster)
 
-    This answers: "How long does it take to transcribe N audio files?"
+    This is normalized by the number of files processed so runs with different
+    dataset sizes are directly comparable. Hover to see the total file count (N)
+    for each bar.
     - Sequential: Files processed one-by-one (baseline)
     - Concurrent-N: Files processed with N concurrent requests
     - Max-throughput: Maximum concurrency for fastest total time
-
-    Lower bars = faster total processing time.
     """)
 
-    # Show total duration (lower is better)
+    df_plot = df.copy()
+    df_plot['model_label'] = _model_label(df_plot)
+    df_plot['seconds_per_file'] = (
+        df_plot['duration'] / df_plot['successful_requests'].replace(0, float('nan'))
+    )
+    df_agg = _agg_for_bar(
+        df_plot, 'seconds_per_file',
+        extra_mean=['successful_requests', 'duration'],
+    )
+
     fig = px.bar(
-        df.sort_values('concurrency'),
+        df_agg,
         x='stage',
-        y='duration',
-        color='model_short',
+        y='seconds_per_file',
+        color='model_label',
         barmode='group',
-        labels={
-            'duration': 'Total Time (seconds)',
-            'stage': 'Test Stage',
-            'model_short': 'Model'
+        hover_data={
+            'successful_requests': ':.0f',
+            'duration': ':.1f',
+            'cores': True,
         },
-        title="Total Time to Process All Files (Lower = Faster)"
+        labels={
+            'seconds_per_file': 'Time per File (s)',
+            'stage': 'Test Stage',
+            'model_label': 'Model',
+            'successful_requests': 'Files (N)',
+            'duration': 'Total Time (s)',
+            'cores': 'Cores',
+        },
+        title="Time per File by Stage (Lower = Faster)"
     )
 
     fig.update_layout(height=500)
     st.plotly_chart(fig, use_container_width=True)
 
-    # Also show the summary table
+    # Summary table — group by model_label + cores + stage so different core
+    # counts for the same model are never merged into one row.
     st.markdown("#### Summary: Files Processed and Total Time")
-    summary = df.groupby(['model_short', 'stage']).agg({
+    summary = df_plot.groupby(
+        ['model_label', 'cores', 'stage']
+    ).agg({
         'successful_requests': 'first',
         'duration': 'first',
-        'requests_per_second': 'first'
+        'seconds_per_file': 'first',
+        'requests_per_second': 'first',
     }).reset_index()
     summary['files_per_hour'] = summary['requests_per_second'] * 3600
     summary = summary.rename(columns={
-        'model_short': 'Model',
+        'model_label': 'Model',
+        'cores': 'Cores',
         'stage': 'Stage',
-        'successful_requests': 'Files Processed',
+        'successful_requests': 'Files (N)',
         'duration': 'Total Time (s)',
+        'seconds_per_file': 'Time/File (s)',
         'requests_per_second': 'Files/Second',
-        'files_per_hour': 'Files/Hour'
+        'files_per_hour': 'Files/Hour',
     })
     st.dataframe(summary, use_container_width=True, hide_index=True)
 
@@ -595,16 +637,22 @@ def plot_efficiency(df: pd.DataFrame):
     """Plot efficiency (audio throughput per core)."""
     st.markdown("### ⚡ Efficiency (Audio Throughput per Core)")
 
+    df_plot = df.copy()
+    df_plot['model_label'] = _model_label(df_plot)
+    df_agg = _agg_for_bar(df_plot, 'efficiency')
+
     fig = px.bar(
-        df.sort_values('concurrency'),
+        df_agg,
         x='stage',
         y='efficiency',
-        color='model_short',
+        color='model_label',
         barmode='group',
+        hover_data={'cores': True},
         labels={
             'efficiency': 'Efficiency (audio_sec/wall_sec/core)',
             'stage': 'Test Stage',
-            'model_short': 'Model'
+            'model_label': 'Model',
+            'cores': 'Cores',
         },
         title="Audio Processing Efficiency"
     )
@@ -997,6 +1045,20 @@ def main():
 
     with tab_perf:
         if has_perf:
+            # Show which core counts are currently in view so charts are unambiguous.
+            cores_in_view = sorted(filtered_df['cores'].unique())
+            cores_str = ', '.join(str(c) for c in cores_in_view)
+            if len(cores_in_view) == 1:
+                st.info(
+                    f"📌 All charts show results for **{cores_in_view[0]} cores**. "
+                    f"Use the Core Count filter above to compare different core counts."
+                )
+            else:
+                st.warning(
+                    f"⚠️ **Multiple core counts in view: {cores_str} cores.** "
+                    f"Legends include the core count (e.g. *model (32c)*) to "
+                    f"distinguish runs. Use the Core Count filter to isolate one."
+                )
             render_overview_metrics(filtered_df)
             st.markdown("---")
             plot_total_time_comparison(filtered_df)
