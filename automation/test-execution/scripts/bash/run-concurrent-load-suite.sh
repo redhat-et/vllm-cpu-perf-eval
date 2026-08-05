@@ -22,6 +22,11 @@
 #   --phase PHASE           Test phase (1|2|3|all)
 #                           Default: 1 (Phase 1: baseline tests only)
 #   --skip-models LIST      Comma-separated models to skip
+#   --vllm-cpu-start NUM    Pin vLLM to start at this CPU core (socket separation)
+#   --vllm-numa-node NUM    Pin vLLM to this NUMA node
+#   --guidellm-cpus RANGE   CPU range for GuideLLM (e.g., 0-31)
+#   --guidellm-numa-node NUM NUMA node for GuideLLM
+#   --tensor-parallel NUM   Tensor parallel size (1, 2, 4, or 8)
 #   --continue-on-error     Continue testing if a model/workload fails
 #   --dry-run               Show what would run without executing
 #   -h, --help              Show this help
@@ -98,6 +103,11 @@ PHASE="1"
 CONTINUE_ON_ERROR=false
 DRY_RUN=false
 SKIP_MODELS_INPUT=""
+VLLM_CPU_START=""
+VLLM_NUMA_NODE=""
+GUIDELLM_CPUS=""
+GUIDELLM_NUMA_NODE=""
+TENSOR_PARALLEL=""
 
 show_help() {
     sed -n '/^# ===/,/^set -/p' "$0" | sed '$d' | sed '1,3d;$d' | sed 's/^# //; s/^#//'
@@ -123,6 +133,26 @@ while [[ $# -gt 0 ]]; do
             ;;
         --skip-models)
             SKIP_MODELS_INPUT="$2"
+            shift 2
+            ;;
+        --vllm-cpu-start)
+            VLLM_CPU_START="$2"
+            shift 2
+            ;;
+        --vllm-numa-node)
+            VLLM_NUMA_NODE="$2"
+            shift 2
+            ;;
+        --guidellm-cpus)
+            GUIDELLM_CPUS="$2"
+            shift 2
+            ;;
+        --guidellm-numa-node)
+            GUIDELLM_NUMA_NODE="$2"
+            shift 2
+            ;;
+        --tensor-parallel|--tp)
+            TENSOR_PARALLEL="$2"
             shift 2
             ;;
         --continue-on-error)
@@ -266,6 +296,22 @@ for model in "${FINAL_MODELS[@]}"; do
                 "-e" "skip_phase_2=$SKIP_PHASE_2"
                 "-e" "skip_phase_3=$SKIP_PHASE_3"
             )
+
+            if [[ -n "${VLLM_CPU_START}" ]]; then
+                CMD+=(-e "vllm_cpu_start=${VLLM_CPU_START}")
+            fi
+            if [[ -n "${VLLM_NUMA_NODE}" ]]; then
+                CMD+=(-e "vllm_numa_node=${VLLM_NUMA_NODE}")
+            fi
+            if [[ -n "${GUIDELLM_CPUS}" ]]; then
+                CMD+=(-e "guidellm_cpus=${GUIDELLM_CPUS}")
+            fi
+            if [[ -n "${GUIDELLM_NUMA_NODE}" ]]; then
+                CMD+=(-e "guidellm_numa_node=${GUIDELLM_NUMA_NODE}")
+            fi
+            if [[ -n "${TENSOR_PARALLEL}" ]]; then
+                CMD+=(-e "requested_tensor_parallel=${TENSOR_PARALLEL}")
+            fi
 
             # Parallel instance overrides — set env vars to run multiple instances
             # simultaneously on the same host (each with its own container, port, NUMA nodes):

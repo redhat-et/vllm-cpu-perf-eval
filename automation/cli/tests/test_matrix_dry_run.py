@@ -1,5 +1,6 @@
 """Test matrix suite dry-run behavior."""
 
+import os
 import subprocess
 import sys
 from .conftest import repo_root
@@ -357,6 +358,128 @@ def test_implicit_matches_explicit_run():
 
     assert implicit.returncode == 0, f"STDERR: {implicit.stderr}"
     assert implicit.stdout == explicit.stdout
+
+
+def test_concurrent_load_profile_pinning_passthrough():
+    """CPU pinning profile vars are forwarded to the suite script."""
+    result = subprocess.run(
+        [
+            sys.executable, "-m", "cpueval", "run",
+            "--suite", "concurrent-load",
+            "--profile", "dual-socket-split",
+            "--models", "tiny",
+            "--cores", "8",
+            "--workloads", "chat",
+            "--dry-run",
+            "--skip-doctor",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(repo_root()),
+    )
+
+    assert result.returncode == 0, f"STDERR: {result.stderr}"
+    assert "--vllm-cpu-start 64" in result.stdout
+    assert "--vllm-numa-node 1" in result.stdout
+    assert "--guidellm-cpus 0-31" in result.stdout
+    assert "--guidellm-numa-node 0" in result.stdout
+
+
+def test_rhaiis_sweep_pinning_flags():
+    """Explicit pinning flags are forwarded to the rhaiis sweep script."""
+    result = subprocess.run(
+        [
+            sys.executable, "-m", "cpueval", "run",
+            "--suite", "rhaiis-sweep",
+            "--vllm-cpu-start", "96",
+            "--vllm-numa", "1",
+            "--guidellm-cpus", "0-31",
+            "--guidellm-numa", "0",
+            "--dry-run",
+            "--skip-doctor",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(repo_root()),
+    )
+
+    assert result.returncode == 0, f"STDERR: {result.stderr}"
+    assert "--vllm-cpu-start 96" in result.stdout
+    assert "--vllm-numa-node 1" in result.stdout
+    assert "--guidellm-cpus 0-31" in result.stdout
+    assert "--guidellm-numa-node 0" in result.stdout
+
+
+def test_embedding_bench_pinning_flags():
+    """Embedding bench CPU pinning flags are forwarded to the suite script."""
+    result = subprocess.run(
+        [
+            sys.executable, "-m", "cpueval", "run",
+            "--suite", "embedding",
+            "--models", "quick",
+            "--cores", "8",
+            "--vllm-bench-cpus", "8-15",
+            "--vllm-bench-numa-node", "0",
+            "--max-seconds", "300",
+            "--dry-run",
+            "--skip-doctor",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(repo_root()),
+    )
+
+    assert result.returncode == 0, f"STDERR: {result.stderr}"
+    assert "--vllm-bench-cpus 8-15" in result.stdout
+    assert "--vllm-bench-numa-node 0" in result.stdout
+    assert "--max-seconds 300" in result.stdout
+
+
+def test_continue_on_error_flag_only():
+    """Boolean suite flags are passed without a value."""
+    result = subprocess.run(
+        [
+            sys.executable, "-m", "cpueval", "run",
+            "--suite", "concurrent-load",
+            "--models", "tiny",
+            "--continue-on-error",
+            "--dry-run",
+            "--skip-doctor",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(repo_root()),
+    )
+
+    assert result.returncode == 0, f"STDERR: {result.stderr}"
+    assert "--continue-on-error" in result.stdout
+    assert "--continue-on-error True" not in result.stdout
+
+
+def test_endpoint_url_sets_external_mode():
+    """--endpoint-url enables external endpoint mode for ansible-backed runs."""
+    result = subprocess.run(
+        [
+            sys.executable, "-m", "cpueval", "run",
+            "--suite", "chat-smoke",
+            "--model", "TinyLlama/TinyLlama-1.1B-Chat-v1.0",
+            "--cores", "8",
+            "--endpoint-url", "http://lb.example:8080",
+            "--dry-run",
+            "--skip-doctor",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(repo_root()),
+        env={
+            **dict(os.environ),
+            "VLLM_ENDPOINT_MODE": "",
+            "VLLM_ENDPOINT_URL": "",
+        },
+    )
+
+    assert result.returncode == 0, f"STDERR: {result.stderr}"
+    assert "ansible-playbook" in result.stdout
 
 
 # ---------------------------------------------------------------------------

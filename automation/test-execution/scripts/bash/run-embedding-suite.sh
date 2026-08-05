@@ -18,6 +18,8 @@
 #                           Default: 250
 #   --max-seconds SEC       Per-test time limit in seconds; sets guidellm_max_seconds
 #                           Default: Ansible default (300s); env var GUIDELLM_MAX_SECONDS also accepted
+#   --vllm-bench-cpus RANGE CPU range for vllm-bench loadgen container (e.g., 8-15)
+#   --vllm-bench-numa-node NUM NUMA node for vllm-bench loadgen container
 #   --skip-models LIST      Comma-separated models to skip
 #   --continue-on-error     Continue testing if a model fails
 #   --dry-run               Show what would run without executing
@@ -114,6 +116,8 @@ CORES_INPUT="4,8,16,32"
 SCENARIO="all"
 NUM_PROMPTS=250
 MAX_SECONDS="${GUIDELLM_MAX_SECONDS:-}"
+VLLM_BENCH_CPUS=""
+VLLM_BENCH_NUMA_NODE=""
 CONTINUE_ON_ERROR=false
 DRY_RUN=false
 SKIP_MODELS_INPUT=""
@@ -155,6 +159,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --max-seconds)
             MAX_SECONDS="$2"
+            shift 2
+            ;;
+        --vllm-bench-cpus)
+            VLLM_BENCH_CPUS="$2"
+            shift 2
+            ;;
+        --vllm-bench-numa-node)
+            VLLM_BENCH_NUMA_NODE="$2"
             shift 2
             ;;
         --skip-models)
@@ -331,6 +343,8 @@ for model in "${MODELS[@]}"; do
         )
 
         [[ -n "${MAX_SECONDS}" ]] && cmd+=(-e "guidellm_max_seconds=${MAX_SECONDS}")
+        [[ -n "${VLLM_BENCH_CPUS}" ]] && cmd+=(-e "vllm_bench_cpus=${VLLM_BENCH_CPUS}")
+        [[ -n "${VLLM_BENCH_NUMA_NODE}" ]] && cmd+=(-e "vllm_bench_numa_node=${VLLM_BENCH_NUMA_NODE}")
 
         # Parallel instance overrides — set env vars to run multiple instances
         # simultaneously on the same host (each with its own container, port, NUMA nodes):

@@ -17,3 +17,7 @@ param_mappings:
   scenario: --scenario
   num_prompts: --num-prompts
   skip_models: --skip-models
+  vllm_bench_cpus: vllm-bench-cpus
+  vllm_bench_numa_node: vllm-bench-numa-node
+  guidellm_max_seconds: max-seconds
+  continue_on_error: continue-on-error

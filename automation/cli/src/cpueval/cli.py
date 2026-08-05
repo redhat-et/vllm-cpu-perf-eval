@@ -1,5 +1,6 @@
 """Main CLI for cpueval."""
 
+import os
 from typing import List, Optional
 
 import typer
@@ -33,6 +34,50 @@ app = typer.Typer(
 console = Console()
 
 
+def _apply_endpoint_env(endpoint_url: Optional[str]) -> None:
+    """Configure external endpoint mode when --endpoint-url is set."""
+    if endpoint_url:
+        os.environ["VLLM_ENDPOINT_MODE"] = "external"
+        os.environ["VLLM_ENDPOINT_URL"] = endpoint_url
+
+
+def _build_script_args(suite_obj, final_vars: dict) -> List[str]:
+    """Build script CLI args from merged vars and suite param_mappings."""
+    script_args: List[str] = []
+    for key, value in final_vars.items():
+        if value is None or value == "":
+            continue
+
+        flag = suite_obj.param_mappings.get(key)
+        if not flag:
+            continue
+
+        if not flag.startswith("--"):
+            flag = f"--{flag}"
+
+        if isinstance(value, bool):
+            if value:
+                script_args.append(flag)
+            continue
+
+        script_args.extend([flag, str(value)])
+
+    return script_args
+
+
+def _result_model_hint(
+    model: Optional[str],
+    models: Optional[str],
+    final_vars: dict,
+    suite: str,
+) -> Optional[str]:
+    """Pick a model filter for find_latest_result after a script suite run."""
+    for candidate in (model, models, final_vars.get("test_model"), final_vars.get("models")):
+        if candidate and candidate not in ("all", "quick", "small", "large", "medium"):
+            return candidate
+    return None
+
+
 def version_callback(value: bool):
     """Print version and exit."""
     if value:
@@ -62,6 +107,11 @@ def _execute_suite(
     guidellm_cpus: Optional[str],
     guidellm_numa: Optional[int],
     profile: Optional[str],
+    endpoint_url: Optional[str],
+    vllm_bench_cpus: Optional[str],
+    vllm_bench_numa: Optional[int],
+    continue_on_error: bool,
+    max_seconds: Optional[int],
     extra: Optional[List[str]],
     extra_vars_file: Optional[str],
     ansible_arg: Optional[List[str]],
@@ -194,6 +244,20 @@ def _execute_suite(
     if guidellm_numa is not None:
         cli_vars["guidellm_numa_node"] = guidellm_numa
 
+    if vllm_bench_cpus:
+        cli_vars["vllm_bench_cpus"] = vllm_bench_cpus
+
+    if vllm_bench_numa is not None:
+        cli_vars["vllm_bench_numa_node"] = vllm_bench_numa
+
+    if continue_on_error:
+        cli_vars["continue_on_error"] = True
+
+    if max_seconds is not None:
+        cli_vars["guidellm_max_seconds"] = max_seconds
+
+    _apply_endpoint_env(endpoint_url)
+
     # Load profile if specified
     profile_vars = {}
     if profile:
@@ -266,23 +330,31 @@ def _execute_suite(
                 raise typer.Exit(1)
         else:
             # Flag-based script suites (e.g. rhaiis-sweep)
-            for key, value in final_vars.items():
-                if value is None or value == "":
-                    continue
-
-                flag = suite_obj.param_mappings.get(key)
-                if flag:
-                    if not flag.startswith("--"):
-                        flag = f"--{flag}"
-                    script_args.extend([flag, str(value)])
+            script_args = _build_script_args(suite_obj, final_vars)
 
         exit_code = run_script(suite_obj.target, script_args, dry_run=dry_run)
 
         # Save last run hint on success (skip for dry-run)
         if exit_code == 0 and not dry_run:
-            # For matrix sweeps, use models or mode as hint
-            model_hint = final_vars.get("models") or final_vars.get("mode") or suite
-            save_last_run_hint(suite, model_hint, None)
+            model_hint = (
+                model
+                or models
+                or final_vars.get("models")
+                or final_vars.get("mode")
+                or suite
+            )
+            result_model = _result_model_hint(model, models, final_vars, suite)
+            result_dir = find_latest_result(
+                model=result_model,
+                audio="audio" in suite,
+            )
+            save_last_run_hint(suite, model_hint, result_dir)
+
+            if result_dir:
+                console.print(f"\n[green]✓ Results saved to: {result_dir}[/green]")
+                console.print("\nView results:")
+                console.print("  cpueval results --last")
+                console.print("  cpueval dashboard start\n")
 
         raise typer.Exit(exit_code)
 
@@ -343,6 +415,23 @@ def main(
     guidellm_cpus: Optional[str] = typer.Option(None, "--guidellm-cpus", help="GuideLLM CPU range (e.g., 0-31)"),
     guidellm_numa: Optional[int] = typer.Option(None, "--guidellm-numa", help="GuideLLM NUMA node"),
     profile: Optional[str] = typer.Option(None, "--profile", help="Load CPU pinning profile"),
+    endpoint_url: Optional[str] = typer.Option(
+        None,
+        "--endpoint-url",
+        help="External vLLM endpoint URL (sets VLLM_ENDPOINT_MODE=external)",
+    ),
+    vllm_bench_cpus: Optional[str] = typer.Option(
+        None, "--vllm-bench-cpus", help="CPU range for embedding vllm-bench container"
+    ),
+    vllm_bench_numa: Optional[int] = typer.Option(
+        None, "--vllm-bench-numa-node", help="NUMA node for embedding vllm-bench container"
+    ),
+    max_seconds: Optional[int] = typer.Option(
+        None, "--max-seconds", help="Per-test time limit in seconds (embedding suite)"
+    ),
+    continue_on_error: bool = typer.Option(
+        False, "--continue-on-error", help="Continue matrix run after a failure"
+    ),
     extra: Optional[List[str]] = typer.Option(None, "--extra", help="Extra vars (KEY=VAL, repeatable)"),
     extra_vars_file: Optional[str] = typer.Option(None, "--extra-vars-file", help="Load extra vars from YAML/JSON"),
     ansible_arg: Optional[List[str]] = typer.Option(None, "--ansible-arg", help="Raw ansible-playbook args (repeatable)"),
@@ -381,6 +470,11 @@ def main(
         guidellm_cpus=guidellm_cpus,
         guidellm_numa=guidellm_numa,
         profile=profile,
+        endpoint_url=endpoint_url,
+        vllm_bench_cpus=vllm_bench_cpus,
+        vllm_bench_numa=vllm_bench_numa,
+        continue_on_error=continue_on_error,
+        max_seconds=max_seconds,
         extra=extra,
         extra_vars_file=extra_vars_file,
         ansible_arg=ansible_arg,
@@ -575,6 +669,23 @@ def run(
     guidellm_cpus: Optional[str] = typer.Option(None, "--guidellm-cpus", help="GuideLLM CPU range (e.g., 0-31)"),
     guidellm_numa: Optional[int] = typer.Option(None, "--guidellm-numa", help="GuideLLM NUMA node"),
     profile: Optional[str] = typer.Option(None, "--profile", help="Load CPU pinning profile"),
+    endpoint_url: Optional[str] = typer.Option(
+        None,
+        "--endpoint-url",
+        help="External vLLM endpoint URL (sets VLLM_ENDPOINT_MODE=external)",
+    ),
+    vllm_bench_cpus: Optional[str] = typer.Option(
+        None, "--vllm-bench-cpus", help="CPU range for embedding vllm-bench container"
+    ),
+    vllm_bench_numa: Optional[int] = typer.Option(
+        None, "--vllm-bench-numa-node", help="NUMA node for embedding vllm-bench container"
+    ),
+    max_seconds: Optional[int] = typer.Option(
+        None, "--max-seconds", help="Per-test time limit in seconds (embedding suite)"
+    ),
+    continue_on_error: bool = typer.Option(
+        False, "--continue-on-error", help="Continue matrix run after a failure"
+    ),
     extra: Optional[List[str]] = typer.Option(None, "--extra", help="Extra vars (KEY=VAL, repeatable)"),
     extra_vars_file: Optional[str] = typer.Option(None, "--extra-vars-file", help="Load extra vars from YAML/JSON"),
     ansible_arg: Optional[List[str]] = typer.Option(None, "--ansible-arg", help="Raw ansible-playbook args (repeatable)"),
@@ -604,6 +715,11 @@ def run(
         guidellm_cpus=guidellm_cpus,
         guidellm_numa=guidellm_numa,
         profile=profile,
+        endpoint_url=endpoint_url,
+        vllm_bench_cpus=vllm_bench_cpus,
+        vllm_bench_numa=vllm_bench_numa,
+        continue_on_error=continue_on_error,
+        max_seconds=max_seconds,
         extra=extra,
         extra_vars_file=extra_vars_file,
         ansible_arg=ansible_arg,

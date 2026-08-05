@@ -18,3 +18,9 @@ param_mappings:
   workload: --workloads
   phase: --phase
   skip_models: --skip-models
+  vllm_cpu_start: vllm-cpu-start
+  vllm_numa_node: vllm-numa-node
+  guidellm_cpus: guidellm-cpus
+  guidellm_numa_node: guidellm-numa-node
+  requested_tensor_parallel: tensor-parallel
+  continue_on_error: continue-on-error
