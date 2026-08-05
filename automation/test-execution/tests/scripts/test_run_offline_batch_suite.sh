@@ -66,7 +66,7 @@ source_script_functions() {
     export MODEL_LLAMA_W8A8="RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w8a8"
     export MODEL_LLAMA_W4A16="RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w4a16"
     export MODEL_QWEN_W4A16="RedHatAI/Qwen3-8B-quantized.w4a16"
-    export ALL_MODELS="$MODEL_TINY_PRUNED,$MODEL_LLAMA_W8A8,$MODEL_LLAMA_W4A16,$MODEL_QWEN_W4A16"
+    export ALL_MODELS="$MODEL_LLAMA_W8A8,$MODEL_LLAMA_W4A16,$MODEL_QWEN_W4A16"
     export VLLM_CONTAINER_IMAGE="vllm/vllm-openai:latest"
 }
 

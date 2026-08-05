@@ -288,7 +288,6 @@
               --model /root/.cache/huggingface/{{ hostvars['localhost']['model_repo_name'] }}/snapshots/{{ hostvars['localhost']['model_snapshot_hash'] }} \
               --dataset-name sharegpt \
               --num-prompts {{ num_prompts }} \
-              {% if max_input_len is defined %}--max-input-len {{ max_input_len }}{% endif %} \
               {% if output_len is defined %}--output-len {{ output_len }}{% endif %} \
               {{ vllm_extra_args | default('') }}
       when: dataset_name == 'sharegpt'
@@ -326,7 +325,7 @@
         HF_TOKEN: "{{ lookup('env', 'HF_TOKEN') }}"
       register: benchmark_output
       changed_when: false
-      no_log: false
+      no_log: true
 
     - name: Display benchmark output
       ansible.builtin.debug:

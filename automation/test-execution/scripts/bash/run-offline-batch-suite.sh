@@ -116,7 +116,8 @@ MODES:
       - Shared-prefix / template batch
       - Ultra-short labeling (output 16 tokens)
 
-      Models: Single model or comma-separated list. Use 'all' for all 4 RedHatAI models.
+      Models: Single model or comma-separated list. Use 'all' for the 3 production RedHatAI models
+               (w8a8, w4a16 Llama, Qwen3 w4a16). TinyLlama is smoke-test only — pass explicitly.
 
     use-case-sweep <use-case> [models] [cores] [runs]
       Run a specific use case with core sweep
@@ -128,7 +129,7 @@ MODES:
       Runs: number of iterations (default: 3)
 
   Technical Benchmarks (Performance analysis):
-    baseline [cores] [prompts]       Baseline throughput across 4 RedHatAI models
+    baseline [cores] [prompts]       Baseline throughput across 3 production RedHatAI models
     batch-scaling <model> [cores]    Batch size scaling (10, 50, 100, 250, 500, 1000)
     input-scaling <model> [cores]    Input length variation (128-2048 tokens)
     output-scaling <model> [cores]   Output length variation (64-1024 tokens)
@@ -142,7 +143,7 @@ EXAMPLES:
 
   # Use cases (practical scenarios)
   ./run-offline-batch-suite.sh use-cases 3                    # 3 runs, TinyLlama pruned only
-  ./run-offline-batch-suite.sh use-cases 5 all                # 5 runs, all 4 RedHatAI models
+  ./run-offline-batch-suite.sh use-cases 5 all                # 5 runs, 3 production RedHatAI models
   ./run-offline-batch-suite.sh use-cases 1 "$MODEL_LLAMA_W8A8,$MODEL_QWEN_W4A16"  # Specific models
 
   # Focused use case testing
@@ -258,12 +259,15 @@ run_ansible_with_timeout() {
             echo -e "${RED}✗ FAILED with exit code $exit_code${NC}"
         fi
 
-        # Cleanup only this instance's container — never use a wildcard here,
-        # as that would kill sibling parallel instances sharing the vllm-llm-* prefix.
-        local _cname="${VLLM_CONTAINER_NAME:-vllm-llm-0}"
-        echo -e "${YELLOW}Cleaning up hung container ${_cname}...${NC}"
-        ansible dut -i "$INVENTORY" -m shell \
-            -a "podman stop ${_cname} 2>/dev/null; podman rm ${_cname} 2>/dev/null" -b || true
+        # In parallel mode VLLM_CONTAINER_NAME is always set (one stable name per
+        # instance).  Clean up only that container so we never kill sibling instances.
+        # In sequential mode the name is Ansible-generated and --replace handles it,
+        # so skip explicit cleanup here.
+        if [[ -n "${VLLM_CONTAINER_NAME:-}" ]]; then
+            echo -e "${YELLOW}Cleaning up hung container ${VLLM_CONTAINER_NAME}...${NC}"
+            ansible dut -i "$INVENTORY" -m shell \
+                -a "podman stop ${VLLM_CONTAINER_NAME} 2>/dev/null; podman rm ${VLLM_CONTAINER_NAME} 2>/dev/null" -b || true
+        fi
 
         if [ $attempt -lt $max_attempts ]; then
             echo -e "${YELLOW}Retrying in ${RETRY_DELAY}s...${NC}"
