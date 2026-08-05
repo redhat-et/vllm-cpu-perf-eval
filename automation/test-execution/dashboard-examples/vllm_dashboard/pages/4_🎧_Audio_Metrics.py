@@ -256,10 +256,12 @@ def plot_speedup_vs_sequential(df: pd.DataFrame):
     Example: If sequential takes 10 seconds and concurrent-8 takes 3.8 seconds, speedup = 2.6x
     """)
 
-    # Calculate speedup for each model+cores+run combination
-    multi_cores = df['cores'].nunique() > 1
+    # Calculate speedup for each model+cores+run combination.
+    # Use _model_label so the label format stays consistent with all other charts.
+    df_labeled = df.copy()
+    df_labeled['model_label'] = _model_label(df_labeled)
     speedup_data = []
-    for (model, cores, run_id), group_df in df.groupby(
+    for (model, cores, run_id), group_df in df_labeled.groupby(
         ['model_short', 'cores', 'test_run_id']
     ):
         sequential_rows = group_df[group_df['stage'] == 'sequential']
@@ -267,7 +269,7 @@ def plot_speedup_vs_sequential(df: pd.DataFrame):
             continue
 
         sequential_duration = sequential_rows['duration'].iloc[0]
-        label = f"{model} ({cores}c)" if multi_cores else model
+        label = group_df['model_label'].iloc[0]
 
         for _, row in group_df.iterrows():
             speedup = (
@@ -453,7 +455,6 @@ def plot_rtf(df: pd.DataFrame):
     # Aggregate to one row per (model_label, stage) before building plot_data.
     # Multiple scenarios/runs with the same model+cores would otherwise produce
     # duplicate (x, color) points that appear as a zigzag in the line chart.
-    multi_cores = df['cores'].nunique() > 1
     rtf_cols = {f'rtf_{p}': 'mean' for p in ['mean', 'p50', 'p95', 'p99']
                 if f'rtf_{p}' in df.columns}
     df_agg = df.copy()
@@ -526,9 +527,15 @@ def plot_latency_vs_audio_duration(df: pd.DataFrame):
 
     df_plot = df.copy()
     df_plot['model_label'] = _model_label(df_plot)
+    # Aggregate to one point per (model_label, stage/concurrency) so multiple
+    # scenarios or runs don't produce overlapping points at the same coordinates.
+    df_agg = (
+        df_plot.groupby(['model_label', 'cores', 'concurrency'], as_index=False)
+        .agg({'mean_audio_seconds': 'mean', 'e2e_mean': 'mean'})
+    )
 
     fig = px.scatter(
-        df_plot,
+        df_agg,
         x='mean_audio_seconds',
         y='e2e_mean',
         color='model_label',
@@ -545,7 +552,7 @@ def plot_latency_vs_audio_duration(df: pd.DataFrame):
     )
 
     # Add diagonal line for RTF=1.0
-    max_duration = df['mean_audio_seconds'].max()
+    max_duration = df_agg['mean_audio_seconds'].max()
     fig.add_scatter(
         x=[0, max_duration],
         y=[0, max_duration],
@@ -614,10 +621,10 @@ def plot_total_time_comparison(df: pd.DataFrame):
     summary = df_plot.groupby(
         ['model_label', 'cores', 'stage']
     ).agg({
-        'successful_requests': 'first',
-        'duration': 'first',
-        'seconds_per_file': 'first',
-        'requests_per_second': 'first',
+        'successful_requests': 'mean',
+        'duration': 'mean',
+        'seconds_per_file': 'mean',
+        'requests_per_second': 'mean',
     }).reset_index()
     summary['files_per_hour'] = summary['requests_per_second'] * 3600
     summary = summary.rename(columns={
