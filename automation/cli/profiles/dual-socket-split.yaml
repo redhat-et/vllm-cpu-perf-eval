@@ -16,7 +16,10 @@
 #     --cores 32 \
 #     --profile dual-socket-split
 
-# Pin vLLM to socket 1 (cores 64-95)
+# Pin vLLM to socket 1 (cores 64-95).
+# NOTE: vllm_cpus is a *fixed range* — it overrides count-based cpuset allocation.
+# --cores only controls the auto-allocation count when vllm_cpus is NOT set.
+# With this profile, vLLM always uses all 32 cores in 64-95 regardless of --cores.
 vllm_cpus: "64-95"
 vllm_numa_node: 1
 

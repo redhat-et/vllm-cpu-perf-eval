@@ -16,6 +16,7 @@ from cpueval.results import (
     run_dashboard_stop_command,
     save_last_run_hint,
     find_latest_result,
+    find_latest_embedding_result,
 )
 from cpueval.offline_batch import build_offline_batch_args
 from cpueval.runners import (
@@ -65,15 +66,25 @@ def _build_script_args(suite_obj, final_vars: dict) -> List[str]:
     return script_args
 
 
+_PRESET_NAMES = (
+    "all", "quick", "small", "large", "medium",
+    "tiny", "llama", "qwen", "granite",
+)
+
+
 def _result_model_hint(
     model: Optional[str],
     models: Optional[str],
     final_vars: dict,
-    suite: str,
 ) -> Optional[str]:
     """Pick a model filter for find_latest_result after a script suite run."""
-    for candidate in (model, models, final_vars.get("test_model"), final_vars.get("models")):
-        if candidate and candidate not in ("all", "quick", "small", "large", "medium"):
+    for candidate in (
+        model,
+        models,
+        final_vars.get("test_model"),
+        final_vars.get("models"),
+    ):
+        if candidate and candidate not in _PRESET_NAMES:
             return candidate
     return None
 
@@ -304,6 +315,11 @@ def _execute_suite(
         console.print(f"[red]{e}[/red]")
         raise typer.Exit(1)
 
+    # vllm_cpus (fixed range) takes precedence over vllm_cpu_start (offset).
+    # Drop vllm_cpu_start so it is never forwarded alongside vllm_cpus.
+    if final_vars.get("vllm_cpus"):
+        final_vars.pop("vllm_cpu_start", None)
+
     # Execute based on runner type
     if suite_obj.runner == "ansible":
         exit_code = run_ansible(suite_obj.target, final_vars, ansible_arg or [], dry_run=dry_run)
@@ -351,11 +367,14 @@ def _execute_suite(
                 or final_vars.get("mode")
                 or suite
             )
-            result_model = _result_model_hint(model, models, final_vars, suite)
-            result_dir = find_latest_result(
-                model=result_model,
-                audio="audio" in suite,
-            )
+            result_model = _result_model_hint(model, models, final_vars)
+            if "embedding" in suite:
+                result_dir = find_latest_embedding_result(model=result_model)
+            else:
+                result_dir = find_latest_result(
+                    model=result_model,
+                    audio="audio" in suite,
+                )
             save_last_run_hint(suite, model_hint, result_dir)
 
             if result_dir:

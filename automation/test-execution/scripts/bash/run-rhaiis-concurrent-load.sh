@@ -498,8 +498,7 @@ for model in "${MODELS[@]}"; do
             # Add NUMA/CPU pinning parameters if specified
             if [[ -n "${VLLM_CPUS}" ]]; then
                 cmd+=(-e "vllm_cpus=${VLLM_CPUS}")
-            fi
-            if [[ -n "${VLLM_CPU_START}" ]]; then
+            elif [[ -n "${VLLM_CPU_START}" ]]; then
                 cmd+=(-e "vllm_cpu_start=${VLLM_CPU_START}")
             fi
             if [[ -n "${VLLM_NUMA_NODE}" ]]; then

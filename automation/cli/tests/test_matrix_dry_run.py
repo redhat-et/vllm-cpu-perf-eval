@@ -686,3 +686,48 @@ def test_offline_batch_use_case_short_labeling():
     )
     assert result.returncode == 0, f"STDERR: {result.stderr}"
     assert "use-case-sweep short-labeling all 8,16,24,32 3" in result.stdout
+
+
+# ---------------------------------------------------------------------------
+# vllm_cpus / vllm_cpu_start conflict and deprecation
+# ---------------------------------------------------------------------------
+
+def test_vllm_cpu_start_deprecation_warning():
+    """--vllm-cpu-start alone emits a deprecation warning."""
+    result = subprocess.run(
+        [
+            sys.executable, "-m", "cpueval", "run",
+            "--suite", "rhaiis-sweep",
+            "--vllm-cpu-start", "64",
+            "--dry-run",
+            "--skip-doctor",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(repo_root()),
+    )
+
+    assert result.returncode == 0, f"STDERR: {result.stderr}"
+    assert "deprecated" in result.stdout.lower()
+    assert "--vllm-cpu-start 64" in result.stdout
+
+
+def test_vllm_cpus_suppresses_vllm_cpu_start():
+    """When --vllm-cpus and --vllm-cpu-start are both given, only --vllm-cpus is forwarded."""
+    result = subprocess.run(
+        [
+            sys.executable, "-m", "cpueval", "run",
+            "--suite", "rhaiis-sweep",
+            "--vllm-cpus", "64-95",
+            "--vllm-cpu-start", "96",
+            "--dry-run",
+            "--skip-doctor",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(repo_root()),
+    )
+
+    assert result.returncode == 0, f"STDERR: {result.stderr}"
+    assert "--vllm-cpus 64-95" in result.stdout
+    assert "--vllm-cpu-start" not in result.stdout

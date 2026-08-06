@@ -306,8 +306,7 @@ for model in "${FINAL_MODELS[@]}"; do
 
             if [[ -n "${VLLM_CPUS}" ]]; then
                 CMD+=(-e "vllm_cpus=${VLLM_CPUS}")
-            fi
-            if [[ -n "${VLLM_CPU_START}" ]]; then
+            elif [[ -n "${VLLM_CPU_START}" ]]; then
                 CMD+=(-e "vllm_cpu_start=${VLLM_CPU_START}")
             fi
             if [[ -n "${VLLM_NUMA_NODE}" ]]; then

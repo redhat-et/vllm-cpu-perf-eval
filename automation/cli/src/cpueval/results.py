@@ -18,6 +18,7 @@ from cpueval.paths import (
     get_conversion_script,
     get_repo_root,
     find_latest_result,
+    find_latest_embedding_result,
 )
 
 

@@ -183,7 +183,7 @@
       - "NUMA Nodes: {{ core_allocation_result.allocated_nodes | join(', ') }}"
       - "Cores per Node: {{ core_allocation_result.cores_per_node | join(', ') }}"
       - "Tensor Parallel: {{ core_allocation_result.tensor_parallel }}{{ ' (auto-calculated)' if requested_tensor_parallel is not defined else ' (user-specified)' }}"
-      - "CPU Pinning: {{ core_allocation_result.cpuset_cpus }}"
+      - "CPU Pinning: {{ auto_core_config.cpuset_cpus }}{{ ' (overridden by vllm_cpus)' if (vllm_cpus is defined and vllm_cpus not in [None, '']) else '' }}"
       - "Memory Affinity: {{ core_allocation_result.cpuset_mems }}"
       - "OMP Threads: {{ core_allocation_result.omp_num_threads }}"
       - "OMP Binding: {{ core_allocation_result.omp_threads_bind | default('auto') }}"

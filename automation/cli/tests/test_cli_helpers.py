@@ -2,7 +2,7 @@
 
 import os
 
-from cpueval.cli import _apply_endpoint_env, _build_script_args
+from cpueval.cli import _apply_endpoint_env, _build_script_args, _result_model_hint
 from cpueval.suite_registry import SuiteRegistry
 
 
@@ -69,3 +69,42 @@ def test_build_script_args_preserves_existing_dash_prefix():
     args = _build_script_args(suite, {"cores": "8"})
 
     assert args == ["--cores", "8"]
+
+
+# ---------------------------------------------------------------------------
+# _result_model_hint — preset blocklist
+# ---------------------------------------------------------------------------
+
+def test_result_model_hint_preset_tiny_returns_none():
+    """'tiny' is a preset name and must not be used as a model directory filter."""
+    assert _result_model_hint(None, "tiny", {}) is None
+
+
+def test_result_model_hint_preset_llama_returns_none():
+    """'llama' is a preset name and must not be used as a model directory filter."""
+    assert _result_model_hint(None, "llama", {}) is None
+
+
+def test_result_model_hint_preset_qwen_returns_none():
+    """'qwen' is a preset name and must not be used as a model directory filter."""
+    assert _result_model_hint(None, "qwen", {}) is None
+
+
+def test_result_model_hint_preset_in_final_vars_returns_none():
+    """Preset stored in final_vars.models must also be blocked."""
+    assert _result_model_hint(None, None, {"models": "tiny"}) is None
+
+
+def test_result_model_hint_real_model_returned():
+    """An actual model ID passes through the blocklist unchanged."""
+    model = "RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w8a8"
+    assert _result_model_hint(model, None, {}) == model
+
+
+def test_result_model_hint_prefers_explicit_model():
+    """--model takes precedence over --models even when both are present."""
+    assert (
+        _result_model_hint(
+            "RedHatAI/model-a", "tiny", {}
+        ) == "RedHatAI/model-a"
+    )

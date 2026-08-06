@@ -40,6 +40,11 @@ def get_audio_results_dir() -> Path:
     return get_results_dir() / "audio-models"
 
 
+def get_embedding_results_dir() -> Path:
+    """Get the embedding results directory."""
+    return get_results_dir() / "embedding"
+
+
 def get_dashboard_script() -> Path:
     """Get the dashboard launch script."""
     return (
@@ -132,6 +137,42 @@ def find_latest_result(
         ]
 
     # Sort by modification time and return the latest
+    if result_dirs:
+        return max(result_dirs, key=lambda p: p.stat().st_mtime)
+
+    return None
+
+
+def find_latest_embedding_result(model: Optional[str] = None) -> Optional[Path]:
+    """Find the latest embedding result directory.
+
+    Embedding results use test-metadata.json (not benchmarks.json) under
+    results/embedding/<model_dir>/<run_dir>/.
+
+    Args:
+        model: Model name to filter by (optional)
+
+    Returns:
+        Path to the latest matching result directory, or None if not found
+    """
+    base_dir = get_embedding_results_dir()
+
+    if not base_dir.exists():
+        return None
+
+    metadata_files = list(base_dir.rglob("test-metadata.json"))
+    if not metadata_files:
+        return None
+
+    result_dirs = [m.parent for m in metadata_files]
+
+    if model:
+        model_safe = model.replace("/", "__")
+        result_dirs = [
+            d for d in result_dirs
+            if any(part == model_safe for part in d.parts)
+        ]
+
     if result_dirs:
         return max(result_dirs, key=lambda p: p.stat().st_mtime)
 

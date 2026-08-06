@@ -395,6 +395,13 @@ file anywhere on disk.
 |---------|----------|
 | `dual-socket-split` | Dual-socket system — vLLM pinned to socket 1 (cores 64–95, NUMA 1), GuideLLM pinned to socket 0 (cores 0–31, NUMA 0) |
 
+> **`vllm_cpus` vs `--cores`:** When a profile (or `--vllm-cpus`) sets `vllm_cpus`,
+> it specifies a **fixed CPU set** for vLLM regardless of `--cores`. For example,
+> `--profile dual-socket-split --cores 8` pins vLLM to all 32 cores in `64-95`, not
+> 8 cores starting at 64. Use `vllm_cpus` when you want an explicit range; use
+> `--cores` alone when you want count-based auto-allocation. The two modes are
+> mutually exclusive: `vllm_cpus` always wins.
+
 To list profiles available:
 
 ```bash
