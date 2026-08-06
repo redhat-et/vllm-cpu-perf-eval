@@ -102,6 +102,7 @@ def _execute_suite(
     output_len: Optional[int],
     preset: Optional[str],
     tensor_parallel: Optional[int],
+    vllm_cpus: Optional[str],
     vllm_cpu_start: Optional[int],
     vllm_numa: Optional[int],
     guidellm_cpus: Optional[str],
@@ -232,7 +233,14 @@ def _execute_suite(
         cli_vars["requested_tensor_parallel"] = tensor_parallel
 
     # CPU pinning vars
+    if vllm_cpus:
+        cli_vars["vllm_cpus"] = vllm_cpus
     if vllm_cpu_start is not None:
+        if not vllm_cpus:
+            console.print(
+                "[yellow]Warning: --vllm-cpu-start is deprecated; "
+                "use --vllm-cpus (e.g., --vllm-cpus 64-95)[/yellow]"
+            )
         cli_vars["vllm_cpu_start"] = vllm_cpu_start
 
     if vllm_numa is not None:
@@ -410,7 +418,8 @@ def main(
     ),
     preset: Optional[str] = typer.Option(None, "--preset", help="Model preset (deprecated, use --models)"),
     tensor_parallel: Optional[int] = typer.Option(None, "--tensor-parallel", help="Tensor parallel size"),
-    vllm_cpu_start: Optional[int] = typer.Option(None, "--vllm-cpu-start", help="vLLM CPU start core"),
+    vllm_cpus: Optional[str] = typer.Option(None, "--vllm-cpus", help="vLLM CPU range (e.g., 64-95 or 64,65,66)"),
+    vllm_cpu_start: Optional[int] = typer.Option(None, "--vllm-cpu-start", help="vLLM CPU start core (deprecated: use --vllm-cpus)"),
     vllm_numa: Optional[int] = typer.Option(None, "--vllm-numa", help="vLLM NUMA node"),
     guidellm_cpus: Optional[str] = typer.Option(None, "--guidellm-cpus", help="GuideLLM CPU range (e.g., 0-31)"),
     guidellm_numa: Optional[int] = typer.Option(None, "--guidellm-numa", help="GuideLLM NUMA node"),
@@ -465,6 +474,7 @@ def main(
         output_len=output_len,
         preset=preset,
         tensor_parallel=tensor_parallel,
+        vllm_cpus=vllm_cpus,
         vllm_cpu_start=vllm_cpu_start,
         vllm_numa=vllm_numa,
         guidellm_cpus=guidellm_cpus,
@@ -664,7 +674,8 @@ def run(
     ),
     preset: Optional[str] = typer.Option(None, "--preset", help="Model preset (deprecated, use --models)"),
     tensor_parallel: Optional[int] = typer.Option(None, "--tensor-parallel", help="Tensor parallel size"),
-    vllm_cpu_start: Optional[int] = typer.Option(None, "--vllm-cpu-start", help="vLLM CPU start core"),
+    vllm_cpus: Optional[str] = typer.Option(None, "--vllm-cpus", help="vLLM CPU range (e.g., 64-95 or 64,65,66)"),
+    vllm_cpu_start: Optional[int] = typer.Option(None, "--vllm-cpu-start", help="vLLM CPU start core (deprecated: use --vllm-cpus)"),
     vllm_numa: Optional[int] = typer.Option(None, "--vllm-numa", help="vLLM NUMA node"),
     guidellm_cpus: Optional[str] = typer.Option(None, "--guidellm-cpus", help="GuideLLM CPU range (e.g., 0-31)"),
     guidellm_numa: Optional[int] = typer.Option(None, "--guidellm-numa", help="GuideLLM NUMA node"),
@@ -710,6 +721,7 @@ def run(
         output_len=output_len,
         preset=preset,
         tensor_parallel=tensor_parallel,
+        vllm_cpus=vllm_cpus,
         vllm_cpu_start=vllm_cpu_start,
         vllm_numa=vllm_numa,
         guidellm_cpus=guidellm_cpus,

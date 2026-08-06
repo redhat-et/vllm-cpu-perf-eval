@@ -18,6 +18,7 @@ param_mappings:
   workload: --workloads
   phase: --phase
   skip_models: --skip-models
+  vllm_cpus: vllm-cpus
   vllm_cpu_start: vllm-cpu-start
   vllm_numa_node: vllm-numa-node
   guidellm_cpus: guidellm-cpus

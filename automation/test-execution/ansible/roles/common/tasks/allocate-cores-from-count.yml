@@ -15,6 +15,17 @@
       - numa_topology.nodes is defined
     fail_msg: "Missing required variables: requested_cores and numa_topology must be set"
 
+- name: Validate vllm_cpus format if provided
+  ansible.builtin.assert:
+    that:
+      - vllm_cpus | string | trim | regex_search('^[0-9]+(-[0-9]+)?(,[0-9]+(-[0-9]+)?)*$') is not none
+    fail_msg: >-
+      vllm_cpus='{{ vllm_cpus }}' is not valid. Expected a range (e.g. '64-95'),
+      a single core ('64'), or a comma-separated list ('64,65,66').
+  when:
+    - vllm_cpus is defined
+    - vllm_cpus not in [None, ""]
+
 - name: Validate vllm_cpu_start if provided
   ansible.builtin.assert:
     that:
@@ -153,6 +164,13 @@
   ansible.builtin.set_fact:
     auto_core_config: "{{ auto_core_config | combine({'omp_threads_bind': core_allocation_result.omp_threads_bind}) }}"
   when: core_allocation_result.omp_threads_bind is not none
+
+- name: Override cpuset_cpus with explicit vllm_cpus if provided
+  ansible.builtin.set_fact:
+    auto_core_config: "{{ auto_core_config | combine({'cpuset_cpus': vllm_cpus | string | trim}) }}"
+  when:
+    - vllm_cpus is defined
+    - vllm_cpus not in [None, ""]
 
 - name: Display allocation summary
   ansible.builtin.debug:

@@ -379,7 +379,7 @@ def test_concurrent_load_profile_pinning_passthrough():
     )
 
     assert result.returncode == 0, f"STDERR: {result.stderr}"
-    assert "--vllm-cpu-start 64" in result.stdout
+    assert "--vllm-cpus 64-95" in result.stdout
     assert "--vllm-numa-node 1" in result.stdout
     assert "--guidellm-cpus 0-31" in result.stdout
     assert "--guidellm-numa-node 0" in result.stdout
@@ -408,6 +408,31 @@ def test_rhaiis_sweep_pinning_flags():
     assert "--vllm-numa-node 1" in result.stdout
     assert "--guidellm-cpus 0-31" in result.stdout
     assert "--guidellm-numa-node 0" in result.stdout
+
+
+def test_vllm_cpus_flag_passthrough():
+    """--vllm-cpus explicit range is forwarded and --vllm-cpu-start is not present."""
+    result = subprocess.run(
+        [
+            sys.executable, "-m", "cpueval", "run",
+            "--suite", "rhaiis-sweep",
+            "--vllm-cpus", "64-95",
+            "--vllm-numa", "1",
+            "--guidellm-cpus", "0-31",
+            "--guidellm-numa", "0",
+            "--dry-run",
+            "--skip-doctor",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(repo_root()),
+    )
+
+    assert result.returncode == 0, f"STDERR: {result.stderr}"
+    assert "--vllm-cpus 64-95" in result.stdout
+    assert "--vllm-numa-node 1" in result.stdout
+    assert "--guidellm-cpus 0-31" in result.stdout
+    assert "--vllm-cpu-start" not in result.stdout
 
 
 def test_embedding_bench_pinning_flags():

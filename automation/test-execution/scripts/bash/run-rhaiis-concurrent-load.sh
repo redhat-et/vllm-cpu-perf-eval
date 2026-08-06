@@ -25,7 +25,9 @@
 #                           Default: auto-calculated based on NUMA topology
 #   --phase PHASE           Test phase (1|2|3|all)
 #                           Default: 1 (Phase 1: baseline tests only)
-#   --vllm-cpu-start NUM    Starting CPU for vLLM (for socket separation)
+#   --vllm-cpus RANGE       Explicit CPU set for vLLM (e.g., 64-95 or 64,65,66)
+#                           Preferred over --vllm-cpu-start; Env: VLLM_CPUS
+#   --vllm-cpu-start NUM    (Deprecated) Starting CPU for vLLM; use --vllm-cpus
 #                           Env: VLLM_CPU_START
 #   --vllm-numa-node NUM    NUMA node for vLLM (for socket separation)
 #                           Env: VLLM_NUMA_NODE
@@ -139,6 +141,7 @@ SKIP_MODELS_INPUT=""
 
 # NUMA/CPU pinning defaults (for socket separation)
 # Override with environment variables or command line options
+VLLM_CPUS="${VLLM_CPUS:-}"
 VLLM_CPU_START="${VLLM_CPU_START:-}"
 VLLM_NUMA_NODE="${VLLM_NUMA_NODE:-}"
 GUIDELLM_CPUS="${GUIDELLM_CPUS:-}"
@@ -210,6 +213,11 @@ while [[ $# -gt 0 ]]; do
         --phase)
             validate_flag_value "$1" "${2:-}"
             PHASE="$2"
+            shift 2
+            ;;
+        --vllm-cpus)
+            validate_flag_value "$1" "${2:-}"
+            VLLM_CPUS="$2"
             shift 2
             ;;
         --vllm-cpu-start)
@@ -374,10 +382,12 @@ else
 fi
 echo ""
 echo "NUMA/CPU Configuration:"
-if [[ -n "${VLLM_CPU_START}" ]]; then
-    echo "  vLLM CPU start: ${VLLM_CPU_START}"
+if [[ -n "${VLLM_CPUS}" ]]; then
+    echo "  vLLM CPUs: ${VLLM_CPUS}"
+elif [[ -n "${VLLM_CPU_START}" ]]; then
+    echo "  vLLM CPU start: ${VLLM_CPU_START} (deprecated; use --vllm-cpus)"
 else
-    echo "  vLLM CPU start: auto-detect"
+    echo "  vLLM CPUs: auto-detect"
 fi
 if [[ -n "${VLLM_NUMA_NODE}" ]]; then
     echo "  vLLM NUMA node: ${VLLM_NUMA_NODE}"
@@ -486,6 +496,9 @@ for model in "${MODELS[@]}"; do
             )
 
             # Add NUMA/CPU pinning parameters if specified
+            if [[ -n "${VLLM_CPUS}" ]]; then
+                cmd+=(-e "vllm_cpus=${VLLM_CPUS}")
+            fi
             if [[ -n "${VLLM_CPU_START}" ]]; then
                 cmd+=(-e "vllm_cpu_start=${VLLM_CPU_START}")
             fi

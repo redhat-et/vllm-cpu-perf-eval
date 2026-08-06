@@ -104,9 +104,13 @@ ansible-playbook -i inventory/hosts.yml start-vllm-scaleout.yml \
 ansible-playbook -i inventory/hosts.yml stop-vllm-scaleout.yml
 ```
 
-In external mode, `--cores`, `--vllm-cpu-start`, and `--profile` pinning are ignored
-(the endpoint manages its own CPUs). GuideLLM still runs on the load generator with
-normal inventory settings.
+In external mode, `--cores`, `--vllm-cpus`, `--vllm-cpu-start`, and `--profile` pinning
+are ignored (the endpoint manages its own CPUs). GuideLLM still runs on the load
+generator with normal inventory settings.
+
+> **Note:** `--vllm-cpu-start` is deprecated. Use `--vllm-cpus RANGE` instead to
+> specify an explicit CPU set (e.g., `--vllm-cpus 64-95`). The legacy option still
+> works but will emit a deprecation warning.
 
 ## Commands
 

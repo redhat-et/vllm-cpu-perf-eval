@@ -22,7 +22,9 @@
 #   --phase PHASE           Test phase (1|2|3|all)
 #                           Default: 1 (Phase 1: baseline tests only)
 #   --skip-models LIST      Comma-separated models to skip
-#   --vllm-cpu-start NUM    Pin vLLM to start at this CPU core (socket separation)
+#   --vllm-cpus RANGE       Explicit CPU set for vLLM (e.g., 64-95 or 64,65,66)
+#                           Preferred over --vllm-cpu-start
+#   --vllm-cpu-start NUM    (Deprecated) Pin vLLM to start at this CPU core
 #   --vllm-numa-node NUM    Pin vLLM to this NUMA node
 #   --guidellm-cpus RANGE   CPU range for GuideLLM (e.g., 0-31)
 #   --guidellm-numa-node NUM NUMA node for GuideLLM
@@ -103,6 +105,7 @@ PHASE="1"
 CONTINUE_ON_ERROR=false
 DRY_RUN=false
 SKIP_MODELS_INPUT=""
+VLLM_CPUS=""
 VLLM_CPU_START=""
 VLLM_NUMA_NODE=""
 GUIDELLM_CPUS=""
@@ -133,6 +136,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --skip-models)
             SKIP_MODELS_INPUT="$2"
+            shift 2
+            ;;
+        --vllm-cpus)
+            VLLM_CPUS="$2"
             shift 2
             ;;
         --vllm-cpu-start)
@@ -297,6 +304,9 @@ for model in "${FINAL_MODELS[@]}"; do
                 "-e" "skip_phase_3=$SKIP_PHASE_3"
             )
 
+            if [[ -n "${VLLM_CPUS}" ]]; then
+                CMD+=(-e "vllm_cpus=${VLLM_CPUS}")
+            fi
             if [[ -n "${VLLM_CPU_START}" ]]; then
                 CMD+=(-e "vllm_cpu_start=${VLLM_CPU_START}")
             fi

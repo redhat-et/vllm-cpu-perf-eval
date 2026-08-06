@@ -51,6 +51,16 @@ def test_build_script_args_prefixes_mapping_values_without_dashes():
     ]
 
 
+def test_build_script_args_vllm_cpus_mapping():
+    """--vllm-cpus range is forwarded via the suite param_mapping."""
+    suite = SuiteRegistry().get_suite("concurrent-load")
+    assert suite is not None
+
+    args = _build_script_args(suite, {"vllm_cpus": "64-95"})
+
+    assert args == ["--vllm-cpus", "64-95"]
+
+
 def test_build_script_args_preserves_existing_dash_prefix():
     """Mappings that already include -- are left unchanged."""
     suite = SuiteRegistry().get_suite("concurrent-load")

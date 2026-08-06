@@ -11,8 +11,12 @@
 #     -e "requested_cores=16"
 #     -e "requested_tensor_parallel=2"  # optional, auto-calculated if not specified (valid: 1, 2, 4, 8)
 #
-# Socket Pinning (optional):
-#   # Pin vLLM to socket 1 (cores 64-95, NUMA node 1)
+# CPU Pinning (optional):
+#   # Pin vLLM to explicit CPU range (preferred)
+#   -e "vllm_cpus=64-95" \
+#   -e "vllm_numa_node=1" \
+#
+#   # Legacy: pin vLLM by start-core offset (deprecated, use vllm_cpus)
 #   -e "vllm_cpu_start=64" \
 #   -e "vllm_numa_node=1" \
 #
@@ -130,6 +134,15 @@
       when:
         - test_name is defined
         - test_name | length > 0
+
+    - name: Validate vllm_cpus format if provided
+      ansible.builtin.assert:
+        that:
+          - vllm_cpus | string | trim | regex_search('^[0-9]+(-[0-9]+)?(,[0-9]+(-[0-9]+)?)*$') is not none
+        fail_msg: >-
+          vllm_cpus='{{ vllm_cpus }}' is not valid. Expected a range (e.g. '64-95'),
+          a single core ('64'), or a comma-separated list ('64,65,66').
+      when: vllm_cpus is defined and vllm_cpus is not none and vllm_cpus | string | trim != ''
 
     - name: Validate vllm_cpu_start if provided
       ansible.builtin.assert:
@@ -337,6 +350,7 @@
     requested_tensor_parallel: "{{ hostvars['localhost']['requested_tensor_parallel'] | default(omit) }}"
     requested_omp_threads: "{{ hostvars['localhost']['requested_omp_threads'] | default(omit) }}"
     requested_omp_bind: "{{ hostvars['localhost']['requested_omp_bind'] | default(omit) }}"
+    vllm_cpus: "{{ hostvars['localhost']['vllm_cpus'] | default(None) }}"
     vllm_cpu_start: "{{ hostvars['localhost']['vllm_cpu_start'] | default(None) }}"
     vllm_numa_node: "{{ hostvars['localhost']['vllm_numa_node'] | default(None) }}"
 

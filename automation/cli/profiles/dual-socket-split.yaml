@@ -17,7 +17,7 @@
 #     --profile dual-socket-split
 
 # Pin vLLM to socket 1 (cores 64-95)
-vllm_cpu_start: 64
+vllm_cpus: "64-95"
 vllm_numa_node: 1
 
 # Pin GuideLLM to socket 0 (cores 0-31)
