@@ -362,8 +362,14 @@ def run_results_command(
         if hint and hint.get("results_hint"):
             result_dir = Path(hint["results_hint"])
         else:
-            # Fall back to finding latest
-            result_dir = find_latest_result()
+            # Fall back to finding latest; respect suite type from hint
+            suite_hint = hint.get("suite", "") if hint else ""
+            if "embedding" in suite_hint:
+                result_dir = find_latest_embedding_result()
+            else:
+                result_dir = find_latest_result(
+                    audio="audio" in suite_hint
+                )
 
         if not result_dir:
             console.print("[yellow]No last run found. Try --list to see available results.[/yellow]")
