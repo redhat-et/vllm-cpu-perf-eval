@@ -38,12 +38,13 @@
       ansible.builtin.assert:
         that:
           - test_model is defined
+          - test_model is match('^[a-zA-Z0-9][a-zA-Z0-9._-]*/[a-zA-Z0-9][a-zA-Z0-9._-]*$')
           - dataset_name is defined
           - num_prompts is defined
           - requested_cores is defined
         fail_msg: |
-          Missing required variables. Please provide:
-          -e "test_model=<model>"
+          Missing or invalid required variables. Please provide:
+          -e "test_model=<namespace/repo>"   (e.g. RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w8a8)
           -e "dataset_name=<sonnet|random|sharegpt>"
           -e "num_prompts=<100|1000|...>"
           -e "requested_cores=<8|16|24|32>"
@@ -104,34 +105,50 @@
         mode: "0755"
 
     - name: Check if model is already cached
-      ansible.builtin.stat:
-        path: "{{ dut_cache_dir }}/models--{{ test_model | replace('/', '--') }}"
+      ansible.builtin.command:
+        argv:
+          - find
+          - "{{ dut_cache_dir }}/models--{{ test_model | replace('/', '--') }}/snapshots"
+          - -mindepth
+          - "1"
+          - -maxdepth
+          - "1"
+          - -type
+          - d
       register: model_cache_check
+      changed_when: false
+      failed_when: false
 
     - name: Display cache status
       ansible.builtin.debug:
-        msg: "Model {{ test_model }} {{ 'found in cache' if model_cache_check.stat.exists else 'not found, will download using container' }}"
+        msg: "Model {{ test_model }} {{ 'found in cache' if (model_cache_check.rc == 0 and model_cache_check.stdout | trim != '') else 'not found, will download using container' }}"
 
     - name: Download model using container
       ansible.builtin.shell: |
         podman run --rm \
-          --user root \
           -v "{{ dut_cache_dir }}:/root/.cache/huggingface:z" \
           -e HF_TOKEN \
-          -e HF_HUB_OFFLINE=0 \
           --entrypoint python3 \
           {{ hostvars['localhost']['vllm_container_image'] }} \
           -c "from huggingface_hub import snapshot_download; snapshot_download('{{ test_model }}', cache_dir='/root/.cache/huggingface')"
       environment:
         HF_TOKEN: "{{ lookup('env', 'HF_TOKEN') }}"
-      when: not model_cache_check.stat.exists
+      when: model_cache_check.rc != 0 or model_cache_check.stdout | trim == ''
       register: model_download
       changed_when: model_download.rc == 0
       no_log: true
 
     - name: Get model snapshot path
-      ansible.builtin.shell: |
-        ls -d {{ dut_cache_dir }}/models--{{ test_model | replace('/', '--') }}/snapshots/* | head -1
+      ansible.builtin.command:
+        argv:
+          - find
+          - "{{ dut_cache_dir }}/models--{{ test_model | replace('/', '--') }}/snapshots"
+          - -mindepth
+          - "1"
+          - -maxdepth
+          - "1"
+          - -type
+          - d
       register: model_snapshot_path
       changed_when: false
 
@@ -139,7 +156,7 @@
       ansible.builtin.set_fact:
         dut_cache_dir: "{{ dut_cache_dir }}"
         model_repo_name: "models--{{ test_model | replace('/', '--') }}"
-        model_snapshot_hash: "{{ model_snapshot_path.stdout | basename }}"
+        model_snapshot_hash: "{{ model_snapshot_path.stdout_lines | first | basename }}"
       delegate_to: localhost
       delegate_facts: true
 
@@ -148,8 +165,8 @@
         msg:
           - "Model: {{ test_model }}"
           - "Cache directory: {{ dut_cache_dir }}"
-          - "Snapshot hash: {{ model_snapshot_path.stdout | basename }}"
-          - "Full path: {{ model_snapshot_path.stdout }}"
+          - "Snapshot hash: {{ model_snapshot_path.stdout_lines | first | basename }}"
+          - "Full path: {{ model_snapshot_path.stdout_lines | first }}"
 
 - name: "Offline Batch Benchmark - Prepare Dataset"
   hosts: dut
@@ -226,18 +243,16 @@
         msg: "LD_PRELOAD={{ vllm_ld_preload | default('(not set - libomp not found in container)') }}"
 
     - name: Detect NUMA topology on DUT
+      become: true
       ansible.builtin.include_role:
         name: common
         tasks_from: detect-numa-topology
-        apply:
-          become: true
 
     - name: Allocate cores from NUMA topology
+      become: true
       ansible.builtin.include_role:
         name: common
         tasks_from: allocate-cores-from-count
-        apply:
-          become: true
 
     - name: Set CPU pinning from NUMA allocation
       ansible.builtin.set_fact:
@@ -246,7 +261,10 @@
 
     - name: Set effective container name for offline batch
       ansible.builtin.set_fact:
-        _batch_container_name: "{{ vllm_container_name }}"
+        _batch_container_name: >-
+          {{ vllm_container_name
+             if (vllm_container_name != 'vllm-server')
+             else 'vllm-batch-' + dataset_name + '-' + (requested_cores | string) + 'c-' + hostvars['localhost']['test_run_id'] }}
 
     - name: Build benchmark command (sonnet dataset with file)
       ansible.builtin.set_fact:
@@ -324,13 +342,18 @@
       changed_when: false
       no_log: true
 
+    - name: Build combined benchmark log for metric parsing
+      ansible.builtin.set_fact:
+        benchmark_combined_log: "{{ benchmark_output.stdout }}{% if benchmark_output.stderr | default('') | length > 0 %}\n{{ benchmark_output.stderr }}{% endif %}"
+        benchmark_combined_lines: "{{ benchmark_output.stdout_lines + (benchmark_output.stderr_lines | default([])) }}"
+
     - name: Display benchmark output
       ansible.builtin.debug:
-        msg: "{{ benchmark_output.stdout_lines }}"
+        msg: "{{ benchmark_combined_lines }}"
 
     - name: Save raw benchmark output
       ansible.builtin.copy:
-        content: "{{ benchmark_output.stdout }}"
+        content: "{{ benchmark_combined_log }}"
         dest: "{{ hostvars['localhost']['results_base'] }}/{{ hostvars['localhost']['model_safe'] }}/offline-batch-{{ hostvars['localhost']['test_timestamp'] }}/{{ hostvars['localhost']['config_id'] }}/benchmark.log"
       delegate_to: localhost
 
@@ -341,16 +364,16 @@
   tasks:
     - name: Extract throughput metrics from output
       ansible.builtin.set_fact:
-        throughput_line: "{{ hostvars[groups['dut'][0]]['benchmark_output'].stdout_lines | select('search', 'Throughput:') | first }}"
-      when: hostvars[groups['dut'][0]]['benchmark_output'].stdout_lines | select('search', 'Throughput:') | list | length > 0
+        throughput_line: "{{ hostvars[groups['dut'][0]]['benchmark_combined_lines'] | select('search', 'Throughput:') | first }}"
+      when: hostvars[groups['dut'][0]]['benchmark_combined_lines'] | select('search', 'Throughput:') | list | length > 0
 
     - name: Extract token counts from output
       ansible.builtin.set_fact:
-        prompt_tokens_line: "{{ hostvars[groups['dut'][0]]['benchmark_output'].stdout_lines | select('search', 'Total num prompt tokens:') | first }}"
-        output_tokens_line: "{{ hostvars[groups['dut'][0]]['benchmark_output'].stdout_lines | select('search', 'Total num output tokens:') | first }}"
+        prompt_tokens_line: "{{ hostvars[groups['dut'][0]]['benchmark_combined_lines'] | select('search', 'Total num prompt tokens:') | first }}"
+        output_tokens_line: "{{ hostvars[groups['dut'][0]]['benchmark_combined_lines'] | select('search', 'Total num output tokens:') | first }}"
       when:
-        - hostvars[groups['dut'][0]]['benchmark_output'].stdout_lines | select('search', 'Total num prompt tokens:') | list | length > 0
-        - hostvars[groups['dut'][0]]['benchmark_output'].stdout_lines | select('search', 'Total num output tokens:') | list | length > 0
+        - hostvars[groups['dut'][0]]['benchmark_combined_lines'] | select('search', 'Total num prompt tokens:') | list | length > 0
+        - hostvars[groups['dut'][0]]['benchmark_combined_lines'] | select('search', 'Total num output tokens:') | list | length > 0
 
     - name: Parse throughput values
       ansible.builtin.set_fact:
@@ -369,7 +392,7 @@
 
     - name: Extract streaming metrics from logs (prefill/decode throughput, KV cache, prefix cache)
       ansible.builtin.set_fact:
-        engine_logs: "{{ hostvars[groups['dut'][0]]['benchmark_output'].stdout_lines | select('search', 'Engine 000:') | list }}"
+        engine_logs: "{{ hostvars[groups['dut'][0]]['benchmark_combined_lines'] | select('search', 'Engine 000:') | list }}"
 
     - name: Parse average prefill throughput from streaming logs
       ansible.builtin.set_fact:

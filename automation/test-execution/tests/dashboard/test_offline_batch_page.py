@@ -50,6 +50,22 @@ is_technical_use_case = _ns["is_technical_use_case"]
 format_duration = _ns["format_duration"]
 normalize_version = _ns["normalize_vllm_version"]
 USE_CASE_REFERENCE = _ns["USE_CASE_REFERENCE"]
+build_config_fingerprint = _ns["build_config_fingerprint"]
+is_capped_run = _ns["is_capped_run"]
+capped_run_note = _ns["capped_run_note"]
+apply_run_aggregation = _ns["apply_run_aggregation"]
+build_coverage_pivot = _ns["build_coverage_pivot"]
+build_best_configs_table = _ns["build_best_configs_table"]
+format_run_stats = _ns["format_run_stats"]
+parse_streaming_metrics_from_log = _ns["parse_streaming_metrics_from_log"]
+use_case_cli_name = _ns["use_case_cli_name"]
+compute_coefficient_of_variation = _ns["compute_coefficient_of_variation"]
+IMPORT_CSV_COLUMN_MAP = _ns["IMPORT_CSV_COLUMN_MAP"]
+normalize_imported_offline_batch_df = _ns["normalize_imported_offline_batch_df"]
+PREFILL_COL = _ns["PREFILL_COL"]
+DECODE_COL = _ns["DECODE_COL"]
+METRIC_RPS = _ns["METRIC_RPS"]
+METRIC_TOK_S = _ns["METRIC_TOK_S"]
 
 
 class TestComputeItemsPerHour:
@@ -676,6 +692,80 @@ class TestUseCaseInference:
             }
         }
         assert infer_use_case(metadata) == "⚙️ General"
+
+
+class TestConfigFingerprint:
+    def test_basic_fingerprint(self):
+        row = {
+            'cores': 16,
+            'dataset': 'sharegpt',
+            'num_prompts': 100,
+            'config_input_len': None,
+            'config_output_len': 64,
+        }
+        fp = build_config_fingerprint(row)
+        assert '16c' in fp
+        assert 'sharegpt' in fp
+        assert '100 prompts' in fp
+        assert 'out=64' in fp
+
+
+class TestCappedRuns:
+    def test_capped_detection(self):
+        assert is_capped_run('summarization', 100) is True
+        assert is_capped_run('summarization', 1000) is False
+        assert is_capped_run('', 100) is False
+
+    def test_capped_note(self):
+        note = capped_run_note('summarization', 100)
+        assert 'Capped run' in note
+        assert capped_run_note('summarization', 1000) == ''
+
+
+class TestStreamingMetricsParsing:
+    SAMPLE_LOG = """
+Throughput: 1.23 requests/s, 456.78 total tokens/s
+Engine 000: Avg prompt throughput: 100.5 tokens/s, Avg generation throughput: 45.2 tokens/s, Running: 1 reqs
+Engine 000: Avg prompt throughput: 110.0 tokens/s, Avg generation throughput: 50.0 tokens/s, Running: 0 reqs
+Engine 000: CPU KV cache usage: 12.5%, Prefix cache hit rate: 33.3%
+"""
+
+    def test_parse_prefill_decode_averages(self):
+        metrics = parse_streaming_metrics_from_log(self.SAMPLE_LOG)
+        assert metrics[PREFILL_COL] == 105.25
+        assert metrics[DECODE_COL] == 47.6
+
+    def test_parse_kv_and_prefix(self):
+        metrics = parse_streaming_metrics_from_log(self.SAMPLE_LOG)
+        assert metrics['metric_max_kv_cache_usage_percent'] == 12.5
+        assert metrics['metric_avg_prefix_cache_hit_rate_percent'] == 33.3
+
+    def test_empty_log(self):
+        metrics = parse_streaming_metrics_from_log('')
+        assert metrics[PREFILL_COL] == 0.0
+        assert metrics[DECODE_COL] == 0.0
+
+
+class TestUseCaseCliName:
+    def test_from_slug(self):
+        assert use_case_cli_name('ignored', 'long_summarization') == 'long-summarization'
+
+    def test_from_display(self):
+        assert use_case_cli_name('📝 Summarization') == 'summarization'
+
+
+class TestCoefficientOfVariation:
+    def test_basic(self):
+        assert compute_coefficient_of_variation(10.0, 1.0) == 0.1
+
+    def test_zero_mean(self):
+        assert compute_coefficient_of_variation(0.0, 1.0) == 0.0
+
+
+class TestCsvImportMap:
+    def test_export_headers_mapped(self):
+        assert IMPORT_CSV_COLUMN_MAP['Req/sec'] == METRIC_RPS
+        assert IMPORT_CSV_COLUMN_MAP['Use Case'] == 'use_case'
 
 
 if __name__ == "__main__":

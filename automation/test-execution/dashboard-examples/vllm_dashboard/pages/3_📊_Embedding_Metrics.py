@@ -109,7 +109,7 @@ def load_embedding_data(results_dir: str) -> pd.DataFrame:
 
                         # Extract test_name from test_run_id (format: test_name-YYYYMMDD-HHMMSS or just YYYYMMDD-HHMMSS)
                         test_run_id = metadata.get('test_run_id', 'unknown')
-                        test_name = None
+                        test_name = ''
                         if test_run_id != 'unknown' and '-' in test_run_id:
                             parts = test_run_id.split('-')
                             # If more than 2 parts (date-time), first part(s) are test_name
@@ -1560,10 +1560,25 @@ def main():
         with col6:
             # Scenario filter - remove empty strings and deduplicate
             scenarios = sorted(set([s for s in df['scenario'].unique() if s and s.strip()]))
+            # Auto-select newly available scenarios: Streamlit preserves widget state across
+            # reruns, so if the session started when only 'baseline' existed, 'latency' and
+            # 'all' would silently stay deselected after data is added. Fix: whenever the
+            # available scenario set grows, merge the new scenarios into the selection.
+            _scenario_key = '_embedding_scenario_filter'
+            _scenario_opts_key = '_embedding_scenario_opts'
+            if st.session_state.get(_scenario_opts_key) != scenarios:
+                prev_selection = set(st.session_state.get(_scenario_key, scenarios))
+                prev_opts = set(st.session_state.get(_scenario_opts_key, []))
+                new_scenarios = set(scenarios) - prev_opts
+                st.session_state[_scenario_key] = sorted(
+                    (prev_selection & set(scenarios)) | new_scenarios
+                )
+                st.session_state[_scenario_opts_key] = scenarios
             selected_scenarios = st.multiselect(
                 "Scenario",
                 options=scenarios,
                 default=scenarios,
+                key=_scenario_key,
                 help="Test scenario: baseline, latency, or all"
             )
 
