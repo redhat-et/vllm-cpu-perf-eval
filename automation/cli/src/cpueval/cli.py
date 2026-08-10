@@ -158,6 +158,58 @@ def version_callback(value: bool):
         raise typer.Exit()
 
 
+def _uninstall_completion(prog_name: str, shell: Optional[str]) -> None:
+    """Remove installed shell completion file and rc-file source line."""
+    from pathlib import Path
+
+    if shell is None:
+        try:
+            import shellingham
+            shell, _ = shellingham.detect_shell()
+        except Exception:
+            console.print("[red]Could not detect shell. Pass the shell name explicitly.[/red]")
+            raise typer.Exit(1)
+
+    home = Path.home()
+
+    if shell == "zsh":
+        path = home / f".zfunc/_{prog_name}"
+        if path.exists():
+            path.unlink()
+            console.print(f"[green]Removed {path}[/green]")
+        else:
+            console.print(f"[yellow]Not found: {path}[/yellow]")
+        console.print("[dim]Restart your shell or run 'exec zsh' to apply.[/dim]")
+
+    elif shell == "bash":
+        path = home / ".bash_completions" / f"{prog_name}.sh"
+        if path.exists():
+            path.unlink()
+            console.print(f"[green]Removed {path}[/green]")
+        else:
+            console.print(f"[yellow]Not found: {path}[/yellow]")
+        rc = home / ".bashrc"
+        source_line = f"source '{path}'"
+        if rc.exists():
+            lines = rc.read_text().splitlines(keepends=True)
+            filtered = [l for l in lines if source_line not in l]
+            if len(filtered) < len(lines):
+                rc.write_text("".join(filtered))
+                console.print(f"[green]Removed source line from {rc}[/green]")
+        console.print("[dim]Restart your shell or run 'exec bash' to apply.[/dim]")
+
+    else:
+        console.print(f"[red]Shell '{shell}' is not supported. Use bash or zsh.[/red]")
+        raise typer.Exit(1)
+
+
+def uninstall_completion_callback(value: bool):
+    """Eager callback for --uninstall-completion."""
+    if value:
+        _uninstall_completion(prog_name="cpueval", shell=None)
+        raise typer.Exit()
+
+
 def _execute_suite(
     suite: str,
     model: Optional[str],
@@ -462,6 +514,14 @@ def main(
         callback=version_callback,
         is_eager=True,
         help="Show version and exit",
+    ),
+    uninstall_completion: Optional[bool] = typer.Option(
+        None,
+        "--uninstall-completion",
+        callback=uninstall_completion_callback,
+        is_eager=True,
+        expose_value=False,
+        help="Uninstall completion for the current shell (bash/zsh).",
     ),
     suite: Optional[str] = typer.Option(
         None, "--suite", "-s", help="Suite name",

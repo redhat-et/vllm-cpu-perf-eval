@@ -44,13 +44,21 @@ pip install -e .
 
 ## Shell Completion
 
-cpueval supports tab-completion for bash, zsh, and fish. Run once after installation:
+cpueval supports tab-completion for bash and zsh.
+
+**Install (one-time, auto-detects shell):**
 
 ```bash
 ./cpueval --install-completion
+exec zsh    # or exec bash
 ```
 
-Restart your shell (or run `exec zsh` / `exec bash`) and completion is active.
+**Uninstall:**
+
+```bash
+./cpueval --uninstall-completion
+exec zsh    # or exec bash
+```
 
 **What completes:**
 
@@ -58,20 +66,21 @@ Restart your shell (or run `exec zsh` / `exec bash`) and completion is active.
 |---------|-----------------|
 | `cpueval run --suite <TAB>` | `audio`, `chat-smoke`, `concurrent-load`, … |
 | `cpueval run --suite ch<TAB>` | `chat-smoke` |
-| `cpueval run --model <TAB>` | model names discovered from `results/llm/` and `results/audio-models/` |
+| `cpueval run --model <TAB>` | model names discovered from your results directories |
+| `cpueval run --models t<TAB>` | `tiny` (preset) + any discovered models starting with `t` |
 | `cpueval run --models Red<TAB>` | `RedHatAI/…` models |
 | `cpueval run --profile <TAB>` | profile names from `automation/cli/profiles/` |
 | `cpueval show <TAB>` | all suite names |
 
-> **Note:** `--model` completion lists models you have already benchmarked (i.e. those with a results directory). It does not enumerate all possible HuggingFace model IDs.
+> **Note:** `--model` lists models you have already benchmarked (results directory must exist). `--models` also includes preset names (`all`, `tiny`, `llama`, `qwen`, `granite`, …).
 
-**Show the completion script without installing** (useful for custom shell setups):
+**Show the completion script without installing** (useful for custom setups):
 
 ```bash
 ./cpueval --show-completion
 ```
 
-**PATH requirement:** The `cpueval` command must be on your `PATH` for completion to work (the completion script calls `cpueval` internally). The simplest way is to add the repo root:
+**PATH requirement:** `cpueval` must be on your `PATH` for completion to work (the completion script calls `cpueval` internally). Simplest approach — add the repo root:
 
 ```bash
 # Add to ~/.zshrc or ~/.bashrc

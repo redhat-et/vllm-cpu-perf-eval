@@ -152,7 +152,7 @@ export HF_TOKEN=$(cat ~/hf-token)
 #### 3. Enable Shell Completion (Optional)
 
 ```bash
-# One-time setup — auto-detects bash/zsh/fish
+# One-time setup — auto-detects bash/zsh
 ./cpueval --install-completion
 exec zsh  # or exec bash
 ```
