@@ -13,6 +13,7 @@ from cpueval.paths import (
     get_profiles_dir,
     get_llm_results_dir,
     get_audio_results_dir,
+    get_embedding_results_dir,
 )
 from cpueval.results import (
     run_results_command,
@@ -38,6 +39,11 @@ app = typer.Typer(
 
 console = Console()
 
+_PRESET_NAMES = (
+    "all", "quick", "small", "large", "medium",
+    "tiny", "llama", "qwen", "granite",
+)
+
 
 def _complete_suite(ctx, param, incomplete: str):
     """Return suite names for shell completion."""
@@ -51,11 +57,16 @@ def _complete_suite(ctx, param, incomplete: str):
         return []
 
 
-def _complete_model(ctx, param, incomplete: str):
-    """Return model names discovered from results directories."""
-    models: set = set()
+def _discovered_models(incomplete: str) -> list[str]:
+    """Scan results directories and return matching model names."""
+    models: set[str] = set()
     try:
-        for results_dir in (get_llm_results_dir(), get_audio_results_dir()):
+        dirs = (
+            get_llm_results_dir(),
+            get_audio_results_dir(),
+            get_embedding_results_dir(),
+        )
+        for results_dir in dirs:
             if results_dir.exists():
                 for p in results_dir.iterdir():
                     if p.is_dir():
@@ -65,6 +76,19 @@ def _complete_model(ctx, param, incomplete: str):
     except Exception:
         pass
     return sorted(models)
+
+
+def _complete_model(ctx, param, incomplete: str):
+    """Complete --model: benchmarked model names from results directories."""
+    return _discovered_models(incomplete)
+
+
+def _complete_models(ctx, param, incomplete: str):
+    """Complete --models: preset names union benchmarked model names."""
+    presets = [p for p in _PRESET_NAMES if p.startswith(incomplete)]
+    return presets + [
+        m for m in _discovered_models(incomplete) if m not in presets
+    ]
 
 
 def _complete_profile(ctx, param, incomplete: str):
@@ -108,12 +132,6 @@ def _build_script_args(suite_obj, final_vars: dict) -> List[str]:
         script_args.extend([flag, str(value)])
 
     return script_args
-
-
-_PRESET_NAMES = (
-    "all", "quick", "small", "large", "medium",
-    "tiny", "llama", "qwen", "granite",
-)
 
 
 def _result_model_hint(
@@ -455,7 +473,7 @@ def main(
     ),
     models: Optional[str] = typer.Option(
         None, "--models", help="Models preset or comma-list (matrix suites)",
-        shell_complete=_complete_model,
+        shell_complete=_complete_models,
     ),
     cores: Optional[str] = typer.Option(None, "--cores", "-c", help="Core counts (comma-separated or single)"),
     workload: Optional[str] = typer.Option(None, "--workload", "-w", help="Workload type"),
@@ -723,7 +741,7 @@ def run(
     ),
     models: Optional[str] = typer.Option(
         None, "--models", help="Models preset or comma-list (matrix suites)",
-        shell_complete=_complete_model,
+        shell_complete=_complete_models,
     ),
     cores: Optional[str] = typer.Option(None, "--cores", "-c", help="Core counts (comma-separated or single)"),
     workload: Optional[str] = typer.Option(None, "--workload", "-w", help="Workload type"),
