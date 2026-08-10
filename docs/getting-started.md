@@ -149,7 +149,17 @@ export ANSIBLE_PRIVATE_KEY_FILE=~/your-key.pem
 export HF_TOKEN=$(cat ~/hf-token)
 ```
 
-#### 3. Check System Health
+#### 3. Enable Shell Completion (Optional)
+
+```bash
+# One-time setup — auto-detects bash/zsh/fish
+./cpueval --install-completion
+exec zsh  # or exec bash
+```
+
+Tab-complete suite names, model names, and profiles. See [cpueval CLI Guide](cpueval-cli.md#shell-completion) for details.
+
+#### 4. Check System Health
 
 ```bash
 ./cpueval doctor
@@ -174,7 +184,7 @@ cpueval system health check
 
 Use `./cpueval doctor --no-ping` to skip host connectivity checks.
 
-#### 4. Run Platform Setup (Optional)
+#### 5. Run Platform Setup (Optional)
 
 ```bash
 ./cpueval --suite setup-platform
@@ -182,7 +192,7 @@ Use `./cpueval doctor --no-ping` to skip host connectivity checks.
 
 This configures CPU isolation, performance governor, NUMA optimizations, etc.
 
-#### 5. Run Your First Test with cpueval
+#### 6. Run Your First Test with cpueval
 
 ```bash
 # List available suites
@@ -217,7 +227,7 @@ This configures CPU isolation, performance governor, NUMA optimizations, etc.
 `--dry-run` prints the underlying Ansible command without executing — useful
 for verifying parameters before a long run.
 
-#### 6. View Results with cpueval
+#### 7. View Results with cpueval
 
 ```bash
 # Show last run with metrics table

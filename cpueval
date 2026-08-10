@@ -30,5 +30,7 @@ if [ ! -d "$VENV_DIR" ]; then
     fi
 fi
 
-# Run cpueval
-exec "$VENV_DIR/bin/python" -m cpueval "$@"
+# Run cpueval via the installed entry point so the program name is 'cpueval'
+# (using 'python -m cpueval' would make Typer name the shell completion file
+# '_python -m cpueval' instead of '_cpueval')
+exec "$VENV_DIR/bin/cpueval" "$@"

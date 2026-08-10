@@ -42,6 +42,42 @@ source .venv/bin/activate
 pip install -e .
 ```
 
+## Shell Completion
+
+cpueval supports tab-completion for bash, zsh, and fish. Run once after installation:
+
+```bash
+./cpueval --install-completion
+```
+
+Restart your shell (or run `exec zsh` / `exec bash`) and completion is active.
+
+**What completes:**
+
+| Typing… | Completes with… |
+|---------|-----------------|
+| `cpueval run --suite <TAB>` | `audio`, `chat-smoke`, `concurrent-load`, … |
+| `cpueval run --suite ch<TAB>` | `chat-smoke` |
+| `cpueval run --model <TAB>` | model names discovered from `results/llm/` and `results/audio-models/` |
+| `cpueval run --models Red<TAB>` | `RedHatAI/…` models |
+| `cpueval run --profile <TAB>` | profile names from `automation/cli/profiles/` |
+| `cpueval show <TAB>` | all suite names |
+
+> **Note:** `--model` completion lists models you have already benchmarked (i.e. those with a results directory). It does not enumerate all possible HuggingFace model IDs.
+
+**Show the completion script without installing** (useful for custom shell setups):
+
+```bash
+./cpueval --show-completion
+```
+
+**PATH requirement:** The `cpueval` command must be on your `PATH` for completion to work (the completion script calls `cpueval` internally). The simplest way is to add the repo root:
+
+```bash
+# Add to ~/.zshrc or ~/.bashrc
+export PATH="$PATH:/path/to/vllm-cpu-perf-eval"
+```
+
 ## Environment Setup
 
 **Managed mode** (default - vLLM on DUT, tests from load generator):

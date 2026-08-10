@@ -9,7 +9,11 @@ from rich.table import Table
 
 from cpueval import __version__
 from cpueval.doctor import run_doctor
-from cpueval.paths import get_profiles_dir
+from cpueval.paths import (
+    get_profiles_dir,
+    get_llm_results_dir,
+    get_audio_results_dir,
+)
 from cpueval.results import (
     run_results_command,
     run_dashboard_command,
@@ -33,6 +37,46 @@ app = typer.Typer(
 )
 
 console = Console()
+
+
+def _complete_suite(ctx, param, incomplete: str):
+    """Return suite names for shell completion."""
+    try:
+        registry = SuiteRegistry()
+        return [
+            s.name for s in registry.list_suites()
+            if s.name.startswith(incomplete)
+        ]
+    except Exception:
+        return []
+
+
+def _complete_model(ctx, param, incomplete: str):
+    """Return model names discovered from results directories."""
+    models: set = set()
+    try:
+        for results_dir in (get_llm_results_dir(), get_audio_results_dir()):
+            if results_dir.exists():
+                for p in results_dir.iterdir():
+                    if p.is_dir():
+                        model_name = p.name.replace("__", "/")
+                        if model_name.startswith(incomplete):
+                            models.add(model_name)
+    except Exception:
+        pass
+    return sorted(models)
+
+
+def _complete_profile(ctx, param, incomplete: str):
+    """Return profile names for shell completion."""
+    try:
+        profiles_dir = get_profiles_dir()
+        return [
+            p.stem for p in sorted(profiles_dir.glob("*.yaml"))
+            if p.stem.startswith(incomplete)
+        ]
+    except Exception:
+        return []
 
 
 def _apply_endpoint_env(endpoint_url: Optional[str]) -> None:
@@ -401,9 +445,18 @@ def main(
         is_eager=True,
         help="Show version and exit",
     ),
-    suite: Optional[str] = typer.Option(None, "--suite", "-s", help="Suite name"),
-    model: Optional[str] = typer.Option(None, "--model", "-m", help="Model ID (single model)"),
-    models: Optional[str] = typer.Option(None, "--models", help="Models preset or comma-list (matrix suites)"),
+    suite: Optional[str] = typer.Option(
+        None, "--suite", "-s", help="Suite name",
+        shell_complete=_complete_suite,
+    ),
+    model: Optional[str] = typer.Option(
+        None, "--model", "-m", help="Model ID (single model)",
+        shell_complete=_complete_model,
+    ),
+    models: Optional[str] = typer.Option(
+        None, "--models", help="Models preset or comma-list (matrix suites)",
+        shell_complete=_complete_model,
+    ),
     cores: Optional[str] = typer.Option(None, "--cores", "-c", help="Core counts (comma-separated or single)"),
     workload: Optional[str] = typer.Option(None, "--workload", "-w", help="Workload type"),
     workloads: Optional[str] = typer.Option(None, "--workloads", help="Workloads (comma-separated, matrix suites)"),
@@ -442,7 +495,10 @@ def main(
     vllm_numa: Optional[int] = typer.Option(None, "--vllm-numa", help="vLLM NUMA node"),
     guidellm_cpus: Optional[str] = typer.Option(None, "--guidellm-cpus", help="GuideLLM CPU range (e.g., 0-31)"),
     guidellm_numa: Optional[int] = typer.Option(None, "--guidellm-numa", help="GuideLLM NUMA node"),
-    profile: Optional[str] = typer.Option(None, "--profile", help="Load CPU pinning profile"),
+    profile: Optional[str] = typer.Option(
+        None, "--profile", help="Load CPU pinning profile",
+        shell_complete=_complete_profile,
+    ),
     endpoint_url: Optional[str] = typer.Option(
         None,
         "--endpoint-url",
@@ -545,7 +601,7 @@ def list():
 
 
 @app.command()
-def show(suite_name: str = typer.Argument(..., help="Suite name")):
+def show(suite_name: str = typer.Argument(..., help="Suite name", shell_complete=_complete_suite)):
     """Show detailed information about a suite."""
     registry = SuiteRegistry()
     suite = registry.get_suite(suite_name)
@@ -657,9 +713,18 @@ def doctor(
 # Keep in sync with main() callback options.
 @app.command()
 def run(
-    suite: str = typer.Option(..., "--suite", "-s", help="Suite name (required)"),
-    model: Optional[str] = typer.Option(None, "--model", "-m", help="Model ID (single model)"),
-    models: Optional[str] = typer.Option(None, "--models", help="Models preset or comma-list (matrix suites)"),
+    suite: str = typer.Option(
+        ..., "--suite", "-s", help="Suite name (required)",
+        shell_complete=_complete_suite,
+    ),
+    model: Optional[str] = typer.Option(
+        None, "--model", "-m", help="Model ID (single model)",
+        shell_complete=_complete_model,
+    ),
+    models: Optional[str] = typer.Option(
+        None, "--models", help="Models preset or comma-list (matrix suites)",
+        shell_complete=_complete_model,
+    ),
     cores: Optional[str] = typer.Option(None, "--cores", "-c", help="Core counts (comma-separated or single)"),
     workload: Optional[str] = typer.Option(None, "--workload", "-w", help="Workload type"),
     workloads: Optional[str] = typer.Option(None, "--workloads", help="Workloads (comma-separated, matrix suites)"),
@@ -698,7 +763,10 @@ def run(
     vllm_numa: Optional[int] = typer.Option(None, "--vllm-numa", help="vLLM NUMA node"),
     guidellm_cpus: Optional[str] = typer.Option(None, "--guidellm-cpus", help="GuideLLM CPU range (e.g., 0-31)"),
     guidellm_numa: Optional[int] = typer.Option(None, "--guidellm-numa", help="GuideLLM NUMA node"),
-    profile: Optional[str] = typer.Option(None, "--profile", help="Load CPU pinning profile"),
+    profile: Optional[str] = typer.Option(
+        None, "--profile", help="Load CPU pinning profile",
+        shell_complete=_complete_profile,
+    ),
     endpoint_url: Optional[str] = typer.Option(
         None,
         "--endpoint-url",
