@@ -168,7 +168,10 @@ def _uninstall_completion(prog_name: str, shell: Optional[str]) -> None:
             import shellingham
             shell, _ = shellingham.detect_shell()
         except Exception:
-            console.print("[red]Could not detect shell. Use --uninstall-completion bash or --uninstall-completion zsh.[/red]")
+            console.print(
+                "[red]Could not detect shell. "
+                "Run the command from inside a bash or zsh session.[/red]"
+            )
             raise typer.Exit(1)
 
     home = Path.home()
@@ -210,10 +213,10 @@ def _uninstall_completion(prog_name: str, shell: Optional[str]) -> None:
         raise typer.Exit(1)
 
 
-def uninstall_completion_callback(value: Optional[str]):
+def uninstall_completion_callback(value: bool):
     """Eager callback for --uninstall-completion."""
-    if value is not None:
-        _uninstall_completion(prog_name="cpueval", shell=value if value else None)
+    if value:
+        _uninstall_completion(prog_name="cpueval", shell=None)
         raise typer.Exit()
 
 
@@ -522,13 +525,13 @@ def main(
         is_eager=True,
         help="Show version and exit",
     ),
-    uninstall_completion: Optional[str] = typer.Option(
+    uninstall_completion: Optional[bool] = typer.Option(
         None,
         "--uninstall-completion",
         callback=uninstall_completion_callback,
         is_eager=True,
         expose_value=False,
-        help="Uninstall completion for a shell (bash or zsh). Pass the shell name explicitly, e.g. --uninstall-completion zsh.",
+        help="Uninstall completion for the current shell (bash/zsh).",
     ),
     suite: Optional[str] = typer.Option(
         None, "--suite", "-s", help="Suite name",
