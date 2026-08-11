@@ -2,6 +2,10 @@
 
 import os
 
+import pathlib
+
+import pytest
+
 from cpueval.cli import (
     _apply_endpoint_env,
     _build_script_args,
@@ -10,6 +14,7 @@ from cpueval.cli import (
     _complete_profile,
     _complete_suite,
     _result_model_hint,
+    _uninstall_completion,
 )
 from cpueval.suite_registry import SuiteRegistry
 
@@ -122,12 +127,8 @@ def test_result_model_hint_prefers_explicit_model():
 # Shell completion helpers
 # ---------------------------------------------------------------------------
 
-def test_complete_suite_returns_all_when_empty(tmp_path, monkeypatch):
+def test_complete_suite_returns_all_when_empty():
     """Empty incomplete string returns all registered suite names."""
-    import cpueval.cli as cli_mod
-    import cpueval.paths as paths_mod
-
-    monkeypatch.setattr(paths_mod, "get_suites_dir", lambda: paths_mod.get_suites_dir())
     results = _complete_suite(None, None, "")
     assert isinstance(results, list)
     assert len(results) > 0
@@ -265,6 +266,127 @@ def test_complete_profile_missing_dir_returns_empty(tmp_path, monkeypatch):
     """Missing profiles directory produces an empty list, not an exception."""
     import cpueval.cli as cli_mod
 
-    monkeypatch.setattr(cli_mod, "get_profiles_dir", lambda: tmp_path / "no-profiles")
+    monkeypatch.setattr(
+        cli_mod, "get_profiles_dir", lambda: tmp_path / "no-profiles"
+    )
 
     assert _complete_profile(None, None, "") == []
+
+
+# ---------------------------------------------------------------------------
+# _uninstall_completion
+# ---------------------------------------------------------------------------
+
+def test_uninstall_completion_bash_removes_file_and_source_line(
+    tmp_path, monkeypatch
+):
+    """Bash uninstall removes the completion file and its source line from .bashrc."""
+    monkeypatch.setattr(
+        pathlib.Path, "home", staticmethod(lambda: tmp_path)
+    )
+
+    completions_dir = tmp_path / ".bash_completions"
+    completions_dir.mkdir()
+    completion_file = completions_dir / "cpueval.sh"
+    completion_file.write_text("# completion\n")
+
+    source_line = f"source '{completion_file}'\n"
+    bashrc = tmp_path / ".bashrc"
+    bashrc.write_text(f"# existing config\n{source_line}export FOO=bar\n")
+
+    _uninstall_completion("cpueval", "bash")
+
+    assert not completion_file.exists()
+    rc_text = bashrc.read_text()
+    assert source_line not in rc_text
+    assert "# existing config" in rc_text
+    assert "export FOO=bar" in rc_text
+
+
+@pytest.mark.parametrize("source_fmt", [
+    "source '{path}'",
+    'source "{path}"',
+    "source {path}",
+    ". '{path}'",
+    '. "{path}"',
+    ". {path}",
+])
+def test_uninstall_completion_bash_source_line_variants(
+    tmp_path, monkeypatch, source_fmt
+):
+    """Both 'source' and '.' forms, with any quoting, are removed from .bashrc."""
+    monkeypatch.setattr(
+        pathlib.Path, "home", staticmethod(lambda: tmp_path)
+    )
+
+    completions_dir = tmp_path / ".bash_completions"
+    completions_dir.mkdir()
+    completion_file = completions_dir / "cpueval.sh"
+    completion_file.write_text("# completion\n")
+
+    line = source_fmt.format(path=completion_file) + "\n"
+    bashrc = tmp_path / ".bashrc"
+    bashrc.write_text(f"# keep this\n{line}export BAR=1\n")
+
+    _uninstall_completion("cpueval", "bash")
+
+    rc_text = bashrc.read_text()
+    assert line not in rc_text
+    assert "# keep this" in rc_text
+    assert "export BAR=1" in rc_text
+
+
+def test_uninstall_completion_bash_missing_file_does_not_raise(
+    tmp_path, monkeypatch
+):
+    """Bash uninstall with no completion file does not raise."""
+    monkeypatch.setattr(
+        pathlib.Path, "home", staticmethod(lambda: tmp_path)
+    )
+    bashrc = tmp_path / ".bashrc"
+    bashrc.write_text("# config\n")
+
+    _uninstall_completion("cpueval", "bash")  # should not raise
+
+
+def test_uninstall_completion_zsh_removes_completion_file(
+    tmp_path, monkeypatch
+):
+    """Zsh uninstall removes the completion script from ~/.zfunc/."""
+    monkeypatch.setattr(
+        pathlib.Path, "home", staticmethod(lambda: tmp_path)
+    )
+
+    zfunc_dir = tmp_path / ".zfunc"
+    zfunc_dir.mkdir()
+    completion_file = zfunc_dir / "_cpueval"
+    completion_file.write_text("#compdef cpueval\n")
+
+    _uninstall_completion("cpueval", "zsh")
+
+    assert not completion_file.exists()
+
+
+def test_uninstall_completion_zsh_missing_file_does_not_raise(
+    tmp_path, monkeypatch
+):
+    """Zsh uninstall with no completion file does not raise."""
+    monkeypatch.setattr(
+        pathlib.Path, "home", staticmethod(lambda: tmp_path)
+    )
+
+    _uninstall_completion("cpueval", "zsh")  # should not raise
+
+
+def test_uninstall_completion_unsupported_shell(tmp_path, monkeypatch):
+    """Unsupported shell name exits with a non-zero code."""
+    import typer
+
+    monkeypatch.setattr(
+        pathlib.Path, "home", staticmethod(lambda: tmp_path)
+    )
+
+    with pytest.raises(typer.Exit) as exc_info:
+        _uninstall_completion("cpueval", "fish")
+
+    assert exc_info.value.exit_code != 0

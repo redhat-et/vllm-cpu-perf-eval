@@ -1,6 +1,7 @@
 """Main CLI for cpueval."""
 
 import os
+import re
 from typing import List, Optional
 
 import typer
@@ -167,7 +168,7 @@ def _uninstall_completion(prog_name: str, shell: Optional[str]) -> None:
             import shellingham
             shell, _ = shellingham.detect_shell()
         except Exception:
-            console.print("[red]Could not detect shell. Pass the shell name explicitly.[/red]")
+            console.print("[red]Could not detect shell. Use --uninstall-completion bash or --uninstall-completion zsh.[/red]")
             raise typer.Exit(1)
 
     home = Path.home()
@@ -179,6 +180,9 @@ def _uninstall_completion(prog_name: str, shell: Optional[str]) -> None:
             console.print(f"[green]Removed {path}[/green]")
         else:
             console.print(f"[yellow]Not found: {path}[/yellow]")
+        # The fpath/compinit lines added to .zshrc during install are intentionally
+        # left in place — they may be shared with other tools.
+        console.print("[dim]Note: .zshrc setup lines (fpath, compinit) are not removed.[/dim]")
         console.print("[dim]Restart your shell or run 'exec zsh' to apply.[/dim]")
 
     elif shell == "bash":
@@ -189,10 +193,13 @@ def _uninstall_completion(prog_name: str, shell: Optional[str]) -> None:
         else:
             console.print(f"[yellow]Not found: {path}[/yellow]")
         rc = home / ".bashrc"
-        source_line = f"source '{path}'"
+        # Match both "source" and "." forms, with single, double, or no quotes.
+        _src_re = re.compile(
+            r'^\s*(?:source|\.)\s+["\']?' + re.escape(str(path)) + r'["\']?\s*$'
+        )
         if rc.exists():
             lines = rc.read_text().splitlines(keepends=True)
-            filtered = [l for l in lines if source_line not in l]
+            filtered = [l for l in lines if not _src_re.match(l)]
             if len(filtered) < len(lines):
                 rc.write_text("".join(filtered))
                 console.print(f"[green]Removed source line from {rc}[/green]")
@@ -203,10 +210,10 @@ def _uninstall_completion(prog_name: str, shell: Optional[str]) -> None:
         raise typer.Exit(1)
 
 
-def uninstall_completion_callback(value: bool):
+def uninstall_completion_callback(value: Optional[str]):
     """Eager callback for --uninstall-completion."""
-    if value:
-        _uninstall_completion(prog_name="cpueval", shell=None)
+    if value is not None:
+        _uninstall_completion(prog_name="cpueval", shell=value if value else None)
         raise typer.Exit()
 
 
@@ -515,13 +522,13 @@ def main(
         is_eager=True,
         help="Show version and exit",
     ),
-    uninstall_completion: Optional[bool] = typer.Option(
+    uninstall_completion: Optional[str] = typer.Option(
         None,
         "--uninstall-completion",
         callback=uninstall_completion_callback,
         is_eager=True,
         expose_value=False,
-        help="Uninstall completion for the current shell (bash/zsh).",
+        help="Uninstall completion for a shell (bash or zsh). Pass the shell name explicitly, e.g. --uninstall-completion zsh.",
     ),
     suite: Optional[str] = typer.Option(
         None, "--suite", "-s", help="Suite name",
