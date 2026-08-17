@@ -138,8 +138,16 @@ cd vllm-cpu-perf-eval
 ./cpueval install --skip-system-deps
 ```
 
-The `./cpueval` launcher also auto-creates a Python venv for the CLI itself on
-first run — no separate `pip install` step required.
+The `./cpueval` launcher auto-creates a Python venv on first run — no separate
+`pip install` step required.
+
+> **Bootstrap note:** The launcher runs `python3 -m venv` before `cpueval install`
+> can install `python3-pip`. On a minimal RHEL image where the venv module is
+> absent, the launcher will fail first. If that happens:
+> ```bash
+> sudo dnf install -y python3-pip   # unblocks venv creation
+> ./cpueval install
+> ```
 
 #### 2. Set Environment Variables
 

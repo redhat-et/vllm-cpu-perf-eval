@@ -68,8 +68,8 @@ def install_ansible_collections(dry_run: bool = False) -> _StepResult:
     if not shutil.which("ansible-galaxy"):
         return False, (
             "ansible-galaxy not found in PATH — "
-            "install ansible-core first (cpueval install --skip-collections, "
-            "then re-run without the flag)"
+            "install ansible-core first (brew/apt/dnf), "
+            "then re-run: ./cpueval install --skip-system-deps"
         )
 
     cmd = ["ansible-galaxy", "collection", "install", "-r", str(req)]

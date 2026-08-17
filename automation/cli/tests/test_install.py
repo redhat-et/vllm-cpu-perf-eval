@@ -128,13 +128,14 @@ def test_install_ansible_collections_no_ansible_galaxy(tmp_path, monkeypatch):
 
 
 def test_install_ansible_collections_no_galaxy_hints_install(tmp_path, monkeypatch):
-    """Missing ansible-galaxy message mentions how to fix it."""
+    """Missing ansible-galaxy message mentions the correct recovery flag."""
     req = tmp_path / "requirements.yml"
     req.write_text("collections: []\n")
     monkeypatch.setattr("cpueval.install._requirements_path", lambda: req)
     monkeypatch.setattr("shutil.which", lambda _: None)
     _, msg = install_ansible_collections()
     assert "ansible-core" in msg
+    assert "--skip-system-deps" in msg
 
 
 def test_install_ansible_collections_success(tmp_path, monkeypatch):
