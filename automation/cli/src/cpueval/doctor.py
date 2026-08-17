@@ -177,7 +177,9 @@ def run_doctor(no_ping: bool = False) -> int:
         return 0
     else:
         console.print("\n[red]✗ Some checks failed[/red]\n")
-        console.print("[yellow]Tip:[/yellow] Set required environment variables:")
+        console.print("[yellow]Tip:[/yellow] Missing Ansible or collections? Run:")
+        console.print("  ./cpueval install")
+        console.print("\n[yellow]Tip:[/yellow] Set required environment variables:")
         console.print("  export DUT_HOSTNAME=<dut-host>")
         console.print("  export LOADGEN_HOSTNAME=<loadgen-host>")
         console.print("  export HF_TOKEN=<token>  # for gated models")

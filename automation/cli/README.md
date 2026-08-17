@@ -120,6 +120,23 @@ done
 ./cpueval show audio
 ```
 
+### install - Install prerequisites
+```bash
+# Full install: system packages (dnf) + Ansible collections
+./cpueval install
+
+# Skip system packages if already installed
+./cpueval install --skip-system-deps
+
+# Preview without executing
+./cpueval install --dry-run
+```
+
+On RHEL/Fedora this installs `ansible-core`, `python3-pip`, `git` via `dnf` and
+the required Ansible Galaxy collections. On macOS/Ubuntu the dnf step is
+soft-skipped with a `brew`/`apt` one-liner hint; install Ansible manually then
+re-run `./cpueval install --skip-system-deps`.
+
 ### doctor - Health checks
 ```bash
 # Full check (including host ping)
@@ -441,7 +458,7 @@ rm -rf automation/cli/.venv
 
 **Ansible collection missing:**
 ```bash
-ansible-galaxy collection install containers.podman
+./cpueval install --skip-system-deps
 ```
 
 ## Development

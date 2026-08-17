@@ -2,8 +2,7 @@
 
 import shutil
 import subprocess
-from pathlib import Path
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 from rich.console import Console
 from rich.table import Table
@@ -12,53 +11,75 @@ from cpueval.paths import get_ansible_dir
 
 SYSTEM_PACKAGES = ["ansible-core", "python3-pip", "git"]
 
+# Status values: True = pass (green ✓), None = skipped (yellow ~), False = fail (red ✗)
+_StepResult = Tuple[Optional[bool], str]
 
-def _requirements_path() -> Path:
+
+def _requirements_path():
     return get_ansible_dir() / "requirements.yml"
 
 
-def install_system_deps(dry_run: bool = False) -> Tuple[bool, str]:
-    """Install system packages via dnf (RHEL/Fedora only)."""
+def _run_streaming(cmd: List[str], timeout: int) -> Tuple[bool, str]:
+    """Print cmd, stream stdout/stderr to the terminal, return (ok, detail)."""
+    console = Console()
+    console.print(f"[dim]Running:[/dim] {' '.join(cmd)}")
+    try:
+        result = subprocess.run(cmd, timeout=timeout)
+        if result.returncode == 0:
+            return True, "done"
+        return False, f"exited {result.returncode} — see output above"
+    except subprocess.TimeoutExpired:
+        return False, f"timed out after {timeout}s"
+    except Exception as e:
+        return False, str(e)
+
+
+def install_system_deps(dry_run: bool = False) -> _StepResult:
+    """Install system packages via dnf (RHEL/Fedora only).
+
+    Returns True on success, None when dnf is absent (soft-skip), False on error.
+    """
     if not shutil.which("dnf"):
-        return True, "dnf not found — skipping (not a RHEL/Fedora system)"
+        return None, (
+            "dnf not found — skipping (not a RHEL/Fedora system).\n"
+            "         On macOS: brew install ansible\n"
+            "         On Ubuntu/Debian: sudo apt install -y ansible-core python3-pip git"
+        )
 
     cmd = ["sudo", "dnf", "install", "-y"] + SYSTEM_PACKAGES
     if dry_run:
         return True, f"[dry-run] would run: {' '.join(cmd)}"
 
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-        if result.returncode == 0:
-            return True, f"installed: {', '.join(SYSTEM_PACKAGES)}"
-        return False, result.stderr.strip() or result.stdout.strip() or "dnf failed"
-    except subprocess.TimeoutExpired:
-        return False, "dnf timed out"
-    except Exception as e:
-        return False, str(e)
+    ok, detail = _run_streaming(cmd, timeout=300)
+    if ok:
+        return True, f"installed: {', '.join(SYSTEM_PACKAGES)}"
+    return False, detail
 
 
-def install_ansible_collections(dry_run: bool = False) -> Tuple[bool, str]:
-    """Install Ansible collections from requirements.yml."""
+def install_ansible_collections(dry_run: bool = False) -> _StepResult:
+    """Install Ansible collections from requirements.yml.
+
+    Returns True on success, False on error.
+    """
     req = _requirements_path()
     if not req.exists():
         return False, f"requirements.yml not found: {req}"
 
     if not shutil.which("ansible-galaxy"):
-        return False, "ansible-galaxy not found in PATH"
+        return False, (
+            "ansible-galaxy not found in PATH — "
+            "install ansible-core first (cpueval install --skip-collections, "
+            "then re-run without the flag)"
+        )
 
     cmd = ["ansible-galaxy", "collection", "install", "-r", str(req)]
     if dry_run:
         return True, f"[dry-run] would run: {' '.join(cmd)}"
 
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-        if result.returncode == 0:
-            return True, "collections installed"
-        return False, result.stderr.strip() or result.stdout.strip() or "ansible-galaxy failed"
-    except subprocess.TimeoutExpired:
-        return False, "ansible-galaxy timed out"
-    except Exception as e:
-        return False, str(e)
+    ok, detail = _run_streaming(cmd, timeout=300)
+    if ok:
+        return True, "collections installed"
+    return False, detail
 
 
 def run_install(
@@ -69,7 +90,7 @@ def run_install(
     """Run the full install sequence.
 
     Returns:
-        Exit code (0 = all enabled steps succeeded)
+        Exit code (0 = all enabled steps succeeded or soft-skipped)
     """
     console = Console()
     prefix = "[dim][dry-run][/dim] " if dry_run else ""
@@ -90,25 +111,29 @@ def run_install(
     table.add_column("Status", width=12)
     table.add_column("Details")
 
-    all_passed = True
+    rows = []
+    any_failed = False
     for step_name, step_fn in steps:
-        passed, details = step_fn()
-        all_passed = all_passed and passed
-        status_symbol = "✓" if passed else "✗"
-        status_color = "green" if passed else "red"
-        table.add_row(
-            step_name,
-            f"[{status_color}]{status_symbol}[/{status_color}]",
-            details,
-        )
+        ok, details = step_fn()
+        if ok is False:
+            any_failed = True
+            symbol, color = "✗", "red"
+        elif ok is None:
+            symbol, color = "~", "yellow"
+        else:
+            symbol, color = "✓", "green"
+        rows.append((step_name, f"[{color}]{symbol}[/{color}]", details))
 
+    console.print()  # blank line after streamed subprocess output
+    for row in rows:
+        table.add_row(*row)
     console.print(table)
 
-    if all_passed:
+    if not any_failed:
         console.print("\n[green]✓ Install complete[/green]\n")
         if not dry_run:
             console.print("Next step: verify with [bold]cpueval doctor[/bold]\n")
         return 0
 
-    console.print("\n[red]✗ Some steps failed[/red]\n")
+    console.print("\n[red]✗ Some steps failed — see output above for details[/red]\n")
     return 1

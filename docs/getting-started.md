@@ -20,28 +20,30 @@ The vLLM CPU Performance Evaluation framework uses **Ansible** to automate:
 The control machine is your local laptop/workstation where you run Ansible commands.
 
 **Install Ansible:**
+
+**On RHEL/Fedora** — use `cpueval install` (see [Clone and Install](#1-clone-and-install) below):
+
 ```bash
-# On macOS
+# After cloning the repo, one command installs everything:
+./cpueval install
+```
+
+**On macOS / Ubuntu/Debian** — install Ansible manually, then install collections:
+
+```bash
+# macOS
 brew install ansible
 
-# On Ubuntu/Debian
-sudo apt update && sudo apt install -y ansible
+# Ubuntu/Debian
+sudo apt update && sudo apt install -y ansible-core python3-pip git
 
-# On RHEL/Fedora
-sudo dnf install -y ansible-core python3-pip
-pip install podman-compose
+# Then install Ansible collections (works on any OS once ansible-galaxy is available)
+./cpueval install --skip-system-deps
+```
 
+```bash
 # Verify installation
 ansible --version  # Should be 2.14+
-
-# Navigate to the ansible directory
-cd automation/test-execution/ansible
-
-# Install required Ansible collections
-ansible-galaxy collection install -r requirements.yml
-
-# Or install individually
-ansible-galaxy collection install containers.podman ansible.posix
 ```
 
 ### Test Hosts (DUT and Load Generator)
@@ -128,11 +130,16 @@ The `cpueval` CLI provides a simple interface for running standard benchmarks.
 git clone https://github.com/redhat-et/vllm-cpu-perf-eval.git
 cd vllm-cpu-perf-eval
 
-# Install cpueval
-cd automation/cli
-pip install -e .
-cd ../..
+# Install prerequisites (ansible-core, python3-pip, git via dnf + Ansible collections).
+# On RHEL/Fedora this is a single command:
+./cpueval install
+
+# On macOS/Ubuntu: install Ansible first (brew/apt), then:
+./cpueval install --skip-system-deps
 ```
+
+The `./cpueval` launcher also auto-creates a Python venv for the CLI itself on
+first run — no separate `pip install` step required.
 
 #### 2. Set Environment Variables
 

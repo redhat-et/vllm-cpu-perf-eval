@@ -225,6 +225,54 @@ Edit that file to change permanent defaults.
 > **Tip:** The suite YAML path is printed at the bottom of every `show` output. Edit it to
 > permanently change defaults; use CLI flags (e.g. `--cores`) to override for a single run.
 
+### install - Install prerequisites
+
+Automates the dependency setup steps required before running benchmarks.
+
+```bash
+# Full install: system packages (dnf) + Ansible collections
+./cpueval install
+
+# Skip system packages (already installed)
+./cpueval install --skip-system-deps
+
+# Skip Ansible collection install
+./cpueval install --skip-collections
+
+# Preview commands without executing
+./cpueval install --dry-run
+```
+
+Example output:
+
+```text
+cpueval install
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ Step                         ┃ Status     ┃ Details                                      ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
+│ System packages (dnf)        │ ✓          │ installed: ansible-core, python3-pip, git    │
+│ Ansible collections          │ ✓          │ collections installed                         │
+└──────────────────────────────┴────────────┴──────────────────────────────────────────────┘
+
+✓ Install complete
+
+Next step: verify with cpueval doctor
+```
+
+**What it installs:**
+
+| Step | Tool | Notes |
+|------|------|-------|
+| System packages (dnf) | `ansible-core`, `python3-pip`, `git` | RHEL/Fedora only; soft-skipped on macOS/Ubuntu with alternative install hint |
+| Ansible collections | `containers.podman`, `ansible.posix` | From `automation/test-execution/ansible/requirements.yml` |
+
+On non-RHEL systems (macOS, Ubuntu) the dnf step shows `~` (skipped) and prints the
+equivalent `brew` / `apt` one-liner. Install Ansible manually, then re-run
+`./cpueval install --skip-system-deps` to install the collections.
+
+After installing, verify everything with `./cpueval doctor`.
+
 ### doctor - Health checks
 
 ```bash
