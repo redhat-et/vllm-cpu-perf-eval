@@ -250,3 +250,13 @@ def test_run_install_dry_run_passes_flag():
         run_install(dry_run=True)
     mock_sys.assert_called_once_with(True)
     mock_col.assert_called_once_with(True)
+
+
+def test_run_install_dry_run_succeeds_without_ansible_galaxy(tmp_path, monkeypatch):
+    """dry_run=True completes the full install preview even when ansible-galaxy is absent."""
+    req = tmp_path / "requirements.yml"
+    req.write_text("collections: []\n")
+    monkeypatch.setattr("cpueval.install._requirements_path", lambda: req)
+    monkeypatch.setattr("shutil.which", lambda _: None)
+    code = run_install(dry_run=True)
+    assert code == 0

@@ -65,16 +65,16 @@ def install_ansible_collections(dry_run: bool = False) -> _StepResult:
     if not req.exists():
         return False, f"requirements.yml not found: {req}"
 
+    cmd = ["ansible-galaxy", "collection", "install", "-r", str(req)]
+    if dry_run:
+        return True, f"[dry-run] would run: {' '.join(cmd)}"
+
     if not shutil.which("ansible-galaxy"):
         return False, (
             "ansible-galaxy not found in PATH — "
             "install ansible-core first (brew/apt/dnf), "
             "then re-run: ./cpueval install --skip-system-deps"
         )
-
-    cmd = ["ansible-galaxy", "collection", "install", "-r", str(req)]
-    if dry_run:
-        return True, f"[dry-run] would run: {' '.join(cmd)}"
 
     ok, detail = _run_streaming(cmd, timeout=300)
     if ok:
