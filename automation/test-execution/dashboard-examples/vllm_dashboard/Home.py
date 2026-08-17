@@ -155,6 +155,23 @@ with col4:
     - Environment tracking
     """)
 
+with col6:
+    st.markdown("### 🔍 CVE VLoc")
+    st.info("""
+    **What**: VLoc Bench agent-loop quality (CVE localization)
+
+    **Metrics**:
+    - File F1 (Phase A)
+    - True Negative Rate (Phase B)
+    - Abstain rate
+    - Tasks per hour
+
+    **Features**:
+    - Upstream leaderboard comparison
+    - File F1 score bands
+    - CPU vs GPU delta
+    """)
+
 st.markdown("---")
 
 # Quick start
@@ -246,6 +263,18 @@ with tab1:
 
     **Offline batch results are saved to:** `results/llm/`
 
+    **CVE VLoc Tests:**
+    ```bash
+    # Quick smoke (5 tasks, Granite-4.0-350M, Phase A)
+    ./automation/test-execution/scripts/bash/run-cve-vloc-suite.sh smoke
+
+    # Phase A, Granite family, 25 tasks
+    ./automation/test-execution/scripts/bash/run-cve-vloc-suite.sh phase-a \\
+      --models granite --n-limit 25 --cores 16
+    ```
+
+    **CVE VLoc results are saved to:** `results/llm/*/cve-vloc-*/`
+
     Each dashboard loads from its respective directory —
     just run a test and refresh!
 
@@ -309,9 +338,16 @@ with tab3:
     - 📈 Batch size scaling curves
     - 🐳 Container/version tracking
 
+    **CVE VLoc Dashboard adds:**
+    - 🎯 Phase A File F1 vs abstain rate
+    - 🛡️ Phase B true-negative / false-positive rates
+    - 📊 Upstream GPU leaderboard comparison
+    - ⚡ Tasks/hour throughput
+
     **Analysis Workflow:**
     - LLM (Online): Start with Client Metrics, then Server Metrics
     - LLM (Offline Batch): Use Offline Batch for throughput workloads
+    - CVE localization: Use CVE VLoc for File F1 / TNR (not offline capacity)
     - Embedding: Use saturation curves to find optimal load
     - Compare metrics between models for performance analysis
     """)

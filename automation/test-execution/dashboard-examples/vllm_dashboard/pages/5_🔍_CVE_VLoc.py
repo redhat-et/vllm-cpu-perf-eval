@@ -538,12 +538,14 @@ def main():
         st.warning("No CVE-VLoc results found.")
         st.code(
             "# Run a CVE-VLoc benchmark (from repository root):\n"
-            "./cpueval --suite cve-vloc --model ibm-granite/granite-4.0-350m\n"
+            "./automation/test-execution/scripts/bash/run-cve-vloc-suite.sh "
+            "smoke\n"
             "\n"
             "# Or via Ansible:\n"
             "ansible-playbook automation/test-execution/ansible/"
             "llm-benchmark-cve-vloc.yml \\\n"
-            '  -e "test_model=ibm-granite/granite-4.0-350m"\n'
+            '  -e "test_model=ibm-granite/granite-4.0-350m" \\\n'
+            '  -e "vloc_runner=vllm" \\\n'
             '  -e "requested_cores=16"'
         )
         return
@@ -644,12 +646,17 @@ def main():
     n_models = dff["model_short"].nunique()
     n_runs = len(dff)
     best_f1 = dff["mean_file_f1"].max()
-    best_model = dff.loc[dff["mean_file_f1"].idxmax(), "model_short"] if best_f1 is not None else "—"
+    if pd.isna(best_f1):
+        best_f1_label = "—"
+        best_model = "—"
+    else:
+        best_f1_label = f"{best_f1:.3f}"
+        best_model = dff.loc[dff["mean_file_f1"].idxmax(), "model_short"]
 
     kpi1, kpi2, kpi3, kpi4 = st.columns(4)
     kpi1.metric("Models Tested", n_models)
     kpi2.metric("Total Runs", n_runs)
-    kpi3.metric("Best File F1", f"{best_f1:.3f}" if best_f1 is not None else "—")
+    kpi3.metric("Best File F1", best_f1_label)
     kpi4.metric("Best Model", best_model)
     st.caption(
         "Best File F1 and Best Model are **Phase A** scores (did the model "
@@ -717,10 +724,20 @@ def main():
     # ==================================================================
     # SECTION 2: Phase B — True Negative Rate
     # ==================================================================
-    phase_b_data = best_per_model[
-        best_per_model["true_negative_rate"].notna()
-        & (best_per_model["phase_b_tasks"] > 0)
+    # Phase B: pick the best TNR among runs that actually ran Phase B,
+    # not the File-F1-best run (which may be Phase A-only).
+    phase_b_runs = dff[
+        dff["true_negative_rate"].notna()
+        & (dff["phase_b_tasks"] > 0)
     ]
+    phase_b_data = (
+        phase_b_runs.sort_values("true_negative_rate", ascending=False)
+        .groupby("model_short", sort=False)
+        .first()
+        .reset_index()
+        if not phase_b_runs.empty
+        else phase_b_runs
+    )
 
     if not phase_b_data.empty:
         st.divider()
@@ -892,7 +909,7 @@ def main():
                         "LB File F1 (GPU)": "{:.3f}",
                         "Our File F1 (CPU)": "{:.3f}",
                         "Delta": "{:+.3f}",
-                    }).applymap(
+                    }).map(
                         lambda v: "color: green" if isinstance(v, float) and v >= 0
                         else ("color: red" if isinstance(v, float) and v < 0 else ""),
                         subset=["Delta"],

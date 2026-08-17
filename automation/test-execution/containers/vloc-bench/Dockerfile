@@ -16,7 +16,7 @@
 #       --api-base http://localhost:8200/v1 \
 #       --model-name <model> --runner <runner> \
 #       --phases a --workers 1 --n-limit 5 \
-#       --output-dir /results --permissive
+#       --output-dir /results
 
 FROM python:3.12-slim
 
@@ -32,10 +32,13 @@ RUN ARCH="$(uname -m)" && \
     | tar xz -C /usr/local/bin --strip-components=1 docker/docker && \
     chmod +x /usr/local/bin/docker
 
-ARG VLOC_REF=main
-RUN git clone --depth 1 -b "${VLOC_REF}" \
-        https://github.com/cisco-foundation-ai/vulnerability-localization-benchmark.git \
-        /opt/vloc-bench
+# Pin to a VLoc Bench commit (not floating main) so rebuilds are reproducible.
+# Bump this SHA deliberately after reviewing upstream changes.
+ARG VLOC_REF=000c19cda9ba027e1d241216768b2b6358685000
+RUN git clone https://github.com/cisco-foundation-ai/vulnerability-localization-benchmark.git \
+        /opt/vloc-bench \
+    && git -C /opt/vloc-bench checkout --detach "${VLOC_REF}" \
+    && test "$(git -C /opt/vloc-bench rev-parse HEAD)" = "${VLOC_REF}"
 
 WORKDIR /opt/vloc-bench
 

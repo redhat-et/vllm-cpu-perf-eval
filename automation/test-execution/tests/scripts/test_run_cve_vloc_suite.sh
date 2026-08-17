@@ -169,6 +169,8 @@ test_usage_message() {
         "Usage shows --vloc-dir option"
     assert_contains "$usage_output" "--keep-server" \
         "Usage shows --keep-server option"
+    assert_contains "$usage_output" "--permissive" \
+        "Usage shows --permissive option"
     assert_contains "$usage_output" "HF_TOKEN" \
         "Usage mentions HF_TOKEN"
     assert_contains "$usage_output" "VLLM_CONTAINER_IMAGE" \
@@ -234,6 +236,60 @@ test_no_token_logging() {
 }
 
 # ============================================================================
+# Test 9: Dry-run command construction (behavioral)
+# ============================================================================
+
+test_dry_run_smoke_smallest_granite() {
+    local output
+    output=$("$SUITE_SCRIPT" smoke --dry-run 2>&1)
+
+    assert_contains "$output" "ibm-granite/granite-4.0-350m" \
+        "Default smoke uses Granite-4.0-350M"
+    assert_not_contains "$output" "granite-4.0-micro" \
+        "Default smoke does not include Granite Micro"
+    assert_not_contains "$output" "granite-4.0-1b" \
+        "Default smoke does not include Granite 1B"
+    assert_contains "$output" "vloc_runner=vllm" \
+        "Smoke dry-run selects generic vllm runner"
+    assert_not_contains "$output" "vloc_permissive" \
+        "Default smoke does not enable --permissive"
+    assert_contains "$output" '-e test_model=' \
+        "Extra vars are passed as -e key=value"
+}
+
+test_dry_run_antares_runner() {
+    local output
+    output=$(HF_TOKEN=dummy "$SUITE_SCRIPT" phase-a \
+        --models fdtn-ai/antares-1b --dry-run 2>&1)
+
+    assert_contains "$output" "vloc_runner=vllm_antares" \
+        "Antares model selects vllm_antares runner"
+    assert_contains "$output" "vllm_antares" \
+        "Dry-run command includes antares runner"
+}
+
+test_dry_run_container_image_and_permissive() {
+    local output
+    output=$("$SUITE_SCRIPT" smoke \
+        --container-image docker.io/vllm/vllm-openai-cpu:v0.25.1 \
+        --permissive --dry-run 2>&1)
+
+    assert_contains "$output" "vllm_container_image=docker.io/vllm/vllm-openai-cpu:v0.25.1" \
+        "Dry-run forwards --container-image as vllm_container_image"
+    assert_contains "$output" "vloc_permissive=true" \
+        "Dry-run forwards --permissive as vloc_permissive=true"
+}
+
+test_dry_run_quoted_vloc_dir() {
+    local output
+    output=$("$SUITE_SCRIPT" smoke \
+        --vloc-dir "/tmp/vloc bench" --dry-run 2>&1)
+
+    assert_contains "$output" "vloc_dir=/tmp/vloc bench" \
+        "vloc_dir with spaces is preserved as a single extra-var"
+}
+
+# ============================================================================
 # Main test execution
 # ============================================================================
 
@@ -251,6 +307,10 @@ test_model_presets
 test_playbook_reference
 test_dry_run_flag
 test_no_token_logging
+test_dry_run_smoke_smallest_granite
+test_dry_run_antares_runner
+test_dry_run_container_image_and_permissive
+test_dry_run_quoted_vloc_dir
 
 echo
 echo "=========================================="
