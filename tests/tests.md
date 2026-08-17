@@ -34,7 +34,7 @@ All test cases use a hierarchical naming scheme:
 **Components:**
 
 - **Suite Prefix**: `CONC` (Concurrent Load), `SCALE` (Scalability), `OFFLINE` (Offline Batch), `CVE` (CVE Scanning), `CONT` (Resource Contention), `EMB` (Embedding)
-- **Type** (not used for CONC suite): `SWEEP`, `SYNC` (Synchronous), `POISSON`, `BASELINE`, `LATENCY`
+- **Type** (not used for CONC suite): `SWEEP`, `SYNC` (Synchronous), `POISSON`, `BASELINE`, `LATENCY`; CVE-specific: `VLOC` (localization), `CAP` (capacity)
 - **Use Case** (offline batch): `SUMM` (Summarization), `CLASS` (Classification), `TRANS` (Translation), `ENTITY` (Entity Extraction), `DATAGEN` (Dataset Generation), `ETL` (ETL Pipelines), `CODEGEN` (Code Generation), `LONGSUM` (Long-Doc Summarization), `RAG` (Batch RAG), `PREFIX` (Shared-Prefix), `LABEL` (Ultra-Short Labeling)
 - **Model**: Short abbreviation (e.g., `LLAMA32`, `QWEN06`, `GRANITE32`, `GRANITE-EN`, `GRANITE-ML`)
 - **Workload**: `CHAT`, `RAG`, `CODE`, `SUMM`, `EMB` (embedding), `EMB512` (512-token embedding)
@@ -88,7 +88,7 @@ Evaluates LLM vulnerability localization using the Cisco VLoc Bench harness.
 
 - **Online track**: VLoc Bench agent loop (Docker sandbox + tool calls) against vLLM-served models
 - **Offline track**: `vllm bench throughput` capacity proxy with representative I/O shapes
-- **Metrics focus**: File F1, Precision, Recall (online); tok/s, items/hr (offline)
+- **Metrics focus**: File F1, Precision, Recall, TNR (online); tok/s, items/hr (offline)
 - **Model families**: Granite-4.0 (baseline), Qwen3.5-9B, Antares (specialized)
 - **Goal**: Evaluate vulnerability localization quality and model capacity on CPU
 

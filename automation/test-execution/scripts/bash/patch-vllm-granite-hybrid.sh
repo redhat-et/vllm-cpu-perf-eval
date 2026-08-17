@@ -56,9 +56,31 @@ if [[ -z "${ENGINE}" ]]; then
     exit 1
 fi
 
+assert_output_dir_safe() {
+    local dir="$1"
+    if [[ ! -e "${dir}" ]]; then
+        return 0
+    fi
+    if [[ ! -d "${dir}" ]]; then
+        echo "ERROR: OUTPUT_DIR is not a directory: ${dir}" >&2
+        exit 1
+    fi
+    if [[ ! -O "${dir}" ]]; then
+        echo "ERROR: OUTPUT_DIR is not owned by the current user: ${dir}" >&2
+        exit 1
+    fi
+    if find "${dir}" -maxdepth 0 \( -perm -g=w -o -perm -o=w \) | grep -q .; then
+        echo "ERROR: OUTPUT_DIR is writable by group or others: ${dir}" >&2
+        exit 1
+    fi
+}
+
 check_needed() {
     local content
-    content=$("${ENGINE}" run --rm --entrypoint cat "${CONTAINER_IMAGE}" "${CONTAINER_PATH}" 2>/dev/null)
+    if ! content=$("${ENGINE}" run --rm --entrypoint cat "${CONTAINER_IMAGE}" "${CONTAINER_PATH}"); then
+        echo "ERROR: Failed to inspect ${CONTAINER_PATH} in ${CONTAINER_IMAGE}" >&2
+        return 2
+    fi
     if echo "${content}" | grep -q '"full_attention"'; then
         return 1
     fi
@@ -66,20 +88,34 @@ check_needed() {
 }
 
 if [[ "${CHECK_ONLY}" == "true" ]]; then
-    if check_needed; then
-        echo "Patch needed: ${CONTAINER_IMAGE} missing full_attention support"
-        exit 0
-    else
-        echo "Patch not needed: ${CONTAINER_IMAGE} already has full_attention support"
-        exit 1
-    fi
+    rc=0
+    check_needed || rc=$?
+    case "${rc}" in
+        0)
+            echo "Patch needed: ${CONTAINER_IMAGE} missing full_attention support"
+            exit 0
+            ;;
+        1)
+            echo "Patch not needed: ${CONTAINER_IMAGE} already has full_attention support"
+            exit 1
+            ;;
+        *)
+            exit "${rc}"
+            ;;
+    esac
 fi
 
-if ! check_needed; then
+rc=0
+check_needed || rc=$?
+if [[ "${rc}" -eq 1 ]]; then
     echo "Patch not needed — container already has full_attention support"
     echo "Skipping patch (vLLM version likely > v0.25.1)"
     exit 0
+elif [[ "${rc}" -ne 0 ]]; then
+    exit "${rc}"
 fi
+
+assert_output_dir_safe "${OUTPUT_DIR}"
 
 if [[ -f "${OUTPUT_DIR}/granitemoehybrid.py" ]] && \
    grep -q '"full_attention"' "${OUTPUT_DIR}/granitemoehybrid.py" 2>/dev/null; then
@@ -88,6 +124,8 @@ if [[ -f "${OUTPUT_DIR}/granitemoehybrid.py" ]] && \
 fi
 
 mkdir -p "${OUTPUT_DIR}"
+chmod 700 "${OUTPUT_DIR}"
+assert_output_dir_safe "${OUTPUT_DIR}"
 
 echo "Extracting granitemoehybrid.py from ${CONTAINER_IMAGE}..."
 "${ENGINE}" run --rm --entrypoint cat "${CONTAINER_IMAGE}" "${CONTAINER_PATH}" \

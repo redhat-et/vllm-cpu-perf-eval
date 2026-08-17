@@ -22,24 +22,6 @@ TESTS_RUN=0
 TESTS_PASSED=0
 TESTS_FAILED=0
 
-assert_equals() {
-    local expected="$1"
-    local actual="$2"
-    local test_name="$3"
-
-    TESTS_RUN=$((TESTS_RUN + 1))
-
-    if [[ "$expected" == "$actual" ]]; then
-        echo -e "${GREEN}✓${NC} $test_name"
-        TESTS_PASSED=$((TESTS_PASSED + 1))
-    else
-        echo -e "${RED}✗${NC} $test_name"
-        echo "  Expected: $expected"
-        echo "  Actual:   $actual"
-        TESTS_FAILED=$((TESTS_FAILED + 1))
-    fi
-}
-
 assert_contains() {
     local haystack="$1"
     local needle="$2"
@@ -71,6 +53,23 @@ assert_not_contains() {
     else
         echo -e "${RED}✗${NC} $test_name"
         echo "  Should not contain: $needle"
+        TESTS_FAILED=$((TESTS_FAILED + 1))
+    fi
+}
+
+assert_not_match() {
+    local haystack="$1"
+    local pattern="$2"
+    local test_name="$3"
+
+    TESTS_RUN=$((TESTS_RUN + 1))
+
+    if ! grep -Eq -- "$pattern" <<< "$haystack"; then
+        echo -e "${GREEN}✓${NC} $test_name"
+        TESTS_PASSED=$((TESTS_PASSED + 1))
+    else
+        echo -e "${RED}✗${NC} $test_name"
+        echo "  Should not match: $pattern"
         TESTS_FAILED=$((TESTS_FAILED + 1))
     fi
 }
@@ -163,6 +162,8 @@ test_usage_message() {
         "Usage shows full mode"
     assert_contains "$usage_output" "--models" \
         "Usage shows --models option"
+    assert_contains "$usage_output" "gemma" \
+        "Usage lists gemma preset"
     assert_contains "$usage_output" "--cores" \
         "Usage shows --cores option"
     assert_contains "$usage_output" "--vloc-dir" \
@@ -231,8 +232,8 @@ test_no_token_logging() {
     local script_content
     script_content=$(cat "$SUITE_SCRIPT")
 
-    assert_not_contains "$script_content" 'echo.*HF_TOKEN' \
-        "HF_TOKEN not echoed directly"
+    assert_not_match "$script_content" 'echo.*\$HF_TOKEN|echo.*\$\{HF_TOKEN' \
+        "HF_TOKEN value is not echoed"
 }
 
 # ============================================================================
@@ -281,12 +282,19 @@ test_dry_run_container_image_and_permissive() {
 }
 
 test_dry_run_quoted_vloc_dir() {
+    local tmp_root
+    tmp_root=$(mktemp -d)
+    local vloc_dir="${tmp_root}/vloc bench"
+    mkdir -p "${vloc_dir}"
+
     local output
     output=$("$SUITE_SCRIPT" smoke \
-        --vloc-dir "/tmp/vloc bench" --dry-run 2>&1)
+        --vloc-dir "${vloc_dir}" --dry-run 2>&1)
 
-    assert_contains "$output" "vloc_dir=/tmp/vloc bench" \
+    assert_contains "$output" "vloc_dir=${vloc_dir}" \
         "vloc_dir with spaces is preserved as a single extra-var"
+
+    rm -rf "${tmp_root}"
 }
 
 # ============================================================================

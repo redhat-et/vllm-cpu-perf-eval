@@ -288,6 +288,9 @@ def _parse_leaderboard_entries(entries: list) -> pd.DataFrame:
     return pd.DataFrame(rows) if rows else pd.DataFrame()
 
 
+_MAX_LEADERBOARD_BYTES = 1_000_000
+
+
 @st.cache_data(ttl=3600)
 def load_leaderboard() -> tuple:
     """Fetch the upstream VLoc leaderboard JSON.
@@ -301,7 +304,10 @@ def load_leaderboard() -> tuple:
         with urllib.request.urlopen(
             LEADERBOARD_JSON_URL, timeout=8
         ) as resp:
-            raw = json.loads(resp.read())
+            raw_bytes = resp.read(_MAX_LEADERBOARD_BYTES + 1)
+        if len(raw_bytes) > _MAX_LEADERBOARD_BYTES:
+            raise ValueError("leaderboard response exceeded size cap")
+        raw = json.loads(raw_bytes)
         # Unwrap envelope: top-level may be a dict with a "models" key
         if isinstance(raw, dict):
             entries = raw.get("models", [])
@@ -320,34 +326,6 @@ def load_leaderboard() -> tuple:
 # ---------------------------------------------------------------------------
 # Chart helpers
 # ---------------------------------------------------------------------------
-
-def _bar_chart(
-    labels: list,
-    values: list,
-    title: str,
-    yaxis_title: str,
-    color: str,
-    hover_fmt: str = "%{y:.3f}",
-    height: int = 400,
-) -> go.Figure:
-    fig = go.Figure(go.Bar(
-        x=labels,
-        y=values,
-        text=[f"{v:.3f}" if v is not None else "—" for v in values],
-        textposition="auto",
-        marker_color=color,
-        hovertemplate=f"<b>%{{x}}</b><br>{yaxis_title}: {hover_fmt}<extra></extra>",
-    ))
-    fig.update_layout(
-        title=title,
-        xaxis_title="Model",
-        yaxis_title=yaxis_title,
-        yaxis=dict(range=[0, 1]),
-        height=height,
-        showlegend=False,
-    )
-    return fig
-
 
 # File F1 bands for the leaderboard. Each chart gets its own y-axis so a
 # 0.002 Granite score is not flattened against a 0.22 GPT-class score.
@@ -634,8 +612,8 @@ def main():
     best_per_model = (
         dff.sort_values("mean_file_f1", ascending=False)
         .groupby("model_short", sort=False)
-        .first()
-        .reset_index()
+        .head(1)
+        .reset_index(drop=True)
     )
 
     # ==================================================================
@@ -733,8 +711,8 @@ def main():
     phase_b_data = (
         phase_b_runs.sort_values("true_negative_rate", ascending=False)
         .groupby("model_short", sort=False)
-        .first()
-        .reset_index()
+        .head(1)
+        .reset_index(drop=True)
         if not phase_b_runs.empty
         else phase_b_runs
     )
@@ -815,7 +793,7 @@ def main():
             for _, row in best_per_model.iterrows():
                 lb_name = row["leaderboard_name"]
                 f1 = row["mean_file_f1"]
-                if lb_name and f1 is not None:
+                if lb_name and pd.notna(f1):
                     # Keep the best local score if model appears multiple times
                     if lb_name not in local_scores or f1 > local_scores[lb_name]:
                         local_scores[lb_name] = f1
@@ -941,7 +919,7 @@ def main():
         .reset_index()
     )
     tput_data["label"] = (
-        tput_data["model_short"] + "\n" + tput_data["cores"].astype(str) + " cores"
+        tput_data["model_short"] + "<br>" + tput_data["cores"].astype(str) + " cores"
     )
     tput_data = tput_data.sort_values("tasks_per_hour", ascending=False)
 

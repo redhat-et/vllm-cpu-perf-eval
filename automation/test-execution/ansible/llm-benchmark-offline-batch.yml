@@ -26,10 +26,11 @@
 #
 # Dataset types: sonnet, random, sharegpt
 #   - sonnet: Classic sonnet text (needs dataset_path)
-#   - random: Synthetic random tokens (needs input_len/output_len via
-#     --random-input-len/--random-output-len). Use for long-doc shapes
-#     (e.g. 4096→256); HF datasets like cnn_dailymail are not supported
-#     by vllm bench throughput in this path.
+#   - random: Synthetic random tokens (defaults: 512 input tokens, 256
+#     output tokens). --random-input-len / --random-output-len override
+#     those defaults. Use for long-doc shapes (e.g. 4096→256); HF
+#     datasets like cnn_dailymail are not supported by vllm bench
+#     throughput in this path.
 #   - sharegpt: ShareGPT conversations (built-in dataset)
 
 - name: "Offline Batch Benchmark - Setup"

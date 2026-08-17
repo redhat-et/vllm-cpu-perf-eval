@@ -47,9 +47,9 @@ WORKDIR /opt/vloc-bench
 # Install --no-deps to skip the heavy ML packages listed in pyproject.toml.
 RUN pip install --no-cache-dir --no-deps -e . && \
     pip install --no-cache-dir \
-        'requests>=2.31' \
-        'pyyaml>=6.0' \
-        'tqdm>=4.66' \
-        'openai>=2.0'
+        'requests==2.32.3' \
+        'pyyaml==6.0.2' \
+        'tqdm==4.67.1' \
+        'openai==2.2.0'
 
 ENV PYTHONPATH=/opt/vloc-bench/src

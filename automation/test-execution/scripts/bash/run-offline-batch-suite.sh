@@ -1123,10 +1123,18 @@ test_cve_capacity() {
 
             echo "  Shape: ${shape_name} (input=${input_len}, output=${output_len}, prompts=${prompts})"
 
+            local extra_args=""
+            case "${model}" in
+                *antares*|fdtn-ai/*)
+                    extra_args="--trust-remote-code --dtype bfloat16"
+                    ;;
+            esac
+
             if run_test "$model" "random" "$prompts" "$cores" \
                 -e "input_len=${input_len}" \
                 -e "output_len=${output_len}" \
-                -e "use_case=cve_capacity"; then
+                -e "use_case=cve_capacity" \
+                -e "vllm_extra_args=${extra_args}"; then
                 passed=$((passed + 1))
             else
                 failed=$((failed + 1))
@@ -1225,17 +1233,23 @@ main() {
             test_context_scaling "$@"
             ;;
         cve-capacity)
+            local cve_cores=""
             for arg in "$@"; do
                 if [[ "$arg" == "--include-qwen" ]]; then
                     export INCLUDE_QWEN=true
+                elif [[ "$arg" =~ ^[0-9]+$ ]]; then
+                    if [[ -n "${cve_cores}" ]]; then
+                        echo "Error: cve-capacity accepts at most one core-count argument"
+                        exit 1
+                    fi
+                    cve_cores="$arg"
+                else
+                    echo "Error: unknown argument for cve-capacity: $arg"
+                    echo "Usage: cve-capacity [cores] [--include-qwen]"
+                    exit 1
                 fi
             done
-            # Strip --include-qwen from args before passing cores
-            local cve_args=()
-            for arg in "$@"; do
-                [[ "$arg" != "--include-qwen" ]] && cve_args+=("$arg")
-            done
-            test_cve_capacity "${cve_args[@]}"
+            test_cve_capacity "${cve_cores:-16}"
             ;;
         all)
             if [ $# -lt 1 ]; then
