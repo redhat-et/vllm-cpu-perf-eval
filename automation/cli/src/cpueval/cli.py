@@ -24,6 +24,7 @@ from cpueval.results import (
     find_latest_result,
     find_latest_embedding_result,
 )
+from cpueval.install import run_install
 from cpueval.offline_batch import build_offline_batch_args
 from cpueval.runners import (
     load_profile,
@@ -787,6 +788,25 @@ def profiles():
         "[dim]Use with:[/dim] cpueval --suite <suite> --profile <name>"
     )
     console.print()
+
+
+@app.command()
+def install(
+    skip_system_deps: bool = typer.Option(
+        False, "--skip-system-deps", help="Skip system package installation (dnf)"
+    ),
+    skip_collections: bool = typer.Option(
+        False, "--skip-collections", help="Skip Ansible collection installation"
+    ),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Print commands without running them"),
+):
+    """Install prerequisites: system packages (dnf) and Ansible collections."""
+    exit_code = run_install(
+        skip_system_deps=skip_system_deps,
+        skip_collections=skip_collections,
+        dry_run=dry_run,
+    )
+    raise typer.Exit(exit_code)
 
 
 @app.command()

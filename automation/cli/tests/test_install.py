@@ -1,0 +1,200 @@
+"""Unit tests for cpueval install module."""
+
+import subprocess
+from unittest.mock import MagicMock, patch
+
+from cpueval.install import (
+    SYSTEM_PACKAGES,
+    install_ansible_collections,
+    install_system_deps,
+    run_install,
+)
+
+
+# ---------------------------------------------------------------------------
+# install_system_deps
+# ---------------------------------------------------------------------------
+
+def test_install_system_deps_dry_run_no_subprocess(monkeypatch):
+    """Dry-run returns True without running any subprocess."""
+    monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/dnf")
+    with patch("subprocess.run") as mock_run:
+        ok, msg = install_system_deps(dry_run=True)
+    assert ok is True
+    assert "dry-run" in msg
+    mock_run.assert_not_called()
+
+
+def test_install_system_deps_dry_run_includes_packages(monkeypatch):
+    """Dry-run message lists all expected packages."""
+    monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/dnf")
+    _, msg = install_system_deps(dry_run=True)
+    for pkg in SYSTEM_PACKAGES:
+        assert pkg in msg
+
+
+def test_install_system_deps_no_dnf_skips(monkeypatch):
+    """Returns True (soft-skip) with a helpful message when dnf is absent."""
+    monkeypatch.setattr("shutil.which", lambda _: None)
+    ok, msg = install_system_deps()
+    assert ok is True
+    assert "dnf not found" in msg
+    assert "skipping" in msg
+
+
+def test_install_system_deps_success(monkeypatch):
+    """Returns True when dnf exits 0."""
+    monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/dnf")
+    mock_result = MagicMock(returncode=0, stderr="", stdout="")
+    with patch("subprocess.run", return_value=mock_result):
+        ok, msg = install_system_deps()
+    assert ok is True
+    assert "installed" in msg
+
+
+def test_install_system_deps_failure(monkeypatch):
+    """Returns False with stderr when dnf exits non-zero."""
+    monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/dnf")
+    mock_result = MagicMock(returncode=1, stderr="Error: something went wrong", stdout="")
+    with patch("subprocess.run", return_value=mock_result):
+        ok, msg = install_system_deps()
+    assert ok is False
+    assert "Error: something went wrong" in msg
+
+
+def test_install_system_deps_timeout(monkeypatch):
+    """Returns False when dnf times out."""
+    monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/dnf")
+    with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="dnf", timeout=300)):
+        ok, msg = install_system_deps()
+    assert ok is False
+    assert "timed out" in msg
+
+
+# ---------------------------------------------------------------------------
+# install_ansible_collections
+# ---------------------------------------------------------------------------
+
+def test_install_ansible_collections_dry_run_no_subprocess(tmp_path, monkeypatch):
+    """Dry-run returns True without running any subprocess."""
+    req = tmp_path / "requirements.yml"
+    req.write_text("collections: []\n")
+    monkeypatch.setattr("cpueval.install._requirements_path", lambda: req)
+    monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/ansible-galaxy")
+    with patch("subprocess.run") as mock_run:
+        ok, msg = install_ansible_collections(dry_run=True)
+    assert ok is True
+    assert "dry-run" in msg
+    mock_run.assert_not_called()
+
+
+def test_install_ansible_collections_missing_requirements(monkeypatch, tmp_path):
+    """Returns False when requirements.yml does not exist."""
+    monkeypatch.setattr("cpueval.install._requirements_path", lambda: tmp_path / "missing.yml")
+    ok, msg = install_ansible_collections()
+    assert ok is False
+    assert "not found" in msg
+
+
+def test_install_ansible_collections_no_ansible_galaxy(tmp_path, monkeypatch):
+    """Returns False when ansible-galaxy is not in PATH."""
+    req = tmp_path / "requirements.yml"
+    req.write_text("collections: []\n")
+    monkeypatch.setattr("cpueval.install._requirements_path", lambda: req)
+    monkeypatch.setattr("shutil.which", lambda _: None)
+    ok, msg = install_ansible_collections()
+    assert ok is False
+    assert "ansible-galaxy not found" in msg
+
+
+def test_install_ansible_collections_success(tmp_path, monkeypatch):
+    """Returns True when ansible-galaxy exits 0."""
+    req = tmp_path / "requirements.yml"
+    req.write_text("collections: []\n")
+    monkeypatch.setattr("cpueval.install._requirements_path", lambda: req)
+    monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/ansible-galaxy")
+    mock_result = MagicMock(returncode=0, stderr="", stdout="")
+    with patch("subprocess.run", return_value=mock_result):
+        ok, msg = install_ansible_collections()
+    assert ok is True
+    assert "installed" in msg
+
+
+def test_install_ansible_collections_failure(tmp_path, monkeypatch):
+    """Returns False with error details when ansible-galaxy exits non-zero."""
+    req = tmp_path / "requirements.yml"
+    req.write_text("collections: []\n")
+    monkeypatch.setattr("cpueval.install._requirements_path", lambda: req)
+    monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/ansible-galaxy")
+    mock_result = MagicMock(returncode=1, stderr="ERROR! collection not found", stdout="")
+    with patch("subprocess.run", return_value=mock_result):
+        ok, msg = install_ansible_collections()
+    assert ok is False
+    assert "collection not found" in msg
+
+
+def test_install_ansible_collections_timeout(tmp_path, monkeypatch):
+    """Returns False when ansible-galaxy times out."""
+    req = tmp_path / "requirements.yml"
+    req.write_text("collections: []\n")
+    monkeypatch.setattr("cpueval.install._requirements_path", lambda: req)
+    monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/ansible-galaxy")
+    with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="ansible-galaxy", timeout=120)):
+        ok, msg = install_ansible_collections()
+    assert ok is False
+    assert "timed out" in msg
+
+
+# ---------------------------------------------------------------------------
+# run_install
+# ---------------------------------------------------------------------------
+
+def test_run_install_skip_all_returns_zero():
+    """Skipping all steps returns exit code 0 without calling anything."""
+    with patch("cpueval.install.install_system_deps") as mock_sys, \
+         patch("cpueval.install.install_ansible_collections") as mock_col:
+        code = run_install(skip_system_deps=True, skip_collections=True)
+    assert code == 0
+    mock_sys.assert_not_called()
+    mock_col.assert_not_called()
+
+
+def test_run_install_all_pass_returns_zero(monkeypatch):
+    """All steps succeeding returns exit code 0."""
+    with patch("cpueval.install.install_system_deps", return_value=(True, "ok")), \
+         patch("cpueval.install.install_ansible_collections", return_value=(True, "ok")):
+        code = run_install()
+    assert code == 0
+
+
+def test_run_install_one_failure_returns_one(monkeypatch):
+    """Any failing step returns exit code 1."""
+    with patch("cpueval.install.install_system_deps", return_value=(False, "dnf error")), \
+         patch("cpueval.install.install_ansible_collections", return_value=(True, "ok")):
+        code = run_install()
+    assert code == 1
+
+
+def test_run_install_skip_system_deps_only_calls_collections():
+    """--skip-system-deps skips dnf but still installs collections."""
+    with patch("cpueval.install.install_system_deps") as mock_sys, \
+         patch("cpueval.install.install_ansible_collections", return_value=(True, "ok")):
+        run_install(skip_system_deps=True)
+    mock_sys.assert_not_called()
+
+
+def test_run_install_skip_collections_only_calls_system_deps():
+    """--skip-collections skips galaxy but still installs system packages."""
+    with patch("cpueval.install.install_system_deps", return_value=(True, "ok")), \
+         patch("cpueval.install.install_ansible_collections") as mock_col:
+        run_install(skip_collections=True)
+    mock_col.assert_not_called()
+
+
+def test_run_install_dry_run_passes_flag():
+    """dry_run=True propagates to individual install functions."""
+    with patch("cpueval.install.install_system_deps", return_value=(True, "[dry-run] ...")) as mock_sys, \
+         patch("cpueval.install.install_ansible_collections", return_value=(True, "[dry-run] ...")) as mock_col:
+        run_install(dry_run=True)
+    mock_sys.assert_called_once_with(True)
+    mock_col.assert_called_once_with(True)
