@@ -53,6 +53,7 @@ vLLM CPU benchmark results:
 📊 **Embedding Metrics** - Embedding model performance (vLLM bench serve)
 📦 **Offline Batch** - Batch processing performance (vLLM bench throughput)
 🎧 **Audio Metrics** - Audio-specific performance for ASR models
+🔍 **CVE VLoc** - Vulnerability localization quality (VLoc Bench agent loop)
 
 **👈 Use the sidebar to navigate between dashboards**
 """)
@@ -245,10 +246,12 @@ with tab1:
 
     **Offline batch results are saved to:** `results/llm/`
 
-    Each dashboard loads from its respective directory - just run a test and refresh!
+    Each dashboard loads from its respective directory —
+    just run a test and refresh!
 
-    **Note**: External endpoint runs always show client metrics. Server-side metrics are
-    available when the external endpoint exposes `/metrics`.
+    **Note**: External endpoint runs always show client metrics.
+    Server-side metrics are available when the external endpoint
+    exposes `/metrics`.
     """)
 
 with tab2:
