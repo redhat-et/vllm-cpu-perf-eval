@@ -53,7 +53,7 @@ All test cases use a hierarchical naming scheme:
 
 See individual test suite README files for complete test case listings.
 
-## Test Suites
+## Suite Overviews
 
 ### Test Suite: Concurrent Load
 
