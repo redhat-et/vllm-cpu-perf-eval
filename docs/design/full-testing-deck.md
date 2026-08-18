@@ -548,7 +548,7 @@ Size GB  = Bytes / 1024³
 > \*Granite-3.2-2B max context 4K — insufficient for RAG
 
 ---
-<style scoped>section { font-size: 22px; }</style>
+<style scoped>section { font-size: 20px; }</style>
 
 ## Stability — Coefficient of Variation
 
@@ -557,6 +557,9 @@ Llama-3.2-1B-Instruct · Chat (512:256) · cores 16/32/64 · concurrency 1, 8, 1
 
 300s window: 30s warmup · 240s measure · 30s cool (warmup/cooldown excluded)
 
+CV is on **3 independent run-level summaries** (throughput, latency, …),
+not on per-request samples inside a run.
+
 | Rank | Config | Avg CV | Median CV | Max CV | Grade |
 |------|--------|--------|-----------|--------|-------|
 | 1 | 32-core | 0.267% | 0.239% | 1.236% | A+ |
@@ -564,6 +567,166 @@ Llama-3.2-1B-Instruct · Chat (512:256) · cores 16/32/64 · concurrency 1, 8, 1
 | 3 | 64-core | 1.612% | 1.287% | 5.090% | B+ |
 
 **< 1%** Excellent · **1–3%** Good · **3–5%** Acceptable · **> 5%** Poor
+
+---
+<style scoped>section { font-size: 20px; }</style>
+
+## Stability — The data science question
+
+**Critique (from our data science review):**
+
+*"You grade stability with CV — why not confidence intervals?
+That's the usual way to express uncertainty."*
+
+**Our answer:** CV and CI are **not alternatives**. They use the same 3 run
+summaries but answer different questions.
+
+| If you want to know… | Use |
+|----------------------|-----|
+| Is this setup **repeatable**? | Cross-run **CV** (stability grades) |
+| What number can we **publish**? | Mean ± **95% CI** |
+| Did config A **really** beat config B? | **CI** overlap / formal test on run means |
+
+**What we got right:** CV on **run-level** summaries (not per-request noise inside a run).
+
+**What we'd improve:** report **CI alongside CV** for published results; more runs
+(5–10) when making A-vs-B claims — **n = 3** is fine for screening, weak for comparisons.
+
+---
+<style scoped>section { font-size: 19px; }</style>
+
+## Stability — What are CV and CI?
+
+**Setup:** run the same benchmark **3 times**. Each run produces one summary
+(e.g. total throughput for that run) — not individual requests.
+
+**Example run results:** 144, 145, 146 tok/s → average **145 tok/s**
+
+### CV — Coefficient of Variation
+
+- **What it measures:** how much the **3 run results scatter**, as a % of the average
+- **In plain terms:** if CV is **0.5%**, runs land within about half a percent of
+  the typical value — the setup is **repeatable**
+- **Why %:** you can compare stability across configs (16-core vs 64-core) even when
+  absolute tok/s differs a lot
+
+### CI — 95% Confidence Interval
+
+- **What it measures:** a **range** around the average where the **true** performance
+  probably lies
+- **In plain terms:** **145 tok/s [142, 148]** means we're **95% confident** the
+  real average is between 142 and 148
+- **Why a range:** we only ran 3 times — the average is an estimate, not ground truth
+
+---
+<style scoped>section { font-size: 20px; }</style>
+
+## Stability — CV vs CI
+
+**Same data, different lens** — this is how we reconcile the data science critique.
+
+| | CV | CI |
+|--|----|----|
+| **Question** | How much do runs bounce? | How sure are we about the average? |
+| **Output** | A single % (e.g. 0.27%) | A range (e.g. 145 ± 0.67%) |
+| **Best for** | Stability grades (A+, A, B+) | Publishing numbers, comparing configs |
+
+**Linked:** with 3 runs, the CI margin is about **2.5× the CV**.
+
+**32-core example:** CV **0.27%** (very stable runs) → true average likely within
+**±0.67%** of what we reported. Low jitter — but only 3 data points, so the
+confidence band is still wider than the run-to-run spread.
+
+Use **CV** to grade repeatability. Use **CI** when stating or comparing performance.
+
+---
+<style scoped>section { font-size: 20px; }</style>
+
+## Stability — When to Use Which
+
+| Question | Better metric |
+|----------|---------------|
+| Is this setup stable? | Cross-run CV |
+| What's the true performance? | CI on run means |
+| Did 32-core beat 16-core? | CI overlap / test on run means |
+| Can we publish this number? | Mean + CI — see **IETF expectations** (next slide) |
+
+**n = 3 is the real limit:** one outlier moves CV a lot; CI is ~2.5× CV wide.
+Fine for screening grades. Weak for A-vs-B claims — use 5–10 runs and report both.
+
+```text
+Throughput: 145.2 tok/s  [142, 148]  95% CI   (7 runs)   ← illustrative
+Cross-run CV: 0.27%  →  Grade A+
+```
+
+---
+<style scoped>section { font-size: 18px; }</style>
+
+## Stability — IETF expectations
+
+**Source:** [IETF LLM benchmarking drafts](https://datatracker.ietf.org/doc/draft-gaikwad-llm-benchmarking-methodology/)
+(same standards family as our methodology docs and the openshift-psap guide).
+
+**What IETF wants when you publish a performance number (plain language):**
+
+1. **Repeat the test** — don't treat one lucky run as the answer
+2. **Show uncertainty** — report **mean ± confidence interval**, not a lone headline
+3. **Disclose the setup** — what was measured, on what hardware, with what load pattern,
+   and whether warmup / sample counts support the percentiles you quote
+
+**Good vs bad reporting:**
+
+| Avoid | Prefer |
+|-------|--------|
+| "We get **145 tok/s**" (single run) | "**145 tok/s [142, 148]** at 95% CI (7 runs)" |
+| Hiding hardware and load settings | SUT boundary, cores, workload, GuideLLM profile documented |
+
+**Where this project stands today:**
+
+| IETF ask | Status |
+|----------|--------|
+| Disclose SUT, tokenizer, load model, warmup, images | Done — `test-metadata.json` per run |
+| Enough in-run requests for reliable P99 (1000+) | Done — with warnings if too few samples |
+| Multi-run repeats + CI on published headline metrics | **Gap** — default suites often single-run; CI not auto-reported yet |
+
+**How CV fits:** CV grades whether the setup is **repeatable enough to trust**.
+CI is what belongs **on the published number** once you are ready to report externally.
+
+<style scoped>blockquote { color: blue; border-left-color: blue; font-style: normal; }</style>
+> Our 3-run stability study is a step toward IETF-style repeatability.
+> Full compliance means adding **mean ± CI** to external reports — not dropping CV.
+
+---
+<style scoped>section { font-size: 18px; }</style>
+
+## Stability — IETF: two kinds of uncertainty
+
+IETF is not only asking for confidence intervals. It separates uncertainty at
+**two levels** — we address them differently today.
+
+| Level | Question | IETF guidance | What we do |
+|-------|----------|---------------|------------|
+| **Inside one run** | Are P95/P99 based on enough requests? | 1000+ samples for P99 (MUST) | GuideLLM run length; `ietf_sample_warning` if too few |
+| **Across runs** | Would we get the same headline number tomorrow? | Repeat test; report **mean ± CI** | Stability study: 3 runs + **CV** grades; CI not yet in default reports |
+
+**Why both matter:**
+
+- A stable **single run** can still be a fluke if you never repeat the test.
+- Many **repeated runs** don't help if each run has too few requests for the
+  percentile you quote.
+
+**Practical reporting (IETF-style headline):**
+
+```text
+Throughput: 145.2 tok/s  [142, 148]  95% CI   (7 runs)
+P99 E2E latency: 820 ms  (n=2,400 requests per run; 7 runs)
+```
+
+CV answers: *"Is layer 2 (cross-run) tight enough to bother publishing?"*
+CI answers: *"What range should go in the report?"*
+
+<style scoped>blockquote { color: blue; border-left-color: blue; font-style: normal; }</style>
+> Deep reference: `docs/methodology/ietf-alignment.md` — compliance matrix + known gaps.
 
 ---
 <!-- _class: divider -->
