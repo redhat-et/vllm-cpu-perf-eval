@@ -49,7 +49,9 @@ cpueval supports tab-completion for bash and zsh.
 **Install (one-time, auto-detects shell):**
 
 ```bash
-./cpueval --install-completion
+./cpueval install                 # includes completion for cpueval and ./cpueval
+# completion only (same ./cpueval registration):
+./cpueval install --skip-system-deps --skip-collections
 exec zsh    # or exec bash
 ```
 
@@ -64,6 +66,7 @@ exec zsh    # or exec bash
 
 | Typing… | Completes with… |
 |---------|-----------------|
+| `./cpueval <TAB>` | `doctor`, `install`, `list`, `run`, `show`, … |
 | `cpueval run --suite <TAB>` | `audio`, `chat-smoke`, `concurrent-load`, … |
 | `cpueval run --suite ch<TAB>` | `chat-smoke` |
 | `cpueval run --model <TAB>` | model names discovered from your results directories |
@@ -80,7 +83,10 @@ exec zsh    # or exec bash
 ./cpueval --show-completion
 ```
 
-**PATH requirement:** `cpueval` must be on your `PATH` for completion to work (the completion script calls `cpueval` internally). Simplest approach — add the repo root:
+**PATH requirement:** Completion is registered for both `cpueval` and `./cpueval`,
+so tab-complete works from the repo launcher after a shell restart. If you invoke
+the command as `cpueval` (no `./`), it still needs to be on your `PATH` — add the
+repo root:
 
 ```bash
 # Add to ~/.zshrc or ~/.bashrc
@@ -230,7 +236,7 @@ Edit that file to change permanent defaults.
 Automates the dependency setup steps required before running benchmarks.
 
 ```bash
-# Full install: system packages (dnf) + Ansible collections
+# Full install: system packages (dnf) + Ansible collections + shell completion
 ./cpueval install
 
 # Skip system packages (already installed)
@@ -238,6 +244,9 @@ Automates the dependency setup steps required before running benchmarks.
 
 # Skip Ansible collection install
 ./cpueval install --skip-collections
+
+# Skip tab-completion setup
+./cpueval install --skip-completion
 
 # Preview commands without executing
 ./cpueval install --dry-run
@@ -253,11 +262,13 @@ cpueval install
 ┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
 │ System packages (dnf)        │ ✓          │ installed: ansible-core, python3-pip, git    │
 │ Ansible collections          │ ✓          │ collections installed                         │
+│ Shell completion             │ ✓          │ bash completion at ~/.bash_completions/…      │
 └──────────────────────────────┴────────────┴──────────────────────────────────────────────┘
 
 ✓ Install complete
 
 Next step: verify with cpueval doctor
+Enable tab completion in this shell with exec bash or exec zsh, then try ./cpueval <TAB>
 ```
 
 **What it installs:**
@@ -266,12 +277,16 @@ Next step: verify with cpueval doctor
 |------|------|-------|
 | System packages (dnf) | `ansible-core`, `python3-pip`, `git` | RHEL/Fedora only; soft-skipped on macOS/Ubuntu with alternative install hint |
 | Ansible collections | `containers.podman`, `ansible.posix` | From `automation/test-execution/ansible/requirements.yml` |
+| Shell completion | bash/zsh tab completion | Registers `cpueval` and `./cpueval`; restart the shell once (`exec bash` / `exec zsh`) |
 
 On non-RHEL systems (macOS, Ubuntu) the dnf step shows `~` (skipped) and prints the
 equivalent `brew` / `apt` one-liner. Install Ansible manually, then re-run
 `./cpueval install --skip-system-deps` to install the collections.
 
-After installing, verify everything with `./cpueval doctor`.
+After installing, restart the shell (`exec bash` or `exec zsh`) so `./cpueval <TAB>`
+works, then verify with `./cpueval doctor`. Use `--skip-completion` to leave
+tab-completion alone; `./cpueval --install-completion` still works as a standalone
+reinstall.
 
 ### doctor - Health checks
 

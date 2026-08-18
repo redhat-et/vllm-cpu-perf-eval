@@ -798,12 +798,16 @@ def install(
     skip_collections: bool = typer.Option(
         False, "--skip-collections", help="Skip Ansible collection installation"
     ),
+    skip_completion: bool = typer.Option(
+        False, "--skip-completion", help="Skip shell tab-completion setup"
+    ),
     dry_run: bool = typer.Option(False, "--dry-run", help="Print commands without running them"),
 ):
-    """Install prerequisites: system packages (dnf) and Ansible collections."""
+    """Install prerequisites: system packages, Ansible collections, and shell completion."""
     exit_code = run_install(
         skip_system_deps=skip_system_deps,
         skip_collections=skip_collections,
+        skip_completion=skip_completion,
         dry_run=dry_run,
     )
     raise typer.Exit(exit_code)

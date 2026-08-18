@@ -122,11 +122,14 @@ done
 
 ### install - Install prerequisites
 ```bash
-# Full install: system packages (dnf) + Ansible collections
+# Full install: system packages (dnf) + Ansible collections + shell completion
 ./cpueval install
 
 # Skip system packages if already installed
 ./cpueval install --skip-system-deps
+
+# Skip tab-completion setup
+./cpueval install --skip-completion
 
 # Preview without executing
 ./cpueval install --dry-run
@@ -136,6 +139,10 @@ On RHEL/Fedora this installs `ansible-core`, `python3-pip`, `git` via `dnf` and
 the required Ansible Galaxy collections. On macOS/Ubuntu the dnf step is
 soft-skipped with a `brew`/`apt` one-liner hint; install Ansible manually then
 re-run `./cpueval install --skip-system-deps`.
+
+Shell completion is installed for bash/zsh and registered for both `cpueval`
+and `./cpueval`. Restart the shell (`exec bash` or `exec zsh`) once, then
+`./cpueval <TAB>` completes commands. Use `--skip-completion` to opt out.
 
 ### doctor - Health checks
 ```bash

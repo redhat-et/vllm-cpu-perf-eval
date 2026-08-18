@@ -164,15 +164,21 @@ export ANSIBLE_PRIVATE_KEY_FILE=~/your-key.pem
 export HF_TOKEN=$(cat ~/hf-token)
 ```
 
-#### 3. Enable Shell Completion (Optional)
+#### 3. Enable Shell Completion
+
+`./cpueval install` already sets up bash/zsh tab completion for `./cpueval`.
+Restart the shell once so it takes effect:
 
 ```bash
-# One-time setup — auto-detects bash/zsh
-./cpueval --install-completion
-exec zsh  # or exec bash
+exec bash  # or: exec zsh
 ```
 
-Tab-complete suite names, model names, and profiles. See [cpueval CLI Guide](cpueval-cli.md#shell-completion) for details.
+Then `./cpueval <TAB>` completes commands. To reinstall later:
+
+```bash
+./cpueval --install-completion
+exec bash  # or exec zsh
+```
 
 #### 4. Check System Health
 
