@@ -1,5 +1,6 @@
 """Dependency installation helpers for cpueval."""
 
+import os
 import re
 import shutil
 import subprocess
@@ -19,6 +20,20 @@ _StepResult = Tuple[Optional[bool], str]
 
 def _requirements_path():
     return get_ansible_dir() / "requirements.yml"
+
+
+def _is_root() -> bool:
+    """Return True when running as root (containers / UBI images)."""
+    geteuid = getattr(os, "geteuid", None)
+    return geteuid is not None and geteuid() == 0
+
+
+def _dnf_install_cmd() -> List[str]:
+    """Build the dnf install command; skip sudo when already root."""
+    cmd = ["dnf", "install", "-y", *SYSTEM_PACKAGES]
+    if not _is_root() and shutil.which("sudo"):
+        cmd = ["sudo", *cmd]
+    return cmd
 
 
 def _run_streaming(cmd: List[str], timeout: int) -> Tuple[bool, str]:
@@ -48,7 +63,7 @@ def install_system_deps(dry_run: bool = False) -> _StepResult:
             "         On Ubuntu/Debian: sudo apt install -y ansible-core python3-pip git"
         )
 
-    cmd = ["sudo", "dnf", "install", "-y"] + SYSTEM_PACKAGES
+    cmd = _dnf_install_cmd()
     if dry_run:
         return True, f"[dry-run] would run: {' '.join(cmd)}"
 

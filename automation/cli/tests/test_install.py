@@ -65,6 +65,7 @@ def test_install_system_deps_success(monkeypatch):
 def test_install_system_deps_calls_sudo_dnf(monkeypatch):
     """Verifies subprocess is called with the expected sudo dnf command."""
     monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/dnf")
+    monkeypatch.setattr("os.geteuid", lambda: 1000)
     mock_result = MagicMock(returncode=0)
     with patch("subprocess.run", return_value=mock_result) as mock_run:
         install_system_deps()
@@ -72,6 +73,36 @@ def test_install_system_deps_calls_sudo_dnf(monkeypatch):
     assert cmd[:4] == ["sudo", "dnf", "install", "-y"]
     for pkg in SYSTEM_PACKAGES:
         assert pkg in cmd
+
+
+def test_install_system_deps_root_omits_sudo(monkeypatch):
+    """Containers running as root must not require sudo."""
+    monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/dnf")
+    monkeypatch.setattr("os.geteuid", lambda: 0)
+    mock_result = MagicMock(returncode=0)
+    with patch("subprocess.run", return_value=mock_result) as mock_run:
+        install_system_deps()
+    cmd = mock_run.call_args[0][0]
+    assert cmd[:3] == ["dnf", "install", "-y"]
+    assert "sudo" not in cmd
+
+
+def test_install_system_deps_no_sudo_binary_omits_sudo(monkeypatch):
+    """If sudo is not installed, run dnf directly (root UBI images)."""
+    monkeypatch.setattr("os.geteuid", lambda: 1000)
+
+    def which(name):
+        if name == "dnf":
+            return "/usr/bin/dnf"
+        return None
+
+    monkeypatch.setattr("shutil.which", which)
+    mock_result = MagicMock(returncode=0)
+    with patch("subprocess.run", return_value=mock_result) as mock_run:
+        install_system_deps()
+    cmd = mock_run.call_args[0][0]
+    assert cmd[:3] == ["dnf", "install", "-y"]
+    assert "sudo" not in cmd
 
 
 def test_install_system_deps_failure(monkeypatch):

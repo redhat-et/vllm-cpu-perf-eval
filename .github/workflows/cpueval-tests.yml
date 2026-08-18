@@ -65,6 +65,33 @@ jobs:
           python -m cpueval --suite rhaiis-sweep --dry-run
           python -m cpueval run --suite rhaiis-sweep --dry-run
 
+  container-smoke:
+    name: CLI container (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: ubi9
+            image: registry.access.redhat.com/ubi9/ubi:latest
+          - name: fedora
+            image: fedora:latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Smoke launcher and install in ${{ matrix.name }}
+        run: |
+          docker run --rm \
+            --user 0 \
+            -e HOME=/tmp/cpueval-home \
+            -v "$PWD:/src" \
+            -w /src \
+            "${{ matrix.image }}" \
+            bash /src/automation/cli/tests/container-smoke.sh
+
   lint:
     runs-on: ubuntu-latest
     steps:

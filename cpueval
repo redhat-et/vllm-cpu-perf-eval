@@ -26,19 +26,35 @@ _cpueval_find_python() {
 }
 
 _cpueval_python_hint() {
-    echo "Error: cpueval requires Python 3.10+ (python3 is $(python3 -c 'import sys; print("%d.%d.%d" % sys.version_info[:3])' 2>/dev/null || echo 'not found'))." >&2
+    local pyver
+    pyver="$(python3 -c 'import sys; print("%d.%d.%d" % sys.version_info[:3])' 2>/dev/null || echo 'not found')"
+    echo "Error: cpueval requires Python 3.10+ (python3 is ${pyver})." >&2
     echo "Install Python 3.10 or newer, then re-run:" >&2
-    echo "  RHEL 9 / UBI 9:  sudo dnf install -y python3.12" >&2
-    echo "  Fedora:          sudo dnf install -y python3.12" >&2
+    if [ "${EUID:-$(id -u 2>/dev/null || echo 1)}" -eq 0 ]; then
+        echo "  RHEL 9 / UBI 9:  dnf install -y python3.12" >&2
+        echo "  Fedora:          dnf install -y python3.12" >&2
+    else
+        echo "  RHEL 9 / UBI 9:  sudo dnf install -y python3.12" >&2
+        echo "  Fedora:          sudo dnf install -y python3.12" >&2
+    fi
     echo "  Ubuntu/Debian:   sudo apt install -y python3.12" >&2
     echo "  macOS:           brew install python@3.12" >&2
 }
 
+# Use sudo only for non-root users who have it. UBI/root containers do not.
+_cpueval_pkg() {
+    if [ "${EUID:-$(id -u 2>/dev/null || echo 1)}" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
+        sudo "$@"
+    else
+        "$@"
+    fi
+}
+
 _cpueval_dnf_install_python312() {
     if command -v dnf >/dev/null 2>&1; then
-        sudo dnf install -y python3.12
+        _cpueval_pkg dnf install -y python3.12
     elif command -v microdnf >/dev/null 2>&1; then
-        sudo microdnf install -y python3.12
+        _cpueval_pkg microdnf install -y python3.12
     else
         return 1
     fi
@@ -64,7 +80,7 @@ if [ ! -d "$VENV_DIR" ]; then
     if ! "$PYTHON" -m venv "$VENV_DIR"; then
         rm -rf "$VENV_DIR"
         echo "Error: Failed to create virtual environment with $PYTHON" >&2
-        echo "On RHEL 9 / UBI 9 you may also need: sudo dnf install -y python3.12" >&2
+        echo "On RHEL 9 / UBI 9 you may also need: dnf install -y python3.12" >&2
         exit 1
     fi
 

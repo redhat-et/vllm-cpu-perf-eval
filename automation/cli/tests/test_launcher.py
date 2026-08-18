@@ -20,6 +20,8 @@ def test_launcher_requires_python_310():
 def test_launcher_bootstraps_python312_via_dnf():
     """On dnf hosts without 3.10+, first run installs python3.12."""
     text = _launcher()
-    assert "sudo dnf install -y python3.12" in text
+    assert "dnf install -y python3.12" in text
     assert "microdnf install -y python3.12" in text
     assert "UBI 9" in text
+    assert "_cpueval_pkg" in text
+    assert "command -v sudo" in text
