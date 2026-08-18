@@ -33,7 +33,12 @@ Matrix-first CLI for running comprehensive CPU benchmarks. Most suites run full 
 
 ## Installation
 
-The `./cpueval` launcher automatically creates a virtual environment on first run. For manual installation:
+The `./cpueval` launcher automatically creates a virtual environment on first
+run. It requires **Python 3.10+**. On RHEL 9 / UBI 9, `python3` is 3.9; the
+launcher looks for `python3.12` / `python3.11` / `python3.10` and will install
+`python3.12` via `dnf` if needed.
+
+For manual installation:
 
 ```bash
 cd automation/cli

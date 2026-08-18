@@ -141,11 +141,14 @@ cd vllm-cpu-perf-eval
 The `./cpueval` launcher auto-creates a Python venv on first run — no separate
 `pip install` step required.
 
-> **Bootstrap note:** The launcher runs `python3 -m venv` before `cpueval install`
-> can install `python3-pip`. On a minimal RHEL image where the venv module is
-> absent, the launcher will fail first. If that happens:
+> **Bootstrap note:** The launcher needs **Python 3.10+** before it can create
+> the venv (`python3` on RHEL 9 / UBI 9 is 3.9). It prefers `python3.12` /
+> `python3.11` / `python3.10` when those binaries exist, and on dnf systems it
+> will `sudo dnf install -y python3.12` if nothing new enough is found.
+>
+> If venv creation still fails (missing `ensurepip` / venv module):
 > ```bash
-> sudo dnf install -y python3-pip   # unblocks venv creation
+> sudo dnf install -y python3.12 python3-pip
 > ./cpueval install
 > ```
 

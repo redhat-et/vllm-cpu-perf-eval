@@ -8,12 +8,63 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CLI_DIR="$SCRIPT_DIR/automation/cli"
 VENV_DIR="$CLI_DIR/.venv"
 
+# cpueval requires Python 3.10+ (see automation/cli/pyproject.toml).
+# RHEL 9 / UBI 9 ships python3 = 3.9; prefer a newer interpreter when present.
+_cpueval_python_ok() {
+    "$1" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)' 2>/dev/null
+}
+
+_cpueval_find_python() {
+    local candidate
+    for candidate in python3.12 python3.11 python3.10 python3; do
+        if command -v "$candidate" >/dev/null 2>&1 && _cpueval_python_ok "$candidate"; then
+            echo "$candidate"
+            return 0
+        fi
+    done
+    return 1
+}
+
+_cpueval_python_hint() {
+    echo "Error: cpueval requires Python 3.10+ (python3 is $(python3 -c 'import sys; print("%d.%d.%d" % sys.version_info[:3])' 2>/dev/null || echo 'not found'))." >&2
+    echo "Install Python 3.10 or newer, then re-run:" >&2
+    echo "  RHEL 9 / UBI 9:  sudo dnf install -y python3.12" >&2
+    echo "  Fedora:          sudo dnf install -y python3.12" >&2
+    echo "  Ubuntu/Debian:   sudo apt install -y python3.12" >&2
+    echo "  macOS:           brew install python@3.12" >&2
+}
+
+_cpueval_dnf_install_python312() {
+    if command -v dnf >/dev/null 2>&1; then
+        sudo dnf install -y python3.12
+    elif command -v microdnf >/dev/null 2>&1; then
+        sudo microdnf install -y python3.12
+    else
+        return 1
+    fi
+}
+
 # Create venv if it doesn't exist
 if [ ! -d "$VENV_DIR" ]; then
-    echo "Creating virtual environment at $VENV_DIR..."
-    if ! python3 -m venv "$VENV_DIR"; then
+    PYTHON=""
+    if PYTHON="$(_cpueval_find_python)"; then
+        :
+    elif command -v dnf >/dev/null 2>&1 || command -v microdnf >/dev/null 2>&1; then
+        echo "Python 3.10+ is required and was not found. Installing python3.12..."
+        if ! _cpueval_dnf_install_python312 || ! PYTHON="$(_cpueval_find_python)"; then
+            _cpueval_python_hint
+            exit 1
+        fi
+    else
+        _cpueval_python_hint
+        exit 1
+    fi
+
+    echo "Creating virtual environment at $VENV_DIR (with $PYTHON)..."
+    if ! "$PYTHON" -m venv "$VENV_DIR"; then
         rm -rf "$VENV_DIR"
-        echo "Error: Failed to create virtual environment" >&2
+        echo "Error: Failed to create virtual environment with $PYTHON" >&2
+        echo "On RHEL 9 / UBI 9 you may also need: sudo dnf install -y python3.12" >&2
         exit 1
     fi
 

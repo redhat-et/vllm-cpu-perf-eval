@@ -5,10 +5,12 @@ name: cpueval CLI Tests
     branches: [main]
     paths:
       - "automation/cli/**"
+      - "cpueval"
       - ".github/workflows/cpueval-tests.yml"
   pull_request:
     paths:
       - "automation/cli/**"
+      - "cpueval"
       - ".github/workflows/cpueval-tests.yml"
 
 permissions:

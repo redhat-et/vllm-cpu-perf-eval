@@ -31,7 +31,9 @@ Thin CLI wrapper for running full test matrices with easy overrides.
 
 ## Installation
 
-The `./cpueval` launcher automatically creates a virtual environment and installs dependencies on first run.
+The `./cpueval` launcher automatically creates a virtual environment and installs
+dependencies on first run. It requires Python 3.10+; on RHEL 9 / UBI 9 it will
+install `python3.12` via dnf if `python3` is 3.9.
 
 For manual installation:
 ```bash
