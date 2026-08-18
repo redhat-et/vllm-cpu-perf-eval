@@ -100,4 +100,5 @@ fi
 # Run cpueval via the installed entry point so the program name is 'cpueval'
 # (using 'python -m cpueval' would make Typer name the shell completion file
 # '_python -m cpueval' instead of '_cpueval')
+export PATH="$VENV_DIR/bin:$PATH"
 exec "$VENV_DIR/bin/cpueval" "$@"

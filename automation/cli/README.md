@@ -124,7 +124,7 @@ done
 
 ### install - Install prerequisites
 ```bash
-# Full install: system packages (dnf) + Ansible collections + shell completion
+# Full install: system packages + Ansible collections + shell completion
 ./cpueval install
 
 # Skip system packages if already installed
@@ -137,10 +137,12 @@ done
 ./cpueval install --dry-run
 ```
 
-On RHEL/Fedora this installs `ansible-core`, `python3-pip`, `git` via `dnf` and
-the required Ansible Galaxy collections. On macOS/Ubuntu the dnf step is
-soft-skipped with a `brew`/`apt` one-liner hint; install Ansible manually then
-re-run `./cpueval install --skip-system-deps`.
+On RHEL/Fedora this installs `python3-pip` and `git` via `dnf`, then
+`ansible-core` from dnf when the RPM exists. UBI 9 (and other hosts without
+that RPM) fall back to `pip install ansible-core` in the cpueval venv so
+`ansible-galaxy` is available for the collections step. If pip cannot install
+Ansible, the error includes a `brew`/`apt` one-liner; install Ansible manually
+then re-run `./cpueval install --skip-system-deps`.
 
 Shell completion is installed for bash/zsh and registered for both `cpueval`
 and `./cpueval`. Restart the shell (`exec bash` or `exec zsh`) once, then

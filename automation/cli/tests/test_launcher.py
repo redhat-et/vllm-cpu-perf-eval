@@ -25,3 +25,4 @@ def test_launcher_bootstraps_python312_via_dnf():
     assert "UBI 9" in text
     assert "_cpueval_pkg" in text
     assert "command -v sudo" in text
+    assert 'export PATH="$VENV_DIR/bin:$PATH"' in text

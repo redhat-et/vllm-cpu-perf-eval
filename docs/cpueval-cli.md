@@ -241,7 +241,7 @@ Edit that file to change permanent defaults.
 Automates the dependency setup steps required before running benchmarks.
 
 ```bash
-# Full install: system packages (dnf) + Ansible collections + shell completion
+# Full install: system packages + Ansible collections + shell completion
 ./cpueval install
 
 # Skip system packages (already installed)
@@ -265,7 +265,7 @@ cpueval install
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ Step                         ┃ Status     ┃ Details                                      ┃
 ┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ System packages (dnf)        │ ✓          │ installed: ansible-core, python3-pip, git    │
+│ System packages              │ ✓          │ dnf: python3-pip, git; pip: ansible-core>=2.14 │
 │ Ansible collections          │ ✓          │ collections installed                         │
 │ Shell completion             │ ✓          │ bash completion at ~/.bash_completions/…      │
 └──────────────────────────────┴────────────┴──────────────────────────────────────────────┘
@@ -280,12 +280,13 @@ Enable tab completion in this shell with exec bash or exec zsh, then try ./cpuev
 
 | Step | Tool | Notes |
 |------|------|-------|
-| System packages (dnf) | `ansible-core`, `python3-pip`, `git` | RHEL/Fedora only; soft-skipped on macOS/Ubuntu with alternative install hint |
+| System packages | `python3-pip`, `git`, `ansible-core` | `dnf` on RHEL/Fedora; UBI 9 has no `ansible-core` RPM so install falls back to `pip` in the cpueval venv |
 | Ansible collections | `containers.podman`, `ansible.posix` | From `automation/test-execution/ansible/requirements.yml` |
 | Shell completion | bash/zsh tab completion | Registers `cpueval` and `./cpueval`; restart the shell once (`exec bash` / `exec zsh`) |
 
-On non-RHEL systems (macOS, Ubuntu) the dnf step shows `~` (skipped) and prints the
-equivalent `brew` / `apt` one-liner. Install Ansible manually, then re-run
+On macOS/Ubuntu, `git`/`pip` are left to the OS; `ansible-core` is installed into
+the venv with pip. If pip cannot install Ansible, the step fails with a `brew` /
+`apt` one-liner — install Ansible manually, then re-run
 `./cpueval install --skip-system-deps` to install the collections.
 
 After installing, restart the shell (`exec bash` or `exec zsh`) so `./cpueval <TAB>`

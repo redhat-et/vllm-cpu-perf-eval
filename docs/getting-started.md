@@ -21,14 +21,18 @@ The control machine is your local laptop/workstation where you run Ansible comma
 
 **Install Ansible:**
 
-**On RHEL/Fedora** — use `cpueval install` (see [Clone and Install](#1-clone-and-install) below):
+**On RHEL/Fedora/UBI** — use `cpueval install` (see [Clone and Install](#1-clone-and-install) below):
 
 ```bash
 # After cloning the repo, one command installs everything:
 ./cpueval install
 ```
 
-**On macOS / Ubuntu/Debian** — install Ansible manually, then install collections:
+UBI 9 does not ship an `ansible-core` RPM; `cpueval install` pip-installs
+`ansible-core` into the CLI venv and continues with Galaxy collections.
+
+**On macOS / Ubuntu/Debian** — `./cpueval install` also pip-installs `ansible-core`
+into the venv. If that fails, install Ansible from the OS then continue:
 
 ```bash
 # macOS
@@ -130,12 +134,9 @@ The `cpueval` CLI provides a simple interface for running standard benchmarks.
 git clone https://github.com/redhat-et/vllm-cpu-perf-eval.git
 cd vllm-cpu-perf-eval
 
-# Install prerequisites (ansible-core, python3-pip, git via dnf + Ansible collections).
-# On RHEL/Fedora this is a single command:
+# Install prerequisites (git/pip via dnf when present, ansible-core via dnf or
+# pip into the venv, then Ansible collections).
 ./cpueval install
-
-# On macOS/Ubuntu: install Ansible first (brew/apt), then:
-./cpueval install --skip-system-deps
 ```
 
 The `./cpueval` launcher auto-creates a Python venv on first run — no separate
@@ -144,11 +145,12 @@ The `./cpueval` launcher auto-creates a Python venv on first run — no separate
 > **Bootstrap note:** The launcher needs **Python 3.10+** before it can create
 > the venv (`python3` on RHEL 9 / UBI 9 is 3.9). It prefers `python3.12` /
 > `python3.11` / `python3.10` when those binaries exist, and on dnf systems it
-> will `sudo dnf install -y python3.12` if nothing new enough is found.
+> will `dnf install -y python3.12` if nothing new enough is found (with `sudo`
+> only when you are not already root).
 >
 > If venv creation still fails (missing `ensurepip` / venv module):
 > ```bash
-> sudo dnf install -y python3.12 python3-pip
+> dnf install -y python3.12 python3-pip   # add sudo if you are not root
 > ./cpueval install
 > ```
 

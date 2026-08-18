@@ -793,7 +793,7 @@ def profiles():
 @app.command()
 def install(
     skip_system_deps: bool = typer.Option(
-        False, "--skip-system-deps", help="Skip system package installation (dnf)"
+        False, "--skip-system-deps", help="Skip system package installation (dnf/pip)"
     ),
     skip_collections: bool = typer.Option(
         False, "--skip-collections", help="Skip Ansible collection installation"

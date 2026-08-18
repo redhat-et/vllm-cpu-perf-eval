@@ -1,9 +1,13 @@
 """Unit tests for cpueval install module."""
 
 import subprocess
+import sys
 from unittest.mock import MagicMock, patch
 
 from cpueval.install import (
+    ANSIBLE_PACKAGE,
+    DNF_BASE_PACKAGES,
+    PIP_ANSIBLE_SPEC,
     SYSTEM_PACKAGES,
     _enable_dot_slash_completion,
     install_ansible_collections,
@@ -13,13 +17,60 @@ from cpueval.install import (
 )
 
 
+def _disable_venv_ansible(monkeypatch):
+    """Keep tests from picking up a real ansible-galaxy next to sys.executable."""
+    monkeypatch.setattr("cpueval.install._venv_bin", lambda name: None)
+
+
+def _patch_which(monkeypatch, *, dnf=True, sudo=True):
+    """PATH stub that reveals ansible-galaxy after a successful ansible-core install."""
+    state = {"galaxy": False}
+
+    def which(name):
+        if name in {"ansible-galaxy", "ansible-playbook"}:
+            return f"/usr/bin/{name}" if state["galaxy"] else None
+        if name == "dnf" and dnf:
+            return "/usr/bin/dnf"
+        if name == "sudo" and sudo:
+            return "/usr/bin/sudo"
+        return None
+
+    monkeypatch.setattr("shutil.which", which)
+    _disable_venv_ansible(monkeypatch)
+    return state
+
+
+def _run_installing_ansible(
+    state, *, dnf_base_rc=0, dnf_ansible_rc=0, pip_rc=0, timeout=False
+):
+    """subprocess.run stub: mark galaxy installed after a successful dnf/pip ansible-core."""
+
+    def run(cmd, **kwargs):
+        if timeout:
+            raise subprocess.TimeoutExpired(cmd=cmd, timeout=300)
+        result = MagicMock()
+        is_pip = "pip" in cmd
+        is_dnf_ansible = (not is_pip) and ANSIBLE_PACKAGE in cmd
+        if is_pip:
+            result.returncode = pip_rc
+        elif is_dnf_ansible:
+            result.returncode = dnf_ansible_rc
+        else:
+            result.returncode = dnf_base_rc
+        if result.returncode == 0 and (is_pip or is_dnf_ansible):
+            state["galaxy"] = True
+        return result
+
+    return run
+
+
 # ---------------------------------------------------------------------------
 # install_system_deps
 # ---------------------------------------------------------------------------
 
 def test_install_system_deps_dry_run_no_subprocess(monkeypatch):
     """Dry-run returns True without running any subprocess."""
-    monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/dnf")
+    _patch_which(monkeypatch)
     with patch("subprocess.run") as mock_run:
         ok, msg = install_system_deps(dry_run=True)
     assert ok is True
@@ -28,97 +79,117 @@ def test_install_system_deps_dry_run_no_subprocess(monkeypatch):
 
 
 def test_install_system_deps_dry_run_includes_packages(monkeypatch):
-    """Dry-run message lists all expected packages."""
-    monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/dnf")
+    """Dry-run message lists dnf packages and the pip ansible-core fallback."""
+    _patch_which(monkeypatch)
     _, msg = install_system_deps(dry_run=True)
     for pkg in SYSTEM_PACKAGES:
         assert pkg in msg
+    assert "pip install" in msg
+    assert PIP_ANSIBLE_SPEC in msg
 
 
-def test_install_system_deps_no_dnf_skips(monkeypatch):
-    """Returns None (soft-skip) with alternative install hints when dnf is absent."""
-    monkeypatch.setattr("shutil.which", lambda _: None)
-    ok, msg = install_system_deps()
-    assert ok is None
-    assert "dnf not found" in msg
-    assert "skipping" in msg
+def test_install_system_deps_no_dnf_uses_pip(monkeypatch):
+    """Without dnf, ansible-core is installed via pip into the venv."""
+    state = _patch_which(monkeypatch, dnf=False)
+    with patch(
+        "subprocess.run", side_effect=_run_installing_ansible(state)
+    ) as mock_run:
+        ok, msg = install_system_deps()
+    assert ok is True
+    assert "pip" in msg
+    pip_cmd = mock_run.call_args[0][0]
+    assert pip_cmd == [sys.executable, "-m", "pip", "install", PIP_ANSIBLE_SPEC]
 
 
-def test_install_system_deps_no_dnf_hints_brew_and_apt(monkeypatch):
-    """Soft-skip message includes macOS and Ubuntu install one-liners."""
-    monkeypatch.setattr("shutil.which", lambda _: None)
-    _, msg = install_system_deps()
+def test_install_system_deps_no_dnf_pip_failure_hints_brew_apt(monkeypatch):
+    """If pip cannot install ansible-core, the error mentions brew/apt."""
+    state = _patch_which(monkeypatch, dnf=False)
+    with patch("subprocess.run", side_effect=_run_installing_ansible(state, pip_rc=1)):
+        ok, msg = install_system_deps()
+    assert ok is False
     assert "brew" in msg
     assert "apt" in msg
 
 
 def test_install_system_deps_success(monkeypatch):
-    """Returns True when dnf exits 0."""
-    monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/dnf")
-    mock_result = MagicMock(returncode=0)
-    with patch("subprocess.run", return_value=mock_result):
+    """Returns True when dnf ansible-core succeeds (no pip fallback)."""
+    state = _patch_which(monkeypatch)
+    with patch("subprocess.run", side_effect=_run_installing_ansible(state)) as mock_run:
         ok, msg = install_system_deps()
     assert ok is True
-    assert "installed" in msg
+    assert "dnf: ansible-core" in msg
+    pip_cmds = [c[0][0] for c in mock_run.call_args_list if "pip" in c[0][0]]
+    assert not pip_cmds
 
 
 def test_install_system_deps_calls_sudo_dnf(monkeypatch):
     """Verifies subprocess is called with the expected sudo dnf command."""
-    monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/dnf")
+    state = _patch_which(monkeypatch, sudo=True)
     monkeypatch.setattr("os.geteuid", lambda: 1000)
-    mock_result = MagicMock(returncode=0)
-    with patch("subprocess.run", return_value=mock_result) as mock_run:
+    with patch("subprocess.run", side_effect=_run_installing_ansible(state)) as mock_run:
         install_system_deps()
-    cmd = mock_run.call_args[0][0]
+    cmd = mock_run.call_args_list[0][0][0]
     assert cmd[:4] == ["sudo", "dnf", "install", "-y"]
-    for pkg in SYSTEM_PACKAGES:
+    for pkg in DNF_BASE_PACKAGES:
         assert pkg in cmd
 
 
 def test_install_system_deps_root_omits_sudo(monkeypatch):
     """Containers running as root must not require sudo."""
-    monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/dnf")
+    state = _patch_which(monkeypatch)
     monkeypatch.setattr("os.geteuid", lambda: 0)
-    mock_result = MagicMock(returncode=0)
-    with patch("subprocess.run", return_value=mock_result) as mock_run:
+    with patch("subprocess.run", side_effect=_run_installing_ansible(state)) as mock_run:
         install_system_deps()
-    cmd = mock_run.call_args[0][0]
+    cmd = mock_run.call_args_list[0][0][0]
     assert cmd[:3] == ["dnf", "install", "-y"]
     assert "sudo" not in cmd
 
 
 def test_install_system_deps_no_sudo_binary_omits_sudo(monkeypatch):
     """If sudo is not installed, run dnf directly (root UBI images)."""
+    state = _patch_which(monkeypatch, sudo=False)
     monkeypatch.setattr("os.geteuid", lambda: 1000)
-
-    def which(name):
-        if name == "dnf":
-            return "/usr/bin/dnf"
-        return None
-
-    monkeypatch.setattr("shutil.which", which)
-    mock_result = MagicMock(returncode=0)
-    with patch("subprocess.run", return_value=mock_result) as mock_run:
+    with patch("subprocess.run", side_effect=_run_installing_ansible(state)) as mock_run:
         install_system_deps()
-    cmd = mock_run.call_args[0][0]
+    cmd = mock_run.call_args_list[0][0][0]
     assert cmd[:3] == ["dnf", "install", "-y"]
     assert "sudo" not in cmd
 
 
+def test_install_system_deps_dnf_ansible_missing_falls_back_to_pip(monkeypatch):
+    """UBI 9: dnf has no ansible-core, so pip install into the venv."""
+    state = _patch_which(monkeypatch)
+    monkeypatch.setattr("os.geteuid", lambda: 0)
+    with patch(
+        "subprocess.run",
+        side_effect=_run_installing_ansible(state, dnf_ansible_rc=1),
+    ) as mock_run:
+        ok, msg = install_system_deps()
+    assert ok is True
+    assert "pip" in msg
+    pip_cmds = [c[0][0] for c in mock_run.call_args_list if "pip" in c[0][0]]
+    assert pip_cmds
+    assert pip_cmds[0] == [sys.executable, "-m", "pip", "install", PIP_ANSIBLE_SPEC]
+
+
 def test_install_system_deps_failure(monkeypatch):
-    """Returns False when dnf exits non-zero."""
-    monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/dnf")
-    mock_result = MagicMock(returncode=1)
-    with patch("subprocess.run", return_value=mock_result):
+    """Returns False when dnf and pip both fail."""
+    state = _patch_which(monkeypatch)
+    with patch(
+        "subprocess.run",
+        side_effect=_run_installing_ansible(state, dnf_base_rc=1, dnf_ansible_rc=1, pip_rc=1),
+    ):
         ok, msg = install_system_deps()
     assert ok is False
-    assert "exited 1" in msg
 
 
 def test_install_system_deps_timeout(monkeypatch):
     """Returns False when dnf times out."""
-    monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/dnf")
-    with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(cmd="dnf", timeout=300)):
+    _patch_which(monkeypatch)
+    with patch(
+        "subprocess.run",
+        side_effect=_run_installing_ansible({"galaxy": False}, timeout=True),
+    ):
         ok, msg = install_system_deps()
     assert ok is False
     assert "timed out" in msg
@@ -155,6 +226,7 @@ def test_install_ansible_collections_no_ansible_galaxy(tmp_path, monkeypatch):
     req.write_text("collections: []\n")
     monkeypatch.setattr("cpueval.install._requirements_path", lambda: req)
     monkeypatch.setattr("shutil.which", lambda _: None)
+    _disable_venv_ansible(monkeypatch)
     ok, msg = install_ansible_collections()
     assert ok is False
     assert "ansible-galaxy not found" in msg
@@ -166,9 +238,27 @@ def test_install_ansible_collections_no_galaxy_hints_install(tmp_path, monkeypat
     req.write_text("collections: []\n")
     monkeypatch.setattr("cpueval.install._requirements_path", lambda: req)
     monkeypatch.setattr("shutil.which", lambda _: None)
+    _disable_venv_ansible(monkeypatch)
     _, msg = install_ansible_collections()
     assert "ansible-core" in msg
     assert "--skip-system-deps" in msg
+
+
+def test_install_ansible_collections_uses_venv_galaxy(tmp_path, monkeypatch):
+    """ansible-galaxy from the cpueval venv is used when it is not on PATH."""
+    req = tmp_path / "requirements.yml"
+    req.write_text("collections: []\n")
+    monkeypatch.setattr("cpueval.install._requirements_path", lambda: req)
+    monkeypatch.setattr("shutil.which", lambda _: None)
+    monkeypatch.setattr(
+        "cpueval.install._venv_bin",
+        lambda name: f"/venv/bin/{name}" if name == "ansible-galaxy" else None,
+    )
+    mock_result = MagicMock(returncode=0)
+    with patch("subprocess.run", return_value=mock_result) as mock_run:
+        ok, msg = install_ansible_collections()
+    assert ok is True
+    assert mock_run.call_args[0][0][0] == "/venv/bin/ansible-galaxy"
 
 
 def test_install_ansible_collections_success(tmp_path, monkeypatch):
@@ -323,6 +413,7 @@ def test_run_install_dry_run_succeeds_without_ansible_galaxy(tmp_path, monkeypat
     req.write_text("collections: []\n")
     monkeypatch.setattr("cpueval.install._requirements_path", lambda: req)
     monkeypatch.setattr("shutil.which", lambda _: None)
+    _disable_venv_ansible(monkeypatch)
     with patch("cpueval.install.install_shell_completion", return_value=(True, "[dry-run] ...")):
         code = run_install(dry_run=True)
     assert code == 0

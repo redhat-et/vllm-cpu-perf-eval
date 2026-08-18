@@ -4,6 +4,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -12,7 +13,12 @@ from rich.table import Table
 
 from cpueval.paths import get_ansible_dir
 
-SYSTEM_PACKAGES = ["ansible-core", "python3-pip", "git"]
+# python3-pip and git are in UBI/RHEL base repos. ansible-core is not in UBI
+# (needs a subscribed RHEL AppStream), so install_system_deps falls back to pip.
+DNF_BASE_PACKAGES = ["python3-pip", "git"]
+ANSIBLE_PACKAGE = "ansible-core"
+SYSTEM_PACKAGES = [*DNF_BASE_PACKAGES, ANSIBLE_PACKAGE]
+PIP_ANSIBLE_SPEC = "ansible-core>=2.14"
 
 # Status values: True = pass (green ✓), None = skipped (yellow ~), False = fail (red ✗)
 _StepResult = Tuple[Optional[bool], str]
@@ -28,12 +34,25 @@ def _is_root() -> bool:
     return geteuid is not None and geteuid() == 0
 
 
-def _dnf_install_cmd() -> List[str]:
-    """Build the dnf install command; skip sudo when already root."""
-    cmd = ["dnf", "install", "-y", *SYSTEM_PACKAGES]
+def _dnf_install_cmd(packages: List[str]) -> List[str]:
+    """Build a dnf install command; skip sudo when already root or sudo is absent."""
+    cmd = ["dnf", "install", "-y", *packages]
     if not _is_root() and shutil.which("sudo"):
         cmd = ["sudo", *cmd]
     return cmd
+
+
+def _venv_bin(name: str) -> Optional[str]:
+    """Return a venv executable next to sys.executable, if it exists."""
+    path = Path(sys.executable).resolve().parent / name
+    if path.is_file() and os.access(path, os.X_OK):
+        return str(path)
+    return None
+
+
+def _ansible_executable(name: str) -> Optional[str]:
+    """Find an Ansible binary on PATH or in the active venv."""
+    return shutil.which(name) or _venv_bin(name)
 
 
 def _run_streaming(cmd: List[str], timeout: int) -> Tuple[bool, str]:
@@ -52,25 +71,51 @@ def _run_streaming(cmd: List[str], timeout: int) -> Tuple[bool, str]:
 
 
 def install_system_deps(dry_run: bool = False) -> _StepResult:
-    """Install system packages via dnf (RHEL/Fedora only).
+    """Install git/pip via dnf when available, and ansible-core via dnf or pip.
 
-    Returns True on success, None when dnf is absent (soft-skip), False on error.
+    UBI 9 does not ship ansible-core. After a failed dnf install, fall back to
+    ``pip install ansible-core`` into the active interpreter (the cpueval venv).
     """
-    if not shutil.which("dnf"):
-        return None, (
-            "dnf not found — skipping (not a RHEL/Fedora system).\n"
-            "         On macOS: brew install ansible\n"
-            "         On Ubuntu/Debian: sudo apt install -y ansible-core python3-pip git"
-        )
-
-    cmd = _dnf_install_cmd()
+    has_dnf = shutil.which("dnf") is not None
     if dry_run:
-        return True, f"[dry-run] would run: {' '.join(cmd)}"
+        parts = []
+        if has_dnf:
+            parts.append(" ".join(_dnf_install_cmd(DNF_BASE_PACKAGES)))
+            parts.append(" ".join(_dnf_install_cmd([ANSIBLE_PACKAGE])))
+        parts.append(f"{sys.executable} -m pip install {PIP_ANSIBLE_SPEC} (if ansible-core is missing)")
+        return True, f"[dry-run] would run: {'; '.join(parts)}"
 
-    ok, detail = _run_streaming(cmd, timeout=300)
-    if ok:
-        return True, f"installed: {', '.join(SYSTEM_PACKAGES)}"
-    return False, detail
+    notes: List[str] = []
+    if has_dnf:
+        ok, detail = _run_streaming(_dnf_install_cmd(DNF_BASE_PACKAGES), timeout=300)
+        if ok:
+            notes.append(f"dnf: {', '.join(DNF_BASE_PACKAGES)}")
+        else:
+            notes.append(f"dnf {', '.join(DNF_BASE_PACKAGES)}: {detail}")
+
+        if not _ansible_executable("ansible-galaxy"):
+            ok, detail = _run_streaming(_dnf_install_cmd([ANSIBLE_PACKAGE]), timeout=300)
+            if ok:
+                notes.append("dnf: ansible-core")
+            else:
+                notes.append("dnf: ansible-core not in repos")
+
+    if not _ansible_executable("ansible-galaxy"):
+        pip_cmd = [sys.executable, "-m", "pip", "install", PIP_ANSIBLE_SPEC]
+        ok, detail = _run_streaming(pip_cmd, timeout=300)
+        if not ok:
+            hint = (
+                "could not install ansible-core via dnf or pip — "
+                "on macOS: brew install ansible; "
+                "on Ubuntu: sudo apt install -y ansible-core"
+            )
+            return False, f"{detail}; {hint}"
+        notes.append(f"pip: {PIP_ANSIBLE_SPEC}")
+
+    if not _ansible_executable("ansible-galaxy"):
+        return False, "ansible-galaxy still not found after dnf/pip install"
+
+    return True, "; ".join(notes) if notes else "ansible-core already installed"
 
 
 def install_ansible_collections(dry_run: bool = False) -> _StepResult:
@@ -82,14 +127,15 @@ def install_ansible_collections(dry_run: bool = False) -> _StepResult:
     if not req.exists():
         return False, f"requirements.yml not found: {req}"
 
-    cmd = ["ansible-galaxy", "collection", "install", "-r", str(req)]
+    galaxy = _ansible_executable("ansible-galaxy")
+    cmd = [galaxy or "ansible-galaxy", "collection", "install", "-r", str(req)]
     if dry_run:
         return True, f"[dry-run] would run: {' '.join(cmd)}"
 
-    if not shutil.which("ansible-galaxy"):
+    if not galaxy:
         return False, (
             "ansible-galaxy not found in PATH — "
-            "install ansible-core first (brew/apt/dnf), "
+            "install ansible-core first (brew/apt/dnf or pip), "
             "then re-run: ./cpueval install --skip-system-deps"
         )
 
@@ -196,7 +242,7 @@ def run_install(
 
     steps: List[Tuple[str, object]] = []
     if not skip_system_deps:
-        steps.append(("System packages (dnf)", lambda: install_system_deps(dry_run)))
+        steps.append(("System packages", lambda: install_system_deps(dry_run)))
     if not skip_collections:
         steps.append(("Ansible collections", lambda: install_ansible_collections(dry_run)))
     if not skip_completion:
