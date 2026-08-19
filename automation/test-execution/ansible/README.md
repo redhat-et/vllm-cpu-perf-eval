@@ -9,22 +9,20 @@ Automated testing framework for vLLM embedding and LLM generative models with NU
 **On your control machine (where you run Ansible):**
 
 ```bash
-# Install Ansible (if not already installed)
-# On macOS
-brew install ansible
+# From the repository root (recommended)
+./cpueval install
+```
 
-# On Ubuntu/Debian
-sudo apt update && sudo apt install -y ansible
+This installs `ansible-core` (dnf or pip into the cpueval venv), Galaxy
+collections from `requirements.yml`, and bash/zsh tab completion. See
+[Getting Started](../../../docs/getting-started.md#1-clone-and-install) for
+platform notes (RHEL/Fedora/UBI, macOS, Ubuntu).
 
-# On RHEL/Fedora
-sudo dnf install -y ansible
+Verify:
 
-# Verify installation
+```bash
 ansible --version  # Should be 2.14+
-
-# Install required Ansible collections
-cd automation/test-execution/ansible
-ansible-galaxy collection install -r requirements.yml
+./cpueval doctor --no-ping
 ```
 
 **Ansible Version Compatibility:**
@@ -70,7 +68,7 @@ ansible -i inventory/hosts.yml all -b -m reboot
 - **Targets**: DUT and Load Generator hosts only (NOT your Ansible control machine)
 
 **Important Notes:**
-- **Option 2 (setup-platform.yml)**: Automatically installs Podman, Python 3, and all performance tools on **DUT and Load Generator hosts**. Your Ansible control machine needs Ansible itself and the collections from requirements.yml.
+- **Option 2 (setup-platform.yml)**: Automatically installs Podman, Python 3, and all performance tools on **DUT and Load Generator hosts**. On the control machine, run `./cpueval install` for Ansible and the collections from `requirements.yml`.
 - **Option 1 (Manual)**: If you prefer minimal setup, manually install Podman/Docker and Python 3 on **DUT and Load Generator hosts** before running test playbooks.
 - **Container Images (vLLM and GuideLLM)**: Automatically pulled during test execution. Test playbooks handle this—no manual installation needed.
 - **Reboot Required**: After running setup-platform.yml, reboot hosts for kernel parameters to take effect.

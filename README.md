@@ -16,6 +16,12 @@ The recommended entry point is the **cpueval CLI** — it wraps Ansible playbook
 suite scripts so you can run full test matrices without hand-writing playbook commands.
 
 ```bash
+git clone https://github.com/redhat-et/vllm-cpu-perf-eval.git
+cd vllm-cpu-perf-eval
+
+# System packages, Ansible collections, and tab completion
+./cpueval install
+
 # Set up your test hosts
 export DUT_HOSTNAME=<dut-host>
 export LOADGEN_HOSTNAME=<loadgen-host>
@@ -88,7 +94,9 @@ pass `-e "allow_unsupported_tests=true"` to Ansible or set `ALLOW_UNSUPPORTED_TE
 - **OS:** Ubuntu 22.04+, RHEL 9+, or Fedora 38+
 - **Software:** Python 3.10+, Docker 24+ or Podman 4+, Ansible 2.14+, vLLM, GuideLLM
 
-See [Getting Started](docs/getting-started.md) for control-machine and DUT setup.
+On the control machine, `./cpueval install` installs Ansible, Galaxy collections,
+and shell completion. See [Getting Started](docs/getting-started.md) for
+control-machine and DUT setup.
 
 ## Contributing
 

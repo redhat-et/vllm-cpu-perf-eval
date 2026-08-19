@@ -199,7 +199,8 @@ cpueval system health check
 ┏━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃ Check                ┃ Status       ┃ Details                                ┃
 ┡━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ ansible-playbook     │ ✓            │ unknown                                │
+│ ansible-playbook     │ ✓            │ ansible-playbook                       │
+│ Ansible collections  │ ✓            │ containers.podman installed            │
 │ Inventory file       │ ✓            │ .../ansible/inventory/hosts.yml        │
 │ Environment vars     │ ✓            │ DUT_HOSTNAME, LOADGEN_HOSTNAME set     │
 │ Host connectivity    │ ✓            │ dut: ok, loadgen: ok                   │

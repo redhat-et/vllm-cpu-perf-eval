@@ -14,16 +14,18 @@ optimization.
 
 **Control Machine (where you run Ansible):**
 
+From the repository root:
+
 ```bash
-# Install Ansible
-pip install ansible-core
-
-# Navigate to ansible directory
-cd automation/test-execution/ansible
-
-# Install required collections
-ansible-galaxy collection install -r requirements.yml
+# Install Ansible, Galaxy collections, and tab completion
+./cpueval install
 ```
+
+See [Getting Started](../getting-started.md#1-clone-and-install) and the
+[cpueval CLI install command](../cpueval-cli.md#installation)
+for platform notes (`--skip-system-deps`, UBI 9, macOS/Ubuntu).
+
+Then run playbooks from `automation/test-execution/ansible/`.
 
 **Test Hosts (DUT and Load Generator):**
 

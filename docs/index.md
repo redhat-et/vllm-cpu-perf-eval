@@ -7,7 +7,7 @@ Central index for the vLLM CPU Performance Evaluation framework.
 
 | I want to… | Go to |
 | --- | --- |
-| Set up and run my first benchmark | [Getting Started](getting-started.md) |
+| Set up and run my first benchmark | [Getting Started](getting-started.md) (`./cpueval install`) |
 | See all supported test suites | **[Test Suites](test-suites.md)** |
 | Run benchmarks from the CLI | [cpueval CLI](cpueval-cli.md) |
 | Find supported models | [Model Catalog](../models/models.md) |
@@ -19,8 +19,8 @@ Central index for the vLLM CPU Performance Evaluation framework.
 
 | Page | Description |
 | --- | --- |
-| [getting-started.md](getting-started.md) | Environment setup and first run |
-| [cpueval-cli.md](cpueval-cli.md) | CLI reference (recommended entry point) |
+| [getting-started.md](getting-started.md) | `./cpueval install`, environment setup, and first run |
+| [cpueval-cli.md](cpueval-cli.md) | CLI reference (`install`, `doctor`, suites) |
 | [test-suites.md](test-suites.md) | Central test suite reference |
 
 ### Test Suites & Models

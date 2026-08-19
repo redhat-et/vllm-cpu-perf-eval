@@ -101,15 +101,14 @@ Plus comprehensive coverage of scalability, format impact, and sustained load be
 
 ### Prerequisites
 
-1. **Ensure Ansible is configured:**
+1. **Install Ansible and collections** (from the repository root):
    ```bash
-   cd automation/test-execution/ansible
-   ansible-galaxy collection install -r requirements.yml
+   ./cpueval install
    ```
 
 2. **Verify system access:**
    ```bash
-   ansible -i inventory/hosts.yml all -m ping
+   ./cpueval doctor
    ```
 
 3. **Container runtime:**
