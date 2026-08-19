@@ -56,6 +56,12 @@ if [[ -z "${ENGINE}" ]]; then
     exit 1
 fi
 
+# Returns the image content ID (sha256:...) so the stamp survives retags.
+# Falls back to the image reference if inspect is unavailable.
+resolve_image_id() {
+    "${ENGINE}" image inspect --format '{{.Id}}' "$1" 2>/dev/null || echo "$1"
+}
+
 assert_output_dir_safe() {
     local dir="$1"
     if [[ ! -e "${dir}" ]]; then
@@ -97,6 +103,10 @@ if [[ "${CHECK_ONLY}" == "true" ]]; then
             ;;
         1)
             echo "Patch not needed: ${CONTAINER_IMAGE} already has full_attention support"
+            if [[ -f "${OUTPUT_DIR}/granitemoehybrid.py" ]]; then
+                rm -f "${OUTPUT_DIR}/granitemoehybrid.py" "${OUTPUT_DIR}/.image-id"
+                echo "Removed stale overlay: ${OUTPUT_DIR}/granitemoehybrid.py"
+            fi
             exit 1
             ;;
         *)
@@ -125,7 +135,7 @@ STAMP_FILE="${OUTPUT_DIR}/.image-id"
 if [[ -f "${OUTPUT_DIR}/granitemoehybrid.py" ]] && \
    grep -q '"full_attention"' "${OUTPUT_DIR}/granitemoehybrid.py" 2>/dev/null && \
    [[ -f "${STAMP_FILE}" ]] && \
-   [[ "$(cat "${STAMP_FILE}")" == "${CONTAINER_IMAGE}" ]]; then
+   [[ "$(cat "${STAMP_FILE}")" == "$(resolve_image_id "${CONTAINER_IMAGE}")" ]]; then
     echo "Patch already applied at ${OUTPUT_DIR}/granitemoehybrid.py (image: ${CONTAINER_IMAGE})"
     exit 0
 fi
@@ -144,7 +154,7 @@ sed -i \
     "${OUTPUT_DIR}/granitemoehybrid.py"
 
 if grep -q '"full_attention"' "${OUTPUT_DIR}/granitemoehybrid.py"; then
-    echo "${CONTAINER_IMAGE}" > "${STAMP_FILE}"
+    echo "$(resolve_image_id "${CONTAINER_IMAGE}")" > "${STAMP_FILE}"
     echo "Patch applied successfully: ${OUTPUT_DIR}/granitemoehybrid.py"
     echo ""
     echo "Mount into container with:"
