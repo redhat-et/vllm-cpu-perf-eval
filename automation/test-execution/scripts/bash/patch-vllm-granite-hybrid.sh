@@ -122,6 +122,7 @@ check_needed || rc=$?
 if [[ "${rc}" -eq 1 ]]; then
     echo "Patch not needed — container already has full_attention support"
     echo "Skipping patch (vLLM version likely > v0.25.1)"
+    assert_output_dir_safe "${OUTPUT_DIR}"
     if [[ -f "${OUTPUT_DIR}/granitemoehybrid.py" ]]; then
         rm -f "${OUTPUT_DIR}/granitemoehybrid.py" "${OUTPUT_DIR}/.image-id"
         echo "Removed stale overlay: ${OUTPUT_DIR}/granitemoehybrid.py"
