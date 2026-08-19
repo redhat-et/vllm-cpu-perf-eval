@@ -172,8 +172,16 @@ Tests run automatically on:
 
 ### Ansible Not Found
 
+From the repository root, prefer:
+
 ```bash
-pip install ansible
+./cpueval install
+```
+
+For an isolated test environment without the launcher:
+
+```bash
+pip install ansible-core
 ```
 
 ### Container Runtime Not Available

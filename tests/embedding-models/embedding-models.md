@@ -16,16 +16,15 @@ These tests evaluate embedding model performance using `vllm bench serve` to est
 ### Prerequisites
 
 ```bash
-# Ensure vLLM >= v0.11.0 (for embedding benchmarking support)
-pip install "vllm>=0.11.0"
-
-# For Ansible automation
-pip install ansible
-ansible-galaxy collection install containers.podman
+# From the repository root: Ansible, Galaxy collections, tab completion
+./cpueval install
 
 # Set environment variables
 export VLLM_CPU_KVCACHE_SPACE=1GiB
 ```
+
+vLLM 0.11.0+ (embedding benchmark support) is provided by the DUT container
+image; you do not need to `pip install vllm` on the control machine.
 
 ### Test Architectures
 

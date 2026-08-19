@@ -37,6 +37,9 @@ run, how to run it, and where to read the detailed methodology.
 A typical session looks like this:
 
 ```bash
+# 0. One-time: Ansible, Galaxy collections, tab completion
+./cpueval install
+
 # 1. List available suites
 ./cpueval list
 
@@ -119,6 +122,9 @@ cpueval system health check
 └──────────────────────┴──────────────┴────────────────────────────────────────┘
 
 ✗ Some checks failed
+
+Tip: Missing Ansible or collections? Run:
+  ./cpueval install
 
 Tip: Set required environment variables:
   export DUT_HOSTNAME=<dut-host>

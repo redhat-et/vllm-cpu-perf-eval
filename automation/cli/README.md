@@ -11,6 +11,9 @@ Thin CLI wrapper for running full test matrices with easy overrides.
 ## Quick Start
 
 ```bash
+# One-time: Ansible, Galaxy collections, tab completion
+./cpueval install
+
 # Matrix suites - run full test matrix (no --model required!)
 ./cpueval --suite rhaiis-sweep           # 60 combinations: 5 models × 3 cores × 4 workloads
 ./cpueval --suite embedding              # 30 combinations: 5 models × 3 cores × 2 scenarios
@@ -31,11 +34,19 @@ Thin CLI wrapper for running full test matrices with easy overrides.
 
 ## Installation
 
-The `./cpueval` launcher automatically creates a virtual environment and installs
-dependencies on first run. It requires Python 3.10+; on RHEL 9 / UBI 9 it will
-install `python3.12` via dnf if `python3` is 3.9.
+From the repository root:
 
-For manual installation:
+```bash
+./cpueval install
+```
+
+This installs system packages (when `dnf` is present), Ansible Galaxy
+collections, and bash/zsh tab completion. The `./cpueval` launcher automatically
+creates a virtual environment and installs Python dependencies on first run.
+It requires Python 3.10+; on RHEL 9 / UBI 9 it will install `python3.12` via
+dnf if `python3` is 3.9.
+
+For a manual venv only (no system packages or collections):
 ```bash
 cd automation/cli
 python3 -m venv .venv

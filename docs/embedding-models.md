@@ -4,6 +4,9 @@
 
 This guide covers testing embedding models on Intel Xeon processors using the vLLM performance evaluation framework. The framework supports three execution modes to accommodate different testing scenarios.
 
+Install Ansible and Galaxy collections once from the repository root with
+`./cpueval install` (see [Getting Started](getting-started.md#1-clone-and-install)).
+
 ## Execution Modes
 
 ### 1. Managed Mode (Load Generator + DUT) - Default

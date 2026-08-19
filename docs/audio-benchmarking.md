@@ -45,6 +45,12 @@ Comprehensive guide for benchmarking audio models (ASR, translation, chat) on vL
 
 ## Quick Start
 
+From the repository root, install Ansible and Galaxy collections once:
+
+```bash
+./cpueval install
+```
+
 ### 1. Configure Hosts
 
 ```bash

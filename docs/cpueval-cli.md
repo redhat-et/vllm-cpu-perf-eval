@@ -12,6 +12,9 @@ Matrix-first CLI for running comprehensive CPU benchmarks. Most suites run full 
 ## Quick Start
 
 ```bash
+# One-time: Ansible, Galaxy collections, tab completion
+./cpueval install
+
 # Matrix suites - run full matrices (no --model required!)
 ./cpueval --suite rhaiis-sweep           # 60 combinations: 5 models × 3 cores × 4 workloads
 ./cpueval --suite embedding              # 30 combinations: 5 models × 3 cores × 2 scenarios
@@ -33,12 +36,22 @@ Matrix-first CLI for running comprehensive CPU benchmarks. Most suites run full 
 
 ## Installation
 
-The `./cpueval` launcher automatically creates a virtual environment on first
-run. It requires **Python 3.10+**. On RHEL 9 / UBI 9, `python3` is 3.9; the
-launcher looks for `python3.12` / `python3.11` / `python3.10` and will install
-`python3.12` via `dnf` if needed.
+From the repository root:
 
-For manual installation:
+```bash
+./cpueval install
+```
+
+That command installs system packages (when `dnf` is present), Ansible Galaxy
+collections, and bash/zsh tab completion. The `./cpueval` launcher automatically
+creates a virtual environment on first run. It requires **Python 3.10+**. On
+RHEL 9 / UBI 9, `python3` is 3.9; the launcher looks for `python3.12` /
+`python3.11` / `python3.10` and will install `python3.12` via `dnf` if needed.
+
+See [install - Install prerequisites](#install---install-prerequisites) for
+flags (`--skip-system-deps`, `--dry-run`, and so on).
+
+For a manual venv only (no system packages or collections):
 
 ```bash
 cd automation/cli
@@ -319,6 +332,9 @@ cpueval system health check
 └──────────────────────┴──────────────┴────────────────────────────────────────┘
 
 ✗ Some checks failed
+
+Tip: Missing Ansible or collections? Run:
+  ./cpueval install
 ```
 
 Verifies:
@@ -807,6 +823,9 @@ cpueval is a **thin wrapper** that:
 ```bash
 # Check what's failing
 ./cpueval doctor
+
+# Missing Ansible or collections
+./cpueval install
 
 # Common fixes
 export DUT_HOSTNAME=my-dut

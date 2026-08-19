@@ -129,6 +129,7 @@ cpueval is a wrapper around the ansible automation.
 
 | Command | Description |
 |---------|-------------|
+| `cpueval install` | Install Ansible, Galaxy collections, and tab completion |
 | `cpueval doctor` | Validate environment (Ansible, SSH, env vars) |
 | `cpueval --suite <name>` | Run a test suite |
 | `cpueval list` | List all available suites |
@@ -136,7 +137,7 @@ cpueval is a wrapper around the ansible automation.
 | `cpueval profiles` | List CPU pinning profiles |
 | `cpueval results [--last]` | View results in terminal |
 | `cpueval dashboard start/stop` | Launch/stop Streamlit dashboard |
-| `cpueval --install-completion` | Enable bash/zsh/fish tab completion |
+| `cpueval --install-completion` | Reinstall bash/zsh tab completion |
 
 ```bash
 cpueval doctor

@@ -10,7 +10,7 @@ configurations for evaluating vLLM inference performance on CPU-based systems.
 <div class="quick-links">
   <div class="link-card">
     <h3>Getting Started</h3>
-    <p>Configure your test environment and run your first benchmark</p>
+    <p>Install with <code>./cpueval install</code>, then run your first benchmark</p>
     <a href="docs/getting-started/">Quick Start Guide →</a>
   </div>
 
@@ -22,7 +22,7 @@ configurations for evaluating vLLM inference performance on CPU-based systems.
 
   <div class="link-card">
     <h3>cpueval CLI</h3>
-    <p>Recommended entry point for running benchmarks</p>
+    <p>Install, doctor, and run benchmark suites from one command</p>
     <a href="docs/cpueval-cli/">CLI Guide →</a>
   </div>
 
