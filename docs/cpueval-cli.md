@@ -48,7 +48,7 @@ creates a virtual environment on first run. It requires **Python 3.10+**. On
 RHEL 9 / UBI 9, `python3` is 3.9; the launcher looks for `python3.12` /
 `python3.11` / `python3.10` and will install `python3.12` via `dnf` if needed.
 
-See [install - Install prerequisites](#install---install-prerequisites) for
+See [install - Install prerequisites](#install-prerequisites) for
 flags (`--skip-system-deps`, `--dry-run`, and so on).
 
 For a manual venv only (no system packages or collections):
@@ -249,7 +249,7 @@ Edit that file to change permanent defaults.
 > **Tip:** The suite YAML path is printed at the bottom of every `show` output. Edit it to
 > permanently change defaults; use CLI flags (e.g. `--cores`) to override for a single run.
 
-### install - Install prerequisites
+### install - Install prerequisites {#install-prerequisites}
 
 Automates the dependency setup steps required before running benchmarks.
 
