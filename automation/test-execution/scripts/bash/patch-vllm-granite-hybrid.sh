@@ -111,7 +111,7 @@ if [[ "${rc}" -eq 1 ]]; then
     echo "Patch not needed — container already has full_attention support"
     echo "Skipping patch (vLLM version likely > v0.25.1)"
     if [[ -f "${OUTPUT_DIR}/granitemoehybrid.py" ]]; then
-        rm -f "${OUTPUT_DIR}/granitemoehybrid.py"
+        rm -f "${OUTPUT_DIR}/granitemoehybrid.py" "${OUTPUT_DIR}/.image-id"
         echo "Removed stale overlay: ${OUTPUT_DIR}/granitemoehybrid.py"
     fi
     exit 0
@@ -121,9 +121,12 @@ fi
 
 assert_output_dir_safe "${OUTPUT_DIR}"
 
+STAMP_FILE="${OUTPUT_DIR}/.image-id"
 if [[ -f "${OUTPUT_DIR}/granitemoehybrid.py" ]] && \
-   grep -q '"full_attention"' "${OUTPUT_DIR}/granitemoehybrid.py" 2>/dev/null; then
-    echo "Patch already applied at ${OUTPUT_DIR}/granitemoehybrid.py"
+   grep -q '"full_attention"' "${OUTPUT_DIR}/granitemoehybrid.py" 2>/dev/null && \
+   [[ -f "${STAMP_FILE}" ]] && \
+   [[ "$(cat "${STAMP_FILE}")" == "${CONTAINER_IMAGE}" ]]; then
+    echo "Patch already applied at ${OUTPUT_DIR}/granitemoehybrid.py (image: ${CONTAINER_IMAGE})"
     exit 0
 fi
 
@@ -141,6 +144,7 @@ sed -i \
     "${OUTPUT_DIR}/granitemoehybrid.py"
 
 if grep -q '"full_attention"' "${OUTPUT_DIR}/granitemoehybrid.py"; then
+    echo "${CONTAINER_IMAGE}" > "${STAMP_FILE}"
     echo "Patch applied successfully: ${OUTPUT_DIR}/granitemoehybrid.py"
     echo ""
     echo "Mount into container with:"
