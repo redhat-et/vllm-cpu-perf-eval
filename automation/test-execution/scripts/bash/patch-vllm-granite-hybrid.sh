@@ -17,7 +17,8 @@
 # Options:
 #   --output-dir DIR         Directory for patched file (default: /tmp/vllm-patch)
 #   --container-image IMAGE  vLLM container image (default: docker.io/vllm/vllm-openai-cpu:v0.25.1)
-#   --check                  Check if patch is needed (exit 0 if needed, 1 if not)
+#   --check                  Check if patch is needed; also removes any stale overlay.
+#                            Exit 0 if patch needed, 1 if not.
 #   -h, --help               Show this help
 #
 # The patched file should be mounted into the container:
@@ -103,6 +104,7 @@ if [[ "${CHECK_ONLY}" == "true" ]]; then
             ;;
         1)
             echo "Patch not needed: ${CONTAINER_IMAGE} already has full_attention support"
+            assert_output_dir_safe "${OUTPUT_DIR}"
             if [[ -f "${OUTPUT_DIR}/granitemoehybrid.py" ]]; then
                 rm -f "${OUTPUT_DIR}/granitemoehybrid.py" "${OUTPUT_DIR}/.image-id"
                 echo "Removed stale overlay: ${OUTPUT_DIR}/granitemoehybrid.py"
