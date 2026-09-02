@@ -29,6 +29,9 @@
 #   --guidellm-cpus RANGE   CPU range for GuideLLM (e.g., 0-31)
 #   --guidellm-numa-node NUM NUMA node for GuideLLM
 #   --tensor-parallel NUM   Tensor parallel size (1, 2, 4, or 8)
+#   --vllm-args ARGS        Extra vLLM CLI flags (e.g. "--stream-interval=20 --max-num-seqs=16")
+#   --vllm-env VARS         Extra vLLM container env vars, space-separated KEY=VALUE pairs
+#                           (e.g. "VLLM_V1_OUTPUT_PROC_CHUNK_SIZE=256")
 #   --continue-on-error     Continue testing if a model/workload fails
 #   --dry-run               Show what would run without executing
 #   -h, --help              Show this help
@@ -111,6 +114,8 @@ VLLM_NUMA_NODE=""
 GUIDELLM_CPUS=""
 GUIDELLM_NUMA_NODE=""
 TENSOR_PARALLEL=""
+VLLM_EXTRA_ARGS=""
+VLLM_EXTRA_ENV=""
 
 show_help() {
     sed -n '/^# ===/,/^set -/p' "$0" | sed '$d' | sed '1,3d;$d' | sed 's/^# //; s/^#//'
@@ -160,6 +165,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --tensor-parallel|--tp)
             TENSOR_PARALLEL="$2"
+            shift 2
+            ;;
+        --vllm-args)
+            VLLM_EXTRA_ARGS="$2"
+            shift 2
+            ;;
+        --vllm-env)
+            VLLM_EXTRA_ENV="$2"
             shift 2
             ;;
         --continue-on-error)
@@ -320,6 +333,12 @@ for model in "${FINAL_MODELS[@]}"; do
             fi
             if [[ -n "${TENSOR_PARALLEL}" ]]; then
                 CMD+=(-e "requested_tensor_parallel=${TENSOR_PARALLEL}")
+            fi
+            if [[ -n "${VLLM_EXTRA_ARGS}" ]]; then
+                CMD+=(-e "vllm_append_args=${VLLM_EXTRA_ARGS}")
+            fi
+            if [[ -n "${VLLM_EXTRA_ENV}" ]]; then
+                CMD+=(-e "vllm_extra_env_str=${VLLM_EXTRA_ENV}")
             fi
 
             # Parallel instance overrides — set env vars to run multiple instances

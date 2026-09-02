@@ -286,7 +286,7 @@ class GuideLLMLoadGen(LoadGenerator):
     def supports_workload(self, workload_type: str) -> bool:
         """GuideLLM supports generative and embedding workloads."""
         supported = [
-            'chat', 'rag', 'code',
+            'chat', 'chat_lite', 'rag', 'code',
             'summarization', 'reasoning', 'embedding',
         ]
         return workload_type in supported
