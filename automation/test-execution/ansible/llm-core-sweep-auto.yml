@@ -19,6 +19,11 @@
     test_run_id: "{{ (_test_timestamp ~ '-' ~ test_name) if (test_name is defined and test_name | length > 0) else _test_timestamp }}"
 
   tasks:
+    # test_name here is a short human-supplied label (--tag via cpueval CLI or
+    # -e test_name= directly).  The 30-char ceiling is intentional: this
+    # playbook uses the label as a standalone run ID, not as part of a longer
+    # composite name like the lm-eval/concurrent-load runner scripts do (those
+    # build MODEL-COREC suffixes and validate the combined result at ≤ 100 chars).
     - name: Validate test_name format if provided
       ansible.builtin.assert:
         that:

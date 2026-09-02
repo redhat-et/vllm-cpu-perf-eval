@@ -706,7 +706,11 @@ When tests have custom names, Streamlit dashboards automatically display a "Cust
 - Track iterations (e.g., baseline-v1, baseline-v2, optimized-v1)
 
 **Best practices:**
-- Keep names under 30 characters
+- `--tag` / `test_name` passed directly to a playbook: keep to **1–30 characters**
+  (enforced by `llm-core-sweep-auto.yml` and `llm-benchmark-auto.yml`)
+- Suite runner scripts (`run-lm-eval-suite.sh`, `run-concurrent-load-suite.sh`) build
+  a composite name from tag + model + core-count; the combined result may be up to
+  **100 characters** (enforced inside the runner before passing to the playbook)
 - Use alphanumeric characters and hyphens only
 - Examples: `baseline-v1`, `cache-enabled`, `production-candidate`, `bug-123-repro`
 - Avoid spaces (use hyphens instead)
