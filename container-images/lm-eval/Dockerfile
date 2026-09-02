@@ -21,6 +21,42 @@ RUN pip install --upgrade pip==24.3.1 setuptools==75.6.0 wheel==0.45.1
 # Pin to a specific stable release; update this version after testing a newer release
 RUN pip install "lm_eval[api]==0.4.7"
 
+# lm_eval eagerly imports hf_vlms.py, which sets AUTO_MODEL_CLASS =
+# transformers.AutoModelForVision2Seq at class-definition time.  Transformers'
+# lazy loader guards that class behind torch availability; since this image is
+# API-only (--model local-completions), HFMultimodalLM is never instantiated,
+# so AUTO_MODEL_CLASS = None is safe.  Using getattr avoids the import-time
+# AttributeError without requiring torch.  Tested with lm_eval 0.4.7.
+RUN find /usr/local/lib -name 'hf_vlms.py' -path '*/lm_eval/*' \
+    -exec sed -i \
+        's/AUTO_MODEL_CLASS = transformers\.AutoModelForVision2Seq/AUTO_MODEL_CLASS = getattr(transformers, "AutoModelForVision2Seq", None)/' \
+    {} \;
+
+# hellaswag was migrated from a loading script to Parquet; the bundled task YAML
+# still references `trust_remote_code: true` (unsupported since datasets ≥ 3.x)
+# and the bare "hellaswag" path (which now requires the "Rowan/" namespace).
+# Patch both fields in-place so the dataset loads without a loading script.
+# Tested with lm_eval 0.4.7.
+RUN find /usr/local/lib -path '*/lm_eval/tasks/hellaswag/*.yaml' | \
+    xargs -I{} sed -i \
+        -e 's|dataset_path: hellaswag|dataset_path: Rowan/hellaswag|g' \
+        -e '/trust_remote_code:/d' \
+    {}
+
+# winogrande was also migrated from a loading script to Parquet; the bundled
+# task YAML still uses the bare "winogrande" path (requires "allenai/" namespace)
+# and sets trust_remote_code: true (unsupported since datasets ≥ 3.x).
+# Tested with lm_eval 0.4.7.
+RUN find /usr/local/lib -path '*/lm_eval/tasks/winogrande/*.yaml' | \
+    xargs -I{} sed -i \
+        -e 's|dataset_path: winogrande|dataset_path: allenai/winogrande|g' \
+        -e '/trust_remote_code:/d' \
+    {}
+
+# Build-time smoke test: verifies both sed patches left lm_eval importable
+# and that the entry-point itself runs without an AttributeError.
+RUN lm_eval --help > /dev/null
+
 RUN mkdir -p /results
 
 ENTRYPOINT ["lm_eval"]

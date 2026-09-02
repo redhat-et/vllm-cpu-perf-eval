@@ -198,7 +198,7 @@ cd automation/test-execution/scripts
 - `--max-model-len NUM` - Override vLLM max context length
 - `--kv-cache-space NUM` - KV cache in GiB (default: 40)
 - `--lm-eval-image IMAGE` - lm-eval container image (default: quay.io/vllm-cpu-perf-eval/lm-eval:latest)
-- `--tag LABEL` - Custom label prepended to the result run ID (format: `LABEL-MODEL-CORESC`; 1-30 chars, alphanumeric/hyphens). The combined label plus auto-generated model/core name must not exceed 30 characters.
+- `--tag LABEL` - Custom label prepended to the result run ID (format: `LABEL-MODEL-CORESC`; 1-30 chars via cpueval, alphanumeric/hyphens). The combined label plus auto-generated model/core name must not exceed 100 characters.
 - `--continue-on-error` - Continue suite after a test failure
 - `--dry-run` - Show what would run without executing
 

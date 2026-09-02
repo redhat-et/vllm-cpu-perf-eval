@@ -26,7 +26,7 @@
 #                           Default: quay.io/vllm-cpu-perf-eval/lm-eval:latest
 #   --limit NUM             Limit examples per task (useful for quick runs)
 #   --tag LABEL             Custom label combined with auto-generated name for result run ID
-#                             (1-30 chars, alphanumeric/hyphens; prepended: LABEL-MODEL-COREC)
+#                             (1-30 chars via cpueval; prepended: LABEL-MODEL-COREC; combined max 100 chars)
 #   --continue-on-error     Continue suite after a test failure
 #   --dry-run               Show what would run without executing
 #   -h, --help              Show this help
@@ -81,6 +81,11 @@ if [ ! -f "automation/test-execution/ansible/lm-eval-benchmark.yml" ]; then
     echo "Expected file: automation/test-execution/ansible/lm-eval-benchmark.yml"
     exit 1
 fi
+
+# Point Ansible at the config file that sets roles_path and other defaults.
+# Without this, ansible-playbook run from repo root won't find ansible.cfg
+# (located in automation/test-execution/ansible/) and role lookups fail.
+export ANSIBLE_CONFIG="${REPO_ROOT}/automation/test-execution/ansible/ansible.cfg"
 
 # Model presets
 PRESET_QUICK=(
@@ -259,8 +264,8 @@ for model in "${MODELS[@]}"; do
             EFFECTIVE_TEST_NAME="${TEST_NAME}"
         fi
 
-        if [[ ${#EFFECTIVE_TEST_NAME} -gt 30 ]]; then
-            log_error "test_name '${EFFECTIVE_TEST_NAME}' exceeds 30 chars (${#EFFECTIVE_TEST_NAME}). Shorten --tag or use a smaller model preset."
+        if [[ ${#EFFECTIVE_TEST_NAME} -gt 100 ]]; then
+            log_error "test_name '${EFFECTIVE_TEST_NAME}' exceeds 100 chars (${#EFFECTIVE_TEST_NAME}). Shorten --tag."
             exit 1
         fi
 

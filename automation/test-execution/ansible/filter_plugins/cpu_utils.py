@@ -699,19 +699,58 @@ def allocate_with_fixed_tp(available_nodes, requested_cores, tp, cpu_start=None)
     max_cores_per_node = int(sorted_nodes[0]['physical_cores'])
     num_available_nodes = len(sorted_nodes)
 
-    # Validate enough nodes
-    if tp > num_available_nodes:
-        raise AnsibleFilterError(
-            f"Cannot use TP={tp} with only {num_available_nodes} available NUMA nodes"
-        )
-
     # Validate even distribution
     if requested_cores % tp != 0:
         raise AnsibleFilterError(
             f"Cannot allocate {requested_cores} cores with TP={tp} (not evenly divisible)"
         )
 
-    cores_per_node = requested_cores // tp
+    cores_per_shard = requested_cores // tp
+
+    # When TP exceeds available NUMA nodes, fall back to within-node TP.
+    # vLLM TP workers can share a single NUMA node — the node boundary is an
+    # optimisation, not a hard requirement. This is the common case when the
+    # user specifies --tensor-parallel with an explicit --vllm-cpus override on
+    # a single-socket / single-NUMA system.
+    if tp > num_available_nodes:
+        total_capacity = int(sum(n['physical_cores'] for n in sorted_nodes))
+        if requested_cores > total_capacity:
+            raise AnsibleFilterError(
+                f"Cannot allocate {requested_cores} cores: only {total_capacity} physical cores "
+                f"available across {num_available_nodes} NUMA node(s)"
+            )
+        # Collect all physical CPUs from available nodes and split into tp shards
+        all_cpus = []
+        for node in sorted_nodes:
+            physical_cpus_str = node.get('physical_cpus_list', '') or node.get('physical_cpus', '')
+            cpus = expand_cpu_range(physical_cpus_str)
+            if cpu_start is not None:
+                cpus = [c for c in cpus if c >= cpu_start]
+            all_cpus.extend(cpus)
+        all_cpus.sort()
+        if len(all_cpus) < requested_cores:
+            raise AnsibleFilterError(
+                f"Not enough CPUs{' >= ' + str(cpu_start) if cpu_start is not None else ''} "
+                f"for {requested_cores} cores: only {len(all_cpus)} available"
+            )
+        allocated_cpus = all_cpus[:requested_cores]
+        omp_bind_parts = [
+            cpu_list_to_range(allocated_cpus[i * cores_per_shard:(i + 1) * cores_per_shard])
+            for i in range(tp)
+        ]
+        return {
+            'allocated_nodes': [int(n['id']) for n in sorted_nodes],
+            'cores_per_node': [int(n['physical_cores']) for n in sorted_nodes],
+            'cpuset_cpus': cpu_list_to_range(allocated_cpus),
+            'cpuset_mems': ','.join(str(n['id']) for n in sorted_nodes),
+            'tensor_parallel': tp,
+            'omp_num_threads': cores_per_shard,
+            'omp_threads_bind': '|'.join(omp_bind_parts),
+            'allocation_strategy': f"within_node_tp{tp}",
+        }
+
+    # Normal multi-NUMA allocation: one TP shard per node
+    cores_per_node = cores_per_shard
 
     # Validate node capacity
     if cores_per_node > max_cores_per_node:

@@ -128,9 +128,9 @@
       ansible.builtin.assert:
         that:
           - test_name | length >= 1
-          - test_name | length <= 30
+          - test_name | length <= 100
           - test_name is match('^[A-Za-z0-9-]+$')
-        fail_msg: "test_name must be 1-30 chars, alphanumeric or hyphens only, got: '{{ test_name }}'"
+        fail_msg: "test_name must be 1-100 chars, alphanumeric or hyphens only, got: '{{ test_name }}'"
       when:
         - test_name is defined
         - test_name | length > 0

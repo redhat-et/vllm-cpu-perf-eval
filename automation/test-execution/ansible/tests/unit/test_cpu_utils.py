@@ -516,17 +516,31 @@ class TestMultiNumaAllocation:
 
         assert "not evenly divisible" in str(exc_info.value)
 
-    def test_user_tp_override_exceeds_nodes(self):
-        """User TP exceeding available nodes should fail."""
+    def test_user_tp_override_within_node_fallback(self):
+        """TP exceeding NUMA node count falls back to within-node sharding."""
+        topology = create_numa_topology(num_nodes=3, cores_per_node=32)
+        result = allocate_cores_multi_numa(
+            topology, requested_cores=64, requested_tp=8
+        )
+
+        assert result['tensor_parallel'] == 8
+        assert result['omp_num_threads'] == 8
+        assert result['allocation_strategy'] == "within_node_tp8"
+        assert result['cpuset_cpus'] == "32-95"
+        assert '|' in result['omp_threads_bind']
+        assert result['omp_threads_bind'].count('|') == 7
+
+    def test_user_tp_override_exceeds_total_capacity(self):
+        """Within-node TP fallback still fails when cores exceed total capacity."""
         topology = create_numa_topology(num_nodes=3, cores_per_node=32)
 
         with pytest.raises(AnsibleFilterError) as exc_info:
-            # TP=8 but only 2 nodes available (node 0 reserved)
+            # TP=8 with only 64 cores available (node 0 reserved)
             allocate_cores_multi_numa(
-                topology, requested_cores=64, requested_tp=8
+                topology, requested_cores=128, requested_tp=8
             )
 
-        assert "only 2 available NUMA nodes" in str(exc_info.value)
+        assert "only 64 physical cores" in str(exc_info.value)
 
     def test_single_numa_node_system(self):
         """Single-NUMA system uses all nodes (no reservation)."""

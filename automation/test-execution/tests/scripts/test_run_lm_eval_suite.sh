@@ -122,13 +122,14 @@ else
     fail "Dotted model name produces sanitized test_name (no dots)" "test_name value: '${TEST_NAME_VAL}'"
 fi
 
-# Test 11: combined tag+name exceeding 30 chars exits with error
-# "this-tag-is-way-too-long" (24 chars) + "-Qwen3-0-6B-8C" (14 chars) = 38 chars → error
-LONG_TAG_OUT=$("${SUITE_SCRIPT}" --dry-run --models quick --cores 8 --tag "this-tag-is-way-too-long" 2>&1 || true)
-if echo "${LONG_TAG_OUT}" | grep -q "exceeds 30 chars"; then
-    pass "Combined tag+name > 30 chars exits with clear error"
+# Test 11: combined tag+name exceeding 100 chars exits with error
+# 90-char tag + "-Qwen3-0-6B-8C" (14 chars) = 105 chars → error
+LONG_TAG=$(printf 'a%.0s' {1..90})
+LONG_TAG_OUT=$("${SUITE_SCRIPT}" --dry-run --models quick --cores 8 --tag "${LONG_TAG}" 2>&1 || true)
+if echo "${LONG_TAG_OUT}" | grep -q "exceeds 100 chars"; then
+    pass "Combined tag+name > 100 chars exits with clear error"
 else
-    fail "Combined tag+name > 30 chars exits with clear error" "Output: ${LONG_TAG_OUT}"
+    fail "Combined tag+name > 100 chars exits with clear error" "Output: ${LONG_TAG_OUT}"
 fi
 
 echo ""
