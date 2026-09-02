@@ -177,6 +177,7 @@ cd automation/test-execution/scripts
 ./cpueval --suite lm-eval                                  # full matrix
 ./cpueval --suite lm-eval --models quick --cores 8 --limit 50
 ./cpueval --suite lm-eval --models small --tasks hellaswag,arc_easy --cores 16
+./cpueval --suite lm-eval --models quick --cores 8 --tag baseline-v1 --limit 50
 ```
 
 **Model Presets:**
@@ -197,6 +198,7 @@ cd automation/test-execution/scripts
 - `--max-model-len NUM` - Override vLLM max context length
 - `--kv-cache-space NUM` - KV cache in GiB (default: 40)
 - `--lm-eval-image IMAGE` - lm-eval container image (default: quay.io/vllm-cpu-perf-eval/lm-eval:latest)
+- `--tag LABEL` - Custom label prepended to the result run ID (format: `LABEL-MODEL-CORESC`; 1-30 chars, alphanumeric/hyphens)
 - `--continue-on-error` - Continue suite after a test failure
 - `--dry-run` - Show what would run without executing
 
@@ -207,6 +209,12 @@ cd automation/test-execution/scripts
 **Results:** Written to `results/lm-eval/<model>/<test-run-id>/`
 
 **Full Documentation:** Run `./bash/run-lm-eval-suite.sh --help`
+
+> **Note:** The default lm-eval image (`quay.io/vllm-cpu-perf-eval/lm-eval:latest`) must be
+> built locally before the first run if it has not been pushed to Quay.io:
+> ```bash
+> cd container-images/lm-eval && ./build.sh
+> ```
 
 ---
 

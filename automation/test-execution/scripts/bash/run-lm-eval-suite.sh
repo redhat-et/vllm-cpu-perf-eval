@@ -25,6 +25,8 @@
 #   --lm-eval-image IMAGE   lm-eval container image
 #                           Default: quay.io/vllm-cpu-perf-eval/lm-eval:latest
 #   --limit NUM             Limit examples per task (useful for quick runs)
+#   --tag LABEL             Custom label combined with auto-generated name for result run ID
+#                             (1-30 chars, alphanumeric/hyphens; prepended: LABEL-MODEL-COREC)
 #   --continue-on-error     Continue suite after a test failure
 #   --dry-run               Show what would run without executing
 #   -h, --help              Show this help
@@ -131,6 +133,11 @@ log_info()    { echo -e "${BLUE}[INFO]${NC} $*"; }
 log_success() { echo -e "${GREEN}[SUCCESS]${NC} $*"; }
 log_warning() { echo -e "${YELLOW}[WARNING]${NC} $*"; }
 log_error()   { echo -e "${RED}[ERROR]${NC} $*"; }
+
+sanitize_test_name() {
+    # Keep only alphanumeric and hyphens; collapse repeated hyphens; strip leading/trailing
+    echo "$1" | sed 's/[^A-Za-z0-9-]/-/g' | sed 's/-\+/-/g' | sed 's/^-//;s/-$//'
+}
 
 show_help() {
     sed -n '/^# ===/,/^# ===/p' "$0" | sed 's/^# //; s/^#//'
@@ -244,8 +251,18 @@ for model in "${MODELS[@]}"; do
         echo ""
 
         MODEL_SHORT=$(basename "${model}")
-        TEST_NAME="${MODEL_SHORT}-${cores}C"
-        EFFECTIVE_TEST_NAME="${TAG:-${TEST_NAME}}"
+        TEST_NAME=$(sanitize_test_name "${MODEL_SHORT}-${cores}C")
+
+        if [[ -n "${TAG}" ]]; then
+            EFFECTIVE_TEST_NAME="${TAG}-${TEST_NAME}"
+        else
+            EFFECTIVE_TEST_NAME="${TEST_NAME}"
+        fi
+
+        if [[ ${#EFFECTIVE_TEST_NAME} -gt 30 ]]; then
+            log_error "test_name '${EFFECTIVE_TEST_NAME}' exceeds 30 chars (${#EFFECTIVE_TEST_NAME}). Shorten --tag or use a smaller model preset."
+            exit 1
+        fi
 
         cmd=(
             ansible-playbook

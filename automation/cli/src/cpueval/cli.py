@@ -614,7 +614,7 @@ def main(
     continue_on_error: bool = typer.Option(
         False, "--continue-on-error", help="Continue matrix run after a failure"
     ),
-    tag: Optional[str] = typer.Option(None, "--tag", help="Custom label appended to the result directory timestamp (1-30 chars, alphanumeric/hyphens)"),
+    tag: Optional[str] = typer.Option(None, "--tag", help="Custom label prepended to the result run ID (format: {tag}-{model}-{cores}C-{timestamp}; 1-30 chars, alphanumeric/hyphens)"),
     extra: Optional[List[str]] = typer.Option(None, "--extra", help="Extra vars (KEY=VAL, repeatable)"),
     extra_vars_file: Optional[str] = typer.Option(None, "--extra-vars-file", help="Load extra vars from YAML/JSON"),
     ansible_arg: Optional[List[str]] = typer.Option(None, "--ansible-arg", help="Raw ansible-playbook args (repeatable)"),
@@ -907,7 +907,7 @@ def run(
     continue_on_error: bool = typer.Option(
         False, "--continue-on-error", help="Continue matrix run after a failure"
     ),
-    tag: Optional[str] = typer.Option(None, "--tag", help="Custom label appended to the result directory timestamp (1-30 chars, alphanumeric/hyphens)"),
+    tag: Optional[str] = typer.Option(None, "--tag", help="Custom label prepended to the result run ID (format: {tag}-{model}-{cores}C-{timestamp}; 1-30 chars, alphanumeric/hyphens)"),
     extra: Optional[List[str]] = typer.Option(None, "--extra", help="Extra vars (KEY=VAL, repeatable)"),
     extra_vars_file: Optional[str] = typer.Option(None, "--extra-vars-file", help="Load extra vars from YAML/JSON"),
     ansible_arg: Optional[List[str]] = typer.Option(None, "--ansible-arg", help="Raw ansible-playbook args (repeatable)"),

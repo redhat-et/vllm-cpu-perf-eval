@@ -356,7 +356,7 @@ Verifies:
 - `--cores`/`-c`; CPU core count
 - `--workload`/`-w`; Workload type
 - `--scenario`; Test scenario (audio suites)
-- `--tag`; Custom label appended to the result directory timestamp (1–30 chars, alphanumeric/hyphens) — useful for distinguishing runs with the same settings
+- `--tag`; Custom label prepended to the result run ID (format: `{tag}-{model}-{cores}C-{timestamp}`; 1–30 chars, alphanumeric/hyphens) — useful for distinguishing runs with the same settings
 - `--dry-run`; Print command without running
 - `--skip-doctor`; Skip health checks
 

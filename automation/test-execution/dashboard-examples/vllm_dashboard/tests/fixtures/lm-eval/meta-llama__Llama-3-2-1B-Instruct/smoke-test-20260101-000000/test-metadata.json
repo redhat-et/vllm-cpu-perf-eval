@@ -1,0 +1,17 @@
+{
+  "test_run_id": "smoke-test-20260101-000000",
+  "test_name": "smoke-test",
+  "model": "meta-llama/Llama-3.2-1B-Instruct",
+  "platform": "Intel_Xeon_Platinum_8480",
+  "vllm_version": "0.9.0",
+  "tasks": "hellaswag,arc_easy",
+  "batch_size": 16,
+  "dtype": "bfloat16",
+  "kv_cache_space_gib": 40,
+  "max_model_len": "model default",
+  "limit": "50",
+  "vllm_mode": "managed",
+  "lm_eval_image": "quay.io/vllm-cpu-perf-eval/lm-eval:latest",
+  "requested_cores": 16,
+  "timestamp": "2026-01-01T00:00:00+00:00"
+}
