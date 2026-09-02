@@ -79,15 +79,19 @@ if [ ! -f "automation/test-execution/ansible/embedding-benchmark.yml" ]; then
     exit 1
 fi
 
+export ANSIBLE_CONFIG="${REPO_ROOT}/automation/test-execution/ansible/ansible.cfg"
+
 # All available models from RedHatAI Intel Xeon-compatible collection
-declare -A ALL_MODELS
-ALL_MODELS=(
-    ["RedHatAI/all-MiniLM-L6-v2"]="22.7M"
-    ["RedHatAI/granite-embedding-english-r2"]="109M"
-    ["RedHatAI/nomic-embed-text-v1.5"]="137M"
-    ["RedHatAI/embeddinggemma-300m"]="300M"
-    ["RedHatAI/Qwen3-Embedding-8B"]="8B"
-)
+get_model_size() {
+    case "$1" in
+        "RedHatAI/all-MiniLM-L6-v2")             echo "22.7M" ;;
+        "RedHatAI/granite-embedding-english-r2")  echo "109M" ;;
+        "RedHatAI/nomic-embed-text-v1.5")         echo "137M" ;;
+        "RedHatAI/embeddinggemma-300m")           echo "300M" ;;
+        "RedHatAI/Qwen3-Embedding-8B")            echo "8B" ;;
+        *)                                         echo "unknown" ;;
+    esac
+}
 
 # Model presets
 PRESET_ALL=(
@@ -280,7 +284,7 @@ echo "Embedding Model Performance Test Suite"
 echo "=========================================="
 echo "Models (${#MODELS[@]}):"
 for model in "${MODELS[@]}"; do
-    size="${ALL_MODELS[$model]:-unknown}"
+    size=$(get_model_size "${model}")
     echo "  - ${model} (${size})"
 done
 echo ""
