@@ -149,75 +149,6 @@ Base path: `results/mteb/MODEL/TIMESTAMP/`
 
 ---
 
-### [run-lm-eval-suite.sh](../automation/test-execution/scripts/bash/run-lm-eval-suite.sh)
-
-**Purpose:** Run LM Evaluation Harness accuracy benchmarks across LLM models and core counts. Starts a vLLM CPU container per test then runs the lm-eval container against it.
-
-**Location:** `automation/test-execution/scripts/bash/run-lm-eval-suite.sh`
-
-**Quick Examples:**
-```bash
-cd automation/test-execution/scripts
-
-# Quick smoke test (single small model, 50 examples per task)
-./bash/run-lm-eval-suite.sh --models quick --cores 8 --limit 50
-
-# Small models on default core counts with specific tasks
-./bash/run-lm-eval-suite.sh --models small --tasks hellaswag,arc_easy
-
-# Full accuracy sweep across all models
-./bash/run-lm-eval-suite.sh --models all --cores 16,32
-
-# Custom model
-./bash/run-lm-eval-suite.sh --models ibm-granite/granite-3.2-2b-instruct --cores 16
-```
-
-**Via cpueval:**
-```bash
-./cpueval --suite lm-eval                                  # full matrix
-./cpueval --suite lm-eval --models quick --cores 8 --limit 50
-./cpueval --suite lm-eval --models small --tasks hellaswag,arc_easy --cores 16
-./cpueval --suite lm-eval --models quick --cores 8 --tag baseline-v1 --limit 50
-```
-
-**Model Presets:**
-- `all` - All 6 models (0.6B to 3B): Qwen3-0.6B, TinyLlama-1.1B, Granite-3.2-2B, Llama-3.2-1B, Qwen2.5-3B, Llama-3.2-3B
-- `quick` - Single small model: Qwen/Qwen3-0.6B
-- `small` - Fast models: Qwen3-0.6B, TinyLlama, Granite-3.2-2B
-- `medium` - Larger models: Llama-3.2-1B, Qwen2.5-3B, Llama-3.2-3B
-
-**Default Tasks:** `hellaswag,winogrande,arc_easy,arc_challenge`
-
-**Key Options:**
-- `--models LIST` - Comma-separated models or preset (all|quick|small|medium)
-- `--cores LIST` - Comma-separated core counts (default: 8,16,32)
-- `--tasks LIST` - Comma-separated lm-eval task names
-- `--batch-size NUM` - lm-eval batch size (default: 16)
-- `--dtype DTYPE` - Model dtype: bfloat16, float16, float32 (default: bfloat16)
-- `--limit NUM` - Limit examples per task (for quick runs)
-- `--max-model-len NUM` - Override vLLM max context length
-- `--kv-cache-space NUM` - KV cache in GiB (default: 40)
-- `--lm-eval-image IMAGE` - lm-eval container image (default: quay.io/vllm-cpu-perf-eval/lm-eval:latest)
-- `--tag LABEL` - Custom label prepended to the result run ID (format: `LABEL-MODEL-CORESC`; 1-30 chars, alphanumeric/hyphens)
-- `--continue-on-error` - Continue suite after a test failure
-- `--dry-run` - Show what would run without executing
-
-**Environment Variables:**
-- `VLLM_CONTAINER_IMAGE` - Override vLLM container image (e.g. for RHAIIS)
-- `HF_TOKEN` - HuggingFace token for gated models
-
-**Results:** Written to `results/lm-eval/<model>/<test-run-id>/`
-
-**Full Documentation:** Run `./bash/run-lm-eval-suite.sh --help`
-
-> **Note:** The default lm-eval image (`quay.io/vllm-cpu-perf-eval/lm-eval:latest`) must be
-> built locally before the first run if it has not been pushed to Quay.io:
-> ```bash
-> cd container-images/lm-eval && ./build.sh
-> ```
-
----
-
 ### [run-rhaiis-concurrent-load.sh](../automation/test-execution/scripts/bash/run-rhaiis-concurrent-load.sh)
 
 **Purpose:** Run concurrent load benchmarks on RHAIIS quantized LLM models across different core counts and workload types.
@@ -460,22 +391,6 @@ export VLLM_PORT=8000
 ---
 
 ## Container Build Scripts
-
-### LM Eval Container
-
-**Location:** `container-images/lm-eval/build.sh`
-
-**Purpose:** Build the lm-evaluation-harness container image used by the `lm-eval` suite.
-
-**Base image:** `python:3.11-slim` with `lm_eval[api]` installed.
-
-**Usage:**
-```bash
-cd container-images/lm-eval
-./build.sh
-```
-
----
 
 ### MTEB Container
 

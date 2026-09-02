@@ -54,7 +54,6 @@ vLLM CPU benchmark results:
 📦 **Offline Batch** - Batch processing performance (vLLM bench throughput)
 🎧 **Audio Metrics** - Audio-specific performance for ASR models
 🔍 **CVE VLoc** - Vulnerability localization quality (VLoc Bench agent loop)
-🎯 **LM Eval** - Accuracy benchmarks (hellaswag, arc, winogrande, …) from the lm-eval suite
 
 **👈 Use the sidebar to navigate between dashboards**
 """)
@@ -171,25 +170,6 @@ with col6:
     - Upstream leaderboard comparison
     - File F1 score bands
     - CPU vs GPU delta
-    """)
-
-col7, col8 = st.columns(2)
-
-with col7:
-    st.markdown("### 🎯 LM Eval")
-    st.info("""
-    **What**: lm-evaluation-harness accuracy benchmarks
-
-    **Metrics**:
-    - Accuracy (acc) per task
-    - Normalised accuracy (acc_norm)
-    - Per-model, per-core breakdown
-
-    **Features**:
-    - Task accuracy bar charts
-    - Model comparison across cores
-    - Accuracy heatmap (model × task)
-    - Supports hellaswag, arc, winogrande, mmlu, …
     """)
 
 st.markdown("---")
@@ -367,7 +347,6 @@ with tab3:
     **Analysis Workflow:**
     - LLM (Online): Start with Client Metrics, then Server Metrics
     - LLM (Offline Batch): Use Offline Batch for throughput workloads
-    - LLM (Accuracy): Use LM Eval for hellaswag / arc / winogrande scores
     - CVE localization: Use CVE VLoc for File F1 / TNR (not offline capacity)
     - Embedding: Use saturation curves to find optimal load
     - Compare metrics between models for performance analysis

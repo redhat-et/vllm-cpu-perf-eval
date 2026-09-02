@@ -60,17 +60,11 @@
 
 set -euo pipefail
 
+# Script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="${SCRIPT_DIR}"
-while [[ ! -d "${REPO_ROOT}/.git" ]] && [[ "${REPO_ROOT}" != "/" ]]; do
-    REPO_ROOT="$(dirname "${REPO_ROOT}")"
-done
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
-if [[ ! -d "${REPO_ROOT}/.git" ]]; then
-    echo "ERROR: Could not find repository root"
-    exit 1
-fi
-
+# Ensure we're in the repo root
 cd "${REPO_ROOT}"
 
 if [ ! -f "automation/test-execution/ansible/embedding-benchmark.yml" ]; then

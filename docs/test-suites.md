@@ -11,7 +11,6 @@ run, how to run it, and where to read the detailed methodology.
 | --- | --- | --- | --- | --- |
 | Concurrent Load | Matrix | Validated | `cpueval --suite concurrent-load` | [Concurrent Load](../tests/concurrent-load/concurrent-load.md) |
 | RHAIIS Sweep | Matrix | Validated | `cpueval --suite rhaiis-sweep` | [RHAIIS Testing](../tests/concurrent-load/rhaiis-testing.md) |
-| LM Eval | Matrix | WIP | `cpueval --suite lm-eval` | [Scripts Reference](scripts-reference.md) |
 | Scalability | Manual/Ansible | WIP | Ansible playbooks | [Scalability](../tests/scalability/scalability.md) |
 | Offline Batch | Matrix | Validated | `cpueval --suite offline-batch` | [Offline Batch](../tests/offline-batch/offline-batch.md) |
 | Embedding | Matrix | Validated | `cpueval --suite embedding` | [Embedding Models](../tests/embedding-models/embedding-models.md) |
@@ -27,7 +26,6 @@ run, how to run it, and where to read the detailed methodology.
 | --- | --- | --- |
 | LLM serving under concurrency | `concurrent-load` | `./cpueval --suite concurrent-load` |
 | RHAIIS model matrix sweep | `rhaiis-sweep` | `./cpueval --suite rhaiis-sweep` |
-| LLM accuracy (hellaswag, arc, mmlu, …) | `lm-eval` | `./cpueval --suite lm-eval` |
 | Bulk/offline document processing | `offline-batch` | `./cpueval --suite offline-batch` |
 | Embedding throughput and latency | `embedding` | `./cpueval --suite embedding` |
 | Audio transcription (Whisper) | `audio` | `./cpueval --suite audio --scenario quick-test` |
@@ -80,8 +78,6 @@ A typical session looks like this:
 │                           │              │            │ processing           │
 │ audio                     │ Matrix       │ script     │ Audio model          │
 │                           │              │            │ benchmarking         │
-│ lm-eval                   │ Matrix       │ script     │ LM Evaluation        │
-│                           │              │            │ Harness accuracy     │
 │ chat-smoke                │ Single       │ ansible    │ Quick LLM chat test  │
 │ health                    │ Single       │ ansible    │ Health check         │
 └───────────────────────────┴──────────────┴────────────┴──────────────────────┘
@@ -181,7 +177,6 @@ without requiring `--model`.
 | --- | --- | --- |
 | `rhaiis-sweep` | 5 models × 3 cores × 4 workloads | RHAIIS quantized model concurrent load sweep |
 | `concurrent-load` | all models × 3 cores × 4 workloads (60 tests, use `--models`/`--workload` to narrow) | Upstream LLM concurrent load sweep |
-| `lm-eval` | 6 models × 3 cores (hellaswag, winogrande, arc_easy, arc_challenge by default) | LM Evaluation Harness accuracy tests |
 | `embedding` | 5 models × 3 cores × 2 scenarios | Embedding model performance matrix |
 | `offline-batch` | 11 use-cases × 3 runs | Offline batch processing |
 | `audio` | all models × `transcription-throughput` × 32 cores (override with `--scenario`, `--cores`) | Audio model benchmarking (Whisper ASR) |
@@ -190,7 +185,6 @@ without requiring `--model`.
 # Run full matrices
 ./cpueval --suite rhaiis-sweep
 ./cpueval --suite concurrent-load
-./cpueval --suite lm-eval
 ./cpueval --suite embedding
 ./cpueval --suite offline-batch
 ./cpueval --suite audio
@@ -198,7 +192,6 @@ without requiring `--model`.
 # Narrow scope with overrides
 ./cpueval --suite rhaiis-sweep --models tiny --cores 8
 ./cpueval --suite concurrent-load --models tiny --workload chat --cores 32
-./cpueval --suite lm-eval --models quick --cores 8 --limit 50
 ./cpueval --suite embedding --models quick --cores 4
 ```
 
@@ -231,15 +224,6 @@ Each suite has detailed methodology, metrics, and configuration in the
   RHAIIS quantized model testing, NUMA configuration, and known issues.
 - **[Scalability](../tests/scalability/scalability.md)** — Maximum throughput,
   load-latency curves, and sweep testing (WIP).
-
-### LLM Accuracy
-
-- **LM Evaluation Harness (`lm-eval`)** — Accuracy benchmarks (hellaswag,
-  winogrande, arc_easy, arc_challenge, mmlu, …) against vLLM CPU using the
-  [EleutherAI lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness).
-  Runs lm-eval in a container against a managed or external vLLM endpoint.
-  See [run-lm-eval-suite.sh](scripts-reference.md#run-lm-eval-suitesh) in the
-  Scripts Reference for options and model presets.
 
 ### Offline & Batch Processing
 

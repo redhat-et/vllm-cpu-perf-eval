@@ -25,4 +25,5 @@ param_mappings:
   guidellm_numa_node: guidellm-numa-node
   requested_tensor_parallel: tensor-parallel
   continue_on_error: continue-on-error
-  tag: tag
+  vllm_append_args: vllm-args
+  vllm_extra_env_str: vllm-env
