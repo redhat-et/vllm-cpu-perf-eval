@@ -204,6 +204,8 @@ Example output:
 │ audio                     │ Matrix       │ script     │ Audio model          │
 │                           │              │            │ benchmarking         │
 │ concurrent-load           │ Matrix       │ script     │ LLM concurrent load  │
+│ lm-eval                   │ Matrix       │ script     │ LM Evaluation        │
+│                           │              │            │ Harness accuracy     │
 │ chat-smoke                │ Single       │ ansible    │ Quick LLM chat test  │
 │ health                    │ Single       │ ansible    │ Health check         │
 └───────────────────────────┴──────────────┴────────────┴──────────────────────┘
@@ -354,6 +356,7 @@ Verifies:
 - `--cores`/`-c`; CPU core count
 - `--workload`/`-w`; Workload type
 - `--scenario`; Test scenario (audio suites)
+- `--tag`; Custom label appended to the result directory timestamp (1–30 chars, alphanumeric/hyphens) — useful for distinguishing runs with the same settings
 - `--dry-run`; Print command without running
 - `--skip-doctor`; Skip health checks
 
@@ -371,6 +374,21 @@ Verifies:
   --model meta-llama/Llama-3.2-1B-Instruct \
   --cores 32 \
   --workload summarization
+
+# Tag a run for easy identification in results
+./cpueval --suite concurrent-load \
+  --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 \
+  --cores 16 \
+  --tag pr-1234
+
+# LM Evaluation Harness accuracy benchmarks (full matrix: 6 models × 3 cores)
+./cpueval --suite lm-eval
+
+# Quick lm-eval smoke test (single model, 50 examples per task)
+./cpueval --suite lm-eval --models quick --cores 8 --limit 50
+
+# lm-eval with custom tasks
+./cpueval --suite lm-eval --models small --tasks hellaswag,arc_easy --cores 16
 
 # Dry run to see command
 ./cpueval --suite concurrent-load \

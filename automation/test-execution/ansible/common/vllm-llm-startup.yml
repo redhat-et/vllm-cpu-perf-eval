@@ -1,0 +1,132 @@
+---
+# ===========================================================================
+# Common: Start vLLM LLM Server on DUT (lm-eval / accuracy evaluation)
+# ===========================================================================
+# Simplified LLM startup for accuracy evaluation workloads where a specific
+# ISL/OSL workload type is not needed. Takes explicit vllm args rather than
+# routing through test_configs/workload_type infrastructure.
+#
+# Expected variables from calling playbook (set on localhost):
+#   - vllm_mode:              managed|dut-only|external
+#   - test_model:             HuggingFace model ID or local path
+#   - requested_cores:        Number of cores to allocate (used for cpuset)
+#   - lm_eval_dtype:          bfloat16|float16|float32 (default: bfloat16)
+#   - lm_eval_kv_cache_space: GiB of KV cache (default: 40)
+#   - lm_eval_max_model_len:  Optional max context length override
+#
+# Optional overrides:
+#   - vllm_cpus:              Explicit CPU range (e.g. "0-31"); takes precedence
+#   - vllm_numa_node:         NUMA memory node (default: 0)
+#   - vllm_container_name:    Container name (default: from vllm_container_name role var)
+# ===========================================================================
+
+- name: "Start vLLM LLM Server on DUT (lm-eval mode)"
+  hosts: dut
+  become: true
+  gather_facts: true
+  vars:
+    vllm_mode: "{{ hostvars['localhost']['vllm_mode'] }}"
+    test_model: "{{ hostvars['localhost']['test_model'] }}"
+    requested_cores: "{{ hostvars['localhost']['requested_cores'] | int }}"
+    _dtype: "{{ hostvars['localhost']['lm_eval_dtype'] | default('bfloat16') }}"
+    _kv_cache: "{{ hostvars['localhost']['lm_eval_kv_cache_space'] | default(40) | int }}"
+    _max_model_len: "{{ hostvars['localhost']['lm_eval_max_model_len'] | default('') }}"
+
+  tasks:
+    - name: Check if vLLM startup needed
+      ansible.builtin.set_fact:
+        skip_vllm_startup: "{{ vllm_mode == 'external' }}"
+
+    - name: End play if external mode
+      ansible.builtin.meta: end_play
+      when: skip_vllm_startup | bool
+
+    - name: Setup HuggingFace token
+      ansible.builtin.include_role:
+        name: hf_token
+        tasks_from: setup-optional
+
+    - name: Clean-restart any previous vLLM container
+      ansible.builtin.include_role:
+        name: vllm_server
+        tasks_from: clean-restart
+
+    - name: Get available CPU count
+      ansible.builtin.command: nproc --all
+      register: _nproc
+      changed_when: false
+
+    - name: Compute cpuset_cpus from requested_cores (when vllm_cpus not set)
+      ansible.builtin.set_fact:
+        _cpuset_cpus: >-
+          {{ hostvars['localhost']['vllm_cpus']
+             if (hostvars['localhost']['vllm_cpus'] is defined
+                 and hostvars['localhost']['vllm_cpus'] | length > 0)
+             else '0-' + ([requested_cores | int, _nproc.stdout | int] | min - 1) | string }}
+        _cpuset_mems: "{{ hostvars['localhost']['vllm_numa_node'] | default(0) }}"
+
+    - name: Build vLLM server command
+      ansible.builtin.set_fact:
+        _vllm_cmd: >-
+          {{ test_model }}
+          --host {{ vllm_server.host }}
+          --port {{ vllm_server.port }}
+          --dtype {{ _dtype }}
+          {% if _max_model_len | length > 0 %}--max-model-len {{ _max_model_len }}{% endif %}
+
+    - name: Set effective container image
+      ansible.builtin.set_fact:
+        _effective_image: "{{ lookup('env', 'VLLM_CONTAINER_IMAGE') | default(container_runtime.image, true) }}"
+
+    - name: Display vLLM configuration
+      ansible.builtin.debug:
+        msg:
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Starting vLLM for lm-eval Accuracy Evaluation"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          - "Model:         {{ test_model }}"
+          - "Image:         {{ _effective_image }}"
+          - "CPUs:          {{ _cpuset_cpus }}"
+          - "NUMA:          {{ _cpuset_mems }}"
+          - "Dtype:         {{ _dtype }}"
+          - "KV cache:      {{ _kv_cache }}GiB"
+          - "Max model len: {{ _max_model_len if _max_model_len | length > 0 else 'model default' }}"
+          - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+    - name: Start vLLM LLM container
+      containers.podman.podman_container:
+        name: "{{ vllm_container_name }}"
+        image: "{{ _effective_image }}"
+        state: started
+        restart_policy: "no"
+        detach: true
+        rm: "{{ container_runtime.remove_on_stop | default(true) }}"
+        network: "{{ container_runtime.network_mode }}"
+        shm_size: "{{ container_runtime.shm_size | default('4g') }}"
+        security_opt: "{{ container_runtime.security_opts | default([]) }}"
+        cap_add: "{{ container_runtime.capabilities | default([]) }}"
+        cpuset_cpus: "{{ _cpuset_cpus }}"
+        cpuset_mems: "{{ _cpuset_mems }}"
+        env:
+          VLLM_CPU_KVCACHE_SPACE: "{{ _kv_cache }}"
+          HF_TOKEN: "{{ hf_token | default('') }}"
+        entrypoint: "{{ container_runtime.entrypoint | trim if (container_runtime.entrypoint is defined and container_runtime.entrypoint | trim | length > 0) else omit }}"
+        command: "{{ _vllm_cmd }}"
+        log_driver: journald
+        log_opt:
+          tag: "vllm-lm-eval-{{ requested_cores }}c"
+      register: vllm_container
+      no_log: true
+
+    - name: Display vLLM container info
+      ansible.builtin.debug:
+        msg:
+          - "✓ vLLM Container Started"
+          - "Container ID: {{ vllm_container.container.Id[:12] if vllm_container.container is defined else 'N/A' }}"
+          - "Server: http://{{ ansible_host }}:{{ vllm_server.port }}"
+          - "Logs: journalctl -t vllm-lm-eval-{{ requested_cores }}c -f"
+
+    - name: Wait for vLLM initialization
+      ansible.builtin.pause:
+        seconds: 20
+        prompt: "Waiting for vLLM to initialize..."

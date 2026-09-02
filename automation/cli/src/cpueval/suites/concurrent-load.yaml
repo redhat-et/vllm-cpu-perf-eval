@@ -27,3 +27,4 @@ param_mappings:
   continue_on_error: continue-on-error
   vllm_append_args: vllm-args
   vllm_extra_env_str: vllm-env
+  tag: tag

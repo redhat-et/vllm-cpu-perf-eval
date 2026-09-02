@@ -249,6 +249,7 @@ def _execute_suite(
     vllm_bench_numa: Optional[int],
     continue_on_error: bool,
     max_seconds: Optional[int],
+    tag: Optional[str],
     extra: Optional[List[str]],
     extra_vars_file: Optional[str],
     ansible_arg: Optional[List[str]],
@@ -399,6 +400,9 @@ def _execute_suite(
 
     if max_seconds is not None:
         cli_vars["guidellm_max_seconds"] = max_seconds
+
+    if tag:
+        cli_vars["tag"] = tag
 
     _apply_endpoint_env(endpoint_url)
 
@@ -605,6 +609,7 @@ def main(
     continue_on_error: bool = typer.Option(
         False, "--continue-on-error", help="Continue matrix run after a failure"
     ),
+    tag: Optional[str] = typer.Option(None, "--tag", help="Custom label appended to the result directory timestamp (1-30 chars, alphanumeric/hyphens)"),
     extra: Optional[List[str]] = typer.Option(None, "--extra", help="Extra vars (KEY=VAL, repeatable)"),
     extra_vars_file: Optional[str] = typer.Option(None, "--extra-vars-file", help="Load extra vars from YAML/JSON"),
     ansible_arg: Optional[List[str]] = typer.Option(None, "--ansible-arg", help="Raw ansible-playbook args (repeatable)"),
@@ -649,6 +654,7 @@ def main(
         vllm_bench_numa=vllm_bench_numa,
         continue_on_error=continue_on_error,
         max_seconds=max_seconds,
+        tag=tag,
         extra=extra,
         extra_vars_file=extra_vars_file,
         ansible_arg=ansible_arg,
@@ -896,6 +902,7 @@ def run(
     continue_on_error: bool = typer.Option(
         False, "--continue-on-error", help="Continue matrix run after a failure"
     ),
+    tag: Optional[str] = typer.Option(None, "--tag", help="Custom label appended to the result directory timestamp (1-30 chars, alphanumeric/hyphens)"),
     extra: Optional[List[str]] = typer.Option(None, "--extra", help="Extra vars (KEY=VAL, repeatable)"),
     extra_vars_file: Optional[str] = typer.Option(None, "--extra-vars-file", help="Load extra vars from YAML/JSON"),
     ansible_arg: Optional[List[str]] = typer.Option(None, "--ansible-arg", help="Raw ansible-playbook args (repeatable)"),
@@ -931,6 +938,7 @@ def run(
         vllm_bench_numa=vllm_bench_numa,
         continue_on_error=continue_on_error,
         max_seconds=max_seconds,
+        tag=tag,
         extra=extra,
         extra_vars_file=extra_vars_file,
         ansible_arg=ansible_arg,

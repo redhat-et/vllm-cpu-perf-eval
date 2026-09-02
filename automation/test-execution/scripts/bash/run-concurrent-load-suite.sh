@@ -116,6 +116,11 @@ GUIDELLM_NUMA_NODE=""
 TENSOR_PARALLEL=""
 VLLM_EXTRA_ARGS=""
 VLLM_EXTRA_ENV=""
+TAG=""
+
+sanitize_test_name() {
+    echo "$1" | sed 's/[^A-Za-z0-9-]/-/g' | sed 's/-\+/-/g' | sed 's/^-//;s/-$//'
+}
 
 # JSON-encode an ansible -e extra-var (handles quotes and special characters).
 ansible_extra_var() {
@@ -178,6 +183,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --vllm-env)
             VLLM_EXTRA_ENV="$2"
+            shift 2
+            ;;
+        --tag)
+            TAG="$2"
             shift 2
             ;;
         --continue-on-error)
@@ -345,6 +354,19 @@ for model in "${FINAL_MODELS[@]}"; do
             if [[ -n "${VLLM_EXTRA_ENV}" ]]; then
                 CMD+=(-e "$(ansible_extra_var vllm_extra_env_str "$VLLM_EXTRA_ENV")")
             fi
+
+            MODEL_SHORT=$(basename "${model}")
+            TEST_NAME=$(sanitize_test_name "${MODEL_SHORT}-${workload}-${cores}C")
+            if [[ -n "${TAG}" ]]; then
+                EFFECTIVE_TEST_NAME="$(sanitize_test_name "${TAG}")-${TEST_NAME}"
+            else
+                EFFECTIVE_TEST_NAME="${TEST_NAME}"
+            fi
+            if [[ ${#EFFECTIVE_TEST_NAME} -gt 100 ]]; then
+                echo "ERROR: test_name '${EFFECTIVE_TEST_NAME}' exceeds 100 chars (${#EFFECTIVE_TEST_NAME}). Shorten --tag." >&2
+                exit 1
+            fi
+            CMD+=(-e "test_name=${EFFECTIVE_TEST_NAME}")
 
             # Parallel instance overrides — set env vars to run multiple instances
             # simultaneously on the same host (each with its own container, port, NUMA nodes):
