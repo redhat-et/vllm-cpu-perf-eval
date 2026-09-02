@@ -75,6 +75,10 @@ fi
 
 cd "${REPO_ROOT}"
 
+# Point Ansible at the config file that sets roles_path and other defaults.
+# Without this, ansible-playbook run from repo root won't find ansible.cfg.
+export ANSIBLE_CONFIG="${REPO_ROOT}/automation/test-execution/ansible/ansible.cfg"
+
 # All models from model-matrix.yaml with test_suites: concurrent-load
 ALL_MODELS=(
     "meta-llama/Llama-3.2-1B-Instruct"

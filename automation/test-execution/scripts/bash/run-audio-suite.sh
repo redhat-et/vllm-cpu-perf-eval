@@ -72,6 +72,10 @@ done
 
 cd "${REPO_ROOT}"
 
+# Point Ansible at the config file that sets roles_path and other defaults.
+# Without this, ansible-playbook run from repo root won't find ansible.cfg.
+export ANSIBLE_CONFIG="${REPO_ROOT}/automation/test-execution/ansible/ansible.cfg"
+
 # Whisper models with non-empty test_scenarios
 ALL_MODELS=(
     "openai/whisper-tiny"

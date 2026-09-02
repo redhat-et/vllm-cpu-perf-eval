@@ -34,6 +34,10 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../../../.." && pwd)"
 # Ensure we're in the repo root
 cd "${REPO_ROOT}"
 
+# Point Ansible at the config file that sets roles_path and other defaults.
+# Without this, ansible-playbook run from repo root won't find ansible.cfg.
+export ANSIBLE_CONFIG="${REPO_ROOT}/automation/test-execution/ansible/ansible.cfg"
+
 if [ ! -f "automation/test-execution/ansible/llm-benchmark-offline-batch.yml" ]; then
     echo "ERROR: Not in repository root or structure has changed"
     echo "Expected file: automation/test-execution/ansible/llm-benchmark-offline-batch.yml"
