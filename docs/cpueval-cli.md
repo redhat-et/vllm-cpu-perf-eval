@@ -557,6 +557,22 @@ To list profiles available:
 
 **Precedence:** suite defaults → profile → CLI flags → --extra → --extra-vars-file
 
+### Runtime vLLM tuning
+
+Pass extra vLLM flags and env vars without editing workload YAML:
+
+```bash
+cpueval run concurrent-load \
+  --extra vllm_append_args="--stream-interval=20 --max-num-seqs=16" \
+  --extra vllm_extra_env_str="VLLM_V1_OUTPUT_PROC_CHUNK_SIZE=256"
+```
+
+**Limitations:**
+
+- CLI arg values with spaces must be quoted (shlex parsing)
+- Env var values cannot contain spaces
+- Extra CLI flags supersede matching workload YAML flags
+
 ### profiles - List CPU pinning profiles
 
 ```bash

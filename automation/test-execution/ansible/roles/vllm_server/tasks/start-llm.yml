@@ -394,7 +394,7 @@
       - "  KV Cache: {{ effective_kv_cache_space }} (VLLM_CPU_KVCACHE_SPACE={{ effective_kv_cache_space | extract_size_value }})"
       - "  OMP Threads: {{ core_cfg.omp_num_threads | default('auto') }}"
       - "  OMP Bind: {{ core_cfg.omp_threads_bind | default('auto') }}"
-      - "  Arguments: {{ vllm_args_merged | join(' ') }}"
+      - "  Arguments (flags only): {{ vllm_args_merged | select('match', '^--') | map('regex_replace', '=.*$', '') | list | join(' ') }}"
       - "  Max Model Len: {{ effective_max_model_len }} (required min: {{ required_min_len }})"
       - "  Env keys: {{ vllm_env_display_keys | join(', ') if (vllm_env_display_keys | length > 0) else '(none)' }}"
       - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

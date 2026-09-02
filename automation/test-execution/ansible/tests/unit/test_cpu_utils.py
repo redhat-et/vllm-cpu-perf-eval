@@ -5,6 +5,7 @@ Run with: python -m pytest test_cpu_utils.py -v
 Or without pytest: python3 test_cpu_utils.py
 """
 
+import re
 import sys
 from pathlib import Path
 
@@ -844,6 +845,23 @@ class TestVllmPassthroughFilters:
             "OMP_NUM_THREADS": "4",
         })
         assert keys == ["OMP_NUM_THREADS", "VLLM_CPU_KVCACHE_SPACE"]
+
+    def test_dedup_workload_flag_superseded_by_append_args(self):
+        """Workload flag is superseded; unmatched flag is kept.
+
+        Mirrors the Jinja2 dedup logic in
+        roles/vllm_server/tasks/start-llm.yml (task 'Append extra vLLM CLI
+        args (supersede matching workload flags)').
+        """
+        vllm_args_merged = ['--max-num-seqs=8', '--dtype=auto']
+        vllm_append_args = '--max-num-seqs=16'
+
+        append_list = shlex_split(vllm_append_args)
+        flag_names = [re.sub(r'=.*$', '', arg) for arg in append_list]
+        pattern = '^(' + '|'.join(re.escape(f) for f in flag_names) + ')(=.*)?$'
+        result = [a for a in vllm_args_merged if not re.match(pattern, a)] + append_list
+
+        assert result == ['--dtype=auto', '--max-num-seqs=16']
 
 
 if __name__ == "__main__":
