@@ -1,0 +1,447 @@
+---
+# ==============================================================================
+# LM Evaluation Harness Benchmark
+# ==============================================================================
+# Runs lm-eval accuracy tests (hellaswag, winogrande, arc, mmlu, …) against a
+# vLLM CPU server. Supports the same three execution modes as other playbooks:
+#
+#   managed  (default) vLLM on DUT, lm-eval container on load_generator
+#   dut-only           Both vLLM and lm-eval container on DUT
+#   external           lm-eval runs against a pre-existing vLLM endpoint
+#
+# Required variables:
+#   test_model          HuggingFace model ID (e.g. meta-llama/Llama-3.2-1B-Instruct)
+#   requested_cores     Core count to pin vLLM to (e.g. 16)
+#   lm_eval_tasks       Comma-separated lm-eval tasks (e.g. hellaswag,arc_easy)
+#
+# Optional variables:
+#   lm_eval_batch_size      Batch size for lm-eval (default: 16)
+#   lm_eval_dtype           Model dtype (default: bfloat16)
+#   lm_eval_kv_cache_space  KV cache in GiB (default: 40)
+#   lm_eval_max_model_len   Override max context length
+#   lm_eval_limit           Limit examples per task (e.g. 100 for quick runs)
+#   lm_eval_image           lm-eval container image
+#   vllm_cpus               Explicit CPU range (e.g. "0-31"); overrides requested_cores
+#   vllm_numa_node          NUMA memory node (default: 0)
+#   vllm_container_name     Override container name (for parallel runs)
+#
+# NOTE — local-completions vs instruct models:
+#   This playbook uses --model local-completions (hits /v1/completions). For the
+#   default task set (hellaswag, arc, winogrande), lm-eval scores via log-probs
+#   over answer choices, which does NOT apply a chat template. This is correct
+#   for both base and instruct models for these tasks. If you add chat-formatted
+#   or generation-based tasks (e.g. gsm8k with generate_until), switch to
+#   --model local-chat-completions and /v1/chat/completions so the model's chat
+#   template is applied. A future lm_eval_model_type variable could toggle this.
+# ==============================================================================
+
+- name: Initialize lm-eval benchmark run
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Set configuration variables
+      ansible.builtin.set_fact:
+        vllm_mode: "{{ lookup('env', 'VLLM_ENDPOINT_MODE') | default(vllm_endpoint.mode | default('managed'), true) }}"
+        test_model: "{{ lookup('env', 'TEST_MODEL') | default(test_model | default('meta-llama/Llama-3.2-1B-Instruct'), true) }}"
+        requested_cores: "{{ lookup('env', 'REQUESTED_CORES') | default(requested_cores | default(16), true) | int }}"
+        lm_eval_tasks: "{{ lm_eval_tasks | default('hellaswag,winogrande,arc_easy,arc_challenge') }}"
+        lm_eval_batch_size: "{{ lm_eval_batch_size | default(16) }}"
+        lm_eval_dtype: "{{ lm_eval_dtype | default('bfloat16') }}"
+        lm_eval_kv_cache_space: "{{ lm_eval_kv_cache_space | default(40) | int }}"
+        lm_eval_max_model_len: "{{ lm_eval_max_model_len | default('') }}"
+        lm_eval_limit: "{{ lm_eval_limit | default('') }}"
+        lm_eval_image: "{{ lm_eval_image | default('quay.io/vllm-cpu-perf-eval/lm-eval:latest') }}"
+
+    - name: Validate vLLM mode
+      ansible.builtin.assert:
+        that:
+          - vllm_mode in ['managed', 'dut-only', 'external']
+        fail_msg: |
+          Invalid vllm_mode: {{ vllm_mode }}
+          Supported: managed, dut-only, external
+          Set via: export VLLM_ENDPOINT_MODE=external
+
+    - name: Validate external endpoint configuration
+      ansible.builtin.assert:
+        that:
+          - vllm_endpoint.external.url is defined
+          - vllm_endpoint.external.url | length > 0
+        fail_msg: |
+          External mode requires vllm_endpoint.external.url
+          Set via: export VLLM_ENDPOINT_URL=http://your-vllm-host:8000
+      when: vllm_mode == 'external'
+
+    - name: Set platform for external mode
+      ansible.builtin.set_fact:
+        dut_platform_name: "external"
+        dut_platform_raw: "External vLLM Endpoint"
+      when: vllm_mode == 'external'
+
+    - name: Validate test_name format if provided
+      ansible.builtin.assert:
+        that:
+          - test_name | length >= 1
+          - test_name | length <= 30
+          - test_name is match('^[A-Za-z0-9-]+$')
+        fail_msg: "test_name must be 1-30 chars, alphanumeric or hyphens only, got: '{{ test_name }}'"
+      when:
+        - test_name is defined
+        - test_name | length > 0
+
+    - name: Generate test run ID
+      ansible.builtin.set_fact:
+        test_run_id: >-
+          {{ (test_name + '-') if (test_name is defined and test_name) else '' }}{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}
+
+    - name: Display test run information
+      ansible.builtin.debug:
+        msg:
+          - "Test Run ID:   {{ test_run_id }}"
+          - "vLLM Mode:     {{ vllm_mode }}"
+          - "Model:         {{ test_model }}"
+          - "Tasks:         {{ lm_eval_tasks }}"
+          - "Batch size:    {{ lm_eval_batch_size }}"
+          - "Dtype:         {{ lm_eval_dtype }}"
+          - "KV cache:      {{ lm_eval_kv_cache_space }}GiB"
+          - "Limit:         {{ lm_eval_limit if lm_eval_limit | length > 0 else 'none' }}"
+          - "lm-eval image: {{ lm_eval_image }}"
+
+# ==============================================================================
+# PHASE 1: Detect Platform and Start vLLM Server
+# ==============================================================================
+
+- name: "Phase 1a - Detect Platform"
+  hosts: dut
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: End play if external mode
+      ansible.builtin.meta: end_play
+      when: hostvars['localhost']['vllm_mode'] == 'external'
+
+    - name: Get CPU model name
+      ansible.builtin.shell: |
+        lscpu | grep -i '^Model name' | sed 's/^[Mm]odel name:[[:space:]]*//' | head -1
+      register: cpu_model_raw
+      changed_when: false
+
+    - name: Set and share sanitized platform name
+      ansible.builtin.set_fact:
+        dut_platform_name: "{{ cpu_model_raw.stdout | trim | regex_replace('[^a-zA-Z0-9]', '_') | regex_replace('_+', '_') | regex_replace('^_|_$', '') }}"
+        dut_platform_raw: "{{ cpu_model_raw.stdout | trim }}"
+      delegate_to: localhost
+      delegate_facts: true
+
+    - name: Display detected platform
+      ansible.builtin.debug:
+        msg: "Platform: {{ cpu_model_raw.stdout | trim }}"
+
+- name: "Phase 1b - Start vLLM LLM Server"
+  ansible.builtin.import_playbook: common/vllm-llm-startup.yml
+
+# ==============================================================================
+# PHASE 2: Health Check - Wait for vLLM to be Ready
+# ==============================================================================
+
+- name: "Phase 2a - Health Check (DUT-only mode)"
+  hosts: dut
+  gather_facts: false
+  tasks:
+    - name: End play if not dut-only mode
+      ansible.builtin.meta: end_play
+      when: hostvars['localhost']['vllm_mode'] != 'dut-only'
+
+    - name: Override vllm_host for dut-only
+      ansible.builtin.set_fact:
+        bench_config: "{{ bench_config | combine({'vllm_host': 'localhost'}) }}"
+
+    - name: Run vLLM health check
+      ansible.builtin.include_role:
+        name: common
+        tasks_from: vllm-health-check
+
+- name: "Phase 2b - Health Check (Managed/External modes)"
+  hosts: load_generator
+  gather_facts: false
+  tasks:
+    - name: End play if dut-only mode
+      ansible.builtin.meta: end_play
+      when: hostvars['localhost']['vllm_mode'] == 'dut-only'
+
+    - name: Parse external endpoint URL
+      ansible.builtin.set_fact:
+        _ext_parsed: "{{ vllm_endpoint.external.url | urlsplit }}"
+      when: hostvars['localhost']['vllm_mode'] == 'external'
+
+    - name: Override bench_config for external mode
+      ansible.builtin.set_fact:
+        bench_config: "{{ bench_config | combine({'vllm_host': _ext_parsed.hostname, 'vllm_port': _ext_parsed.port | default(8000) | int}) }}"
+      when: hostvars['localhost']['vllm_mode'] == 'external'
+
+    - name: Run vLLM health check
+      ansible.builtin.include_role:
+        name: common
+        tasks_from: vllm-health-check
+
+# ==============================================================================
+# PHASE 3: Run lm-eval Container (DUT-only mode)
+# ==============================================================================
+
+- name: "Phase 3a - Run lm-eval (DUT-only mode)"
+  hosts: dut
+  become: true
+  vars:
+    model_name: "{{ hostvars['localhost']['test_model'] }}"
+    test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
+    results_base: "{{ bench_config.results_dir }}/lm-eval/{{ model_name | replace('/', '__') }}/{{ test_run_id }}"
+
+  tasks:
+    - name: End play if not dut-only mode
+      ansible.builtin.meta: end_play
+      when: hostvars['localhost']['vllm_mode'] != 'dut-only'
+
+    - name: Get SSH user home directory
+      ansible.builtin.shell: "echo ~{{ ansible_user }}"
+      register: ssh_user_home
+      changed_when: false
+      become: false
+
+    - name: Expand tilde in results path
+      ansible.builtin.set_fact:
+        results_base_expanded: "{{ results_base | regex_replace('^~', ssh_user_home.stdout) }}"
+
+    - name: Create results directory
+      ansible.builtin.file:
+        path: "{{ results_base_expanded }}"
+        state: directory
+        mode: "0755"
+        recurse: true
+
+    - name: Build lm-eval model_args
+      ansible.builtin.set_fact:
+        _lm_eval_model_args: >-
+          model={{ model_name }},base_url=http://localhost:{{ bench_config.vllm_port | default(8000) }}/v1/completions,tokenizer={{ model_name }}
+
+    - name: Build lm-eval command
+      ansible.builtin.set_fact:
+        _lm_eval_cmd:
+          - "--model"
+          - "local-completions"
+          - "--model_args"
+          - "{{ _lm_eval_model_args }}"
+          - "--tasks"
+          - "{{ hostvars['localhost']['lm_eval_tasks'] }}"
+          - "--batch_size"
+          - "{{ hostvars['localhost']['lm_eval_batch_size'] | string }}"
+          - "--output_path"
+          - "/results"
+
+    - name: Append --limit if set
+      ansible.builtin.set_fact:
+        _lm_eval_cmd: "{{ _lm_eval_cmd + ['--limit', hostvars['localhost']['lm_eval_limit'] | string] }}"
+      when: hostvars['localhost']['lm_eval_limit'] | length > 0
+
+    - name: Run lm-eval container (dut-only)
+      containers.podman.podman_container:
+        name: "lm-eval-{{ hostvars['localhost']['test_run_id'] }}"
+        image: "{{ hostvars['localhost']['lm_eval_image'] }}"
+        state: started
+        detach: false
+        rm: true
+        network: host
+        volumes:
+          - "{{ results_base_expanded }}:/results:z"
+        env:
+          HF_TOKEN: "{{ lookup('env', 'HF_TOKEN') | default(hf_token | default(''), true) }}"
+        command: "{{ _lm_eval_cmd }}"
+
+# ==============================================================================
+# PHASE 3: Run lm-eval Container (Managed/External modes)
+# ==============================================================================
+
+- name: "Phase 3b - Run lm-eval (Managed/External modes)"
+  hosts: load_generator
+  become: true
+  vars:
+    model_name: "{{ hostvars['localhost']['test_model'] }}"
+    test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
+    results_base: "{{ bench_config.results_dir }}/lm-eval/{{ model_name | replace('/', '__') }}/{{ test_run_id }}"
+
+  tasks:
+    - name: End play if dut-only mode
+      ansible.builtin.meta: end_play
+      when: hostvars['localhost']['vllm_mode'] == 'dut-only'
+
+    - name: Get SSH user home directory
+      ansible.builtin.shell: "echo ~{{ ansible_user }}"
+      register: ssh_user_home
+      changed_when: false
+      become: false
+
+    - name: Expand tilde in results path
+      ansible.builtin.set_fact:
+        results_base_expanded: "{{ results_base | regex_replace('^~', ssh_user_home.stdout) }}"
+
+    - name: Override bench_config host for external mode
+      ansible.builtin.set_fact:
+        _vllm_host: "{{ bench_config.vllm_host }}"
+        _vllm_port: "{{ bench_config.vllm_port | default(8000) }}"
+
+    - name: Create results directory
+      ansible.builtin.file:
+        path: "{{ results_base_expanded }}"
+        state: directory
+        mode: "0755"
+        recurse: true
+
+    - name: Build lm-eval model_args
+      ansible.builtin.set_fact:
+        _lm_eval_model_args: >-
+          model={{ model_name }},base_url=http://{{ _vllm_host }}:{{ _vllm_port }}/v1/completions,tokenizer={{ model_name }}
+
+    - name: Build lm-eval command
+      ansible.builtin.set_fact:
+        _lm_eval_cmd:
+          - "--model"
+          - "local-completions"
+          - "--model_args"
+          - "{{ _lm_eval_model_args }}"
+          - "--tasks"
+          - "{{ hostvars['localhost']['lm_eval_tasks'] }}"
+          - "--batch_size"
+          - "{{ hostvars['localhost']['lm_eval_batch_size'] | string }}"
+          - "--output_path"
+          - "/results"
+
+    - name: Append --limit if set
+      ansible.builtin.set_fact:
+        _lm_eval_cmd: "{{ _lm_eval_cmd + ['--limit', hostvars['localhost']['lm_eval_limit'] | string] }}"
+      when: hostvars['localhost']['lm_eval_limit'] | length > 0
+
+    - name: Run lm-eval container (managed/external)
+      containers.podman.podman_container:
+        name: "lm-eval-{{ hostvars['localhost']['test_run_id'] }}"
+        image: "{{ hostvars['localhost']['lm_eval_image'] }}"
+        state: started
+        detach: false
+        rm: true
+        network: host
+        volumes:
+          - "{{ results_base_expanded }}:/results:z"
+        env:
+          HF_TOKEN: "{{ lookup('env', 'HF_TOKEN') | default(hf_token | default(''), true) }}"
+        command: "{{ _lm_eval_cmd }}"
+
+# ==============================================================================
+# PHASE 4: Collect Results and Write Metadata
+# ==============================================================================
+
+- name: "Phase 4a - Fetch Results (DUT-only mode)"
+  hosts: dut
+  gather_facts: false
+  vars:
+    test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
+    model_name: "{{ hostvars['localhost']['test_model'] }}"
+
+  tasks:
+    - name: End play if not dut-only mode
+      ansible.builtin.meta: end_play
+      when: hostvars['localhost']['vllm_mode'] != 'dut-only'
+
+    - name: Ensure local results directory exists
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/../../../results/lm-eval/{{ model_name | replace('/', '__') }}/{{ test_run_id }}"
+        state: directory
+        mode: "0755"
+      delegate_to: localhost
+
+    - name: Fetch results to local machine
+      ansible.posix.synchronize:
+        src: "{{ bench_config.results_dir }}/lm-eval/{{ model_name | replace('/', '__') }}/{{ test_run_id }}/"
+        dest: "{{ playbook_dir }}/../../../results/lm-eval/{{ model_name | replace('/', '__') }}/{{ test_run_id }}/"
+        mode: pull
+        recursive: true
+
+- name: "Phase 4b - Fetch Results (Managed/External modes)"
+  hosts: load_generator
+  gather_facts: false
+  vars:
+    test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
+    model_name: "{{ hostvars['localhost']['test_model'] }}"
+
+  tasks:
+    - name: End play if dut-only mode
+      ansible.builtin.meta: end_play
+      when: hostvars['localhost']['vllm_mode'] == 'dut-only'
+
+    - name: Ensure local results directory exists
+      ansible.builtin.file:
+        path: "{{ playbook_dir }}/../../../results/lm-eval/{{ model_name | replace('/', '__') }}/{{ test_run_id }}"
+        state: directory
+        mode: "0755"
+      delegate_to: localhost
+
+    - name: Fetch results to local machine
+      ansible.posix.synchronize:
+        src: "{{ bench_config.results_dir }}/lm-eval/{{ model_name | replace('/', '__') }}/{{ test_run_id }}/"
+        dest: "{{ playbook_dir }}/../../../results/lm-eval/{{ model_name | replace('/', '__') }}/{{ test_run_id }}/"
+        mode: pull
+        recursive: true
+
+- name: "Phase 4c - Write Metadata"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
+    model_name: "{{ hostvars['localhost']['test_model'] }}"
+
+  tasks:
+    - name: Write test-metadata.json
+      ansible.builtin.copy:
+        content: |
+          {
+            "test_run_id": "{{ test_run_id }}",
+            "test_name": "{{ test_name | default('') }}",
+            "model": "{{ model_name }}",
+            "platform": "{{ dut_platform_name | default('unknown') }}",
+            "vllm_version": "{{ vllm_version | default('unknown') }}",
+            "tasks": "{{ lm_eval_tasks }}",
+            "batch_size": {{ lm_eval_batch_size | int }},
+            "dtype": "{{ lm_eval_dtype }}",
+            "kv_cache_space_gib": {{ lm_eval_kv_cache_space | int }},
+            "max_model_len": "{{ lm_eval_max_model_len if lm_eval_max_model_len | length > 0 else 'model default' }}",
+            "limit": "{{ lm_eval_limit if lm_eval_limit | length > 0 else 'none' }}",
+            "vllm_mode": "{{ vllm_mode }}",
+            "lm_eval_image": "{{ lm_eval_image }}",
+            "requested_cores": {{ requested_cores | int }},
+            "timestamp": "{{ lookup('pipe', 'date -Iseconds') }}"
+          }
+        dest: "{{ playbook_dir }}/../../../results/lm-eval/{{ model_name | replace('/', '__') }}/{{ test_run_id }}/test-metadata.json"
+
+- name: "Phase 4d - Collect Logs from DUT"
+  hosts: dut
+  become: true
+  vars:
+    test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
+    model_name: "{{ hostvars['localhost']['test_model'] }}"
+
+  tasks:
+    - name: End play if external mode
+      ansible.builtin.meta: end_play
+      when: hostvars['localhost']['vllm_mode'] == 'external'
+
+    - name: Collect vLLM server logs
+      ansible.builtin.include_role:
+        name: results_collector
+      vars:
+        log_collection_dest: "{{ playbook_dir }}/../../../results/lm-eval/{{ model_name | replace('/', '__') }}/{{ test_run_id }}/"
+        journald_identifier: "{{ vllm_container_name | default('vllm-server') }}"
+        log_filename_prefix: "vllm-server"
+
+# ==============================================================================
+# PHASE 5: Cleanup
+# ==============================================================================
+
+- name: "Phase 5 - Cleanup vLLM Server"
+  ansible.builtin.import_playbook: common/vllm-llm-cleanup.yml

@@ -29,9 +29,9 @@
 #   --guidellm-cpus RANGE   CPU range for GuideLLM (e.g., 0-31)
 #   --guidellm-numa-node NUM NUMA node for GuideLLM
 #   --tensor-parallel NUM   Tensor parallel size (1, 2, 4, or 8)
-#   --vllm-args ARGS        Extra vLLM CLI flags (e.g. "--stream-interval=20 --max-num-seqs=16")
-#   --vllm-env VARS         Extra vLLM container env vars, space-separated KEY=VALUE pairs
-#                           (e.g. "VLLM_V1_OUTPUT_PROC_CHUNK_SIZE=256")
+#   --vllm-args ARGS        Extra vLLM CLI flags (space-separated; quote values with spaces)
+#   --vllm-env VARS         Extra vLLM container env vars as space-separated KEY=VALUE pairs
+#                           (values cannot contain spaces; e.g. "VLLM_V1_OUTPUT_PROC_CHUNK_SIZE=256")
 #   --continue-on-error     Continue testing if a model/workload fails
 #   --dry-run               Show what would run without executing
 #   -h, --help              Show this help
@@ -116,6 +116,11 @@ GUIDELLM_NUMA_NODE=""
 TENSOR_PARALLEL=""
 VLLM_EXTRA_ARGS=""
 VLLM_EXTRA_ENV=""
+
+# JSON-encode an ansible -e extra-var (handles quotes and special characters).
+ansible_extra_var() {
+    python3 -c 'import json, sys; print(json.dumps({sys.argv[1]: sys.argv[2]}))' "$1" "$2"
+}
 
 show_help() {
     sed -n '/^# ===/,/^set -/p' "$0" | sed '$d' | sed '1,3d;$d' | sed 's/^# //; s/^#//'
@@ -335,10 +340,10 @@ for model in "${FINAL_MODELS[@]}"; do
                 CMD+=(-e "requested_tensor_parallel=${TENSOR_PARALLEL}")
             fi
             if [[ -n "${VLLM_EXTRA_ARGS}" ]]; then
-                CMD+=(-e "vllm_append_args=${VLLM_EXTRA_ARGS}")
+                CMD+=(-e "$(ansible_extra_var vllm_append_args "$VLLM_EXTRA_ARGS")")
             fi
             if [[ -n "${VLLM_EXTRA_ENV}" ]]; then
-                CMD+=(-e "vllm_extra_env_str=${VLLM_EXTRA_ENV}")
+                CMD+=(-e "$(ansible_extra_var vllm_extra_env_str "$VLLM_EXTRA_ENV")")
             fi
 
             # Parallel instance overrides — set env vars to run multiple instances

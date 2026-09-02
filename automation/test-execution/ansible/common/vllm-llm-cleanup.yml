@@ -1,0 +1,72 @@
+---
+# ===========================================================================
+# Common: Cleanup vLLM LLM Server (lm-eval mode)
+# ===========================================================================
+# Stops and removes the vLLM container started by vllm-llm-startup.yml.
+# Skipped in external mode (we don't own the server).
+#
+# Expected variables from calling playbook (set on localhost):
+#   - vllm_mode: managed|dut-only|external
+# ===========================================================================
+
+- name: "Cleanup vLLM LLM Server"
+  hosts: dut
+  become: true
+  gather_facts: false
+  vars:
+    vllm_mode: "{{ hostvars['localhost']['vllm_mode'] }}"
+    vllm_container_name: "{{ hostvars['localhost']['vllm_container_name'] | default('vllm-server') }}"
+
+  tasks:
+    - name: Check if cleanup needed
+      ansible.builtin.set_fact:
+        skip_cleanup: "{{ vllm_mode == 'external' }}"
+
+    - name: End play if external mode
+      ansible.builtin.meta: end_play
+      when: skip_cleanup | bool
+
+    - name: Check if vLLM container exists
+      ansible.builtin.command:
+        cmd: podman ps -a --filter name=^{{ vllm_container_name }}$ --format json
+      register: container_check
+      changed_when: false
+      failed_when: false
+      when:
+        - vllm_mode in ['managed', 'dut-only']
+        - container_runtime.engine == 'podman'
+
+    - name: Parse container check result
+      ansible.builtin.set_fact:
+        container_exists: >-
+          {{ (container_check.stdout | from_json | length > 0)
+             if (container_check.stdout is defined and container_check.stdout | length > 0)
+             else false }}
+      when:
+        - vllm_mode in ['managed', 'dut-only']
+        - container_runtime.engine == 'podman'
+
+    - name: Stop and remove vLLM container
+      containers.podman.podman_container:
+        name: "{{ vllm_container_name }}"
+        state: absent
+      when:
+        - vllm_mode in ['managed', 'dut-only']
+        - container_runtime.engine == 'podman'
+        - container_exists | default(false) | bool
+      register: cleanup_result
+
+    - name: Display cleanup status
+      ansible.builtin.debug:
+        msg: "✓ vLLM server stopped and removed"
+      when:
+        - cleanup_result is defined
+        - cleanup_result is succeeded
+        - container_exists | default(false) | bool
+
+    - name: Display cleanup status (already gone)
+      ansible.builtin.debug:
+        msg: "✓ vLLM server already stopped (container not found)"
+      when:
+        - vllm_mode in ['managed', 'dut-only']
+        - not (container_exists | default(false) | bool)

@@ -53,6 +53,9 @@ from cpu_utils import (  # noqa: E402
     extract_numa_nodes,
     merge_cpu_ranges,
     allocate_cores_multi_numa,
+    shlex_split,
+    parse_env_pairs,
+    redact_env_keys,
     VALID_TP_VALUES,
 )
 
@@ -807,6 +810,40 @@ class TestVllmNumaNodesFiltering:
         if node_ids:
             vllm_numa_node_value = None
         assert vllm_numa_node_value == 2
+
+
+class TestVllmPassthroughFilters:
+    """Tests for vLLM extra-args/env parsing filters."""
+
+    def test_shlex_split_handles_quoted_values(self):
+        assert shlex_split('--foo="bar baz" --max-num-seqs=16') == [
+            '--foo=bar baz',
+            '--max-num-seqs=16',
+        ]
+
+    def test_shlex_split_empty_input(self):
+        assert shlex_split("") == []
+        assert shlex_split(None) == []
+
+    def test_parse_env_pairs_basic(self):
+        assert parse_env_pairs(
+            "VLLM_V1_OUTPUT_PROC_CHUNK_SIZE=256 OMP_NUM_THREADS=4"
+        ) == {
+            "VLLM_V1_OUTPUT_PROC_CHUNK_SIZE": "256",
+            "OMP_NUM_THREADS": "4",
+        }
+
+    def test_parse_env_pairs_skips_invalid_tokens(self):
+        assert parse_env_pairs("VALID=1 invalid NOEQUALS") == {"VALID": "1"}
+
+    def test_redact_env_keys_hides_secrets(self):
+        keys = redact_env_keys({
+            "VLLM_CPU_KVCACHE_SPACE": "40",
+            "HF_TOKEN": "hf_test_value",  # pragma: allowlist secret
+            "MY_API_KEY": "test_key_value",  # pragma: allowlist secret
+            "OMP_NUM_THREADS": "4",
+        })
+        assert keys == ["OMP_NUM_THREADS", "VLLM_CPU_KVCACHE_SPACE"]
 
 
 if __name__ == "__main__":

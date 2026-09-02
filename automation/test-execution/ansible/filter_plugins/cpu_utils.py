@@ -5,6 +5,7 @@ Replaces awk/shell scripts with native Python for better maintainability.
 """
 
 import re
+import shlex
 from dataclasses import dataclass
 from collections import defaultdict
 from typing import List, Set, Dict, Optional, Union, Sequence
@@ -833,6 +834,45 @@ def calculate_valid_allocations(available_nodes):
     valid_sorted = sorted(valid, key=lambda x: int(x.split()[0]))
     return ', '.join(valid_sorted[:10])
 
+
+def shlex_split(value: str) -> List[str]:
+    """Split a shell-style argument string into tokens (supports quoted values)."""
+    if not value or not isinstance(value, str):
+        return []
+    return shlex.split(value)
+
+
+def parse_env_pairs(env_str: str) -> Dict[str, str]:
+    """Parse space-separated KEY=VALUE pairs. Values cannot contain spaces."""
+    if not env_str or not isinstance(env_str, str):
+        return {}
+
+    result: Dict[str, str] = {}
+    for item in env_str.split():
+        if not item or '=' not in item:
+            continue
+        key, _, value = item.partition('=')
+        if key:
+            result[key] = value
+    return result
+
+
+_SECRET_ENV_KEY_PATTERN = re.compile(
+    r'(token|secret|password|api[_-]?key)', re.IGNORECASE
+)
+
+
+def redact_env_keys(env_vars: Dict[str, str]) -> List[str]:
+    """Return sorted env var names safe to display (excludes secret-like keys)."""
+    if not env_vars or not isinstance(env_vars, dict):
+        return []
+
+    return sorted(
+        key for key in env_vars
+        if key and not _SECRET_ENV_KEY_PATTERN.search(key)
+    )
+
+
 class FilterModule:
     """Ansible filter plugin registration."""
     def filters(self):
@@ -844,4 +884,7 @@ class FilterModule:
             'merge_cpu_ranges': merge_cpu_ranges,
             'extract_size_value': extract_size_value,
             'allocate_cores_multi_numa': allocate_cores_multi_numa,
+            'shlex_split': shlex_split,
+            'parse_env_pairs': parse_env_pairs,
+            'redact_env_keys': redact_env_keys,
         }

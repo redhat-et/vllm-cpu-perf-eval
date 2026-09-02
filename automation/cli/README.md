@@ -353,6 +353,13 @@ Model presets: `all` | `llama` | `qwen` | `tiny`
   --extra vllm_cpu_start=64 \
   --extra vllm_numa_node=1
 
+# Tune vLLM at runtime without editing workload YAML
+./cpueval --suite concurrent-load \
+  --model meta-llama/Llama-3.2-1B-Instruct \
+  --cores 32 \
+  --extra vllm_append_args="--stream-interval=20 --max-num-seqs=16" \
+  --extra vllm_extra_env_str="VLLM_V1_OUTPUT_PROC_CHUNK_SIZE=256"
+
 # Or from a file
 ./cpueval --suite concurrent-load \
   --model meta-llama/Llama-3.2-1B-Instruct \

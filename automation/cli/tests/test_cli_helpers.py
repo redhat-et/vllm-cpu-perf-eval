@@ -74,6 +74,38 @@ def test_build_script_args_vllm_cpus_mapping():
     assert args == ["--vllm-cpus", "64-95"]
 
 
+def test_build_script_args_vllm_append_args_mapping():
+    """vllm_append_args is forwarded as --vllm-args with the full value."""
+    suite = SuiteRegistry().get_suite("concurrent-load")
+    assert suite is not None
+
+    args = _build_script_args(
+        suite,
+        {"vllm_append_args": "--stream-interval=20 --max-num-seqs=16"},
+    )
+
+    assert args == [
+        "--vllm-args",
+        "--stream-interval=20 --max-num-seqs=16",
+    ]
+
+
+def test_build_script_args_vllm_extra_env_mapping():
+    """vllm_extra_env_str is forwarded as --vllm-env."""
+    suite = SuiteRegistry().get_suite("concurrent-load")
+    assert suite is not None
+
+    args = _build_script_args(
+        suite,
+        {"vllm_extra_env_str": "VLLM_V1_OUTPUT_PROC_CHUNK_SIZE=256"},
+    )
+
+    assert args == [
+        "--vllm-env",
+        "VLLM_V1_OUTPUT_PROC_CHUNK_SIZE=256",
+    ]
+
+
 def test_build_script_args_preserves_existing_dash_prefix():
     """Mappings that already include -- are left unchanged."""
     suite = SuiteRegistry().get_suite("concurrent-load")

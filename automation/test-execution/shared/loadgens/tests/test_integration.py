@@ -184,6 +184,7 @@ class TestGuideLLMLoadGen:
     def test_supports_workload_generative(self, loadgen):
         """Test workload support for generative workloads."""
         assert loadgen.supports_workload("chat") is True
+        assert loadgen.supports_workload("chat_lite") is True
         assert loadgen.supports_workload("rag") is True
         assert loadgen.supports_workload("code") is True
         assert loadgen.supports_workload("summarization") is True

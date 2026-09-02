@@ -224,12 +224,35 @@
     vllm_args_merged: "{{ vllm_base_args }}"
   when: vllm_caching_mode is not defined or caching_cfg is not defined
 
-- name: Append extra vLLM CLI args if provided via vllm_append_args
+- name: Parse extra vLLM CLI args if provided via vllm_append_args
   ansible.builtin.set_fact:
-    vllm_args_merged: "{{ vllm_args_merged + (vllm_append_args.split() | list) }}"
+    vllm_append_args_list: "{{ vllm_append_args | shlex_split }}"
   when:
     - vllm_append_args is defined
     - vllm_append_args | length > 0
+
+- name: Extract flag names from extra vLLM CLI args
+  ansible.builtin.set_fact:
+    vllm_append_flag_names: "{{ vllm_append_args_list | map('regex_replace', '=.*$', '') | list }}"
+  when:
+    - vllm_append_args_list is defined
+    - vllm_append_args_list | length > 0
+
+- name: Append extra vLLM CLI args (supersede matching workload flags)
+  ansible.builtin.set_fact:
+    vllm_args_merged: >-
+      {{
+        vllm_args_merged
+        | reject(
+            'match',
+            '^(' + (vllm_append_flag_names | map('regex_escape') | join('|')) + ')(=.*)?$'
+          )
+        | list
+        + vllm_append_args_list
+      }}
+  when:
+    - vllm_append_args_list is defined
+    - vllm_append_args_list | length > 0
 
 - name: Try backend abstraction for command generation (optional)
   block:
@@ -330,6 +353,25 @@
     state: present
   when: container_cfg.engine == 'podman'
 
+- name: Merge backend environment variables if backend abstraction was used
+  ansible.builtin.set_fact:
+    vllm_env_vars: "{{ vllm_env_vars | combine(backend_env) }}"
+  when:
+    - backend_abstraction_used | default(false)
+    - backend_env is defined
+  no_log: true  # backend_env may contain secrets
+
+- name: Merge extra vLLM env vars if provided via vllm_extra_env_str (KEY=VALUE space-separated)
+  ansible.builtin.set_fact:
+    vllm_env_vars: "{{ vllm_env_vars | combine(vllm_extra_env_str | parse_env_pairs) }}"
+  when:
+    - vllm_extra_env_str is defined
+    - vllm_extra_env_str | length > 0
+
+- name: Build displayable vLLM environment variable keys
+  ansible.builtin.set_fact:
+    vllm_env_display_keys: "{{ vllm_env_vars | redact_env_keys }}"
+
 - name: Display vLLM configuration
   ansible.builtin.debug:
     msg:
@@ -354,6 +396,7 @@
       - "  OMP Bind: {{ core_cfg.omp_threads_bind | default('auto') }}"
       - "  Arguments: {{ vllm_args_merged | join(' ') }}"
       - "  Max Model Len: {{ effective_max_model_len }} (required min: {{ required_min_len }})"
+      - "  Env keys: {{ vllm_env_display_keys | join(', ') if (vllm_env_display_keys | length > 0) else '(none)' }}"
       - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 - name: Detect AMD ZenDNN container
@@ -371,27 +414,6 @@
       - "Thread Affinity: VLLM_CPU_OMP_THREADS_BIND={{ core_cfg.cpuset_cpus }}"
       - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
   when: is_zendnn_container
-
-- name: Merge backend environment variables if backend abstraction was used
-  ansible.builtin.set_fact:
-    vllm_env_vars: "{{ vllm_env_vars | combine(backend_env) }}"
-  when:
-    - backend_abstraction_used | default(false)
-    - backend_env is defined
-  no_log: true  # backend_env may contain secrets
-
-- name: Merge extra vLLM env vars if provided via vllm_extra_env_str (KEY=VALUE space-separated)
-  ansible.builtin.set_fact:
-    vllm_env_vars: >-
-      {{
-        vllm_env_vars | combine(
-          {(item | regex_replace('=.*$', '')): (item | regex_replace('^[^=]+=', ''))}
-        )
-      }}
-  loop: "{{ vllm_extra_env_str.split() }}"
-  when:
-    - vllm_extra_env_str is defined
-    - vllm_extra_env_str | length > 0
 
 - name: Start vLLM LLM server
   containers.podman.podman_container:

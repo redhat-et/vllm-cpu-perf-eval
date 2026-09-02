@@ -1,0 +1,26 @@
+name: lm-eval
+description: LM Evaluation Harness accuracy tests against vLLM CPU (hellaswag, winogrande, arc, mmlu, ...)
+runner: script
+target: automation/test-execution/scripts/bash/run-lm-eval-suite.sh
+matrix: true
+
+defaults:
+  models: all
+  cores: "8,16,32"
+  tasks: "hellaswag,winogrande,arc_easy,arc_challenge"
+  batch_size: "16"
+  dtype: "bfloat16"
+
+param_mappings:
+  models: --models
+  model: --models
+  cores: --cores
+  tasks: --tasks
+  batch_size: --batch-size
+  dtype: --dtype
+  limit: --limit
+  max_model_len: --max-model-len
+  kv_cache_space: --kv-cache-space
+  lm_eval_image: --lm-eval-image
+  continue_on_error: continue-on-error
+  tag: tag
