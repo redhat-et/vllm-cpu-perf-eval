@@ -17,6 +17,11 @@ _LEGACY_AUDIO_RESULTS_DIRS = {
     "../../../../../results/audio-models",
     "results/audio-models",
 }
+_LEGACY_LM_EVAL_RESULTS_DIRS = {
+    "../../../../results/lm-eval",
+    "../../../../../results/lm-eval",
+    "results/lm-eval",
+}
 
 
 def _dashboard_dir() -> Path:
@@ -24,7 +29,8 @@ def _dashboard_dir() -> Path:
 
 
 def _repo_root() -> Path:
-    # vllm_dashboard -> dashboard-examples -> test-execution -> automation -> repo
+    # vllm_dashboard -> dashboard-examples -> test-execution
+    # -> automation -> repo
     return _dashboard_dir().parent.parent.parent.parent
 
 
@@ -34,6 +40,10 @@ def default_llm_results_dir() -> str:
 
 def default_audio_results_dir() -> str:
     return str(_repo_root() / "results" / "audio-models")
+
+
+def default_lm_eval_results_dir() -> str:
+    return str(_repo_root() / "results" / "lm-eval")
 
 
 def resolve_results_path(path: str) -> str:
@@ -152,8 +162,41 @@ class DashboardConfig:
         if 'Paths' not in self.config:
             self.config['Paths'] = {}
 
-        self.config['Paths']['audio_results_directory'] = resolve_results_path(path)
+        self.config['Paths']['audio_results_directory'] = (
+            resolve_results_path(path)
+        )
         self._save_config()
+
+    def get_lm_eval_results_directory(self):
+        """Get configured lm-eval results directory path."""
+        env_path = os.getenv('VLLM_DASHBOARD_LM_EVAL_RESULTS_DIR')
+        if env_path:
+            return resolve_results_path(env_path)
+
+        if 'Paths' in self.config:
+            stored = self.config['Paths'].get(
+                'lm_eval_results_directory',
+                default_lm_eval_results_dir(),
+            )
+        else:
+            stored = default_lm_eval_results_dir()
+
+        return self._normalize_results_path(
+            stored,
+            _LEGACY_LM_EVAL_RESULTS_DIRS,
+            default_lm_eval_results_dir(),
+        )
+
+    def set_lm_eval_results_directory(self, path: str):
+        """Set and persist lm-eval results directory path."""
+        if 'Paths' not in self.config:
+            self.config['Paths'] = {}
+
+        self.config['Paths']['lm_eval_results_directory'] = (
+            resolve_results_path(path)
+        )
+        self._save_config()
+
 
 def normalize_vllm_version(version_string):
     """Normalize vLLM version for display.
