@@ -21,8 +21,7 @@ from cpueval.results import (
     run_dashboard_command,
     run_dashboard_stop_command,
     save_last_run_hint,
-    find_latest_result,
-    find_latest_embedding_result,
+    find_latest_suite_result,
 )
 from cpueval.install import run_install
 from cpueval.offline_batch import build_offline_batch_args
@@ -460,9 +459,7 @@ def _execute_suite(
 
         # Save last run hint on success (skip for dry-run)
         if exit_code == 0 and not dry_run:
-            result_dir = find_latest_result(
-                model=model, audio="audio" in suite
-            )
+            result_dir = find_latest_suite_result(suite, model=model)
             save_last_run_hint(suite, model, result_dir)
 
             if result_dir:
@@ -502,13 +499,7 @@ def _execute_suite(
                 or suite
             )
             result_model = _result_model_hint(model, models, final_vars)
-            if "embedding" in suite:
-                result_dir = find_latest_embedding_result(model=result_model)
-            else:
-                result_dir = find_latest_result(
-                    model=result_model,
-                    audio="audio" in suite,
-                )
+            result_dir = find_latest_suite_result(suite, model=result_model)
             save_last_run_hint(suite, model_hint, result_dir)
 
             if result_dir:

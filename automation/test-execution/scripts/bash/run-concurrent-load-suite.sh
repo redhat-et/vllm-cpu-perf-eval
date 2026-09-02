@@ -32,6 +32,8 @@
 #   --vllm-args ARGS        Extra vLLM CLI flags (space-separated; quote values with spaces)
 #   --vllm-env VARS         Extra vLLM container env vars as space-separated KEY=VALUE pairs
 #                           (values cannot contain spaces; e.g. "VLLM_V1_OUTPUT_PROC_CHUNK_SIZE=256")
+#   --tag LABEL             Custom label combined with auto-generated name for result run ID
+#                             (prepended: LABEL-MODEL-WORKLOAD-COREC; combined max 100 chars)
 #   --continue-on-error     Continue testing if a model/workload fails
 #   --dry-run               Show what would run without executing
 #   -h, --help              Show this help

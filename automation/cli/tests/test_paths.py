@@ -3,7 +3,12 @@
 import pytest
 from pathlib import Path
 
-from cpueval.paths import find_latest_result, find_latest_embedding_result
+from cpueval.paths import (
+    find_latest_result,
+    find_latest_embedding_result,
+    find_latest_lm_eval_result,
+    find_latest_suite_result,
+)
 
 
 def _make_llm_result(base: Path, model: str, run: str) -> Path:
@@ -17,6 +22,14 @@ def _make_llm_result(base: Path, model: str, run: str) -> Path:
 def _make_embedding_result(base: Path, model: str, run: str) -> Path:
     """Create a fake embedding result dir with test-metadata.json."""
     d = base / "embedding" / model / run
+    d.mkdir(parents=True)
+    (d / "test-metadata.json").write_text("{}")
+    return d
+
+
+def _make_lm_eval_result(base: Path, model: str, run: str) -> Path:
+    """Create a fake lm-eval result dir with test-metadata.json."""
+    d = base / "lm-eval" / model / run
     d.mkdir(parents=True)
     (d / "test-metadata.json").write_text("{}")
     return d
@@ -98,3 +111,61 @@ def test_embedding_suite_does_not_fall_back_to_llm(tmp_path):
         paths_mod.get_llm_results_dir = orig_llm
 
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# find_latest_lm_eval_result
+# ---------------------------------------------------------------------------
+
+def test_find_latest_lm_eval_result_basic(tmp_path):
+    """Returns the most-recently modified lm-eval result dir."""
+    _make_lm_eval_result(tmp_path, "meta-llama__Llama-3-2-1B-Instruct", "run-8C")
+    latest = _make_lm_eval_result(
+        tmp_path, "meta-llama__Llama-3-2-1B-Instruct", "run-16C"
+    )
+
+    from cpueval import paths as paths_mod
+    orig = paths_mod.get_lm_eval_results_dir
+    paths_mod.get_lm_eval_results_dir = lambda: tmp_path / "lm-eval"
+    try:
+        result = find_latest_lm_eval_result()
+    finally:
+        paths_mod.get_lm_eval_results_dir = orig
+
+    assert result == latest
+
+
+def test_lm_eval_suite_does_not_fall_back_to_llm(tmp_path):
+    """lm-eval lookup must not return a path inside results/llm."""
+    _make_llm_result(tmp_path, "SomeModel__v1", "run-1")
+
+    from cpueval import paths as paths_mod
+    orig = paths_mod.get_lm_eval_results_dir
+    paths_mod.get_lm_eval_results_dir = lambda: tmp_path / "lm-eval"
+    try:
+        result = find_latest_lm_eval_result()
+    finally:
+        paths_mod.get_lm_eval_results_dir = orig
+
+    assert result is None
+
+
+# ---------------------------------------------------------------------------
+# find_latest_suite_result
+# ---------------------------------------------------------------------------
+
+def test_find_latest_suite_result_routes_lm_eval(tmp_path):
+    """Suite name lm-eval resolves under results/lm-eval."""
+    target = _make_lm_eval_result(
+        tmp_path, "Qwen__Qwen3-0.6B", "smoke-test-20260101"
+    )
+
+    from cpueval import paths as paths_mod
+    orig = paths_mod.get_lm_eval_results_dir
+    paths_mod.get_lm_eval_results_dir = lambda: tmp_path / "lm-eval"
+    try:
+        result = find_latest_suite_result("lm-eval")
+    finally:
+        paths_mod.get_lm_eval_results_dir = orig
+
+    assert result == target

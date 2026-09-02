@@ -18,7 +18,7 @@ from cpueval.paths import (
     get_conversion_script,
     get_repo_root,
     find_latest_result,
-    find_latest_embedding_result,
+    find_latest_suite_result,
 )
 
 
@@ -364,12 +364,10 @@ def run_results_command(
         else:
             # Fall back to finding latest; respect suite type from hint
             suite_hint = hint.get("suite", "") if hint else ""
-            if "embedding" in suite_hint:
-                result_dir = find_latest_embedding_result()
+            if suite_hint:
+                result_dir = find_latest_suite_result(suite_hint)
             else:
-                result_dir = find_latest_result(
-                    audio="audio" in suite_hint
-                )
+                result_dir = find_latest_result()
 
         if not result_dir:
             console.print("[yellow]No last run found. Try --list to see available results.[/yellow]")

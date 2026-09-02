@@ -47,11 +47,14 @@ jobs:
         run: |
           cd automation/test-execution/tests/dashboard
           python -m pytest test_offline_batch_page.py -v
+          cd ../../dashboard-examples/vllm_dashboard
+          python -m pytest tests/test_lm_eval_loader.py -v
 
       - name: Run script tests
         run: |
           cd automation/test-execution/tests/scripts
           bash test_run_offline_batch_suite.sh
+          bash test_run_lm_eval_suite.sh
 
       - name: Test results summary
         if: always()

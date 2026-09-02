@@ -220,7 +220,7 @@ TOTAL_TESTS=$((${#MODELS[@]} * ${#CORE_COUNTS[@]}))
 echo "Total test combinations: ${TOTAL_TESTS}"
 echo ""
 
-if [[ "${DRY_RUN}" == false ]]; then
+if [[ "${DRY_RUN}" == false ]] && [[ -t 0 ]] && [[ "${CI:-}" != "true" ]]; then
     read -p "Proceed with test suite? [y/N] " -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then

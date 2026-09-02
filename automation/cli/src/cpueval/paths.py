@@ -45,6 +45,11 @@ def get_embedding_results_dir() -> Path:
     return get_results_dir() / "embedding"
 
 
+def get_lm_eval_results_dir() -> Path:
+    """Get the lm-eval accuracy results directory."""
+    return get_results_dir() / "lm-eval"
+
+
 def get_dashboard_script() -> Path:
     """Get the dashboard launch script."""
     return (
@@ -177,3 +182,44 @@ def find_latest_embedding_result(model: Optional[str] = None) -> Optional[Path]:
         return max(result_dirs, key=lambda p: p.stat().st_mtime)
 
     return None
+
+
+def find_latest_lm_eval_result(model: Optional[str] = None) -> Optional[Path]:
+    """Find the latest lm-eval result directory.
+
+    lm-eval results use test-metadata.json under
+    results/lm-eval/<model_dir>/<run_dir>/.
+    """
+    base_dir = get_lm_eval_results_dir()
+
+    if not base_dir.exists():
+        return None
+
+    metadata_files = list(base_dir.rglob("test-metadata.json"))
+    if not metadata_files:
+        return None
+
+    result_dirs = [m.parent for m in metadata_files]
+
+    if model:
+        model_safe = model.replace("/", "__")
+        result_dirs = [
+            d for d in result_dirs
+            if any(part == model_safe for part in d.parts)
+        ]
+
+    if result_dirs:
+        return max(result_dirs, key=lambda p: p.stat().st_mtime)
+
+    return None
+
+
+def find_latest_suite_result(
+    suite: str, model: Optional[str] = None
+) -> Optional[Path]:
+    """Find the latest result directory for a named suite."""
+    if "embedding" in suite:
+        return find_latest_embedding_result(model=model)
+    if "lm-eval" in suite:
+        return find_latest_lm_eval_result(model=model)
+    return find_latest_result(model=model, audio="audio" in suite)
