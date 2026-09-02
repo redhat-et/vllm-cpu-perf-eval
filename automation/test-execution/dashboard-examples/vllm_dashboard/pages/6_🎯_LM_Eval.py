@@ -34,9 +34,66 @@ TASK_LABELS = {
     "boolq": "BoolQ",
 }
 
+# Plain-language descriptions for non-specialist readers.
+TASK_GUIDE = {
+    "hellaswag": (
+        "**Commonsense sentence completion.** The model picks the most plausible "
+        "ending for an everyday situation (e.g. “She opened the umbrella because…”). "
+        "Tests whether the model understands how the world usually works."
+    ),
+    "winogrande": (
+        "**Pronoun resolution.** A sentence has a blank or ambiguous pronoun; the "
+        "model must pick the noun it refers to. Tests basic reasoning about who did what."
+    ),
+    "arc_easy": (
+        "**Grade-school science (easier).** Multiple-choice science questions written "
+        "for elementary exams. A good baseline for factual science knowledge."
+    ),
+    "arc_challenge": (
+        "**Grade-school science (harder).** Tougher multiple-choice science questions. "
+        "Even strong models often score well below 70% here — low scores are normal."
+    ),
+    "mmlu": (
+        "**Broad knowledge exam.** Covers many subjects (history, law, medicine, …) "
+        "at varying difficulty. Think of it as a wide academic knowledge check."
+    ),
+    "truthfulqa_mc1": (
+        "**Truthfulness (single best answer).** Picks the one most accurate answer "
+        "among options designed to catch common misconceptions and false beliefs."
+    ),
+    "truthfulqa_mc2": (
+        "**Truthfulness (any correct answer).** Credit if *any* truthful option is "
+        "chosen — slightly more forgiving than MC1."
+    ),
+    "gsm8k": (
+        "**Grade-school math word problems.** Requires multi-step arithmetic reasoning "
+        "(not just multiple choice). Scores are often lower than on pure MC tasks."
+    ),
+    "piqa": (
+        "**Physical commonsense.** Two ways to accomplish a goal — which is physically "
+        "plausible? (e.g. use a nail vs. glue to hang a picture)."
+    ),
+    "boolq": (
+        "**Yes/No reading comprehension.** Read a short passage and answer true or "
+        "false. Tests whether the model understood what it read."
+    ),
+}
+
 METRIC_OPTIONS = {
     "acc,none": "Accuracy (acc)",
     "acc_norm,none": "Normalised Accuracy (acc_norm)",
+}
+
+METRIC_GUIDE = {
+    "acc,none": (
+        "**Accuracy** — the share of questions the model answered correctly. "
+        "Shown as a percentage: 0.65 means 65% correct."
+    ),
+    "acc_norm,none": (
+        "**Length-normalised accuracy** — same idea as accuracy, but adjusts for "
+        "answer-choice length so the model cannot cheat by always picking the "
+        "longest option. Prefer this when comparing models on multiple-choice tasks."
+    ),
 }
 
 PLOTLY_COLORS = px.colors.qualitative.Safe
@@ -194,6 +251,91 @@ def _accuracy_bar(
     return fig
 
 
+def _render_understanding_guide() -> None:
+    """Plain-language primer for non-specialist readers."""
+    with st.expander("📖 How to Read These Results", expanded=False):
+        st.markdown(
+            """
+### What is this page?
+
+These charts show **how well a language model answers standard knowledge and
+reasoning quizzes** while running on vLLM CPU. This is an **accuracy** test
+(quality of answers), not a speed test — unlike the concurrent-load dashboards.
+
+Each **task** is a different quiz style (science questions, commonsense, etc.).
+Each **model** is a specific Hugging Face model you benchmarked. **Cores** is
+how many CPUs were allocated to vLLM; accuracy should stay the same regardless
+of core count (if it drifts a lot, that may indicate a configuration issue).
+
+---
+
+### How to read the score
+
+| Score | Rough meaning |
+|-------|----------------|
+| **90%+** | Excellent on this task |
+| **70–90%** | Strong performance |
+| **50–70%** | Moderate — may be fine for harder tasks (e.g. ARC-Challenge) |
+| **25–50%** | Weak — compare carefully; may still beat random guessing |
+| **~25%** | Typical random guess on a 4-option multiple-choice question |
+
+**Higher is better.** A model that scores 55% on ARC-Challenge may still be
+useful; a model at 25% on an easy task is effectively guessing.
+
+**Small gaps matter less than big ones.** A 1–2 point difference between two
+models can be noise, especially if runs used `--limit` (partial dataset).
+Look for consistent gaps across several tasks.
+
+---
+
+### What the metrics mean
+"""
+        )
+        for metric_key, label in METRIC_OPTIONS.items():
+            guide = METRIC_GUIDE.get(metric_key, "")
+            st.markdown(f"- **{label}** — {guide}")
+
+        st.markdown(
+            """
+---
+
+### What each task tests
+"""
+        )
+        for task_key, label in TASK_LABELS.items():
+            guide = TASK_GUIDE.get(task_key)
+            if guide:
+                st.markdown(f"- **{label}** — {guide}")
+
+        st.markdown(
+            """
+---
+
+### Practical tips
+
+- **Compare models on the same task** — a model great at science may be weak at math.
+- **Check the heatmap** — one strong cell does not mean the model is strong everywhere.
+- **Watch for the ⚠️ limit warning** — quick smoke tests (`--limit 50`) are useful for
+  debugging but are **not** full benchmark scores.
+- **CPU cores should not change accuracy** — they affect how fast inference runs, not
+  which answer the model picks (all else equal).
+"""
+        )
+
+
+def _score_interpretation(pct: float) -> str:
+    """Return a short plain-language label for an accuracy percentage."""
+    if pct >= 0.90:
+        return "Excellent"
+    if pct >= 0.70:
+        return "Strong"
+    if pct >= 0.50:
+        return "Moderate"
+    if pct >= 0.25:
+        return "Below average"
+    return "Near random guess"
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -207,10 +349,11 @@ def main():
 
     st.title("🎯 LM Evaluation Harness — Accuracy")
     st.markdown(
-        "Accuracy benchmarks (hellaswag, winogrande, arc, mmlu, …) "
-        "run against vLLM CPU via "
-        "[lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness)."
+        "Standard knowledge and reasoning quizzes run against vLLM CPU via "
+        "[lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness). "
+        "**Higher scores mean better answers** — this measures model quality, not speed."
     )
+    _render_understanding_guide()
 
     # ------------------------------------------------------------------
     # Sidebar
@@ -288,14 +431,19 @@ def main():
             "Metric",
             options=list(METRIC_OPTIONS.keys()),
             format_func=lambda k: METRIC_OPTIONS[k],
+            help=(
+                "Accuracy = % correct. Normalised accuracy adjusts for "
+                "answer length on multiple-choice tasks."
+            ),
         )
 
         # Warn if results include limited (--limit) runs
         limits = df["limit"].unique()
         if any(str(lim) not in ("none", "") for lim in limits):
             st.warning(
-                "⚠️ Some runs used `--limit`. "
-                "Scores may not represent full dataset accuracy."
+                "⚠️ Some runs used `--limit` (only part of each quiz was run). "
+                "Scores are useful for quick checks but **do not** represent "
+                "full benchmark accuracy."
             )
 
     df_f = df[
@@ -321,6 +469,11 @@ def main():
     # Section 1: Task accuracy by model
     # ------------------------------------------------------------------
     st.header("1️⃣ Accuracy by Task")
+    st.markdown(
+        "Each bar is the **percentage of quiz questions answered correctly** for "
+        "that task. Taller bars are better. Use this chart to see which subjects "
+        "each model handles well or poorly."
+    )
 
     # Use the latest run per model+task+cores to avoid double-counting
     df_latest = (
@@ -365,7 +518,11 @@ def main():
     # ------------------------------------------------------------------
     st.divider()
     st.header("2️⃣ Model Comparison")
-    st.markdown("Compare models on a single task across core counts.")
+    st.markdown(
+        "Pick one quiz type and compare models side by side. "
+        "If multiple core counts are selected, the line chart shows whether scores "
+        "stay stable as you allocate more CPUs — they **should** stay flat."
+    )
 
     col1, col2 = st.columns(2)
     with col1:
@@ -380,9 +537,25 @@ def main():
             key="cmp_metric",
         )
 
+    cmp_task_key = next(
+        (k for k, label in TASK_LABELS.items() if label == cmp_task),
+        None,
+    )
+    if cmp_task_key and cmp_task_key in TASK_GUIDE:
+        st.caption(TASK_GUIDE[cmp_task_key])
+
     df_cmp = df_latest[df_latest["task_label"] == cmp_task].copy()
 
     if not df_cmp.empty and cmp_metric in df_cmp.columns:
+        best_row = df_cmp.loc[df_cmp[cmp_metric].idxmax()]
+        worst_row = df_cmp.loc[df_cmp[cmp_metric].idxmin()]
+        st.info(
+            f"On **{cmp_task}**, best: **{best_row['model_short']}** "
+            f"({_pct(best_row[cmp_metric])} — {_score_interpretation(best_row[cmp_metric])}); "
+            f"lowest: **{worst_row['model_short']}** "
+            f"({_pct(worst_row[cmp_metric])} — {_score_interpretation(worst_row[cmp_metric])})."
+        )
+
         df_cmp_g = (
             df_cmp.groupby(["model_short", "cores"])[cmp_metric]
             .mean()
@@ -457,6 +630,11 @@ def main():
     if metric_key in df_latest.columns and n_models > 1 and n_tasks > 1:
         st.divider()
         st.header("3️⃣ Accuracy Heatmap")
+        st.markdown(
+            "A quick **report card**: greener cells are higher scores, redder are lower. "
+            "Scan across a row to see one model's strengths and weaknesses; "
+            "scan down a column to see which model wins on a given quiz type."
+        )
 
         pivot = (
             df_latest.groupby(["model_short", "task_label"])[metric_key]
