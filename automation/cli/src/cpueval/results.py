@@ -13,6 +13,7 @@ from cpueval.paths import (
     get_last_run_hint_path,
     get_llm_results_dir,
     get_audio_results_dir,
+    get_lm_eval_results_dir,
     get_dashboard_script,
     get_dashboard_stop_script,
     get_conversion_script,
@@ -266,6 +267,48 @@ def print_result_summary(result_dir: Path, console: Console) -> None:
         console.print("[yellow]No benchmarks.json found[/yellow]\n")
 
 
+def _gather_list_entries(
+    limit: int = 10, audio: bool = False
+) -> List[Dict[str, Any]]:
+    """Collect result entries for --list display.
+
+    Scans LLM/audio results (benchmarks.json) and lm-eval results
+    (test-metadata.json) and returns a merged, mtime-sorted list.
+
+    Returns:
+        List of dicts with keys: label, path, mtime
+    """
+    entries: List[Dict[str, Any]] = []
+
+    # LLM / audio results use benchmarks.json
+    base_dir = get_audio_results_dir() if audio else get_llm_results_dir()
+    if base_dir.exists():
+        for bench_path in base_dir.rglob("benchmarks.json"):
+            result_dir = bench_path.parent
+            entries.append({
+                "label": "",
+                "path": result_dir,
+                "base": base_dir,
+                "mtime": bench_path.stat().st_mtime,
+            })
+
+    # lm-eval results use test-metadata.json (no benchmarks.json present)
+    if not audio:
+        lm_base = get_lm_eval_results_dir()
+        if lm_base.exists():
+            for meta_path in lm_base.rglob("test-metadata.json"):
+                result_dir = meta_path.parent
+                entries.append({
+                    "label": "[lm-eval] ",
+                    "path": result_dir,
+                    "base": lm_base,
+                    "mtime": meta_path.stat().st_mtime,
+                })
+
+    entries.sort(key=lambda e: e["mtime"], reverse=True)
+    return entries[:limit]
+
+
 def list_results(limit: int = 10, audio: bool = False) -> None:
     """List recent results.
 
@@ -275,31 +318,18 @@ def list_results(limit: int = 10, audio: bool = False) -> None:
     """
     console = Console()
 
-    base_dir = get_audio_results_dir() if audio else get_llm_results_dir()
+    entries = _gather_list_entries(limit=limit, audio=audio)
 
-    if not base_dir.exists():
+    if not entries:
+        base_dir = get_audio_results_dir() if audio else get_llm_results_dir()
         console.print(f"[yellow]No results found in {base_dir}[/yellow]")
         return
 
-    # Find all benchmarks.json files
-    benchmarks = list(base_dir.rglob("benchmarks.json"))
+    console.print(f"\n[bold cyan]Recent results ({len(entries)})[/bold cyan]\n")
 
-    if not benchmarks:
-        console.print(f"[yellow]No benchmark results found in {base_dir}[/yellow]")
-        return
-
-    # Sort by modification time (newest first)
-    benchmarks.sort(key=lambda p: p.stat().st_mtime, reverse=True)
-
-    # Limit results
-    benchmarks = benchmarks[:limit]
-
-    console.print(f"\n[bold cyan]Recent results ({len(benchmarks)})[/bold cyan]\n")
-
-    for bench_path in benchmarks:
-        result_dir = bench_path.parent
-        rel_path = result_dir.relative_to(base_dir)
-        console.print(f"  {rel_path}")
+    for entry in entries:
+        rel_path = entry["path"].relative_to(entry["base"])
+        console.print(f"  {entry['label']}{rel_path}")
 
     console.print()
 

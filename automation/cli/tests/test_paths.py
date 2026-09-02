@@ -1,4 +1,4 @@
-"""Unit tests for cpueval path helpers."""
+"""Unit tests for cpueval path helpers and result listing."""
 
 import pytest
 from pathlib import Path
@@ -9,6 +9,7 @@ from cpueval.paths import (
     find_latest_lm_eval_result,
     find_latest_suite_result,
 )
+from cpueval.results import _gather_list_entries
 
 
 def _make_llm_result(base: Path, model: str, run: str) -> Path:
@@ -169,3 +170,78 @@ def test_find_latest_suite_result_routes_lm_eval(tmp_path):
         paths_mod.get_lm_eval_results_dir = orig
 
     assert result == target
+
+
+# ---------------------------------------------------------------------------
+# _gather_list_entries — lm-eval results visible in --list
+# ---------------------------------------------------------------------------
+
+def test_gather_list_entries_includes_lm_eval(tmp_path):
+    """lm-eval result dirs appear in _gather_list_entries with [lm-eval] label."""
+    lm_dir = _make_lm_eval_result(
+        tmp_path, "Qwen__Qwen3-0.6B", "smoke-test-20260101-000000"
+    )
+
+    import cpueval.results as results_mod
+    orig_lm = results_mod.get_lm_eval_results_dir
+    orig_llm = results_mod.get_llm_results_dir
+    results_mod.get_lm_eval_results_dir = lambda: tmp_path / "lm-eval"
+    results_mod.get_llm_results_dir = lambda: tmp_path / "llm"
+    try:
+        entries = results_mod._gather_list_entries(limit=10)
+    finally:
+        results_mod.get_lm_eval_results_dir = orig_lm
+        results_mod.get_llm_results_dir = orig_llm
+
+    assert len(entries) == 1
+    assert entries[0]["label"] == "[lm-eval] "
+    assert entries[0]["path"] == lm_dir
+
+
+def test_gather_list_entries_lm_eval_not_in_audio(tmp_path):
+    """When audio=True, lm-eval results are excluded."""
+    _make_lm_eval_result(
+        tmp_path, "Qwen__Qwen3-0.6B", "smoke-test-20260101-000000"
+    )
+
+    import cpueval.results as results_mod
+    orig_audio = results_mod.get_audio_results_dir
+    orig_lm = results_mod.get_lm_eval_results_dir
+    results_mod.get_audio_results_dir = lambda: tmp_path / "audio-models"
+    results_mod.get_lm_eval_results_dir = lambda: tmp_path / "lm-eval"
+    try:
+        entries = results_mod._gather_list_entries(limit=10, audio=True)
+    finally:
+        results_mod.get_audio_results_dir = orig_audio
+        results_mod.get_lm_eval_results_dir = orig_lm
+
+    assert entries == []
+
+
+def test_gather_list_entries_mixed(tmp_path):
+    """LLM and lm-eval results both appear, sorted by mtime (newest first)."""
+    import time
+
+    llm_dir = _make_llm_result(tmp_path, "TinyLlama__v1", "run-8C")
+    time.sleep(0.01)
+    lm_dir = _make_lm_eval_result(
+        tmp_path, "Qwen__Qwen3-0.6B", "smoke-test-20260101-000000"
+    )
+
+    import cpueval.results as results_mod
+    orig_lm = results_mod.get_lm_eval_results_dir
+    orig_llm = results_mod.get_llm_results_dir
+    results_mod.get_lm_eval_results_dir = lambda: tmp_path / "lm-eval"
+    results_mod.get_llm_results_dir = lambda: tmp_path / "llm"
+    try:
+        entries = results_mod._gather_list_entries(limit=10)
+    finally:
+        results_mod.get_lm_eval_results_dir = orig_lm
+        results_mod.get_llm_results_dir = orig_llm
+
+    assert len(entries) == 2
+    # lm-eval written last → newest → first
+    assert entries[0]["path"] == lm_dir
+    assert entries[0]["label"] == "[lm-eval] "
+    assert entries[1]["path"] == llm_dir
+    assert entries[1]["label"] == ""
