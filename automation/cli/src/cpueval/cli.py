@@ -402,6 +402,11 @@ def _execute_suite(
         cli_vars["guidellm_max_seconds"] = max_seconds
 
     if tag:
+        if not re.match(r'^[A-Za-z0-9-]+$', tag) or len(tag) < 1 or len(tag) > 30:
+            console.print(
+                "[red]Error: --tag must be 1-30 characters, alphanumeric or hyphens only[/red]"
+            )
+            raise typer.Exit(1)
         cli_vars["tag"] = tag
 
     _apply_endpoint_env(endpoint_url)

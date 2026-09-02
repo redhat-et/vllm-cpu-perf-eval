@@ -23,3 +23,4 @@ param_mappings:
   kv_cache_space: --kv-cache-space
   lm_eval_image: --lm-eval-image
   continue_on_error: continue-on-error
+  tag: tag

@@ -24,13 +24,16 @@
 #   vllm_cpus               Explicit CPU range (e.g. "0-31"); overrides requested_cores
 #   vllm_numa_node          NUMA memory node (default: 0)
 #   vllm_container_name     Override container name (for parallel runs)
+#
+# NOTE — local-completions vs instruct models:
+#   This playbook uses --model local-completions (hits /v1/completions). For the
+#   default task set (hellaswag, arc, winogrande), lm-eval scores via log-probs
+#   over answer choices, which does NOT apply a chat template. This is correct
+#   for both base and instruct models for these tasks. If you add chat-formatted
+#   or generation-based tasks (e.g. gsm8k with generate_until), switch to
+#   --model local-chat-completions and /v1/chat/completions so the model's chat
+#   template is applied. A future lm_eval_model_type variable could toggle this.
 # ==============================================================================
-
-- name: "LM Eval Benchmark - Setup"
-  hosts: localhost
-  gather_facts: false
-  vars:
-    test_run_id: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
 
 - name: Initialize lm-eval benchmark run
   hosts: localhost
@@ -73,6 +76,17 @@
         dut_platform_name: "external"
         dut_platform_raw: "External vLLM Endpoint"
       when: vllm_mode == 'external'
+
+    - name: Validate test_name format if provided
+      ansible.builtin.assert:
+        that:
+          - test_name | length >= 1
+          - test_name | length <= 30
+          - test_name is match('^[A-Za-z0-9-]+$')
+        fail_msg: "test_name must be 1-30 chars, alphanumeric or hyphens only, got: '{{ test_name }}'"
+      when:
+        - test_name is defined
+        - test_name | length > 0
 
     - name: Generate test run ID
       ansible.builtin.set_fact:
@@ -238,6 +252,8 @@
         network: host
         volumes:
           - "{{ results_base_expanded }}:/results:z"
+        env:
+          HF_TOKEN: "{{ lookup('env', 'HF_TOKEN') | default(hf_token | default(''), true) }}"
         command: "{{ _lm_eval_cmd }}"
 
 # ==============================================================================
@@ -313,6 +329,8 @@
         network: host
         volumes:
           - "{{ results_base_expanded }}:/results:z"
+        env:
+          HF_TOKEN: "{{ lookup('env', 'HF_TOKEN') | default(hf_token | default(''), true) }}"
         command: "{{ _lm_eval_cmd }}"
 
 # ==============================================================================
@@ -384,8 +402,10 @@
         content: |
           {
             "test_run_id": "{{ test_run_id }}",
+            "test_name": "{{ test_name | default('') }}",
             "model": "{{ model_name }}",
             "platform": "{{ dut_platform_name | default('unknown') }}",
+            "vllm_version": "{{ vllm_version | default('unknown') }}",
             "tasks": "{{ lm_eval_tasks }}",
             "batch_size": {{ lm_eval_batch_size | int }},
             "dtype": "{{ lm_eval_dtype }}",
@@ -416,7 +436,7 @@
         name: results_collector
       vars:
         log_collection_dest: "{{ playbook_dir }}/../../../results/lm-eval/{{ model_name | replace('/', '__') }}/{{ test_run_id }}/"
-        journald_identifier: "vllm-lm-eval-{{ hostvars['localhost']['requested_cores'] }}c"
+        journald_identifier: "{{ vllm_container_name | default('vllm-server') }}"
         log_filename_prefix: "vllm-server"
 
 # ==============================================================================

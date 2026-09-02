@@ -59,8 +59,18 @@
 
 set -euo pipefail
 
+trap 'echo -e "\n\nInterrupted by user. Exiting..."; exit 130' SIGINT SIGTERM
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+REPO_ROOT="${SCRIPT_DIR}"
+while [[ ! -d "${REPO_ROOT}/.git" ]] && [[ "${REPO_ROOT}" != "/" ]]; do
+    REPO_ROOT="$(dirname "${REPO_ROOT}")"
+done
+
+if [[ ! -d "${REPO_ROOT}/.git" ]]; then
+    echo "ERROR: Could not find repository root"
+    exit 1
+fi
 
 cd "${REPO_ROOT}"
 
@@ -106,6 +116,7 @@ MAX_MODEL_LEN=""
 KV_CACHE_SPACE="40"
 LM_EVAL_IMAGE="quay.io/vllm-cpu-perf-eval/lm-eval:latest"
 LIMIT=""
+TAG=""
 CONTINUE_ON_ERROR=false
 DRY_RUN=false
 
@@ -136,6 +147,7 @@ while [[ $# -gt 0 ]]; do
         --kv-cache-space) KV_CACHE_SPACE="$2"; shift 2 ;;
         --lm-eval-image)  LM_EVAL_IMAGE="$2"; shift 2 ;;
         --limit)       LIMIT="$2";         shift 2 ;;
+        --tag)         TAG="$2";           shift 2 ;;
         --continue-on-error) CONTINUE_ON_ERROR=true; shift ;;
         --dry-run)     DRY_RUN=true;       shift ;;
         -h|--help)     show_help; exit 0 ;;
@@ -233,6 +245,7 @@ for model in "${MODELS[@]}"; do
 
         MODEL_SHORT=$(basename "${model}")
         TEST_NAME="${MODEL_SHORT}-${cores}C"
+        EFFECTIVE_TEST_NAME="${TAG:-${TEST_NAME}}"
 
         cmd=(
             ansible-playbook
@@ -245,7 +258,7 @@ for model in "${MODELS[@]}"; do
             -e "lm_eval_dtype=${DTYPE}"
             -e "lm_eval_kv_cache_space=${KV_CACHE_SPACE}"
             -e "lm_eval_image=${LM_EVAL_IMAGE}"
-            -e "test_name=${TEST_NAME}"
+            -e "test_name=${EFFECTIVE_TEST_NAME}"
         )
 
         [[ -n "${MAX_MODEL_LEN}" ]]  && cmd+=(-e "lm_eval_max_model_len=${MAX_MODEL_LEN}")
@@ -254,7 +267,7 @@ for model in "${MODELS[@]}"; do
         # Parallel instance overrides
         [[ -n "${VLLM_CONTAINER_NAME:-}" ]] && cmd+=(-e "vllm_container_name=${VLLM_CONTAINER_NAME}")
         [[ -n "${VLLM_PORT:-}" ]]           && cmd+=(-e "vllm_port=${VLLM_PORT}")
-        [[ -n "${VLLM_NUMA_NODES:-}" ]]     && cmd+=(-e "vllm_numa_nodes=${VLLM_NUMA_NODES}")
+        [[ -n "${VLLM_NUMA_NODES:-}" ]]     && cmd+=(-e "vllm_numa_node=${VLLM_NUMA_NODES}")
 
         if [[ "${DRY_RUN}" == true ]]; then
             log_info "DRY RUN: Would execute:"

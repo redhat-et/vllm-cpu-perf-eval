@@ -114,7 +114,7 @@
         command: "{{ _vllm_cmd }}"
         log_driver: journald
         log_opt:
-          tag: "vllm-lm-eval-{{ requested_cores }}c"
+          tag: "{{ vllm_container_name | default('vllm-server') }}"
       register: vllm_container
       no_log: true
 
@@ -124,9 +124,4 @@
           - "✓ vLLM Container Started"
           - "Container ID: {{ vllm_container.container.Id[:12] if vllm_container.container is defined else 'N/A' }}"
           - "Server: http://{{ ansible_host }}:{{ vllm_server.port }}"
-          - "Logs: journalctl -t vllm-lm-eval-{{ requested_cores }}c -f"
-
-    - name: Wait for vLLM initialization
-      ansible.builtin.pause:
-        seconds: 20
-        prompt: "Waiting for vLLM to initialize..."
+          - "Logs: journalctl -t {{ vllm_container_name | default('vllm-server') }} -f"

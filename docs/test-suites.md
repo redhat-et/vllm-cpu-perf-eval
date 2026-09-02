@@ -11,7 +11,7 @@ run, how to run it, and where to read the detailed methodology.
 | --- | --- | --- | --- | --- |
 | Concurrent Load | Matrix | Validated | `cpueval --suite concurrent-load` | [Concurrent Load](../tests/concurrent-load/concurrent-load.md) |
 | RHAIIS Sweep | Matrix | Validated | `cpueval --suite rhaiis-sweep` | [RHAIIS Testing](../tests/concurrent-load/rhaiis-testing.md) |
-| LM Eval | Matrix | Validated | `cpueval --suite lm-eval` | [Scripts Reference](scripts-reference.md) |
+| LM Eval | Matrix | WIP | `cpueval --suite lm-eval` | [Scripts Reference](scripts-reference.md) |
 | Scalability | Manual/Ansible | WIP | Ansible playbooks | [Scalability](../tests/scalability/scalability.md) |
 | Offline Batch | Matrix | Validated | `cpueval --suite offline-batch` | [Offline Batch](../tests/offline-batch/offline-batch.md) |
 | Embedding | Matrix | Validated | `cpueval --suite embedding` | [Embedding Models](../tests/embedding-models/embedding-models.md) |
