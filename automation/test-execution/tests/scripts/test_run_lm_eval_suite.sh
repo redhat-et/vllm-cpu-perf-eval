@@ -132,6 +132,14 @@ else
     fail "Combined tag+name > 100 chars exits with clear error" "Output: ${LONG_TAG_OUT}"
 fi
 
+# Test 12: --vllm-cpus and --guidellm-cpus are passed through to ansible-playbook
+DRY_CPUS=$("${SUITE_SCRIPT}" --dry-run --models quick --cores 32 --vllm-cpus 0-31 --guidellm-cpus 32-47 2>&1 || true)
+if echo "${DRY_CPUS}" | grep -q "vllm_cpus=0-31" && echo "${DRY_CPUS}" | grep -q "guidellm_cpus=32-47"; then
+    pass "--vllm-cpus and --guidellm-cpus passed through in dry-run"
+else
+    fail "--vllm-cpus and --guidellm-cpus passed through in dry-run" "Output: ${DRY_CPUS}"
+fi
+
 echo ""
 echo "=========================================="
 echo "Test Results"

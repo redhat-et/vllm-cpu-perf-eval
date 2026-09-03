@@ -177,6 +177,7 @@ cd automation/test-execution/scripts
 ./cpueval --suite lm-eval                                  # full matrix
 ./cpueval --suite lm-eval --models quick --cores 8 --limit 50
 ./cpueval --suite lm-eval --models small --tasks hellaswag,arc_easy --cores 16
+./cpueval --suite lm-eval --models small --tasks math --cores 16 --limit 50 --batch-size 1
 ./cpueval --suite lm-eval --models quick --cores 8 --tag baseline-v1 --limit 50
 ```
 
@@ -186,15 +187,19 @@ cd automation/test-execution/scripts
 - `small` - Fast models: Qwen3-0.6B, TinyLlama, Granite-3.2-2B
 - `medium` - Larger models: Llama-3.2-1B, Qwen2.5-3B, Llama-3.2-3B
 
-**Default Tasks:** `hellaswag,winogrande,arc_easy,arc_challenge`
+**Task Presets:**
+- `default` — `hellaswag,winogrande,arc_easy,arc_challenge` (multiple-choice, log-prob scoring)
+- `math` — `gsm8k` (generation-based math; slower; uses chat completions API)
 
 **Key Options:**
 - `--models LIST` - Comma-separated models or preset (all|quick|small|medium)
 - `--cores LIST` - Comma-separated core counts (default: 8,16,32)
-- `--tasks LIST` - Comma-separated lm-eval task names
+- `--tasks LIST` - lm-eval task names or preset (`default`, `math`, or comma-separated tasks)
 - `--batch-size NUM` - lm-eval batch size (default: 16)
 - `--dtype DTYPE` - Model dtype: bfloat16, float16, float32 (default: bfloat16)
 - `--limit NUM` - Limit examples per task (for quick runs)
+- `--vllm-cpus RANGE` - Explicit CPU set for vLLM (e.g. `0-31`). Env: `VLLM_CPUS`
+- `--guidellm-cpus RANGE` - CPU set for lm-eval client container (e.g. `32-47`). Env: `GUIDELLM_CPUS`
 - `--max-model-len NUM` - Override vLLM max context length
 - `--kv-cache-space NUM` - KV cache in GiB (default: 40)
 - `--lm-eval-image IMAGE` - lm-eval container image (default: quay.io/vllm-cpu-perf-eval/lm-eval:latest)

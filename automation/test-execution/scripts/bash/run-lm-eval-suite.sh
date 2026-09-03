@@ -13,8 +13,12 @@
 #                           Default: all
 #   --cores LIST            Comma-separated core counts
 #                           Default: 8,16,32
-#   --tasks LIST            Comma-separated lm-eval task names
-#                           Default: hellaswag,winogrande,arc_easy,arc_challenge
+#   --tasks LIST            Comma-separated lm-eval task names or preset
+#                           (default|math|gsm8k|hellaswag,...)
+#                           Presets:
+#                             default - hellaswag,winogrande,arc_easy,arc_challenge
+#                             math    - gsm8k (uses chat completions API)
+#                           Default: default
 #   --batch-size NUM        lm-eval batch size
 #                           Default: 16
 #   --dtype DTYPE           Model dtype (bfloat16|float16|float32)
@@ -25,6 +29,10 @@
 #   --lm-eval-image IMAGE   lm-eval container image
 #                           Default: quay.io/vllm-cpu-perf-eval/lm-eval:latest
 #   --limit NUM             Limit examples per task (useful for quick runs)
+#   --vllm-cpus RANGE       Explicit CPU set for vLLM (e.g., 0-31 or 0,1,2)
+#                           Env: VLLM_CPUS
+#   --guidellm-cpus RANGE   CPU set for lm-eval client container on load generator
+#                           (e.g., 32-47). Env: GUIDELLM_CPUS
 #   --tag LABEL             Custom label combined with auto-generated name for result run ID
 #                             (1-30 chars via cpueval; prepended: LABEL-MODEL-COREC; combined max 100 chars)
 #   --continue-on-error     Continue suite after a test failure
@@ -42,6 +50,8 @@
 #   VLLM_CONTAINER_NAME     Container name for parallel runs
 #   VLLM_PORT               vLLM server port for parallel runs
 #   VLLM_NUMA_NODES         NUMA nodes for parallel runs
+#   VLLM_CPUS               Explicit CPU set for vLLM (same as --vllm-cpus)
+#   GUIDELLM_CPUS           CPU set for lm-eval client (same as --guidellm-cpus)
 #   HF_TOKEN                HuggingFace token for gated models
 #
 # Examples:
@@ -50,6 +60,9 @@
 #
 #   # Small models on default core counts
 #   ./run-lm-eval-suite.sh --models small --tasks hellaswag,arc_easy
+#
+#   # Math reasoning (generation-based; slower — use --limit for smoke tests)
+#   ./run-lm-eval-suite.sh --models small --tasks math --cores 16 --limit 50 --batch-size 1
 #
 #   # Full accuracy sweep
 #   ./run-lm-eval-suite.sh --models all --cores 16,32
@@ -120,7 +133,7 @@ PRESET_ALL=(
 # Defaults
 MODELS_INPUT="all"
 CORES_INPUT="8,16,32"
-TASKS="hellaswag,winogrande,arc_easy,arc_challenge"
+TASKS="default"
 BATCH_SIZE="16"
 DTYPE="bfloat16"
 MAX_MODEL_LEN=""
@@ -128,6 +141,8 @@ KV_CACHE_SPACE="40"
 LM_EVAL_IMAGE="quay.io/vllm-cpu-perf-eval/lm-eval:latest"
 LIMIT=""
 TAG=""
+VLLM_CPUS="${VLLM_CPUS:-}"
+GUIDELLM_CPUS="${GUIDELLM_CPUS:-}"
 CONTINUE_ON_ERROR=false
 DRY_RUN=false
 
@@ -163,6 +178,8 @@ while [[ $# -gt 0 ]]; do
         --kv-cache-space) KV_CACHE_SPACE="$2"; shift 2 ;;
         --lm-eval-image)  LM_EVAL_IMAGE="$2"; shift 2 ;;
         --limit)       LIMIT="$2";         shift 2 ;;
+        --vllm-cpus)   VLLM_CPUS="$2";     shift 2 ;;
+        --guidellm-cpus) GUIDELLM_CPUS="$2"; shift 2 ;;
         --tag)         TAG="$2";           shift 2 ;;
         --continue-on-error) CONTINUE_ON_ERROR=true; shift ;;
         --dry-run)     DRY_RUN=true;       shift ;;
@@ -174,6 +191,16 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# Resolve task presets
+case "${TASKS}" in
+    default|mc)
+        TASKS="hellaswag,winogrande,arc_easy,arc_challenge"
+        ;;
+    math)
+        TASKS="gsm8k"
+        ;;
+esac
 
 # Resolve model preset
 MODELS=()
@@ -220,6 +247,12 @@ echo "KV cache space: ${KV_CACHE_SPACE}GiB"
 echo "Max model len: ${MAX_MODEL_LEN:-model default}"
 echo "Limit per task: ${LIMIT:-none}"
 echo "lm-eval image: ${LM_EVAL_IMAGE}"
+if [[ -n "${VLLM_CPUS}" ]]; then
+    echo "vLLM CPUs: ${VLLM_CPUS}"
+fi
+if [[ -n "${GUIDELLM_CPUS}" ]]; then
+    echo "lm-eval client CPUs: ${GUIDELLM_CPUS}"
+fi
 echo "Continue on error: ${CONTINUE_ON_ERROR}"
 echo "Dry run: ${DRY_RUN}"
 echo "=========================================="
@@ -289,6 +322,8 @@ for model in "${MODELS[@]}"; do
 
         [[ -n "${MAX_MODEL_LEN}" ]]  && cmd+=(-e "lm_eval_max_model_len=${MAX_MODEL_LEN}")
         [[ -n "${LIMIT}" ]]          && cmd+=(-e "lm_eval_limit=${LIMIT}")
+        [[ -n "${VLLM_CPUS}" ]]      && cmd+=(-e "vllm_cpus=${VLLM_CPUS}")
+        [[ -n "${GUIDELLM_CPUS}" ]]  && cmd+=(-e "guidellm_cpus=${GUIDELLM_CPUS}")
 
         # Parallel instance overrides
         [[ -n "${VLLM_CONTAINER_NAME:-}" ]] && cmd+=(-e "vllm_container_name=${VLLM_CONTAINER_NAME}")

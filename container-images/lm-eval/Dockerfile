@@ -67,7 +67,7 @@ RUN set -eux; \
 from lm_eval.tasks import TaskManager
 
 manager = TaskManager()
-for task_name in ("hellaswag", "winogrande"):
+for task_name in ("hellaswag", "winogrande", "gsm8k"):
     assert task_name in manager.all_tasks, f"missing task: {task_name}"
 PY
     lm_eval --help > /dev/null

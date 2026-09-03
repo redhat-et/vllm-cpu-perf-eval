@@ -21,18 +21,18 @@
 #   lm_eval_max_model_len   Override max context length
 #   lm_eval_limit           Limit examples per task (e.g. 100 for quick runs)
 #   lm_eval_image           lm-eval container image
+#   lm_eval_model_type      local-completions|local-chat-completions|auto (default: auto)
+#   lm_eval_generation_tasks Tasks requiring generation/chat API (default: gsm8k)
 #   vllm_cpus               Explicit CPU range (e.g. "0-31"); overrides requested_cores
+#   guidellm_cpus           CPU range for lm-eval client container (e.g. "32-47")
 #   vllm_numa_node          NUMA memory node (default: 0)
 #   vllm_container_name     Override container name (for parallel runs)
 #
 # NOTE — local-completions vs instruct models:
-#   This playbook uses --model local-completions (hits /v1/completions). For the
-#   default task set (hellaswag, arc, winogrande), lm-eval scores via log-probs
-#   over answer choices, which does NOT apply a chat template. This is correct
-#   for both base and instruct models for these tasks. If you add chat-formatted
-#   or generation-based tasks (e.g. gsm8k with generate_until), switch to
-#   --model local-chat-completions and /v1/chat/completions so the model's chat
-#   template is applied. A future lm_eval_model_type variable could toggle this.
+#   Multiple-choice tasks (hellaswag, arc, winogrande) score via log-probs and use
+#   local-completions (/v1/completions). Generation tasks (gsm8k) require
+#   local-chat-completions (/v1/chat/completions) so the model chat template is
+#   applied. lm_eval_model_type=auto picks the backend from lm_eval_tasks.
 # ==============================================================================
 
 - name: Initialize lm-eval benchmark run
@@ -51,6 +51,30 @@
         lm_eval_max_model_len: "{{ lm_eval_max_model_len | default('') }}"
         lm_eval_limit: "{{ lm_eval_limit | default('') }}"
         lm_eval_image: "{{ lm_eval_image | default('quay.io/vllm-cpu-perf-eval/lm-eval:latest') }}"
+        lm_eval_model_type: "{{ lm_eval_model_type | default('auto') }}"
+        lm_eval_generation_tasks: "{{ lm_eval_generation_tasks | default(['gsm8k']) }}"
+
+    - name: Resolve lm-eval API backend from task list
+      ansible.builtin.set_fact:
+        _lm_eval_task_list: "{{ lm_eval_tasks.split(',') | map('trim') | list }}"
+        _uses_chat_completions: >-
+          {{ lm_eval_model_type == 'local-chat-completions'
+             or (lm_eval_model_type == 'auto'
+                 and (lm_eval_tasks.split(',') | map('trim') | list
+                      | intersect(lm_eval_generation_tasks) | length > 0)) }}
+
+    - name: Set lm-eval backend configuration
+      ansible.builtin.set_fact:
+        lm_eval_model_backend: "{{ 'local-chat-completions' if (_uses_chat_completions | bool) else 'local-completions' }}"
+        lm_eval_api_suffix: "{{ 'chat/completions' if (_uses_chat_completions | bool) else 'completions' }}"
+
+    - name: Validate lm-eval model type override
+      ansible.builtin.assert:
+        that:
+          - lm_eval_model_type in ['auto', 'local-completions', 'local-chat-completions']
+        fail_msg: |
+          Invalid lm_eval_model_type: {{ lm_eval_model_type }}
+          Supported: auto, local-completions, local-chat-completions
 
     - name: Validate vLLM mode
       ansible.builtin.assert:
@@ -88,6 +112,24 @@
         - test_name is defined
         - test_name | length > 0
 
+    - name: Validate vllm_cpus format if provided
+      ansible.builtin.assert:
+        that:
+          - vllm_cpus | string | trim | regex_search('^[0-9]+(-[0-9]+)?(,[0-9]+(-[0-9]+)?)*$') is not none
+        fail_msg: >-
+          vllm_cpus='{{ vllm_cpus }}' is not valid. Expected a range (e.g. '0-31'),
+          comma-separated list, or hyphenated range.
+      when: vllm_cpus is defined and vllm_cpus | string | trim != ''
+
+    - name: Validate guidellm_cpus format if provided
+      ansible.builtin.assert:
+        that:
+          - guidellm_cpus | string | trim | regex_search('^[0-9]+(-[0-9]+)?(,[0-9]+(-[0-9]+)?)*$') is not none
+        fail_msg: >-
+          guidellm_cpus='{{ guidellm_cpus }}' is not valid. Expected a range (e.g. '32-47'),
+          comma-separated list, or hyphenated range.
+      when: guidellm_cpus is defined and guidellm_cpus | string | trim != ''
+
     - name: Generate test run ID
       ansible.builtin.set_fact:
         test_run_id: >-
@@ -105,6 +147,9 @@
           - "KV cache:      {{ lm_eval_kv_cache_space }}GiB"
           - "Limit:         {{ lm_eval_limit if lm_eval_limit | length > 0 else 'none' }}"
           - "lm-eval image: {{ lm_eval_image }}"
+          - "vLLM CPUs:     {{ vllm_cpus | default('auto from requested_cores') }}"
+          - "lm-eval CPUs:  {{ guidellm_cpus | default('unpinned') }}"
+          - "lm-eval model: {{ lm_eval_model_backend }} ({{ lm_eval_api_suffix }})"
 
 # ==============================================================================
 # PHASE 1: Detect Platform and Start vLLM Server
@@ -234,13 +279,13 @@
     - name: Build lm-eval model_args
       ansible.builtin.set_fact:
         _lm_eval_model_args: >-
-          model={{ model_name }},base_url={{ bench_config.vllm_scheme | default('http') }}://localhost:{{ bench_config.vllm_port | default(8000) }}/v1/completions,tokenizer={{ model_name }}
+          model={{ model_name }},base_url={{ bench_config.vllm_scheme | default('http') }}://localhost:{{ bench_config.vllm_port | default(8000) }}/v1/{{ hostvars['localhost']['lm_eval_api_suffix'] }},tokenizer={{ model_name }}
 
     - name: Build lm-eval command
       ansible.builtin.set_fact:
         _lm_eval_cmd:
           - "--model"
-          - "local-completions"
+          - "{{ hostvars['localhost']['lm_eval_model_backend'] }}"
           - "--model_args"
           - "{{ _lm_eval_model_args }}"
           - "--tasks"
@@ -265,6 +310,7 @@
             detach: false
             rm: true
             network: host
+            cpuset_cpus: "{{ hostvars['localhost']['guidellm_cpus'] | default(omit, true) }}"
             volumes:
               - "{{ results_base_expanded }}:/results:z"
             env:
@@ -322,13 +368,13 @@
     - name: Build lm-eval model_args
       ansible.builtin.set_fact:
         _lm_eval_model_args: >-
-          model={{ model_name }},base_url={{ bench_config.vllm_scheme | default('http') }}://{{ _vllm_host }}:{{ _vllm_port }}/v1/completions,tokenizer={{ model_name }}
+          model={{ model_name }},base_url={{ bench_config.vllm_scheme | default('http') }}://{{ _vllm_host }}:{{ _vllm_port }}/v1/{{ hostvars['localhost']['lm_eval_api_suffix'] }},tokenizer={{ model_name }}
 
     - name: Build lm-eval command
       ansible.builtin.set_fact:
         _lm_eval_cmd:
           - "--model"
-          - "local-completions"
+          - "{{ hostvars['localhost']['lm_eval_model_backend'] }}"
           - "--model_args"
           - "{{ _lm_eval_model_args }}"
           - "--tasks"
@@ -352,6 +398,7 @@
         detach: false
         rm: true
         network: host
+        cpuset_cpus: "{{ hostvars['localhost']['guidellm_cpus'] | default(omit, true) }}"
         volumes:
           - "{{ results_base_expanded }}:/results:z"
         env:
@@ -439,6 +486,7 @@
             "limit": "{{ lm_eval_limit if lm_eval_limit | length > 0 else 'none' }}",
             "vllm_mode": "{{ vllm_mode }}",
             "lm_eval_image": "{{ lm_eval_image }}",
+            "lm_eval_model_backend": "{{ lm_eval_model_backend }}",
             "requested_cores": {{ requested_cores | int }},
             "timestamp": "{{ lookup('pipe', 'date -Iseconds') }}"
           }

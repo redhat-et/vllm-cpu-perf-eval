@@ -83,6 +83,8 @@ TASK_GUIDE = {
 METRIC_OPTIONS = {
     "acc,none": "Accuracy (acc)",
     "acc_norm,none": "Normalised Accuracy (acc_norm)",
+    "exact_match,flexible-extract": "GSM8K Exact Match (flexible)",
+    "exact_match,strict-match": "GSM8K Exact Match (strict)",
 }
 
 METRIC_GUIDE = {
@@ -94,6 +96,13 @@ METRIC_GUIDE = {
         "**Length-normalised accuracy** — same idea as accuracy, but adjusts for "
         "answer-choice length so the model cannot cheat by always picking the "
         "longest option. Prefer this when comparing models on multiple-choice tasks."
+    ),
+    "exact_match,flexible-extract": (
+        "**GSM8K exact match (flexible)** — answer is correct after normalising "
+        "formatting (e.g. `$12` vs `12`). This is the usual headline GSM8K metric."
+    ),
+    "exact_match,strict-match": (
+        "**GSM8K exact match (strict)** — answer string must match exactly."
     ),
 }
 
@@ -438,7 +447,10 @@ def main():
 
         metric_key = st.selectbox(
             "Metric",
-            options=list(METRIC_OPTIONS.keys()),
+            options=[
+                k for k in METRIC_OPTIONS
+                if k in df.columns and df[k].notna().any()
+            ] or list(METRIC_OPTIONS.keys()),
             format_func=lambda k: METRIC_OPTIONS[k],
             help=(
                 "Accuracy = % correct. Normalised accuracy adjusts for "
