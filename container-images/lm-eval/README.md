@@ -63,6 +63,8 @@ The Dockerfile applies small in-image patches tested with lm_eval 0.4.7:
 1. **hf_vlms.py** — Avoids transformers lazy-import error without torch (API-only image)
 2. **hellaswag / winogrande tasks** — Updates dataset paths and removes
    `trust_remote_code` for `datasets` ≥ 3.x compatibility
+3. **gsm8k tasks** — Updates `dataset_path` to `openai/gsm8k` for current
+   HuggingFace Hub dataset naming
 
 A build-time smoke test verifies task registration for hellaswag, winogrande,
 gsm8k, and truthfulqa_mc1.

@@ -300,6 +300,11 @@
         _lm_eval_cmd: "{{ _lm_eval_cmd + ['--limit', hostvars['localhost']['lm_eval_limit'] | string] }}"
       when: hostvars['localhost']['lm_eval_limit'] | length > 0
 
+    - name: Append --apply_chat_template for chat-completions backend
+      ansible.builtin.set_fact:
+        _lm_eval_cmd: "{{ _lm_eval_cmd + ['--apply_chat_template'] }}"
+      when: hostvars['localhost']['lm_eval_model_backend'] == 'local-chat-completions'
+
     - block:
         - name: Run lm-eval container (dut-only)
           containers.podman.podman_container:
@@ -388,6 +393,11 @@
       ansible.builtin.set_fact:
         _lm_eval_cmd: "{{ _lm_eval_cmd + ['--limit', hostvars['localhost']['lm_eval_limit'] | string] }}"
       when: hostvars['localhost']['lm_eval_limit'] | length > 0
+
+    - name: Append --apply_chat_template for chat-completions backend
+      ansible.builtin.set_fact:
+        _lm_eval_cmd: "{{ _lm_eval_cmd + ['--apply_chat_template'] }}"
+      when: hostvars['localhost']['lm_eval_model_backend'] == 'local-chat-completions'
 
     - name: Run lm-eval container (managed/external)
       containers.podman.podman_container:

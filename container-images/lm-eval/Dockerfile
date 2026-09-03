@@ -53,16 +53,30 @@ RUN find /usr/local/lib -path '*/lm_eval/tasks/winogrande/*.yaml' | \
         -e '/trust_remote_code:/d' \
     {}
 
-# Build-time smoke test: verifies both sed patches were applied and core tasks load.
+# gsm8k was migrated to the openai/gsm8k namespace on HuggingFace; the bundled
+# task YAML still uses the bare "gsm8k" path, which breaks with recent
+# huggingface_hub/datasets (HfUriError: Repository id must be 'namespace/name').
+# Tested with lm_eval 0.4.7.
+RUN find /usr/local/lib -path '*/lm_eval/tasks/gsm8k/*.yaml' | \
+    xargs -I{} sed -i \
+        -e 's|dataset_path: gsm8k|dataset_path: openai/gsm8k|g' \
+        -e '/trust_remote_code:/d' \
+    {}
+
+# Build-time smoke test: verifies sed patches were applied and core tasks load.
 RUN set -eux; \
     HELLASWAG_YAML="$(find /usr/local/lib -path '*/lm_eval/tasks/hellaswag/*.yaml' -print -quit)"; \
     WINOGRANDE_YAML="$(find /usr/local/lib -path '*/lm_eval/tasks/winogrande/*.yaml' -print -quit)"; \
+    GSM8K_YAML="$(find /usr/local/lib -path '*/lm_eval/tasks/gsm8k/gsm8k.yaml' -print -quit)"; \
     test -n "${HELLASWAG_YAML}"; \
     test -n "${WINOGRANDE_YAML}"; \
+    test -n "${GSM8K_YAML}"; \
     grep -q 'dataset_path: Rowan/hellaswag' "${HELLASWAG_YAML}"; \
     ! grep -q 'trust_remote_code:' "${HELLASWAG_YAML}"; \
     grep -q 'dataset_path: allenai/winogrande' "${WINOGRANDE_YAML}"; \
     ! grep -q 'trust_remote_code:' "${WINOGRANDE_YAML}"; \
+    grep -q 'dataset_path: openai/gsm8k' "${GSM8K_YAML}"; \
+    ! grep -q 'trust_remote_code:' "${GSM8K_YAML}"; \
     python - <<'PY'
 from lm_eval.tasks import TaskManager
 
