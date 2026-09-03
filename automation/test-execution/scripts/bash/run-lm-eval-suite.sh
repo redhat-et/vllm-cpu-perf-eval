@@ -19,10 +19,11 @@
 #                             math     - gsm8k (uses chat completions API)
 #                             truthful - truthfulqa_mc1,truthfulqa_mc2
 #                           Presets cannot be combined (e.g. "math,truthful" is
-#                           invalid). To run math and truthful in one pass, pass
-#                           explicit names:
-#                             gsm8k,truthfulqa_mc1,truthfulqa_mc2
-#                           Or run separate sweeps with --tasks math and
+#                           invalid). Generation tasks (gsm8k) and multiple-
+#                           choice tasks (truthfulqa, hellaswag, arc, …) cannot
+#                           be mixed in one lm-eval run — they need different
+#                           API backends (chat-completions vs completions).
+#                           Run separate sweeps, e.g. --tasks math then
 #                           --tasks truthful.
 #                           Default: default
 #   --batch-size NUM        lm-eval batch size
@@ -73,9 +74,9 @@
 #   # Truthfulness / hallucination tendency (multiple-choice)
 #   ./run-lm-eval-suite.sh --models quick --tasks truthful --cores 16 --limit 50
 #
-#   # Math + TruthfulQA in one run (explicit task names — not preset names)
-#   ./run-lm-eval-suite.sh --models small --cores 32 --limit 500 \
-#     --tasks gsm8k,truthfulqa_mc1,truthfulqa_mc2 --batch-size 1
+#   # Math and TruthfulQA require separate runs (different API backends)
+#   ./run-lm-eval-suite.sh --models small --tasks math --cores 32 --limit 500 --batch-size 1
+#   ./run-lm-eval-suite.sh --models small --tasks truthful --cores 32 --limit 500
 #
 #   # Full accuracy sweep
 #   ./run-lm-eval-suite.sh --models all --cores 16,32
@@ -142,6 +143,9 @@ PRESET_ALL=(
     "Qwen/Qwen2.5-3B-Instruct"
     "meta-llama/Llama-3.2-3B-Instruct"
 )
+
+# Tasks that require generation / chat-completions (must not be mixed with MC tasks)
+GENERATION_TASKS=(gsm8k)
 
 # Defaults
 MODELS_INPUT="all"
@@ -218,6 +222,36 @@ case "${TASKS}" in
         TASKS="truthfulqa_mc1,truthfulqa_mc2"
         ;;
 esac
+
+# Generation tasks (gsm8k) use chat-completions; MC tasks use loglikelihood via
+# completions. lm-eval cannot run both backends in a single invocation.
+IFS=',' read -ra TASK_LIST <<< "${TASKS}"
+HAS_GENERATION=false
+HAS_LOGLIKELIHOOD=false
+for task in "${TASK_LIST[@]}"; do
+    task="${task// /}"
+    if [[ -z "${task}" ]]; then
+        continue
+    fi
+    is_generation=false
+    for gen_task in "${GENERATION_TASKS[@]}"; do
+        if [[ "${task}" == "${gen_task}" ]]; then
+            is_generation=true
+            break
+        fi
+    done
+    if [[ "${is_generation}" == true ]]; then
+        HAS_GENERATION=true
+    else
+        HAS_LOGLIKELIHOOD=true
+    fi
+done
+if [[ "${HAS_GENERATION}" == true && "${HAS_LOGLIKELIHOOD}" == true ]]; then
+    log_error "Cannot mix generation tasks (${GENERATION_TASKS[*]}) with multiple-choice / loglikelihood tasks in one run."
+    log_error "GSM8K needs chat-completions; TruthfulQA, hellaswag, arc, etc. need completions."
+    log_error "Run separate sweeps, e.g.: --tasks math  then  --tasks truthful"
+    exit 1
+fi
 
 # Resolve model preset
 MODELS=()

@@ -29,10 +29,11 @@
 #   vllm_container_name     Override container name (for parallel runs)
 #
 # NOTE — local-completions vs instruct models:
-#   Multiple-choice tasks (hellaswag, arc, winogrande) score via log-probs and use
-#   local-completions (/v1/completions). Generation tasks (gsm8k) require
-#   local-chat-completions (/v1/chat/completions) so the model chat template is
-#   applied. lm_eval_model_type=auto picks the backend from lm_eval_tasks.
+#   Multiple-choice tasks (hellaswag, arc, winogrande, truthfulqa) score via
+#   log-probs and use local-completions (/v1/completions). Generation tasks
+#   (gsm8k) require local-chat-completions (/v1/chat/completions). Do not mix
+#   generation and MC tasks in one lm_eval_tasks value — lm-eval supports only
+#   one backend per run. lm_eval_model_type=auto picks the backend from tasks.
 # ==============================================================================
 
 - name: Initialize lm-eval benchmark run
@@ -67,6 +68,21 @@
       ansible.builtin.set_fact:
         lm_eval_model_backend: "{{ 'local-chat-completions' if (_uses_chat_completions | bool) else 'local-completions' }}"
         lm_eval_api_suffix: "{{ 'chat/completions' if (_uses_chat_completions | bool) else 'completions' }}"
+
+    - name: Validate task list does not mix generation and loglikelihood tasks
+      ansible.builtin.assert:
+        that:
+          - not (
+              (_lm_eval_task_list | intersect(lm_eval_generation_tasks) | length > 0)
+              and (_lm_eval_task_list | difference(lm_eval_generation_tasks) | length > 0)
+            )
+        fail_msg: |
+          Cannot mix generation tasks ({{ lm_eval_generation_tasks | join(', ') }}) with
+          multiple-choice / loglikelihood tasks in a single lm-eval run.
+          GSM8K requires chat-completions; TruthfulQA, hellaswag, arc, etc. require
+          completions (loglikelihood). Run separate playbook invocations, e.g.:
+            lm_eval_tasks=gsm8k
+            lm_eval_tasks=truthfulqa_mc1,truthfulqa_mc2
 
     - name: Validate lm-eval model type override
       ansible.builtin.assert:

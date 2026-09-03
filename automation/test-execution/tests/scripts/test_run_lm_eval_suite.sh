@@ -148,6 +148,14 @@ else
     fail "--tasks truthful resolves to truthfulqa_mc1,truthfulqa_mc2" "Output: ${DRY_TRUTHFUL}"
 fi
 
+# Test 14: mixing gsm8k with MC tasks fails before ansible
+MIXED_OUT=$("${SUITE_SCRIPT}" --dry-run --models quick --cores 8 --tasks gsm8k,truthfulqa_mc1 2>&1 || true)
+if echo "${MIXED_OUT}" | grep -qi "Cannot mix generation tasks"; then
+    pass "gsm8k + truthfulqa rejected with clear error"
+else
+    fail "gsm8k + truthfulqa rejected with clear error" "Output: ${MIXED_OUT}"
+fi
+
 echo ""
 echo "=========================================="
 echo "Test Results"
