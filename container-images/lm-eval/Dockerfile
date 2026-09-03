@@ -70,7 +70,8 @@ manager = TaskManager()
 for task_name in ("hellaswag", "winogrande", "gsm8k", "truthfulqa_mc1"):
     assert task_name in manager.all_tasks, f"missing task: {task_name}"
 PY
-    lm_eval --help > /dev/null
+
+RUN lm_eval --help > /dev/null
 
 RUN groupadd --gid 1000 lmeval \
     && useradd --uid 1000 --gid lmeval --create-home lmeval \
