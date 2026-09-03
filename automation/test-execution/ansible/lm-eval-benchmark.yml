@@ -162,6 +162,7 @@
         bench_config:
           vllm_host: localhost
           vllm_port: "{{ vllm_port }}"
+          vllm_scheme: http
           results_dir: "{{ _dut_home.stdout }}/benchmark-results"
 
     - name: Run vLLM health check
@@ -184,7 +185,11 @@
 
     - name: Override bench_config for external mode
       ansible.builtin.set_fact:
-        bench_config: "{{ bench_config | combine({'vllm_host': _ext_parsed.hostname, 'vllm_port': _ext_parsed.port | default(8000) | int}) }}"
+        bench_config: "{{ bench_config | combine({
+          'vllm_host': _ext_parsed.hostname,
+          'vllm_port': _ext_parsed.port | default(8000) | int,
+          'vllm_scheme': (_ext_parsed.scheme if (_ext_parsed.scheme | default('') | length > 0) else 'http')
+        }) }}"
       when: hostvars['localhost']['vllm_mode'] == 'external'
 
     - name: Run vLLM health check
@@ -229,7 +234,7 @@
     - name: Build lm-eval model_args
       ansible.builtin.set_fact:
         _lm_eval_model_args: >-
-          model={{ model_name }},base_url=http://localhost:{{ bench_config.vllm_port | default(8000) }}/v1/completions,tokenizer={{ model_name }}
+          model={{ model_name }},base_url={{ bench_config.vllm_scheme | default('http') }}://localhost:{{ bench_config.vllm_port | default(8000) }}/v1/completions,tokenizer={{ model_name }}
 
     - name: Build lm-eval command
       ansible.builtin.set_fact:
@@ -250,20 +255,30 @@
         _lm_eval_cmd: "{{ _lm_eval_cmd + ['--limit', hostvars['localhost']['lm_eval_limit'] | string] }}"
       when: hostvars['localhost']['lm_eval_limit'] | length > 0
 
-    - name: Run lm-eval container (dut-only)
-      containers.podman.podman_container:
-        name: "lm-eval-{{ hostvars['localhost']['test_run_id'] }}"
-        image: "{{ hostvars['localhost']['lm_eval_image'] }}"
-        pull: missing
-        state: started
-        detach: false
-        rm: true
-        network: host
-        volumes:
-          - "{{ results_base_expanded }}:/results:z"
-        env:
-          HF_TOKEN: "{{ lookup('env', 'HF_TOKEN') | default(hf_token | default(''), true) }}"
-        command: "{{ _lm_eval_cmd }}"
+    - block:
+        - name: Run lm-eval container (dut-only)
+          containers.podman.podman_container:
+            name: "lm-eval-{{ hostvars['localhost']['test_run_id'] }}"
+            image: "{{ hostvars['localhost']['lm_eval_image'] }}"
+            pull: missing
+            state: started
+            detach: false
+            rm: true
+            network: host
+            volumes:
+              - "{{ results_base_expanded }}:/results:z"
+            env:
+              HF_TOKEN: "{{ lookup('env', 'HF_TOKEN') | default(hf_token | default(''), true) }}"
+            command: "{{ _lm_eval_cmd }}"
+      always:
+        - name: Stop and remove vLLM server after dut-only lm-eval
+          containers.podman.podman_container:
+            name: "{{ hostvars['localhost']['vllm_container_name'] | default('vllm-server') }}"
+            state: absent
+          failed_when: false
+          when:
+            - container_runtime.engine == 'podman'
+            - hostvars['localhost']['vllm_mode'] == 'dut-only'
 
 # ==============================================================================
 # PHASE 3: Run lm-eval Container (Managed/External modes)
@@ -307,7 +322,7 @@
     - name: Build lm-eval model_args
       ansible.builtin.set_fact:
         _lm_eval_model_args: >-
-          model={{ model_name }},base_url=http://{{ _vllm_host }}:{{ _vllm_port }}/v1/completions,tokenizer={{ model_name }}
+          model={{ model_name }},base_url={{ bench_config.vllm_scheme | default('http') }}://{{ _vllm_host }}:{{ _vllm_port }}/v1/completions,tokenizer={{ model_name }}
 
     - name: Build lm-eval command
       ansible.builtin.set_fact:

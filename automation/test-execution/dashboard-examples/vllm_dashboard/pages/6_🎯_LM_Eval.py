@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional
 
+import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -205,6 +206,14 @@ def load_lm_eval_data(results_dir: str) -> pd.DataFrame:
 
 def _pct(val: float) -> str:
     return f"{val * 100:.1f}%"
+
+
+def _add_model_display_label(df: pd.DataFrame) -> pd.DataFrame:
+    """Use full model path when short names collide."""
+    df = df.copy()
+    short_counts = df.groupby("model_short")["model"].transform("nunique")
+    df["model_display"] = np.where(short_counts > 1, df["model"], df["model_short"])
+    return df
 
 
 def _accuracy_bar(
@@ -451,13 +460,14 @@ def main():
         & df["task_label"].isin(sel_tasks)
         & df["cores"].isin(sel_cores)
     ].copy()
+    df_f = _add_model_display_label(df_f)
 
     if df_f.empty:
         st.warning("No results match the current filters.")
         return
 
     n_runs = df_f["test_run_id"].nunique()
-    n_models = df_f["model_short"].nunique()
+    n_models = df_f["model"].nunique()
     n_tasks = df_f["task_label"].nunique()
     st.success(
         f"Loaded **{n_runs}** run(s) · "
@@ -478,17 +488,23 @@ def main():
     # Use the latest run per model+task+cores to avoid double-counting
     df_latest = (
         df_f.sort_values("timestamp")
-        .groupby(["model_short", "task_label", "cores"], dropna=False)
+        .groupby(["model", "task_label", "cores"], dropna=False)
         .last()
         .reset_index()
     )
+    df_latest = _add_model_display_label(df_latest)
 
     if metric_key in df_latest.columns:
         # Average across core counts when multiple are present
         df_avg = (
-            df_latest.groupby(["model_short", "task_label"])[metric_key]
+            df_latest.groupby(["model", "task_label"])[metric_key]
             .mean()
             .reset_index()
+        )
+        df_avg = df_avg.merge(
+            df_latest[["model", "model_display"]].drop_duplicates(),
+            on="model",
+            how="left",
         )
         df_avg["task_label"] = df_avg["task_label"]
 
@@ -496,7 +512,7 @@ def main():
             df_avg,
             metric_key,
             title=f"{METRIC_OPTIONS[metric_key]} by Task",
-            color_by="model_short",
+            color_by="model_display",
         )
         st.plotly_chart(fig1, use_container_width=True)
 
@@ -550,20 +566,25 @@ def main():
         best_row = df_cmp.loc[df_cmp[cmp_metric].idxmax()]
         worst_row = df_cmp.loc[df_cmp[cmp_metric].idxmin()]
         st.info(
-            f"On **{cmp_task}**, best: **{best_row['model_short']}** "
+            f"On **{cmp_task}**, best: **{best_row['model_display']}** "
             f"({_pct(best_row[cmp_metric])} — {_score_interpretation(best_row[cmp_metric])}); "
-            f"lowest: **{worst_row['model_short']}** "
+            f"lowest: **{worst_row['model_display']}** "
             f"({_pct(worst_row[cmp_metric])} — {_score_interpretation(worst_row[cmp_metric])})."
         )
 
         df_cmp_g = (
-            df_cmp.groupby(["model_short", "cores"])[cmp_metric]
+            df_cmp.groupby(["model", "cores"])[cmp_metric]
             .mean()
             .reset_index()
         )
+        df_cmp_g = df_cmp_g.merge(
+            df_cmp[["model", "model_display"]].drop_duplicates(),
+            on="model",
+            how="left",
+        )
         df_cmp_g["cores_label"] = df_cmp_g["cores"].astype(str) + " cores"
 
-        models_in_task = sorted(df_cmp_g["model_short"].unique())
+        models_in_task = sorted(df_cmp_g["model"].unique())
         color_map = {
             m: PLOTLY_COLORS[i % len(PLOTLY_COLORS)]
             for i, m in enumerate(models_in_task)
@@ -572,16 +593,17 @@ def main():
         if df_cmp_g["cores"].nunique() > 1:
             fig2 = go.Figure()
             for model in models_in_task:
-                sub = df_cmp_g[df_cmp_g["model_short"] == model].sort_values("cores")
+                sub = df_cmp_g[df_cmp_g["model"] == model].sort_values("cores")
+                display_name = sub["model_display"].iloc[0]
                 fig2.add_trace(go.Scatter(
                     x=sub["cores"],
                     y=sub[cmp_metric],
                     mode="lines+markers",
-                    name=model,
+                    name=display_name,
                     line=dict(width=2, color=color_map[model]),
                     marker=dict(size=9),
                     hovertemplate=(
-                        f"<b>{model}</b><br>"
+                        f"<b>{display_name}</b><br>"
                         "Cores: %{x}<br>"
                         f"Score: %{{y:.3f}}<br>"
                         "<extra></extra>"
@@ -605,12 +627,12 @@ def main():
             df_cmp_g = df_cmp_g.sort_values(cmp_metric, ascending=True)
             fig2b = go.Figure(go.Bar(
                 x=df_cmp_g[cmp_metric],
-                y=df_cmp_g["model_short"],
+                y=df_cmp_g["model_display"],
                 orientation="h",
                 text=[_pct(v) for v in df_cmp_g[cmp_metric]],
                 textposition="auto",
                 marker_color=[
-                    color_map[m] for m in df_cmp_g["model_short"]
+                    color_map[m] for m in df_cmp_g["model"]
                 ],
             ))
             fig2b.update_layout(
@@ -637,11 +659,17 @@ def main():
         )
 
         pivot = (
-            df_latest.groupby(["model_short", "task_label"])[metric_key]
+            df_latest.groupby(["model", "task_label"])[metric_key]
             .mean()
             .unstack(level="task_label")
             .fillna(float("nan"))
         )
+        model_labels = (
+            df_latest[["model", "model_display"]]
+            .drop_duplicates()
+            .set_index("model")["model_display"]
+        )
+        pivot.index = [model_labels.get(m, m) for m in pivot.index]
 
         fig3 = go.Figure(go.Heatmap(
             z=pivot.values,

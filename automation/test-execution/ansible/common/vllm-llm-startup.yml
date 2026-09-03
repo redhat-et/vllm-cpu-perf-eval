@@ -56,13 +56,23 @@
       register: _nproc
       changed_when: false
 
+    - name: Fail when requested_cores exceeds available CPUs (no vllm_cpus override)
+      ansible.builtin.fail:
+        msg: >-
+          Cannot allocate {{ requested_cores | int }} cores: only {{ _nproc.stdout | int }} available.
+          Reduce requested_cores or set an explicit vllm_cpus override.
+      when:
+        - not (hostvars['localhost']['vllm_cpus'] is defined
+               and hostvars['localhost']['vllm_cpus'] | length > 0)
+        - requested_cores | int > _nproc.stdout | int
+
     - name: Compute cpuset_cpus from requested_cores (when vllm_cpus not set)
       ansible.builtin.set_fact:
         _cpuset_cpus: >-
           {{ hostvars['localhost']['vllm_cpus']
              if (hostvars['localhost']['vllm_cpus'] is defined
                  and hostvars['localhost']['vllm_cpus'] | length > 0)
-             else '0-' + ([requested_cores | int, _nproc.stdout | int] | min - 1) | string }}
+             else '0-' + (requested_cores | int - 1) | string }}
         _cpuset_mems: "{{ hostvars['localhost']['vllm_numa_node'] | default(0) }}"
 
     - name: Build vLLM server command

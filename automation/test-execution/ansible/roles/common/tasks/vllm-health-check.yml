@@ -4,7 +4,7 @@
 
 - name: Wait for vLLM health endpoint
   ansible.builtin.uri:
-    url: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/health"
+    url: "{{ bench_config.vllm_scheme | default('http') }}://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/health"
     method: GET
     status_code: 200
   register: health_check_result
@@ -20,7 +20,7 @@
 
 - name: Verify vLLM /v1/models endpoint
   ansible.builtin.uri:
-    url: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/v1/models"
+    url: "{{ bench_config.vllm_scheme | default('http') }}://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/v1/models"
     method: GET
     status_code: 200
   register: models_check
@@ -31,7 +31,7 @@
 
 - name: Get vLLM version
   ansible.builtin.uri:
-    url: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/version"
+    url: "{{ bench_config.vllm_scheme | default('http') }}://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/version"
     method: GET
     status_code: 200
   register: version_check

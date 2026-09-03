@@ -738,11 +738,23 @@ def allocate_with_fixed_tp(available_nodes, requested_cores, tp, cpu_start=None)
             cpu_list_to_range(allocated_cpus[i * cores_per_shard:(i + 1) * cores_per_shard])
             for i in range(tp)
         ]
+        allocated_set = set(allocated_cpus)
+        allocated_node_ids = []
+        cores_per_node_list = []
+        cpuset_mems_parts = []
+        for node in sorted_nodes:
+            physical_cpus_str = node.get('physical_cpus_list', '') or node.get('physical_cpus', '')
+            node_cpus = set(expand_cpu_range(physical_cpus_str))
+            selected = sorted(allocated_set & node_cpus)
+            if selected:
+                allocated_node_ids.append(int(node['id']))
+                cores_per_node_list.append(len(selected))
+                cpuset_mems_parts.append(str(node['id']))
         return {
-            'allocated_nodes': [int(n['id']) for n in sorted_nodes],
-            'cores_per_node': [int(n['physical_cores']) for n in sorted_nodes],
+            'allocated_nodes': allocated_node_ids,
+            'cores_per_node': cores_per_node_list,
             'cpuset_cpus': cpu_list_to_range(allocated_cpus),
-            'cpuset_mems': ','.join(str(n['id']) for n in sorted_nodes),
+            'cpuset_mems': ','.join(cpuset_mems_parts),
             'tensor_parallel': tp,
             'omp_num_threads': cores_per_shard,
             'omp_threads_bind': '|'.join(omp_bind_parts),

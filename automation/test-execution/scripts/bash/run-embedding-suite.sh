@@ -62,11 +62,15 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${SCRIPT_DIR}"
-while [[ ! -d "${REPO_ROOT}/.git" ]] && [[ "${REPO_ROOT}" != "/" ]]; do
-    REPO_ROOT="$(dirname "${REPO_ROOT}")"
-done
+if command -v git >/dev/null 2>&1 && GIT_ROOT="$(git -C "${SCRIPT_DIR}" rev-parse --show-toplevel 2>/dev/null)"; then
+    REPO_ROOT="${GIT_ROOT}"
+else
+    while [[ ! -d "${REPO_ROOT}/.git" && ! -f "${REPO_ROOT}/.git" ]] && [[ "${REPO_ROOT}" != "/" ]]; do
+        REPO_ROOT="$(dirname "${REPO_ROOT}")"
+    done
+fi
 
-if [[ ! -d "${REPO_ROOT}/.git" ]]; then
+if [[ ! -d "${REPO_ROOT}/.git" && ! -f "${REPO_ROOT}/.git" ]]; then
     echo "ERROR: Could not find repository root"
     exit 1
 fi

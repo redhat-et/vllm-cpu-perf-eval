@@ -8,7 +8,7 @@ ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     git \
     && rm -rf /var/lib/apt/lists/*
@@ -53,11 +53,31 @@ RUN find /usr/local/lib -path '*/lm_eval/tasks/winogrande/*.yaml' | \
         -e '/trust_remote_code:/d' \
     {}
 
-# Build-time smoke test: verifies both sed patches left lm_eval importable
-# and that the entry-point itself runs without an AttributeError.
-RUN lm_eval --help > /dev/null
+# Build-time smoke test: verifies both sed patches were applied and core tasks load.
+RUN set -eux; \
+    HELLASWAG_YAML="$(find /usr/local/lib -path '*/lm_eval/tasks/hellaswag/*.yaml' -print -quit)"; \
+    WINOGRANDE_YAML="$(find /usr/local/lib -path '*/lm_eval/tasks/winogrande/*.yaml' -print -quit)"; \
+    test -n "${HELLASWAG_YAML}"; \
+    test -n "${WINOGRANDE_YAML}"; \
+    grep -q 'dataset_path: Rowan/hellaswag' "${HELLASWAG_YAML}"; \
+    ! grep -q 'trust_remote_code:' "${HELLASWAG_YAML}"; \
+    grep -q 'dataset_path: allenai/winogrande' "${WINOGRANDE_YAML}"; \
+    ! grep -q 'trust_remote_code:' "${WINOGRANDE_YAML}"; \
+    python - <<'PY'
+from lm_eval.tasks import TaskManager
 
-RUN mkdir -p /results
+manager = TaskManager()
+for task_name in ("hellaswag", "winogrande"):
+    assert task_name in manager.all_tasks, f"missing task: {task_name}"
+PY
+    lm_eval --help > /dev/null
+
+RUN groupadd --gid 1000 lmeval \
+    && useradd --uid 1000 --gid lmeval --create-home lmeval \
+    && mkdir -p /results \
+    && chown -R lmeval:lmeval /workspace /results
+
+USER lmeval
 
 ENTRYPOINT ["lm_eval"]
 CMD ["--help"]
