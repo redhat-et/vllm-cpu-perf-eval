@@ -63,20 +63,33 @@ RUN find /usr/local/lib -path '*/lm_eval/tasks/gsm8k/*.yaml' | \
         -e '/trust_remote_code:/d' \
     {}
 
+# truthful_qa was migrated to truthfulqa/truthful_qa on HuggingFace; the bundled
+# task YAML still uses the bare "truthful_qa" path (same HfUriError as gsm8k).
+# Tested with lm_eval 0.4.7.
+RUN find /usr/local/lib -path '*/lm_eval/tasks/truthfulqa/*.yaml' | \
+    xargs -I{} sed -i \
+        -e 's|dataset_path: truthful_qa|dataset_path: truthfulqa/truthful_qa|g' \
+        -e '/trust_remote_code:/d' \
+    {}
+
 # Build-time smoke test: verifies sed patches were applied and core tasks load.
 RUN set -eux; \
     HELLASWAG_YAML="$(find /usr/local/lib -path '*/lm_eval/tasks/hellaswag/*.yaml' -print -quit)"; \
     WINOGRANDE_YAML="$(find /usr/local/lib -path '*/lm_eval/tasks/winogrande/*.yaml' -print -quit)"; \
     GSM8K_YAML="$(find /usr/local/lib -path '*/lm_eval/tasks/gsm8k/gsm8k.yaml' -print -quit)"; \
+    TRUTHFULQA_YAML="$(find /usr/local/lib -path '*/lm_eval/tasks/truthfulqa/truthfulqa_mc1.yaml' -print -quit)"; \
     test -n "${HELLASWAG_YAML}"; \
     test -n "${WINOGRANDE_YAML}"; \
     test -n "${GSM8K_YAML}"; \
+    test -n "${TRUTHFULQA_YAML}"; \
     grep -q 'dataset_path: Rowan/hellaswag' "${HELLASWAG_YAML}"; \
     ! grep -q 'trust_remote_code:' "${HELLASWAG_YAML}"; \
     grep -q 'dataset_path: allenai/winogrande' "${WINOGRANDE_YAML}"; \
     ! grep -q 'trust_remote_code:' "${WINOGRANDE_YAML}"; \
     grep -q 'dataset_path: openai/gsm8k' "${GSM8K_YAML}"; \
     ! grep -q 'trust_remote_code:' "${GSM8K_YAML}"; \
+    grep -q 'dataset_path: truthfulqa/truthful_qa' "${TRUTHFULQA_YAML}"; \
+    ! grep -q 'trust_remote_code:' "${TRUTHFULQA_YAML}"; \
     python - <<'PY'
 from lm_eval.tasks import TaskManager
 
