@@ -14,10 +14,11 @@
 #   --cores LIST            Comma-separated core counts
 #                           Default: 8,16,32
 #   --tasks LIST            Comma-separated lm-eval task names or preset
-#                           (default|math|gsm8k|hellaswag,...)
+#                           (default|math|truthful|gsm8k|hellaswag,...)
 #                           Presets:
-#                             default - hellaswag,winogrande,arc_easy,arc_challenge
-#                             math    - gsm8k (uses chat completions API)
+#                             default  - hellaswag,winogrande,arc_easy,arc_challenge
+#                             math     - gsm8k (uses chat completions API)
+#                             truthful - truthfulqa_mc1,truthfulqa_mc2 (hallucination/truthfulness)
 #                           Default: default
 #   --batch-size NUM        lm-eval batch size
 #                           Default: 16
@@ -63,6 +64,9 @@
 #
 #   # Math reasoning (generation-based; slower — use --limit for smoke tests)
 #   ./run-lm-eval-suite.sh --models small --tasks math --cores 16 --limit 50 --batch-size 1
+#
+#   # Truthfulness / hallucination tendency (multiple-choice)
+#   ./run-lm-eval-suite.sh --models quick --tasks truthful --cores 16 --limit 50
 #
 #   # Full accuracy sweep
 #   ./run-lm-eval-suite.sh --models all --cores 16,32
@@ -199,6 +203,9 @@ case "${TASKS}" in
         ;;
     math)
         TASKS="gsm8k"
+        ;;
+    truthful|truthfulness|hallucination)
+        TASKS="truthfulqa_mc1,truthfulqa_mc2"
         ;;
 esac
 

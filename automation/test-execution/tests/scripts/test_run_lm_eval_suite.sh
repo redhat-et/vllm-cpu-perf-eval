@@ -140,6 +140,14 @@ else
     fail "--vllm-cpus and --guidellm-cpus passed through in dry-run" "Output: ${DRY_CPUS}"
 fi
 
+# Test 13: --tasks truthful resolves to TruthfulQA tasks in dry-run
+DRY_TRUTHFUL=$("${SUITE_SCRIPT}" --dry-run --models quick --cores 8 --tasks truthful 2>&1 || true)
+if echo "${DRY_TRUTHFUL}" | grep -q "lm_eval_tasks=truthfulqa_mc1,truthfulqa_mc2"; then
+    pass "--tasks truthful resolves to truthfulqa_mc1,truthfulqa_mc2"
+else
+    fail "--tasks truthful resolves to truthfulqa_mc1,truthfulqa_mc2" "Output: ${DRY_TRUTHFUL}"
+fi
+
 echo ""
 echo "=========================================="
 echo "Test Results"

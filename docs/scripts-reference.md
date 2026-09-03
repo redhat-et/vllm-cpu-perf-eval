@@ -178,6 +178,7 @@ cd automation/test-execution/scripts
 ./cpueval --suite lm-eval --models quick --cores 8 --limit 50
 ./cpueval --suite lm-eval --models small --tasks hellaswag,arc_easy --cores 16
 ./cpueval --suite lm-eval --models small --tasks math --cores 16 --limit 50 --batch-size 1
+./cpueval --suite lm-eval --models quick --tasks truthful --cores 16 --limit 50
 ./cpueval --suite lm-eval --models quick --cores 8 --tag baseline-v1 --limit 50
 ```
 
@@ -190,11 +191,12 @@ cd automation/test-execution/scripts
 **Task Presets:**
 - `default` — `hellaswag,winogrande,arc_easy,arc_challenge` (multiple-choice, log-prob scoring)
 - `math` — `gsm8k` (generation-based math; slower; uses chat completions API)
+- `truthful` — `truthfulqa_mc1,truthfulqa_mc2` (truthfulness / hallucination tendency; multiple-choice)
 
 **Key Options:**
 - `--models LIST` - Comma-separated models or preset (all|quick|small|medium)
 - `--cores LIST` - Comma-separated core counts (default: 8,16,32)
-- `--tasks LIST` - lm-eval task names or preset (`default`, `math`, or comma-separated tasks)
+- `--tasks LIST` - lm-eval task names or preset (`default`, `math`, `truthful`, or comma-separated tasks)
 - `--batch-size NUM` - lm-eval batch size (default: 16)
 - `--dtype DTYPE` - Model dtype: bfloat16, float16, float32 (default: bfloat16)
 - `--limit NUM` - Limit examples per task (for quick runs)
