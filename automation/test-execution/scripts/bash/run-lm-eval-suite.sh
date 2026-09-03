@@ -13,12 +13,17 @@
 #                           Default: all
 #   --cores LIST            Comma-separated core counts
 #                           Default: 8,16,32
-#   --tasks LIST            Comma-separated lm-eval task names or preset
-#                           (default|math|truthful|gsm8k|hellaswag,...)
-#                           Presets:
+#   --tasks LIST            lm-eval task preset (single value) or comma-separated
+#                           task names (no spaces). Presets expand to fixed lists:
 #                             default  - hellaswag,winogrande,arc_easy,arc_challenge
 #                             math     - gsm8k (uses chat completions API)
-#                             truthful - truthfulqa_mc1,truthfulqa_mc2 (hallucination/truthfulness)
+#                             truthful - truthfulqa_mc1,truthfulqa_mc2
+#                           Presets cannot be combined (e.g. "math,truthful" is
+#                           invalid). To run math and truthful in one pass, pass
+#                           explicit names:
+#                             gsm8k,truthfulqa_mc1,truthfulqa_mc2
+#                           Or run separate sweeps with --tasks math and
+#                           --tasks truthful.
 #                           Default: default
 #   --batch-size NUM        lm-eval batch size
 #                           Default: 16
@@ -67,6 +72,10 @@
 #
 #   # Truthfulness / hallucination tendency (multiple-choice)
 #   ./run-lm-eval-suite.sh --models quick --tasks truthful --cores 16 --limit 50
+#
+#   # Math + TruthfulQA in one run (explicit task names — not preset names)
+#   ./run-lm-eval-suite.sh --models small --cores 32 --limit 500 \
+#     --tasks gsm8k,truthfulqa_mc1,truthfulqa_mc2 --batch-size 1
 #
 #   # Full accuracy sweep
 #   ./run-lm-eval-suite.sh --models all --cores 16,32
@@ -196,7 +205,8 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Resolve task presets
+# Resolve task presets (exact match only — comma-separated preset names are not
+# supported; use explicit lm-eval task names to combine multiple presets).
 case "${TASKS}" in
     default|mc)
         TASKS="hellaswag,winogrande,arc_easy,arc_challenge"
