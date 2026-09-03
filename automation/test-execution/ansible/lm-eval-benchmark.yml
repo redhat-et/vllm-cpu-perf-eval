@@ -213,10 +213,11 @@
       ansible.builtin.meta: end_play
       when: hostvars['localhost']['vllm_mode'] != 'dut-only'
 
-    - name: Get DUT home directory for results path
-      ansible.builtin.shell: "echo $HOME"
+    - name: Get SSH user home directory for results path
+      ansible.builtin.shell: "echo ~{{ ansible_user }}"
       register: _dut_home
       changed_when: false
+      become: false
 
     - name: Set bench_config for dut-only mode
       ansible.builtin.set_fact:
@@ -289,7 +290,7 @@
       ansible.builtin.file:
         path: "{{ results_base_expanded }}"
         state: directory
-        mode: "0755"
+        mode: "0777"
         recurse: true
 
     - name: Build lm-eval model_args
@@ -347,9 +348,28 @@
             - container_runtime.engine == 'podman'
             - hostvars['localhost']['vllm_mode'] == 'dut-only'
 
-# ==============================================================================
-# PHASE 3: Run lm-eval Container (Managed/External modes)
-# ==============================================================================
+    - name: Find lm-eval results JSON on DUT
+      ansible.builtin.find:
+        paths: "{{ results_base_expanded }}"
+        patterns: "results*.json"
+        recurse: true
+      register: _dut_lm_eval_json
+
+    - name: Assert lm-eval wrote results JSON on DUT
+      ansible.builtin.assert:
+        that:
+          - _dut_lm_eval_json.matched > 0
+        fail_msg: |
+          lm-eval finished but no results*.json was found under {{ results_base_expanded }}.
+          Rebuild the lm-eval image on the DUT and check container stderr.
+          Expected layout: <run_dir>/<model_slug>/results_<timestamp>.json
+
+    - name: Publish DUT results path for fetch phase
+      ansible.builtin.set_fact:
+        lm_eval_dut_results_path: "{{ results_base_expanded }}"
+        lm_eval_dut_results_files: "{{ _dut_lm_eval_json.files }}"
+      delegate_to: localhost
+      delegate_facts: true
 
 - name: "Phase 3b - Run lm-eval (Managed/External modes)"
   hosts: load_generator
@@ -383,7 +403,7 @@
       ansible.builtin.file:
         path: "{{ results_base_expanded }}"
         state: directory
-        mode: "0755"
+        mode: "0777"
         recurse: true
 
     - name: Build lm-eval model_args
@@ -431,6 +451,28 @@
           HF_TOKEN: "{{ lookup('env', 'HF_TOKEN') | default(hf_token | default(''), true) }}"
         command: "{{ _lm_eval_cmd }}"
 
+    - name: Find lm-eval results JSON on load generator
+      ansible.builtin.find:
+        paths: "{{ results_base_expanded }}"
+        patterns: "results*.json"
+        recurse: true
+      register: _dut_lm_eval_json
+
+    - name: Assert lm-eval wrote results JSON on load generator
+      ansible.builtin.assert:
+        that:
+          - _dut_lm_eval_json.matched > 0
+        fail_msg: |
+          lm-eval finished but no results*.json was found under {{ results_base_expanded }}.
+          Rebuild the lm-eval image and check container stderr.
+
+    - name: Publish lm-eval results path for fetch phase
+      ansible.builtin.set_fact:
+        lm_eval_dut_results_path: "{{ results_base_expanded }}"
+        lm_eval_dut_results_files: "{{ _dut_lm_eval_json.files }}"
+      delegate_to: localhost
+      delegate_facts: true
+
 # ==============================================================================
 # PHASE 4: Collect Results and Write Metadata
 # ==============================================================================
@@ -456,10 +498,43 @@
 
     - name: Fetch results to local machine
       ansible.posix.synchronize:
-        src: "{{ bench_config.results_dir }}/lm-eval/{{ model_name | replace('/', '__') }}/{{ test_run_id }}/"
+        src: "{{ hostvars['localhost'].lm_eval_dut_results_path | default(bench_config.results_dir + '/lm-eval/' + (model_name | replace('/', '__')) + '/' + test_run_id) }}/"
         dest: "{{ playbook_dir }}/../../../results/lm-eval/{{ model_name | replace('/', '__') }}/{{ test_run_id }}/"
         mode: pull
         recursive: true
+
+    - name: Find lm-eval results JSON on controller after synchronize
+      ansible.builtin.find:
+        paths: "{{ playbook_dir }}/../../../results/lm-eval/{{ model_name | replace('/', '__') }}/{{ test_run_id }}"
+        patterns: "results*.json"
+        recurse: true
+      register: _local_lm_eval_json
+      delegate_to: localhost
+
+    - name: Fetch lm-eval JSON from DUT when synchronize missed output
+      ansible.builtin.fetch:
+        src: "{{ item.path }}"
+        dest: "{{ playbook_dir }}/../../../results/lm-eval/{{ model_name | replace('/', '__') }}/{{ test_run_id }}/{{ item.path | basename }}"
+        flat: true
+      loop: "{{ hostvars['localhost'].lm_eval_dut_results_files | default([]) }}"
+      when: _local_lm_eval_json.matched == 0
+
+    - name: Re-scan controller for lm-eval results JSON
+      ansible.builtin.find:
+        paths: "{{ playbook_dir }}/../../../results/lm-eval/{{ model_name | replace('/', '__') }}/{{ test_run_id }}"
+        patterns: "results*.json"
+        recurse: true
+      register: _local_lm_eval_json_final
+      delegate_to: localhost
+
+    - name: Assert lm-eval results JSON present on controller
+      ansible.builtin.assert:
+        that:
+          - _local_lm_eval_json_final.matched > 0
+        fail_msg: |
+          lm-eval results were not fetched to the controller.
+          Expected under: {{ playbook_dir }}/../../../results/lm-eval/{{ model_name | replace('/', '__') }}/{{ test_run_id }}/
+          Check rsync on the DUT and path: {{ hostvars['localhost'].lm_eval_dut_results_path | default('unknown') }}
 
 - name: "Phase 4b - Fetch Results (Managed/External modes)"
   hosts: load_generator
@@ -482,10 +557,42 @@
 
     - name: Fetch results to local machine
       ansible.posix.synchronize:
-        src: "{{ bench_config.results_dir }}/lm-eval/{{ model_name | replace('/', '__') }}/{{ test_run_id }}/"
+        src: "{{ hostvars['localhost'].lm_eval_dut_results_path | default(bench_config.results_dir + '/lm-eval/' + (model_name | replace('/', '__')) + '/' + test_run_id) }}/"
         dest: "{{ playbook_dir }}/../../../results/lm-eval/{{ model_name | replace('/', '__') }}/{{ test_run_id }}/"
         mode: pull
         recursive: true
+
+    - name: Find lm-eval results JSON on controller after synchronize
+      ansible.builtin.find:
+        paths: "{{ playbook_dir }}/../../../results/lm-eval/{{ model_name | replace('/', '__') }}/{{ test_run_id }}"
+        patterns: "results*.json"
+        recurse: true
+      register: _local_lm_eval_json
+      delegate_to: localhost
+
+    - name: Fetch lm-eval JSON from load generator when synchronize missed output
+      ansible.builtin.fetch:
+        src: "{{ item.path }}"
+        dest: "{{ playbook_dir }}/../../../results/lm-eval/{{ model_name | replace('/', '__') }}/{{ test_run_id }}/{{ item.path | basename }}"
+        flat: true
+      loop: "{{ hostvars['localhost'].lm_eval_dut_results_files | default([]) }}"
+      when: _local_lm_eval_json.matched == 0
+
+    - name: Re-scan controller for lm-eval results JSON
+      ansible.builtin.find:
+        paths: "{{ playbook_dir }}/../../../results/lm-eval/{{ model_name | replace('/', '__') }}/{{ test_run_id }}"
+        patterns: "results*.json"
+        recurse: true
+      register: _local_lm_eval_json_final
+      delegate_to: localhost
+
+    - name: Assert lm-eval results JSON present on controller
+      ansible.builtin.assert:
+        that:
+          - _local_lm_eval_json_final.matched > 0
+        fail_msg: |
+          lm-eval results were not fetched to the controller.
+          Expected under: {{ playbook_dir }}/../../../results/lm-eval/{{ model_name | replace('/', '__') }}/{{ test_run_id }}/
 
 - name: "Phase 4c - Write Metadata"
   hosts: localhost
