@@ -28,6 +28,11 @@ table of benchmark results to stdout. It auto-detects whether the results
 are from an LLM (GuideLLM) or embedding (vllm bench serve) run and
 formats the output accordingly.
 
+**LM Eval accuracy results** (`results/lm-eval/`) are not supported by the
+terminal viewer or `cpueval results --last` throughput tables. Use the
+Streamlit **🎯 LM Eval** dashboard instead — see
+[LM Eval Benchmarking Guide](lm-eval-benchmarking.md#dashboard-analysis).
+
 **Purpose:** Quick post-run review without switching windows
 
 **Requirements:**
@@ -214,6 +219,7 @@ Use `--no-header` to suppress this block.
 | Interactive exploration | N/A | Best |
 | Share results in a ticket | Copy-paste table | Screenshot |
 | Deep metric analysis | N/A | Best |
+| LM Eval accuracy results | N/A | **🎯 LM Eval page** |
 
 ## Troubleshooting
 
@@ -232,7 +238,13 @@ ls <path>/baseline/ <path>/latency/
 
 # Embedding: top-level file layout
 ls <path>/sweep-*.json <path>/concurrent-*.json
+
+# LM Eval: use Streamlit dashboard (not terminal viewer)
+ls results/lm-eval/*/test-metadata.json
 ```
+
+For lm-eval accuracy, use `./cpueval dashboard start` and open the
+**🎯 LM Eval** page. See [LM Eval Benchmarking Guide](lm-eval-benchmarking.md).
 
 ### Missing columns show "-"
 

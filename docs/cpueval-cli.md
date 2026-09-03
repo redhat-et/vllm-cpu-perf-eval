@@ -20,6 +20,7 @@ Matrix-first CLI for running comprehensive CPU benchmarks. Most suites run full 
 ./cpueval --suite embedding              # 30 combinations: 5 models × 3 cores × 2 scenarios
 ./cpueval --suite offline-batch          # 33 runs: use-cases 3
 ./cpueval --suite audio                  # Default: all models, transcription-throughput scenario, 32 cores
+./cpueval --suite lm-eval                # 18 runs: 6 models × 3 cores (default MC tasks)
 
 # Override to narrow
 ./cpueval --suite rhaiis-sweep --models tiny --cores 8
@@ -689,6 +690,7 @@ via `./cpueval results --open`.
 |-------|----------------|-------------|
 | `rhaiis-sweep` | 5 models × 3 cores × 4 workloads | RHAIIS model concurrent load sweep (60 tests) |
 | `concurrent-load` | all models × 3 cores × 4 workloads (60 tests) | Upstream LLM concurrent load sweep |
+| `lm-eval` | 6 models × 3 cores (default MC tasks) | LM Evaluation Harness accuracy tests (18 tests) |
 | `embedding` | 5 models × 3 cores × 2 scenarios | Embedding model performance matrix (30 tests) |
 | `offline-batch` | 11 use-cases × 3 runs | Offline batch processing suite (33 tests) |
 | `audio` | all models × `transcription-throughput` × 32 cores | Audio model benchmarking (Whisper ASR) |
@@ -905,6 +907,7 @@ python -m pytest tests/test_results.py::test_extract_metrics_guidellm_v06 -v
 ## See Also
 
 - [Test Suites Overview](test-suites.md) - All supported suites and how to choose
+- [LM Eval Benchmarking Guide](lm-eval-benchmarking.md) - Accuracy benchmark setup and tasks
 - [Getting Started Guide](getting-started.md) - Overall framework setup
 - [Ansible Test Execution](ansible/test-execution.md) - Underlying playbooks
 - [Dashboards Quickstart](dashboards-quickstart.md) - Results visualization

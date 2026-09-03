@@ -294,6 +294,68 @@ This populates:
 - ✅ vLLM Version (auto-detected)
 - ✅ Timestamp (for date filtering)
 
+### 🎯 LM Eval Accuracy
+
+**Shows:** lm-evaluation-harness accuracy results from the `lm-eval` suite
+
+**Key Metrics:**
+- **acc** — Multiple-choice accuracy (fraction correct)
+- **acc_norm** — Length-normalised accuracy (preferred for MC comparisons)
+- **exact_match** — GSM8K math (flexible or strict extraction)
+
+**Visualizations:**
+- **Summary table** — Latest scores per model and task
+- **Model comparison** — Bar or line charts by core count
+- **Accuracy heatmap** — Model × task report card
+- **All Results** — Exportable raw table
+
+**Understanding Tasks:**
+
+| Task | What it measures |
+| --- | --- |
+| HellaSwag | Commonsense sentence completion |
+| WinoGrande | Pronoun / referent resolution |
+| ARC-Easy / ARC-Challenge | Grade-school science (easier / harder) |
+| GSM8K | Multi-step math word problems (generation) |
+| TruthfulQA MC1/MC2 | Truthfulness vs common misconceptions |
+
+Use the **"How to Read These Results"** expander on the page for full
+plain-language descriptions.
+
+**Data Source:**
+- `results/lm-eval/<model>/<run-id>/results_*.json`
+- `test-metadata.json` for run configuration
+
+**Requirement:**
+- ✅ Build the lm-eval container first: `container-images/lm-eval/build.sh`
+- ✅ No Grafana needed
+- ✅ Reads JSON files directly
+
+**Quick workflow:**
+
+```bash
+# 1. Smoke test
+./cpueval --suite lm-eval --models quick --cores 8 --limit 50
+
+# 2. Launch dashboard
+cd automation/test-execution/dashboard-examples/vllm_dashboard
+./launch-dashboard.sh
+
+# 3. Open 🎯 LM Eval page; set results path to results/lm-eval/
+```
+
+**Best for:**
+- Comparing model quality across vLLM versions or platforms
+- Validating quantised builds preserve accuracy
+- GSM8K / TruthfulQA targeted analysis
+- Regression tracking with `--tag` labelled runs
+
+**Note:** Accuracy should be stable across core counts. Use concurrent-load
+for throughput and latency analysis.
+
+See [LM Eval Benchmarking Guide](lm-eval-benchmarking.md) for task presets and
+troubleshooting.
+
 ## Analysis Workflow
 
 **Recommended approach for LLM models:**
@@ -506,6 +568,27 @@ cd automation/test-execution/dashboard-examples/vllm_dashboard
 benchmarking. Future versions will also support GuideLLM
 embedding tests when available.
 
+### Workflow: Compare LM Eval Accuracy Across Models
+
+1. **Build the lm-eval image (one-time):**
+   ```bash
+   cd container-images/lm-eval && ./build.sh
+   ```
+
+2. **Run a targeted comparison:**
+   ```bash
+   ./cpueval --suite lm-eval --models small --cores 16 --tasks default --limit 100
+   ```
+
+3. **Launch Streamlit and open 🎯 LM Eval**
+
+4. **Compare models** on acc_norm in the comparison chart or heatmap
+
+5. **Optional:** Re-run with `--tasks math` or `--tasks truthful` for
+   generation or truthfulness benchmarks
+
+See [LM Eval Benchmarking Guide](lm-eval-benchmarking.md) for full details.
+
 ## Troubleshooting
 
 ### Dashboard won't start
@@ -584,6 +667,7 @@ Grafana has issues, you can still analyze results in Streamlit!
 ## Reference
 
 - **Metrics Collection Guide:** [metrics-collection.md](metrics-collection.md)
+- **LM Eval Benchmarking:** [lm-eval-benchmarking.md](lm-eval-benchmarking.md)
 - **Streamlit Dashboard Details:** [dashboard-examples README](../automation/test-execution/dashboard-examples/README.md)
 - **Grafana Setup:** [grafana README](../automation/test-execution/grafana/README.md)
 - **Getting Started:** [getting-started.md](getting-started.md)

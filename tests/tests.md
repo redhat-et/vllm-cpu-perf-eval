@@ -17,6 +17,7 @@ This directory contains per-suite methodology and configuration documentation.
 | Offline Batch | [offline-batch.md](offline-batch/offline-batch.md) | `offline-batch` |
 | Embedding | [embedding-models.md](embedding-models/embedding-models.md) | `embedding` |
 | Audio | [audio-models/](audio-models/) | `audio` |
+| LM Eval | [lm-eval.md](lm-eval/lm-eval.md) | `lm-eval` |
 | CVE Scanning / VLoc Bench | [cve-scanning.md](cve-scanning/cve-scanning.md) | Ansible |
 | Resource Contention | [resource-contention.md](resource-contention/resource-contention.md) | Planned |
 
@@ -33,7 +34,7 @@ All test cases use a hierarchical naming scheme:
 
 **Components:**
 
-- **Suite Prefix**: `CONC` (Concurrent Load), `SCALE` (Scalability), `OFFLINE` (Offline Batch), `CVE` (CVE Scanning), `CONT` (Resource Contention), `EMB` (Embedding)
+- **Suite Prefix**: `CONC` (Concurrent Load), `SCALE` (Scalability), `OFFLINE` (Offline Batch), `CVE` (CVE Scanning), `CONT` (Resource Contention), `EMB` (Embedding), `LMEVAL` (LM Evaluation Harness)
 - **Type** (not used for CONC suite): `SWEEP`, `SYNC` (Synchronous), `POISSON`, `BASELINE`, `LATENCY`; CVE-specific: `VLOC` (localization), `CAP` (capacity)
 - **Use Case** (offline batch): `SUMM` (Summarization), `CLASS` (Classification), `TRANS` (Translation), `ENTITY` (Entity Extraction), `DATAGEN` (Dataset Generation), `ETL` (ETL Pipelines), `CODEGEN` (Code Generation), `LONGSUM` (Long-Doc Summarization), `RAG` (Batch RAG), `PREFIX` (Shared-Prefix), `LABEL` (Ultra-Short Labeling)
 - **Model**: Short abbreviation (e.g., `LLAMA32`, `QWEN06`, `GRANITE32`, `GRANITE-EN`, `GRANITE-ML`)
@@ -50,6 +51,8 @@ All test cases use a hierarchical naming scheme:
 - `CVE-CAP-ANTARES1B`: CVE Scanning suite, Capacity proxy, Antares-1B
 - `EMB-BASELINE-GRANITE-EN-EMB512`: Embedding suite, Baseline test, Granite English model
 - `EMB-LATENCY-GRANITE-ML-EMB512`: Embedding suite, Latency test, Granite Multilingual model
+- `LMEVAL-HELLASWAG-QWEN06`: LM Eval suite, HellaSwag task, Qwen3-0.6B
+- `LMEVAL-GSM8K-GRANITE32`: LM Eval suite, GSM8K math task, Granite-3.2-2B
 
 See individual test suite README files for complete test case listings.
 
@@ -81,6 +84,16 @@ Tests vLLM batch processing performance using the native Python API (not server 
 - **Use cases**: Summarization, Classification, Translation, Entity Extraction, Dataset Generation, ETL Pipelines, Code Generation, Long-Document Summarization, Batch RAG, Shared-Prefix/Template Batch, Ultra-Short Labeling
 
 See [Offline Batch Test Suite](offline-batch/offline-batch.md) for detailed documentation.
+
+### Test Suite: LM Evaluation Harness
+
+Accuracy benchmarks using the EleutherAI lm-evaluation-harness against vLLM CPU.
+
+- **Task presets**: `default` (MC), `math` (GSM8K), `truthful` (TruthfulQA)
+- **Metrics focus**: `acc`, `acc_norm`, `exact_match` per task
+- **Goal**: Compare model quality across platforms, vLLM versions, and quantisation
+
+See [LM Eval Test Suite](lm-eval/lm-eval.md) for detailed documentation.
 
 ### Test Suite: CVE Scanning / VLoc Bench
 

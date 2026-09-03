@@ -11,7 +11,7 @@ run, how to run it, and where to read the detailed methodology.
 | --- | --- | --- | --- | --- |
 | Concurrent Load | Matrix | Validated | `cpueval --suite concurrent-load` | [Concurrent Load](../tests/concurrent-load/concurrent-load.md) |
 | RHAIIS Sweep | Matrix | Validated | `cpueval --suite rhaiis-sweep` | [RHAIIS Testing](../tests/concurrent-load/rhaiis-testing.md) |
-| LM Eval | Matrix | WIP | `cpueval --suite lm-eval` | [Scripts Reference](scripts-reference.md) |
+| LM Eval | Matrix | WIP | `cpueval --suite lm-eval` | [LM Eval](../tests/lm-eval/lm-eval.md) |
 | Scalability | Manual/Ansible | WIP | Ansible playbooks | [Scalability](../tests/scalability/scalability.md) |
 | Offline Batch | Matrix | Validated | `cpueval --suite offline-batch` | [Offline Batch](../tests/offline-batch/offline-batch.md) |
 | Embedding | Matrix | Validated | `cpueval --suite embedding` | [Embedding Models](../tests/embedding-models/embedding-models.md) |
@@ -235,11 +235,11 @@ Each suite has detailed methodology, metrics, and configuration in the
 ### LLM Accuracy
 
 - **LM Evaluation Harness (`lm-eval`)** — Accuracy benchmarks (hellaswag,
-  winogrande, arc_easy, arc_challenge, mmlu, …) against vLLM CPU using the
+  winogrande, arc_easy, arc_challenge, gsm8k, truthfulqa, …) against vLLM CPU
+  using the
   [EleutherAI lm-evaluation-harness](https://github.com/EleutherAI/lm-evaluation-harness).
-  Runs lm-eval in a container against a managed or external vLLM endpoint.
-  See [run-lm-eval-suite.sh](scripts-reference.md#run-lm-eval-suitesh) in the
-  Scripts Reference for options and model presets.
+  See [LM Eval Test Suite](../tests/lm-eval/lm-eval.md) and
+  [LM Eval Benchmarking Guide](lm-eval-benchmarking.md).
 
 ### Offline & Batch Processing
 
@@ -283,12 +283,15 @@ All test cases use a hierarchical naming scheme:
 | `OFFLINE` | Offline Batch |
 | `CONT` | Resource Contention |
 | `EMB` | Embedding |
+| `LMEVAL` | LM Evaluation Harness |
 
 **Examples:**
 
 - `CONC-LLAMA32-CHAT` — Concurrent load, Llama-3.2-1B, chat workload
 - `OFFLINE-SUMM-LLAMA38` — Offline batch, summarization, Llama-3.1-8B
 - `EMB-BASELINE-GRANITE-EN-EMB512` — Embedding baseline, Granite English
+- `LMEVAL-HELLASWAG-QWEN06` — LM Eval, HellaSwag, Qwen3-0.6B
+- `LMEVAL-GSM8K-GRANITE32` — LM Eval, GSM8K, Granite-3.2-2B
 
 See individual suite docs for complete test case listings.
 

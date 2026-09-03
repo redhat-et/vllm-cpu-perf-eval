@@ -53,6 +53,30 @@ must include the following disclosures. These are automatically recorded in
 
 <!-- markdownlint-enable MD013 MD060 -->
 
+## LM Evaluation Harness Results
+
+lm-eval accuracy runs write to `results/lm-eval/<model>/<test-run-id>/`.
+
+| File | Description |
+| --- | --- |
+| `test-metadata.json` | Model, tasks, cores, dtype, KV cache, images |
+| `results_<timestamp>.json` | Per-task scores (acc, acc_norm, exact_match) |
+| `logs/` | vLLM and lm-eval container logs |
+
+Include in test reports:
+
+- Task list and lm-eval version (from `test-metadata.json`)
+- Per-task accuracy scores (prefer `acc_norm` for multiple-choice)
+- Note whether `--limit` was used (smoke vs full benchmark)
+- vLLM and lm-eval container image tags
+
+Visualise with the Streamlit **🎯 LM Eval** dashboard or export from the
+**All Results** table. The terminal results viewer and `cpueval results --last`
+do not format lm-eval accuracy — use the dashboard instead.
+
+See [LM Eval Benchmarking Guide](../lm-eval-benchmarking.md) and
+[Metrics Guide](metrics.md) for related definitions.
+
 ## Other Configuration Details
 
 Test results should report system configuration details including:

@@ -53,6 +53,7 @@ configurations for evaluating vLLM inference performance on CPU-based systems.
 | [Offline Batch](tests/offline-batch/offline-batch/) | Validated | Bulk document processing |
 | [Embedding Models](tests/embedding-models/embedding-models/) | Validated | Embedding throughput and latency |
 | [Audio Models](tests/audio-models/) | Validated | Whisper ASR performance |
+| [LM Eval](tests/lm-eval/lm-eval.md) | WIP | LLM accuracy (hellaswag, arc, gsm8k, …) |
 | [Scalability](tests/scalability/scalability/) | WIP | Maximum throughput and sweep curves |
 | [Resource Contention](tests/resource-contention/resource-contention/) | Planned | Multi-tenant scenarios |
 
@@ -61,7 +62,7 @@ suite selection guidance, and links to detailed documentation.
 
 ## Key Features
 
-- **cpueval CLI** — Matrix-first benchmarking with 8 test suites
+- **cpueval CLI** — Matrix-first benchmarking across 9 test suites
 - **3-Phase Testing** — Baseline, realistic, and production methodology
 - **Ansible automation** — Reproducible, distributed test execution
 - **MTEB integration** — Embedding quality evaluation

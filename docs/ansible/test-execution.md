@@ -52,6 +52,7 @@ ansible-playbook llm-benchmark-auto.yml \
 | `llm-benchmark-auto.yml` | Single LLM test | Auto (core count) |
 | `llm-benchmark-concurrent-load.yml` | 3-phase concurrent load test | Auto |
 | `llm-core-sweep-auto.yml` | Multi-core sweep | Auto |
+| `lm-eval-benchmark.yml` | LM Evaluation Harness accuracy test | Manual |
 | `start-vllm-server.yml` | Start vLLM server without benchmark | Manual |
 
 ### Embedding Model Testing
@@ -101,6 +102,29 @@ ansible-playbook llm-benchmark-auto.yml \
 | `guidellm_profile` | Benchmark profile | `concurrent` |
 | `guidellm_rate` | Concurrency levels | `[1,2,4,8,16,32]` |
 | `guidellm_max_seconds` | Test duration (seconds) | `600` |
+
+### LM Eval Parameters (`lm-eval-benchmark.yml`)
+
+| Parameter | Description | Default |
+| --- | --- | --- |
+| `lm_eval_tasks` | Comma-separated task names | `hellaswag,winogrande,arc_easy,arc_challenge` |
+| `lm_eval_limit` | Max examples per task (smoke tests) | none |
+| `lm_eval_batch_size` | lm-eval batch size | `16` |
+| `lm_eval_dtype` | Model dtype | `bfloat16` |
+| `lm_eval_kv_cache_space` | KV cache (GiB) | `40` |
+| `lm_eval_image` | lm-eval container image | `quay.io/vllm-cpu-perf-eval/lm-eval:latest` |
+| `guidellm_cpus` | CPU range for lm-eval client container | auto |
+
+```bash
+ansible-playbook -i inventory/hosts.yml lm-eval-benchmark.yml \
+  -e "test_model=Qwen/Qwen3-0.6B" \
+  -e "requested_cores=16" \
+  -e "lm_eval_tasks=hellaswag,arc_easy" \
+  -e "lm_eval_limit=100"
+```
+
+See [LM Eval Benchmarking Guide](../lm-eval-benchmarking.md) for task presets and
+container build instructions.
 
 ## Advanced Features
 

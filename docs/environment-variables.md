@@ -23,6 +23,17 @@ Complete reference for environment variables used in vLLM CPU Performance Evalua
 | `MTEB_CONTAINER_IMAGE` | Custom MTEB container | `quay.io/vllm-cpu-perf-eval/vllm-mteb:latest` | Custom registry URL |
 | `RESULTS_DIR` | MTEB results directory | `results/mteb` | `/path/to/results` |
 
+### LM Evaluation Harness
+
+| Variable | Description | Default | Example |
+| --- | --- | --- | --- |
+| `LM_EVAL_IMAGE` | lm-eval container image | `quay.io/vllm-cpu-perf-eval/lm-eval:latest` | Custom registry URL |
+| `HF_TOKEN` | HuggingFace token for gated models | None | `hf_xxxxx` |
+
+For lm-eval runs, `GUIDELLM_CPUS` pins the **lm-eval client container** on the
+load generator (same variable as GuideLLM suites). `VLLM_CONTAINER_IMAGE` selects
+the vLLM server image (e.g. RHAIIS).
+
 ### Container Images
 
 | Variable | Description | Default | Example |
@@ -43,7 +54,7 @@ Complete reference for environment variables used in vLLM CPU Performance Evalua
 
 | Variable | Description | Default | Example |
 |----------|-------------|---------|---------|
-| `GUIDELLM_CPUS` | CPU range for GuideLLM | Auto | `0-31` |
+| `GUIDELLM_CPUS` | CPU range for GuideLLM or lm-eval client | Auto | `0-31` |
 | `GUIDELLM_NUMA_NODE` | NUMA node for GuideLLM | Auto | `0` |
 
 ## Monitoring and Logging
@@ -104,6 +115,16 @@ Complete reference for environment variables used in vLLM CPU Performance Evalua
 |----------|-------------|---------|
 | `MTEB_MODELS` | Model list | `all`, custom list |
 | `MTEB_CORES` | Core count | `4` |
+
+### run-lm-eval-suite.sh
+
+| Variable | Description | Example |
+| --- | --- | --- |
+| `VLLM_CONTAINER_IMAGE` | vLLM server image | `registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0` |
+| `LM_EVAL_IMAGE` | lm-eval client image | `quay.io/vllm-cpu-perf-eval/lm-eval:latest` |
+| `VLLM_CPUS` | Explicit CPU set for vLLM | `0-31` |
+| `GUIDELLM_CPUS` | CPU set for lm-eval client | `32-47` |
+| `HF_TOKEN` | HuggingFace token | `hf_xxxxx` |
 
 ## Advanced Configuration
 
@@ -168,6 +189,16 @@ export VLLM_CONTAINER_IMAGE="amd-vllm-zendnn:latest"
 export VLLM_CONTAINER_ENTRYPOINT="/opt/zendnn/activate.sh && vllm serve"
 export VLLM_HEALTH_TIMEOUT=900  # ZenDNN takes longer to initialize (default 600s)
 ansible-playbook llm-benchmark-auto.yml
+```
+
+### LM Eval Accuracy Testing
+
+```bash
+# Build lm-eval image (one-time)
+cd container-images/lm-eval && ./build.sh
+
+# Run via cpueval
+./cpueval --suite lm-eval --models quick --cores 8 --limit 50
 ```
 
 ## Precedence

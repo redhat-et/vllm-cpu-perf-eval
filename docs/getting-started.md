@@ -249,6 +249,10 @@ This configures CPU isolation, performance governor, NUMA optimizations, etc.
 
 # Embedding models (full matrix)
 ./cpueval --suite embedding
+
+# LM Eval accuracy smoke test (build container image first)
+cd container-images/lm-eval && ./build.sh && cd -
+./cpueval --suite lm-eval --models quick --cores 8 --limit 50
 ```
 
 `--dry-run` prints the underlying Ansible command without executing — useful
@@ -594,6 +598,7 @@ ansible -i inventory/hosts.yml all -m shell -a "podman ps -a"
 - **[Concurrent Load Tests](../tests/concurrent-load/concurrent-load)** - P95 latency scaling
 - **[Scalability Tests](../tests/scalability/scalability)** - Maximum throughput
 - **[Embedding Models](../tests/embedding-models/embedding-models)** - Embedding performance
+- **[LM Eval](../tests/lm-eval/lm-eval.md)** - LLM accuracy benchmarks
 
 ### Automation Details
 For complete documentation on:

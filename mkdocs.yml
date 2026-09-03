@@ -97,6 +97,7 @@ nav:
           - Offline Batch: tests/offline-batch/offline-batch.md
           - Embedding Models: tests/embedding-models/embedding-models.md
           - Audio Models: tests/audio-models/README.md
+          - LM Eval: tests/lm-eval/lm-eval.md
           - Resource Contention: tests/resource-contention/resource-contention.md
       - Running Tests:
           - docs/sections/running-tests.md
@@ -108,6 +109,7 @@ nav:
           - Catalog: models/models.md
           - Embedding Models Guide: docs/embedding-models.md
           - Audio Benchmarking: docs/audio-benchmarking.md
+          - LM Eval Benchmarking: docs/lm-eval-benchmarking.md
       - Results & Analysis:
           - docs/sections/results-analysis.md
           - Dashboards: docs/dashboards-quickstart.md

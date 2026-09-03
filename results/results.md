@@ -29,6 +29,13 @@ results/
 │   └── <model>/
 │       └── ...
 │
+├── lm-eval/                                      # LM Evaluation Harness accuracy results
+│   └── <model>/                                  # Model name (/ replaced with __)
+│       └── <test-run-id>/                        # e.g. Qwen3-0.6B-8C-20260101-120000
+│           ├── test-metadata.json                # Run configuration
+│           ├── results_<timestamp>.json          # Per-task accuracy scores
+│           └── logs/                             # vLLM and lm-eval container logs
+│
 └── results.md                                    # This file
 ```
 
@@ -93,6 +100,7 @@ cd vllm_dashboard
 ```
 
 The dashboard provides client metrics (throughput, latency percentiles),
-server metrics (queue depth, cache usage), platform comparison, and CSV
-export. See the [Dashboards Quick Start](../docs/dashboards-quickstart.md)
-for the full guide.
+server metrics (queue depth, cache usage), embedding metrics, **LM Eval
+accuracy** (🎯 LM Eval page), platform comparison, and CSV export. See the
+[Dashboards Quick Start](../docs/dashboards-quickstart.md) and
+[LM Eval Benchmarking Guide](../docs/lm-eval-benchmarking.md) for details.

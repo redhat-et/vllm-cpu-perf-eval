@@ -222,6 +222,9 @@ cd automation/test-execution/scripts
 > ```bash
 > cd container-images/lm-eval && ./build.sh
 > ```
+>
+> See [LM Eval Benchmarking Guide](lm-eval-benchmarking.md) and
+> [LM Eval Container](../container-images/lm-eval/README.md) for details.
 
 ---
 
@@ -474,7 +477,9 @@ export VLLM_PORT=8000
 
 **Purpose:** Build the lm-evaluation-harness container image used by the `lm-eval` suite.
 
-**Base image:** `python:3.11-slim` with `lm_eval[api]` installed.
+**Base image:** `python:3.11-slim` with `lm_eval[api]==0.4.7` installed.
+
+**Documentation:** [container-images/lm-eval/README.md](../container-images/lm-eval/README.md)
 
 **Usage:**
 ```bash
@@ -547,6 +552,30 @@ cd automation/test-execution/scripts
 
 ---
 
+### LM Eval Accuracy Testing
+
+```bash
+cd automation/test-execution/scripts
+
+# 1. Build lm-eval image (one-time)
+cd ../../../container-images/lm-eval && ./build.sh && cd -
+
+# 2. Smoke test
+./bash/run-lm-eval-suite.sh --models quick --cores 8 --limit 50
+
+# 3. Default MC tasks on small models
+./bash/run-lm-eval-suite.sh --models small --cores 16
+
+# 4. Math and truthfulness presets
+./bash/run-lm-eval-suite.sh --models quick --tasks math --cores 16 --limit 50 --batch-size 1
+./bash/run-lm-eval-suite.sh --models quick --tasks truthful --cores 16 --limit 50
+
+# 5. View in Streamlit LM Eval dashboard
+cd ../dashboard-examples/vllm_dashboard && ./launch-dashboard.sh
+```
+
+---
+
 ### Production Benchmarking
 
 ```bash
@@ -568,6 +597,7 @@ cd automation/test-execution/scripts
 ## Related Documentation
 
 - [Embedding Models Guide](embedding-models.md) - Complete embedding testing guide
+- [LM Eval Benchmarking Guide](lm-eval-benchmarking.md) - LM Eval accuracy testing
 - [MTEB Sweep Guide](mteb-sweep-guide.md) - MTEB quick start
 - [MTEB Timing Guide](mteb-timing-guide.md) - Detailed timing estimates
 - [MTEB Troubleshooting](mteb-troubleshooting.md) - Common issues and solutions

@@ -47,6 +47,7 @@ See the [Getting Started Guide](docs/getting-started.md) and
 | [Offline Batch](tests/offline-batch/offline-batch.md) | Validated | `./cpueval --suite offline-batch` |
 | [Embedding](tests/embedding-models/embedding-models.md) | Validated | `./cpueval --suite embedding` |
 | [Audio](tests/audio-models/) | Validated | `./cpueval --suite audio` |
+| [LM Eval](tests/lm-eval/lm-eval.md) | WIP | `./cpueval --suite lm-eval` |
 | [Scalability](tests/scalability/scalability.md) | WIP | Ansible playbooks |
 | [Resource Contention](tests/resource-contention/resource-contention.md) | Planned | — |
 
@@ -58,7 +59,7 @@ pass `-e "allow_unsupported_tests=true"` to Ansible or set `ALLOW_UNSUPPORTED_TE
 
 ## Key Features
 
-- **cpueval CLI** — Matrix-first benchmarking across 8 suites
+- **cpueval CLI** — Matrix-first benchmarking across 9 suites
 - **3-phase testing** — Baseline, realistic, and production methodology ([details](docs/methodology/testing-phases.md))
 - **Ansible automation** — Distributed test execution on DUT + load generator
 - **Docker or Podman** — Auto-detected container runtime with rootless Podman support

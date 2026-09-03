@@ -30,6 +30,7 @@ Central index for the vLLM CPU Performance Evaluation framework.
 | [test-suites.md](test-suites.md) | All suites, cpueval commands, and status |
 | [embedding-models.md](embedding-models.md) | Embedding model setup guide |
 | [audio-benchmarking.md](audio-benchmarking.md) | Audio model setup guide |
+| [lm-eval-benchmarking.md](lm-eval-benchmarking.md) | LM Eval accuracy testing guide |
 | [models/models.md](../models/models.md) | Model catalog and selection rationale |
 | [tests/](../tests/tests.md) | Per-suite methodology docs |
 
