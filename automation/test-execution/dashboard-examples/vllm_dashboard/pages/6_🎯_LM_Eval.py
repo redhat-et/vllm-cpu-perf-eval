@@ -106,12 +106,106 @@ METRIC_GUIDE = {
     ),
 }
 
+# Primary headline metric per task (GSM8K is generation-based, not acc).
+TASK_PRIMARY_METRIC = {
+    "gsm8k": "exact_match,flexible-extract",
+}
+DEFAULT_PRIMARY_METRIC = "acc,none"
+
+METRIC_FALLBACK_ORDER = (
+    "acc,none",
+    "acc_norm,none",
+    "exact_match,flexible-extract",
+    "exact_match,strict-match",
+)
+
 PLOTLY_COLORS = px.colors.qualitative.Safe
 
 
 # ---------------------------------------------------------------------------
 # Data loading helpers (no Streamlit dependency — unit-testable)
 # ---------------------------------------------------------------------------
+
+def _available_metrics(df: pd.DataFrame) -> List[str]:
+    """Return metric keys that have at least one non-null value in *df*."""
+    return [
+        k for k in METRIC_OPTIONS
+        if k in df.columns and df[k].notna().any()
+    ]
+
+
+def _default_metric(df: pd.DataFrame, available: List[str]) -> str:
+    """Pick a sensible default metric for the tasks present in *df*."""
+    if df.empty or not available:
+        return DEFAULT_PRIMARY_METRIC
+    tasks = set(df["task"].unique())
+    if tasks == {"gsm8k"}:
+        for preferred in ("exact_match,flexible-extract", "exact_match,strict-match"):
+            if preferred in available:
+                return preferred
+    for preferred in METRIC_FALLBACK_ORDER:
+        if preferred in available:
+            return preferred
+    return available[0]
+
+
+def _stderr_col(metric: str) -> Optional[str]:
+    """Return the stderr column name for a given metric, if known."""
+    if metric == "acc,none":
+        return "acc_stderr,none"
+    if metric == "acc_norm,none":
+        return "acc_norm_stderr,none"
+    if metric.startswith("exact_match,"):
+        return metric.replace("exact_match,", "exact_match_stderr,", 1)
+    return None
+
+
+def _pick_metric_for_row(row: pd.Series, preferred: str) -> Optional[str]:
+    """Resolve the best metric column for a result row."""
+    if preferred in row.index and pd.notna(row[preferred]):
+        return preferred
+    primary = TASK_PRIMARY_METRIC.get(row["task"], DEFAULT_PRIMARY_METRIC)
+    if primary in row.index and pd.notna(row[primary]):
+        return primary
+    for fallback in METRIC_FALLBACK_ORDER:
+        if fallback in row.index and pd.notna(row[fallback]):
+            return fallback
+    return None
+
+
+def _with_effective_scores(df: pd.DataFrame, metric_key: str) -> pd.DataFrame:
+    """Add *score* and *effective_metric* columns using per-task fallbacks."""
+    df = df.copy()
+    effective_metrics: List[Optional[str]] = []
+    scores: List[float] = []
+    stderrs: List[Optional[float]] = []
+    for _, row in df.iterrows():
+        metric = _pick_metric_for_row(row, metric_key)
+        effective_metrics.append(metric)
+        scores.append(float(row[metric]) if metric else np.nan)
+        stderr_col = _stderr_col(metric) if metric else None
+        stderrs.append(
+            float(row[stderr_col])
+            if metric and stderr_col and stderr_col in row.index and pd.notna(row[stderr_col])
+            else np.nan
+        )
+    df["effective_metric"] = effective_metrics
+    df["score"] = scores
+    df["score_stderr"] = stderrs
+    return df
+
+
+def _task_score_pivot(df: pd.DataFrame) -> pd.DataFrame:
+    """Build a model × task_label score matrix for heatmaps."""
+    pivot = (
+        df.groupby(["model", "task_label"])["score"]
+        .mean()
+        .unstack("task_label")
+    )
+    preferred_order = [label for label in TASK_LABELS.values() if label in pivot.columns]
+    extra = sorted(col for col in pivot.columns if col not in preferred_order)
+    return pivot[preferred_order + extra]
+
 
 def _find_lm_eval_results(run_dir: Path) -> Optional[dict]:
     """Return the first lm-eval results JSON found in *run_dir*, or None."""
@@ -230,6 +324,7 @@ def _accuracy_bar(
     metric: str,
     title: str,
     color_by: str = "model_short",
+    stderr_col: Optional[str] = None,
 ) -> go.Figure:
     """Grouped bar chart of accuracy by task, coloured by *color_by*."""
     groups = df[color_by].unique().tolist()
@@ -240,8 +335,15 @@ def _accuracy_bar(
         sub = df[df[color_by] == group].sort_values("task_label")
         if metric not in sub.columns:
             continue
-        stderr_col = metric.replace(",none", "_stderr,none")
-        error_y = sub[stderr_col].tolist() if stderr_col in sub.columns else None
+        if stderr_col and stderr_col in sub.columns:
+            error_y = sub[stderr_col].tolist()
+        else:
+            fallback_stderr = metric.replace(",none", "_stderr,none")
+            error_y = (
+                sub[fallback_stderr].tolist()
+                if fallback_stderr in sub.columns
+                else None
+            )
         fig.add_trace(go.Bar(
             name=group,
             x=sub["task_label"],
@@ -445,21 +547,31 @@ def main():
         if not sel_cores:
             sel_cores = all_cores
 
+    df_f = df[
+        df["model_short"].isin(sel_models)
+        & df["task_label"].isin(sel_tasks)
+        & df["cores"].isin(sel_cores)
+    ].copy()
+
+    with st.sidebar:
+        available_metrics = _available_metrics(df_f)
         metric_key = st.selectbox(
             "Metric",
-            options=[
-                k for k in METRIC_OPTIONS
-                if k in df.columns and df[k].notna().any()
-            ] or list(METRIC_OPTIONS.keys()),
+            options=available_metrics or list(METRIC_OPTIONS.keys()),
+            index=(
+                available_metrics.index(_default_metric(df_f, available_metrics))
+                if available_metrics
+                else 0
+            ),
             format_func=lambda k: METRIC_OPTIONS[k],
             help=(
-                "Accuracy = % correct. Normalised accuracy adjusts for "
-                "answer length on multiple-choice tasks."
+                "Multiple-choice tasks use accuracy; GSM8K uses exact-match "
+                "(flexible is the usual headline metric)."
             ),
         )
 
         # Warn if results include limited (--limit) runs
-        limits = df["limit"].unique()
+        limits = df_f["limit"].unique()
         if any(str(lim) not in ("none", "") for lim in limits):
             st.warning(
                 "⚠️ Some runs used `--limit` (only part of each quiz was run). "
@@ -467,11 +579,6 @@ def main():
                 "full benchmark accuracy."
             )
 
-    df_f = df[
-        df["model_short"].isin(sel_models)
-        & df["task_label"].isin(sel_tasks)
-        & df["cores"].isin(sel_cores)
-    ].copy()
     df_f = _add_model_display_label(df_f)
 
     if df_f.empty:
@@ -505,28 +612,43 @@ def main():
         .reset_index()
     )
     df_latest = _add_model_display_label(df_latest)
+    df_scored = _with_effective_scores(df_latest, metric_key)
 
-    if metric_key in df_latest.columns:
+    if df_scored["score"].notna().any():
         # Average across core counts when multiple are present
         df_avg = (
-            df_latest.groupby(["model", "task_label"])[metric_key]
-            .mean()
+            df_scored.groupby(["model", "task_label"])
+            .agg(score=("score", "mean"), score_stderr=("score_stderr", "mean"))
             .reset_index()
         )
         df_avg = df_avg.merge(
-            df_latest[["model", "model_display"]].drop_duplicates(),
+            df_scored[["model", "model_display"]].drop_duplicates(),
             on="model",
             how="left",
         )
-        df_avg["task_label"] = df_avg["task_label"]
+
+        chart_title = METRIC_OPTIONS[metric_key]
+        if (df_scored["effective_metric"] != metric_key).any():
+            used = sorted({
+                METRIC_OPTIONS[m]
+                for m in df_scored["effective_metric"].dropna().unique()
+            })
+            chart_title = " / ".join(used)
 
         fig1 = _accuracy_bar(
             df_avg,
-            metric_key,
-            title=f"{METRIC_OPTIONS[metric_key]} by Task",
+            "score",
+            title=f"{chart_title} by Task",
             color_by="model_display",
+            stderr_col="score_stderr",
         )
         st.plotly_chart(fig1, use_container_width=True)
+
+        if (df_scored["effective_metric"] != metric_key).any():
+            st.caption(
+                "Some tasks use a different headline metric than the one selected "
+                "(e.g. GSM8K reports exact match, not multiple-choice accuracy)."
+            )
 
         if len(sel_cores) > 1:
             st.caption(
@@ -537,8 +659,8 @@ def main():
             )
     else:
         st.info(
-            f"Metric `{metric_key}` not found in results. "
-            "Some tasks only report `acc,none`."
+            f"Metric `{METRIC_OPTIONS.get(metric_key, metric_key)}` not found in "
+            "the filtered results. Try GSM8K Exact Match for math runs."
         )
 
     # ------------------------------------------------------------------
@@ -557,10 +679,15 @@ def main():
         cmp_task = st.selectbox(
             "Task", options=all_tasks, key="cmp_task"
         )
+    df_cmp_task = df_latest[df_latest["task_label"] == cmp_task].copy()
     with col2:
+        cmp_metric_options = _available_metrics(df_cmp_task) or list(METRIC_OPTIONS.keys())
         cmp_metric = st.selectbox(
             "Metric",
-            options=list(METRIC_OPTIONS.keys()),
+            options=cmp_metric_options,
+            index=cmp_metric_options.index(
+                _default_metric(df_cmp_task, cmp_metric_options)
+            ) if cmp_metric_options else 0,
             format_func=lambda k: METRIC_OPTIONS[k],
             key="cmp_metric",
         )
@@ -572,21 +699,21 @@ def main():
     if cmp_task_key and cmp_task_key in TASK_GUIDE:
         st.caption(TASK_GUIDE[cmp_task_key])
 
-    df_cmp = df_latest[df_latest["task_label"] == cmp_task].copy()
+    df_cmp = _with_effective_scores(df_cmp_task, cmp_metric)
 
-    if not df_cmp.empty and cmp_metric in df_cmp.columns:
-        best_row = df_cmp.loc[df_cmp[cmp_metric].idxmax()]
-        worst_row = df_cmp.loc[df_cmp[cmp_metric].idxmin()]
+    if not df_cmp.empty and df_cmp["score"].notna().any():
+        best_row = df_cmp.loc[df_cmp["score"].idxmax()]
+        worst_row = df_cmp.loc[df_cmp["score"].idxmin()]
         st.info(
             f"On **{cmp_task}**, best: **{best_row['model_display']}** "
-            f"({_pct(best_row[cmp_metric])} — {_score_interpretation(best_row[cmp_metric])}); "
+            f"({_pct(best_row['score'])} — {_score_interpretation(best_row['score'])}); "
             f"lowest: **{worst_row['model_display']}** "
-            f"({_pct(worst_row[cmp_metric])} — {_score_interpretation(worst_row[cmp_metric])})."
+            f"({_pct(worst_row['score'])} — {_score_interpretation(worst_row['score'])})."
         )
 
         df_cmp_g = (
-            df_cmp.groupby(["model", "cores"])[cmp_metric]
-            .mean()
+            df_cmp.groupby(["model", "cores"])
+            .agg(score=("score", "mean"))
             .reset_index()
         )
         df_cmp_g = df_cmp_g.merge(
@@ -609,7 +736,7 @@ def main():
                 display_name = sub["model_display"].iloc[0]
                 fig2.add_trace(go.Scatter(
                     x=sub["cores"],
-                    y=sub[cmp_metric],
+                    y=sub["score"],
                     mode="lines+markers",
                     name=display_name,
                     line=dict(width=2, color=color_map[model]),
@@ -623,7 +750,7 @@ def main():
                 ))
             fig2.update_layout(
                 xaxis_title="CPU Cores",
-                yaxis_title=METRIC_OPTIONS[cmp_metric],
+                yaxis_title=METRIC_OPTIONS.get(cmp_metric, cmp_metric),
                 yaxis=dict(range=[0, 1.05], tickformat=".0%"),
                 height=380,
                 legend=dict(orientation="h", yanchor="bottom", y=1.02),
@@ -636,19 +763,19 @@ def main():
             )
         else:
             # Single core count — horizontal bar chart
-            df_cmp_g = df_cmp_g.sort_values(cmp_metric, ascending=True)
+            df_cmp_g = df_cmp_g.sort_values("score", ascending=True)
             fig2b = go.Figure(go.Bar(
-                x=df_cmp_g[cmp_metric],
+                x=df_cmp_g["score"],
                 y=df_cmp_g["model_display"],
                 orientation="h",
-                text=[_pct(v) for v in df_cmp_g[cmp_metric]],
+                text=[_pct(v) for v in df_cmp_g["score"]],
                 textposition="auto",
                 marker_color=[
                     color_map[m] for m in df_cmp_g["model"]
                 ],
             ))
             fig2b.update_layout(
-                xaxis_title=METRIC_OPTIONS[cmp_metric],
+                xaxis_title=METRIC_OPTIONS.get(cmp_metric, cmp_metric),
                 xaxis=dict(range=[0, 1.05], tickformat=".0%"),
                 yaxis_title="Model",
                 height=max(300, len(models_in_task) * 50),
@@ -661,7 +788,7 @@ def main():
     # ------------------------------------------------------------------
     # Section 3: Heatmap — model × task
     # ------------------------------------------------------------------
-    if metric_key in df_latest.columns and n_models > 1 and n_tasks > 1:
+    if df_scored["score"].notna().any() and n_models > 1 and n_tasks > 1:
         st.divider()
         st.header("3️⃣ Accuracy Heatmap")
         st.markdown(
@@ -670,22 +797,18 @@ def main():
             "scan down a column to see which model wins on a given quiz type."
         )
 
-        pivot = (
-            df_latest.groupby(["model", "task_label"])[metric_key]
-            .mean()
-            .unstack(level="task_label")
-            .fillna(float("nan"))
-        )
+        pivot = _task_score_pivot(df_scored)
         model_labels = (
             df_latest[["model", "model_display"]]
             .drop_duplicates()
             .set_index("model")["model_display"]
         )
         pivot.index = [model_labels.get(m, m) for m in pivot.index]
+        task_columns = [str(c) for c in pivot.columns.tolist()]
 
         fig3 = go.Figure(go.Heatmap(
             z=pivot.values,
-            x=pivot.columns.tolist(),
+            x=task_columns,
             y=pivot.index.tolist(),
             text=[
                 [_pct(v) if not pd.isna(v) else "—" for v in row]
@@ -716,23 +839,26 @@ def main():
             "model_short": "Model",
             "task_label": "Task",
             "cores": "Cores",
+            "score": "Score",
         }
         for mk, mlabel in METRIC_OPTIONS.items():
-            if mk in df_latest.columns:
+            if mk in df_scored.columns:
                 display_cols[mk] = mlabel
         stderr_cols = {
             k.replace(",none", "_stderr,none"): f"±{v}"
             for k, v in METRIC_OPTIONS.items()
         }
         for sc, slabel in stderr_cols.items():
-            if sc in df_latest.columns:
+            if sc in df_scored.columns:
                 display_cols[sc] = slabel
+        if "score_stderr" in df_scored.columns:
+            display_cols["score_stderr"] = "±Score"
 
         display_cols["platform"] = "Platform"
         display_cols["test_run_id"] = "Run ID"
 
-        avail = {k: v for k, v in display_cols.items() if k in df_latest.columns}
-        tbl = df_latest[list(avail.keys())].copy()
+        avail = {k: v for k, v in display_cols.items() if k in df_scored.columns}
+        tbl = df_scored[list(avail.keys())].copy()
         tbl.columns = list(avail.values())
 
         for col in tbl.columns:

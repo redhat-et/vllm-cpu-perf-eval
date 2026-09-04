@@ -11,22 +11,21 @@ PAGES_DIR = Path(__file__).parent.parent / "pages"
 FIXTURE_DIR = Path(__file__).parent / "fixtures" / "lm-eval"
 
 
-def _import_load_lm_eval_data():
-    """Import load_lm_eval_data from the page module without triggering main()."""
+@pytest.fixture(scope="module")
+def lm_eval_page():
     page_file = PAGES_DIR / "6_🎯_LM_Eval.py"
     spec = importlib.util.spec_from_file_location("lm_eval_page", page_file)
     mod = importlib.util.module_from_spec(spec)
-    # Ensure parent dir is on sys.path so config_manager import resolves
     parent = str(PAGES_DIR.parent)
     if parent not in sys.path:
         sys.path.insert(0, parent)
     spec.loader.exec_module(mod)
-    return mod.load_lm_eval_data
+    return mod
 
 
 @pytest.fixture(scope="module")
-def load_lm_eval_data():
-    return _import_load_lm_eval_data()
+def load_lm_eval_data(lm_eval_page):
+    return lm_eval_page.load_lm_eval_data
 
 
 # ---------------------------------------------------------------------------
@@ -78,6 +77,55 @@ def test_cores_from_metadata(load_lm_eval_data):
     """requested_cores from metadata is surfaced as integer cores column."""
     df = load_lm_eval_data(str(FIXTURE_DIR))
     assert (df["cores"] == 16).all()
+
+
+def test_gsm8k_default_metric_uses_exact_match(lm_eval_page):
+    """GSM8K-only frames should default to flexible exact match, not acc."""
+    import pandas as pd
+
+    df = pd.DataFrame(
+        [{
+            "task": "gsm8k",
+            "exact_match,flexible-extract": 0.25,
+            "exact_match,strict-match": 0.1,
+        }]
+    )
+    available = lm_eval_page._available_metrics(df)
+    assert lm_eval_page._default_metric(df, available) == "exact_match,flexible-extract"
+
+
+def test_gsm8k_score_fallback_when_accuracy_selected(lm_eval_page):
+    """Selecting acc,none should still surface GSM8K exact-match scores."""
+    import pandas as pd
+
+    df = pd.DataFrame(
+        [{
+            "task": "gsm8k",
+            "task_label": "GSM8K",
+            "exact_match,flexible-extract": 0.39,
+            "exact_match_stderr,flexible-extract": 0.02,
+        }]
+    )
+    scored = lm_eval_page._with_effective_scores(df, "acc,none")
+    assert scored.iloc[0]["score"] == pytest.approx(0.39)
+    assert scored.iloc[0]["effective_metric"] == "exact_match,flexible-extract"
+
+
+def test_task_score_pivot_uses_task_labels_not_metric_name(lm_eval_page):
+    """Heatmap columns must be task names, not the score column label."""
+    import pandas as pd
+
+    df = pd.DataFrame(
+        [
+            {"model": "org/a", "task_label": "GSM8K", "score": 0.25},
+            {"model": "org/a", "task_label": "ARC-Easy", "score": 0.70},
+            {"model": "org/b", "task_label": "GSM8K", "score": 0.40},
+            {"model": "org/b", "task_label": "ARC-Easy", "score": 0.60},
+        ]
+    )
+    pivot = lm_eval_page._task_score_pivot(df)
+    assert list(pivot.columns) == ["ARC-Easy", "GSM8K"]
+    assert pivot.loc["org/a", "GSM8K"] == pytest.approx(0.25)
 
 
 def test_directory_without_metadata_is_skipped(tmp_path, load_lm_eval_data):
