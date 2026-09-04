@@ -618,7 +618,7 @@ def main():
         # Average across core counts when multiple are present
         df_avg = (
             df_scored.groupby(["model", "task_label"])
-            .agg(score=("score", "mean"), score_stderr=("score_stderr", "mean"))
+            .agg(score=("score", "mean"))
             .reset_index()
         )
         df_avg = df_avg.merge(
@@ -640,7 +640,6 @@ def main():
             "score",
             title=f"{chart_title} by Task",
             color_by="model_display",
-            stderr_col="score_stderr",
         )
         st.plotly_chart(fig1, use_container_width=True)
 
@@ -845,8 +844,9 @@ def main():
             if mk in df_scored.columns:
                 display_cols[mk] = mlabel
         stderr_cols = {
-            k.replace(",none", "_stderr,none"): f"±{v}"
+            sc: f"±{v}"
             for k, v in METRIC_OPTIONS.items()
+            if (sc := _stderr_col(k)) is not None
         }
         for sc, slabel in stderr_cols.items():
             if sc in df_scored.columns:

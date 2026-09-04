@@ -128,6 +128,16 @@ def test_task_score_pivot_uses_task_labels_not_metric_name(lm_eval_page):
     assert pivot.loc["org/a", "GSM8K"] == pytest.approx(0.25)
 
 
+def test_stderr_col_maps_exact_match_metrics(lm_eval_page):
+    """stderr column helper must handle GSM8K exact-match metric names."""
+    assert (
+        lm_eval_page._stderr_col("exact_match,flexible-extract")
+        == "exact_match_stderr,flexible-extract"
+    )
+    assert lm_eval_page._stderr_col("acc,none") == "acc_stderr,none"
+    assert lm_eval_page._stderr_col("unknown-metric") is None
+
+
 def test_directory_without_metadata_is_skipped(tmp_path, load_lm_eval_data):
     """Run directories without test-metadata.json are silently skipped."""
     model_dir = tmp_path / "some-model"

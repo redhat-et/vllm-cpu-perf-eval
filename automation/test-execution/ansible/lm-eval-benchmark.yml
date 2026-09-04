@@ -309,8 +309,9 @@
       ansible.builtin.file:
         path: "{{ results_base_expanded }}"
         state: directory
-        mode: "0777"
-        recurse: true
+        mode: "0755"
+        owner: "1000"
+        group: "1000"
 
     - name: Build lm-eval model_args
       ansible.builtin.set_fact:
@@ -422,8 +423,9 @@
       ansible.builtin.file:
         path: "{{ results_base_expanded }}"
         state: directory
-        mode: "0777"
-        recurse: true
+        mode: "0755"
+        owner: "1000"
+        group: "1000"
 
     - name: Build lm-eval model_args
       ansible.builtin.set_fact:
