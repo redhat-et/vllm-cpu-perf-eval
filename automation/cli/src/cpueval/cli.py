@@ -32,6 +32,7 @@ from cpueval.runners import (
     run_script,
 )
 from cpueval.suite_registry import SuiteRegistry
+from cpueval.wizard import run_wizard
 
 app = typer.Typer(
     help="cpueval - Thin CLI wrapper over Ansible CPU automation",
@@ -615,7 +616,7 @@ def main(
     """cpueval - Thin CLI wrapper over Ansible CPU automation.
 
     Run options below apply when no subcommand is given (e.g. cpueval --suite …).
-    Subcommands (list, doctor, run) take precedence when specified.
+    Subcommands (list, doctor, wizard, run) take precedence when specified.
     """
     if ctx.invoked_subcommand is not None:
         return
@@ -822,6 +823,31 @@ def doctor(
     """Run system health checks."""
     exit_code = run_doctor(no_ping=no_ping)
     raise typer.Exit(exit_code)
+
+
+@app.command()
+def wizard(
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Force dry-run mode (show command without executing)",
+    ),
+    skip_doctor: bool = typer.Option(
+        False,
+        "--skip-doctor",
+        help="Skip pre-flight health checks",
+    ),
+):
+    """Interactive wizard to configure and launch a benchmark."""
+    console.print("\n[bold cyan]cpueval wizard[/bold cyan] — configure and launch a benchmark\n")
+    result = run_wizard(
+        console,
+        force_dry_run=dry_run,
+        force_skip_doctor=skip_doctor,
+    )
+    if result is None:
+        raise typer.Exit(0)
+    _execute_suite(**result.as_execute_kwargs())
 
 
 # Keep in sync with main() callback options.

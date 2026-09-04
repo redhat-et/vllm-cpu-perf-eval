@@ -32,6 +32,7 @@ Matrix-first CLI for running comprehensive CPU benchmarks. Most suites run full 
 # Explore
 ./cpueval list                    # Shows Matrix vs Single type
 ./cpueval show rhaiis-sweep       # View default matrix
+./cpueval wizard                  # Interactive launcher
 ./cpueval results --last          # View results
 ```
 
@@ -85,7 +86,7 @@ exec zsh    # or exec bash
 
 | Typing… | Completes with… |
 |---------|-----------------|
-| `./cpueval <TAB>` | `doctor`, `install`, `list`, `run`, `show`, … |
+| `./cpueval <TAB>` | `doctor`, `install`, `list`, `run`, `show`, `wizard`, … |
 | `cpueval run --suite <TAB>` | `audio`, `chat-smoke`, `concurrent-load`, … |
 | `cpueval run --suite ch<TAB>` | `chat-smoke` |
 | `cpueval run --model <TAB>` | model names discovered from your results directories |
@@ -309,6 +310,34 @@ After installing, restart the shell (`exec bash` or `exec zsh`) so `./cpueval <T
 works, then verify with `./cpueval doctor`. Use `--skip-completion` to leave
 tab-completion alone; `./cpueval --install-completion` still works as a standalone
 reinstall.
+
+### wizard - Interactive benchmark launcher
+
+Guided prompts to pick a suite, review defaults, optionally customize
+parameters, and launch a run. Uses the same execution path as
+`cpueval --suite …` — no duplicate orchestration logic.
+
+```bash
+# Interactive session
+./cpueval wizard
+
+# Non-interactive flags (still prompts for suite/params unless scripted)
+./cpueval wizard --dry-run
+./cpueval wizard --skip-doctor
+```
+
+Typical flow:
+
+1. Pick a suite from the numbered menu (`chat-smoke` and `health` are listed first)
+2. Review suite defaults and **target host** env vars (`DUT_HOSTNAME`, `LOADGEN_HOSTNAME`)
+3. Choose whether to customize parameters
+4. For `concurrent-load` / `rhaiis-sweep`, customize prompts for models, CPU cores,
+   optional DUT/load-generator CPU pinning, and workloads (type a value or Enter to keep defaults)
+5. Optionally set a result tag
+6. Confirm dry-run / skip-doctor / launch
+
+After a successful run, view results with `cpueval results --last` or
+`cpueval dashboard start`.
 
 ### doctor - Health checks
 
