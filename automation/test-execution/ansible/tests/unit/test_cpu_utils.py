@@ -48,6 +48,7 @@ except ImportError:
 
 
 from cpu_utils import (  # noqa: E402
+    cpu_ranges_ordered,
     cpu_list_to_range,
     extract_primary_cpus,
     extract_all_cpus,
@@ -182,6 +183,35 @@ class TestCpuListToRange:
         """Test invalid type raises error."""
         with pytest.raises(AnsibleFilterError):
             cpu_list_to_range(123)
+
+
+@pytest.mark.unit
+class TestCpuRangesOrdered:
+    """Test cpu_ranges_ordered filter."""
+
+    def test_ascending_range(self):
+        assert cpu_ranges_ordered("64-95") is True
+
+    def test_single_core(self):
+        assert cpu_ranges_ordered("64") is True
+
+    def test_comma_separated(self):
+        assert cpu_ranges_ordered("64,65,66") is True
+
+    def test_mixed_components(self):
+        assert cpu_ranges_ordered("64-66,70") is True
+
+    def test_equal_start_end(self):
+        assert cpu_ranges_ordered("64-64") is True
+
+    def test_descending_range(self):
+        assert cpu_ranges_ordered("95-64") is False
+
+    def test_descending_in_list(self):
+        assert cpu_ranges_ordered("64-66,95-64") is False
+
+    def test_empty_string(self):
+        assert cpu_ranges_ordered("") is True
 
 
 @pytest.mark.unit

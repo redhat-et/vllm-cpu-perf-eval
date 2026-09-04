@@ -286,6 +286,24 @@ def extract_numa_nodes(lscpu_data):
         raise AnsibleFilterError(f"Failed to parse lscpu data: {e}")
 
 
+def cpu_ranges_ordered(cpu_range_str: str) -> bool:
+    """Return False if any hyphenated range component has start > end."""
+    if not cpu_range_str:
+        return True
+
+    for part in str(cpu_range_str).split(','):
+        part = part.strip()
+        if not part or '-' not in part:
+            continue
+        start, end = part.split('-', 1)
+        try:
+            if int(start.strip()) > int(end.strip()):
+                return False
+        except ValueError:
+            continue
+    return True
+
+
 def expand_cpu_range(cpu_range_str: str) -> List[int]:
     """
     Expand a CPU range string to a list of CPU IDs.
@@ -928,6 +946,7 @@ class FilterModule:
     """Ansible filter plugin registration."""
     def filters(self):
         return {
+            'cpu_ranges_ordered': cpu_ranges_ordered,
             'cpu_list_to_range': cpu_list_to_range,
             'extract_primary_cpus': extract_primary_cpus,
             'extract_all_cpus': extract_all_cpus,

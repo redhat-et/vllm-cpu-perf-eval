@@ -164,6 +164,9 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --vllm-cpu-start)
+            if [[ -z "${VLLM_CPUS}" ]]; then
+                echo "Warning: --vllm-cpu-start is deprecated; use --vllm-cpus (e.g., --vllm-cpus 64-95)" >&2
+            fi
             VLLM_CPU_START="$2"
             shift 2
             ;;
