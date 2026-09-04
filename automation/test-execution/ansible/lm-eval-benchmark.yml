@@ -92,6 +92,25 @@
           Invalid lm_eval_model_type: {{ lm_eval_model_type }}
           Supported: auto, local-completions, local-chat-completions
 
+    - name: Validate backend override matches selected tasks
+      ansible.builtin.assert:
+        that:
+          - >-
+            not (
+              lm_eval_model_type == 'local-completions'
+              and (_lm_eval_task_list | intersect(lm_eval_generation_tasks) | length > 0)
+            )
+          - >-
+            not (
+              lm_eval_model_type == 'local-chat-completions'
+              and (_lm_eval_task_list | difference(lm_eval_generation_tasks) | length > 0)
+            )
+        fail_msg: |
+          Incompatible lm_eval_model_type '{{ lm_eval_model_type }}' for tasks {{ lm_eval_tasks }}.
+          Generation tasks ({{ lm_eval_generation_tasks | join(', ') }}) require
+          local-chat-completions or auto.
+          Multiple-choice / loglikelihood tasks require local-completions or auto.
+
     - name: Validate vLLM mode
       ansible.builtin.assert:
         that:

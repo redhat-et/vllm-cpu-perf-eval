@@ -149,11 +149,18 @@ else
 fi
 
 # Test 14: mixing gsm8k with MC tasks fails before ansible
-MIXED_OUT=$("${SUITE_SCRIPT}" --dry-run --models quick --cores 8 --tasks gsm8k,truthfulqa_mc1 2>&1 || true)
-if echo "${MIXED_OUT}" | grep -qi "Cannot mix generation tasks"; then
-    pass "gsm8k + truthfulqa rejected with clear error"
+set +e
+MIXED_OUT=$("${SUITE_SCRIPT}" --dry-run --models quick --cores 8 --tasks gsm8k,truthfulqa_mc1 2>&1)
+MIXED_STATUS=$?
+set -e
+if [[ ${MIXED_STATUS} -ne 0 ]]; then
+    if echo "${MIXED_OUT}" | grep -qi "Cannot mix generation tasks"; then
+        pass "gsm8k + truthfulqa rejected with clear error"
+    else
+        fail "gsm8k + truthfulqa rejected with clear error" "Non-zero exit (${MIXED_STATUS}) but missing message. Output: ${MIXED_OUT}"
+    fi
 else
-    fail "gsm8k + truthfulqa rejected with clear error" "Output: ${MIXED_OUT}"
+    fail "gsm8k + truthfulqa rejected with clear error" "Expected non-zero exit, got 0. Output: ${MIXED_OUT}"
 fi
 
 echo ""
