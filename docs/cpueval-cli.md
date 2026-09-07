@@ -18,6 +18,7 @@ Matrix-first CLI for running comprehensive CPU benchmarks. Most suites run full 
 # Matrix suites - run full matrices (no --model required!)
 ./cpueval --suite rhaiis-sweep           # 60 combinations: 5 models × 3 cores × 4 workloads
 ./cpueval --suite embedding              # 30 combinations: 5 models × 3 cores × 2 scenarios
+./cpueval --suite mteb                   # 5 models × quick MTEB preset (quality)
 ./cpueval --suite offline-batch          # 33 runs: use-cases 3
 ./cpueval --suite audio                  # Default: all models, transcription-throughput scenario, 32 cores
 ./cpueval --suite lm-eval                # 18 runs: 6 models × 3 cores (default MC tasks)
@@ -200,6 +201,8 @@ Example output:
 │                           │              │            │ concurrent load      │
 │ embedding                 │ Matrix       │ script     │ Embedding model      │
 │                           │              │            │ performance          │
+│ mteb                      │ Matrix       │ script     │ MTEB embedding       │
+│                           │              │            │ quality benchmarks   │
 │ offline-batch             │ Matrix       │ script     │ Offline batch        │
 │                           │              │            │ processing           │
 │ audio                     │ Matrix       │ script     │ Audio model          │
@@ -390,6 +393,13 @@ Verifies:
 
 # lm-eval with custom tasks
 ./cpueval --suite lm-eval --models small --tasks hellaswag,arc_easy --cores 16
+
+# MTEB embedding quality (default: all models, quick preset)
+./cpueval --suite mteb
+
+# MTEB full task coverage on DUT-only host
+./cpueval --suite mteb --extra task_preset=full --cores 32 --vllm-cpus 0-31 \
+  --extra vllm_mode=dut-only --continue-on-error
 
 # Dry run to see command
 ./cpueval --suite concurrent-load \
@@ -692,6 +702,7 @@ via `./cpueval results --open`.
 | `concurrent-load` | all models × 3 cores × 4 workloads (60 tests) | Upstream LLM concurrent load sweep |
 | `lm-eval` | 6 models × 3 cores (default MC tasks) | LM Evaluation Harness accuracy tests (18 tests) |
 | `embedding` | 5 models × 3 cores × 2 scenarios | Embedding model performance matrix (30 tests) |
+| `mteb` | 5 models × `quick` task preset | MTEB embedding quality benchmarks (default: 2 tasks/model) |
 | `offline-batch` | 11 use-cases × 3 runs | Offline batch processing suite (33 tests) |
 | `audio` | all models × `transcription-throughput` × 32 cores | Audio model benchmarking (Whisper ASR) |
 
@@ -785,6 +796,41 @@ may require an explicit `dtype`:
   --model my-org/my-embedding-model \
   --cores 16
 ```
+
+### MTEB quality {#mteb-quality}
+
+Runs [MTEB](mteb-sweep-guide.md) embedding quality benchmarks (accuracy,
+retrieval, STS, etc.) against a vLLM/RHAIIS server. Default task preset is
+**`quick`** (2 tasks per model) — override only when you need deeper coverage.
+
+```bash
+# Default: all 5 models, quick preset, 32 cores, managed mode
+./cpueval --suite mteb
+
+# DUT-only (vLLM + MTEB on same host) with CPU pinning
+export VLLM_MODE=dut-only
+./cpueval --suite mteb --cores 32 --vllm-cpus 0-31
+
+# Full task preset (14 tasks per model — hours of runtime)
+./cpueval --suite mteb --extra task_preset=full --continue-on-error
+
+# External vLLM endpoint
+./cpueval --suite mteb --endpoint-url http://your-vllm:8000
+
+# Skip large models
+./cpueval --suite mteb --extra skip_models=RedHatAI/Qwen3-Embedding-8B
+```
+
+| Flag / extra var | Purpose |
+|---|---|
+| `--extra task_preset=quick\|comprehensive\|full\|...` | MTEB task group (default: `quick`) |
+| `--extra vllm_mode=managed\|dut-only\|external` | Where vLLM/MTEB run |
+| `--vllm-cpus` | Explicit vLLM CPU range (e.g. `0-31`) |
+| `--cores` | vLLM core count when not using `--vllm-cpus` |
+| `--endpoint-url` | External vLLM URL (sets external mode) |
+| `--extra mteb_container_image=...` | Override MTEB runner container |
+
+Results land in `results/mteb/`. See [MTEB Quick Start](mteb-sweep-guide.md).
 
 ### Optional: register the model for KV cache metadata
 

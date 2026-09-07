@@ -12,6 +12,7 @@ run, how to run it, and where to read the detailed methodology.
 | Concurrent Load | Matrix | Validated | `cpueval --suite concurrent-load` | [Concurrent Load](../tests/concurrent-load/concurrent-load.md) |
 | RHAIIS Sweep | Matrix | Validated | `cpueval --suite rhaiis-sweep` | [RHAIIS Testing](../tests/concurrent-load/rhaiis-testing.md) |
 | LM Eval | Matrix | WIP | `cpueval --suite lm-eval` | [LM Eval](../tests/lm-eval/lm-eval.md) |
+| MTEB Quality | Matrix | Validated | `cpueval --suite mteb` | [MTEB Quick Start](mteb-sweep-guide.md) |
 | Scalability | Manual/Ansible | WIP | Ansible playbooks | [Scalability](../tests/scalability/scalability.md) |
 | Offline Batch | Matrix | Validated | `cpueval --suite offline-batch` | [Offline Batch](../tests/offline-batch/offline-batch.md) |
 | Embedding | Matrix | Validated | `cpueval --suite embedding` | [Embedding Models](../tests/embedding-models/embedding-models.md) |
@@ -29,6 +30,7 @@ run, how to run it, and where to read the detailed methodology.
 | RHAIIS model matrix sweep | `rhaiis-sweep` | `./cpueval --suite rhaiis-sweep` |
 | LLM accuracy (hellaswag, arc, mmlu, …) | `lm-eval` | `./cpueval --suite lm-eval` |
 | Bulk/offline document processing | `offline-batch` | `./cpueval --suite offline-batch` |
+| Embedding quality (MTEB tasks) | `mteb` | `./cpueval --suite mteb` |
 | Embedding throughput and latency | `embedding` | `./cpueval --suite embedding` |
 | Audio transcription (Whisper) | `audio` | `./cpueval --suite audio --scenario quick-test` |
 | Maximum throughput curves | `scalability` | Ansible playbooks (see [Scalability](../tests/scalability/scalability.md)) |

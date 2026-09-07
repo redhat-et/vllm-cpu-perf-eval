@@ -50,6 +50,11 @@ def get_lm_eval_results_dir() -> Path:
     return get_results_dir() / "lm-eval"
 
 
+def get_mteb_results_dir() -> Path:
+    """Get the MTEB quality results directory."""
+    return get_results_dir() / "mteb"
+
+
 def get_dashboard_script() -> Path:
     """Get the dashboard launch script."""
     return (
@@ -214,6 +219,36 @@ def find_latest_lm_eval_result(model: Optional[str] = None) -> Optional[Path]:
     return None
 
 
+def find_latest_mteb_result(model: Optional[str] = None) -> Optional[Path]:
+    """Find the latest MTEB result run directory.
+
+    MTEB runs write run_summary.json under
+    results/mteb/<model_dir>/<timestamp>/.
+    """
+    base_dir = get_mteb_results_dir()
+
+    if not base_dir.exists():
+        return None
+
+    summary_files = list(base_dir.rglob("run_summary.json"))
+    if not summary_files:
+        return None
+
+    result_dirs = [summary.parent for summary in summary_files]
+
+    if model:
+        model_safe = model.replace("/", "__")
+        result_dirs = [
+            d for d in result_dirs
+            if any(part == model_safe for part in d.parts)
+        ]
+
+    if result_dirs:
+        return max(result_dirs, key=lambda p: p.stat().st_mtime)
+
+    return None
+
+
 def find_latest_suite_result(
     suite: str, model: Optional[str] = None
 ) -> Optional[Path]:
@@ -222,4 +257,6 @@ def find_latest_suite_result(
         return find_latest_embedding_result(model=model)
     if "lm-eval" in suite:
         return find_latest_lm_eval_result(model=model)
+    if "mteb" in suite:
+        return find_latest_mteb_result(model=model)
     return find_latest_result(model=model, audio="audio" in suite)

@@ -12,13 +12,52 @@ Having issues? Check the [MTEB Troubleshooting Guide](mteb-troubleshooting.md).
 
 ## Quick Start
 
-### Run All Models (Quick Test)
+```bash
+# Quick smoke test on all models (default task preset: quick, 2 tasks per model)
+./run-mteb-model-sweep.sh
+
+# Recommended: run via cpueval (skips interactive prompt, same defaults)
+./cpueval --suite mteb
+
+# Full quality sweep (override task preset only when you need more coverage)
+./cpueval --suite mteb --extra task_preset=full --cores 32 --vllm-cpus 0-31 \
+  --extra vllm_mode=dut-only --continue-on-error
+```
+
+### Default task preset: `quick`
+
+You only need `--extra task_preset=...` (or `--task-preset` on the bash script)
+when you want **more than the default smoke test**. By default everything runs
+the **`quick`** preset (2 classification tasks per model, ~10–25 minutes for all
+5 models). Use `comprehensive` or `full` when you deliberately want longer
+coverage — see [Task Presets](#task-presets) below.
+
+### Run All Models (bash script)
 ```bash
 cd automation/test-execution/scripts
 ./run-mteb-model-sweep.sh
 ```
 
 This runs the "quick" preset (2 tasks) on all 5 models (~10-25 minutes).
+
+### Run via cpueval (recommended)
+
+```bash
+# Default: all models, quick preset, 32 vLLM cores, managed mode
+./cpueval --suite mteb
+
+# DUT-only on a single host with explicit CPU pinning
+export VLLM_MODE=dut-only
+./cpueval --suite mteb --cores 32 --vllm-cpus 0-31
+
+# Full task coverage (14 tasks per model — several hours)
+./cpueval --suite mteb --extra task_preset=full --continue-on-error
+
+# Preview commands without running
+./cpueval --suite mteb --extra task_preset=full --dry-run
+```
+
+See [cpueval CLI](cpueval-cli.md#mteb-quality) for all flags.
 
 ### Run Comprehensive Tests
 ```bash
@@ -183,7 +222,8 @@ Large models (especially Qwen3-8B) require significant RAM:
 
 | File | Purpose |
 |------|---------|
-| `run-mteb-model-sweep.sh` | Main sweep script |
+| `run-mteb-model-sweep.sh` | Main sweep script (also used by `cpueval --suite mteb`) |
+| `automation/cli/src/cpueval/suites/mteb.yaml` | cpueval suite definition |
 | `docs/mteb-sweep-guide.md` | This guide |
 | `docs/mteb-timing-guide.md` | Detailed timing info |
 | `docs/mteb-troubleshooting.md` | Common issues and fixes |

@@ -246,7 +246,7 @@ Run multiple vLLM benchmark instances simultaneously on the same host by assigni
 | `run-rhaiis-concurrent-load.sh` → `llm-benchmark-concurrent-load.yml` | ✓ | ✓ | ✓ |
 | `run-audio-suite.sh` → `audio-benchmark.yml` | ✓ | ✓ | ✓ |
 | `run-embedding-suite.sh` → `embedding-benchmark.yml` | ✓ | ✓ | ✗ (not wired to NUMA allocator) |
-| `run-mteb-model-sweep.sh` → `mteb-benchmark.yml` | ✓ | ✓ | ✗ (not wired to NUMA allocator) |
+| `run-mteb-model-sweep.sh` → `mteb-benchmark.yml` | ✓ | ✓ | ✓ (`cpueval --suite mteb`) |
 | `run-offline-batch-suite.sh` → `llm-benchmark-offline-batch.yml` | ✓ | N/A (batch job, no server port) | ✓ |
 
 DUT-only suites (`audio-benchmark.yml`, `llm-benchmark-offline-batch.yml`) detect NUMA

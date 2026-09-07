@@ -34,7 +34,7 @@
   gather_facts: true
   vars:
     # Test mode: managed (start vLLM on DUT), external (use existing endpoint)
-    vllm_mode: "{{ lookup('env', 'VLLM_MODE') | default('managed', true) }}"
+    vllm_mode: "{{ lookup('env', 'VLLM_MODE') | default(vllm_endpoint.mode | default('managed'), true) }}"
 
     # Model configuration
     test_model: "{{ lookup('env', 'TEST_MODEL') | default('', true) }}"

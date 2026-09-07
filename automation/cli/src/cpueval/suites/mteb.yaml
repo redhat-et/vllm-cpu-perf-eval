@@ -1,0 +1,23 @@
+name: mteb
+description: MTEB embedding quality benchmarks (5 models × task preset; default quick smoke)
+runner: script
+target: automation/test-execution/scripts/bash/run-mteb-model-sweep.sh
+matrix: true
+
+defaults:
+  models: all
+  cores: "32"
+  task_preset: quick
+  vllm_mode: managed
+
+param_mappings:
+  models: --models
+  model: --models
+  cores: --cores
+  task_preset: --task-preset
+  skip_models: --skip-models
+  vllm_mode: --vllm-mode
+  vllm_cpus: --vllm-cpus
+  endpoint_url: --endpoint
+  mteb_container_image: --container-image
+  continue_on_error: continue-on-error

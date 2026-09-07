@@ -111,10 +111,17 @@ the vLLM server image (e.g. RHAIIS).
 
 ### run-mteb-model-sweep.sh
 
+Also invoked by `./cpueval --suite mteb`. Key variables:
+
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `MTEB_MODELS` | Model list | `all`, custom list |
-| `MTEB_CORES` | Core count | `4` |
+| `MTEB_TASK_PRESET` | Task preset (default: `quick`) | `comprehensive`, `full` |
+| `MTEB_CONTAINER_IMAGE` | MTEB runner container | `quay.io/vllm-cpu-perf-eval/vllm-mteb:latest` |
+| `VLLM_MODE` / `VLLM_ENDPOINT_MODE` | `managed`, `dut-only`, or `external` | `dut-only` |
+| `VLLM_CPUS` | Explicit vLLM CPU range | `0-31` |
+| `REQUESTED_CORES` | vLLM core count | `32` |
+
+Override task preset via cpueval: `./cpueval --suite mteb --extra task_preset=full`
 
 ### run-lm-eval-suite.sh
 

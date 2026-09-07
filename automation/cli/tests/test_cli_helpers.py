@@ -74,6 +74,39 @@ def test_build_script_args_vllm_cpus_mapping():
     assert args == ["--vllm-cpus", "64-95"]
 
 
+def test_build_script_args_mteb_suite():
+    """MTEB suite forwards model sweep flags with quick preset by default."""
+    suite = SuiteRegistry().get_suite("mteb")
+    assert suite is not None
+    assert suite.defaults["task_preset"] == "quick"
+
+    args = _build_script_args(
+        suite,
+        {
+            "models": "all",
+            "cores": "32",
+            "task_preset": "full",
+            "vllm_mode": "dut-only",
+            "vllm_cpus": "0-31",
+            "continue_on_error": True,
+        },
+    )
+
+    assert args == [
+        "--models",
+        "all",
+        "--cores",
+        "32",
+        "--task-preset",
+        "full",
+        "--vllm-mode",
+        "dut-only",
+        "--vllm-cpus",
+        "0-31",
+        "--continue-on-error",
+    ]
+
+
 def test_build_script_args_vllm_append_args_mapping():
     """vllm_append_args is forwarded as --vllm-args with the full value."""
     suite = SuiteRegistry().get_suite("concurrent-load")

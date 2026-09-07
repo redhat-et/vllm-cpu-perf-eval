@@ -46,9 +46,16 @@ cd automation/test-execution/scripts
 
 **Location:** `automation/test-execution/scripts/bash/run-mteb-model-sweep.sh`
 
+**Also available via cpueval:**
+
+```bash
+./cpueval --suite mteb
+./cpueval --suite mteb --extra task_preset=full --extra vllm_mode=dut-only
+```
+
 **Default Configuration:**
-- **Cores:** 4 (most efficient for quality tests - quality metrics don't change with core count)
-- **Task Preset:** quick (2 tasks, ~10-25 minutes)
+- **Task Preset:** `quick` (2 tasks, ~10–25 minutes for all models) — override only for longer runs
+- **Cores:** 32 (via cpueval default) or 4 (bash script default if run directly without `--cores`)
 
 **Quick Examples:**
 ```bash

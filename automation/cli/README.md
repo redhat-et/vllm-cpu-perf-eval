@@ -17,6 +17,7 @@ Thin CLI wrapper for running full test matrices with easy overrides.
 # Matrix suites - run full test matrix (no --model required!)
 ./cpueval --suite rhaiis-sweep           # 60 combinations: 5 models × 3 cores × 4 workloads
 ./cpueval --suite embedding              # 30 combinations: 5 models × 3 cores × 2 scenarios
+./cpueval --suite mteb                   # 5 models × quick MTEB preset (quality)
 ./cpueval --suite offline-batch          # 33 runs: use-cases 3
 
 # Override to narrow scope
