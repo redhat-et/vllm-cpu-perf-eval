@@ -64,11 +64,15 @@ trap 'echo -e "\n\nInterrupted by user. Exiting..."; exit 130' SIGINT SIGTERM
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="${SCRIPT_DIR}"
-while [[ ! -d "${REPO_ROOT}/.git" ]] && [[ "${REPO_ROOT}" != "/" ]]; do
-    REPO_ROOT="$(dirname "${REPO_ROOT}")"
-done
+if command -v git >/dev/null 2>&1 && GIT_ROOT="$(git -C "${SCRIPT_DIR}" rev-parse --show-toplevel 2>/dev/null)"; then
+    REPO_ROOT="${GIT_ROOT}"
+else
+    while [[ ! -d "${REPO_ROOT}/.git" && ! -f "${REPO_ROOT}/.git" ]] && [[ "${REPO_ROOT}" != "/" ]]; do
+        REPO_ROOT="$(dirname "${REPO_ROOT}")"
+    done
+fi
 
-if [[ ! -d "${REPO_ROOT}/.git" ]]; then
+if [[ ! -d "${REPO_ROOT}/.git" && ! -f "${REPO_ROOT}/.git" ]]; then
     echo "ERROR: Could not find repository root"
     exit 1
 fi
@@ -324,7 +328,7 @@ FAILED_TESTS=0
 for model in "${FINAL_MODELS[@]}"; do
     for cores in "${CORES[@]}"; do
         for workload in "${WORKLOADS[@]}"; do
-            ((CURRENT_TEST++))
+            CURRENT_TEST=$((CURRENT_TEST + 1))
 
             echo "[$CURRENT_TEST/$TOTAL_TESTS] Testing: $model | $workload | ${cores} cores"
 
@@ -396,7 +400,7 @@ for model in "${FINAL_MODELS[@]}"; do
                     echo "  ✓ Success"
                 else
                     echo "  ✗ Failed"
-                    ((FAILED_TESTS++))
+                    FAILED_TESTS=$((FAILED_TESTS + 1))
                     if [[ "$CONTINUE_ON_ERROR" == false ]]; then
                         echo "Stopping due to failure (use --continue-on-error to continue)"
                         exit 1
