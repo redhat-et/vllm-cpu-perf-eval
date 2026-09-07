@@ -77,13 +77,13 @@ rm *.json  # Keep only run_summary.json
 
 ## Future Improvements
 
-The MTEB wrapper sets `model_name` and `revision` attributes correctly. However, MTEB's internal behavior for organizing results may depend on:
+The benchmark runner uses MTEB's upstream `OpenAIAPIEncodeWrapper`, which sets
+`mteb_model_meta` with the served model name. Results are flattened into
+`TaskName/test.json` after each run for dashboard compatibility.
 
-1. The MTEB library version (currently using MTEB 2.12.30+)
-2. How MTEB constructs `ModelMeta` objects internally
-3. Whether the model is from HuggingFace Hub vs. a vLLM server endpoint
+If you still see nested result directories:
 
-Potential fixes:
-- Explicitly construct and set `mteb_model_meta` object with proper model/revision
-- Use MTEB's model name resolution API if available
-- Post-process results with a conversion script
+1. Confirm the container image uses MTEB 2.19.0+ (currently 2.20.10)
+2. Re-run `run_mteb_benchmark.py`, which reorganizes results automatically
+3. Use `automation/test-execution/scripts/bash/reorganize-mteb-results.sh`
+   for older result trees

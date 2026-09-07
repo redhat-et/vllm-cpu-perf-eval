@@ -2,21 +2,20 @@
 """Run MTEB benchmarks against a vLLM CPU or RHAIIS endpoint.
 
 This script evaluates embedding models using the MTEB framework,
-targeting vLLM CPU backends or Red Hat AI Inference Server instances.
+targeting vLLM CPU backends or Red Hat AI Inference Server instances
+via MTEB's upstream OpenAI-compatible API wrapper.
 """
 
 import argparse
 import json
 import logging
+import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
 
 import mteb
-
-# Add custom wrapper to path
-sys.path.insert(0, "/opt/mteb")
-from vllm_cpu_wrapper import VllmCPUEncoderWrapper
+from mteb.models import OpenAIAPIEncodeWrapper
 
 logging.basicConfig(
     level=logging.INFO,
@@ -191,38 +190,101 @@ def parse_args():
         help="Maximum sequence length for truncation (default: use model's max)",
     )
 
+    parser.add_argument(
+        "--use-chat-template",
+        action="store_true",
+        default=False,
+        help=(
+            "Send text batches via the Chat Embeddings API (messages field). "
+            "Required for multimodal/VLM models; leave disabled for standard "
+            "text embedding models served by vLLM."
+        ),
+    )
+
     return parser.parse_args()
 
 
+def create_encoder(args) -> OpenAIAPIEncodeWrapper:
+    """Create the upstream MTEB OpenAI-compatible encoder wrapper."""
+    return OpenAIAPIEncodeWrapper(
+        endpoint_url=args.endpoint_url,
+        model_name=args.model_name,
+        api_key=args.api_key,
+        timeout=args.timeout,
+        verify_ssl=args.verify_ssl,
+        max_length=args.max_length,
+        modalities=["text"],
+        use_chat_template=args.use_chat_template,
+    )
+
+
+def reorganize_mteb_results(output_path: Path) -> int:
+    """Flatten nested MTEB result files into TaskName/test.json structure."""
+    metadata_files = {"model_meta.json", "run_settings.jsonl"}
+    moved = 0
+
+    for json_file in list(output_path.rglob("*.json")):
+        relative = json_file.relative_to(output_path)
+        if len(relative.parts) <= 1:
+            continue
+        if json_file.name in metadata_files:
+            continue
+        if json_file.stem in {"model_meta", "run_summary"}:
+            continue
+
+        task_name = json_file.stem
+        dest = output_path / task_name / "test.json"
+        if dest.exists():
+            continue
+
+        dest.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(json_file, encoding="utf-8") as f:
+            data = json.load(f)
+
+        if "test" not in data and "scores" in data:
+            test_scores = data["scores"].get("test", [])
+            if isinstance(test_scores, list) and test_scores:
+                data = {"test": test_scores[0]}
+            elif isinstance(test_scores, dict):
+                data = {"test": test_scores}
+
+        with open(dest, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+
+        moved += 1
+
+    for item in list(output_path.iterdir()):
+        if item.is_dir() and not (item / "test.json").exists():
+            shutil.rmtree(item, ignore_errors=True)
+
+    return moved
+
+
 def test_connection(
-    endpoint_url: str, model_name: str, verify_ssl: bool = True
+    endpoint_url: str,
+    model_name: str,
+    verify_ssl: bool = True,
+    *,
+    use_chat_template: bool = False,
 ) -> bool:
-    """Test connection to vLLM server.
-
-    Args:
-        endpoint_url: vLLM server URL
-        model_name: Model name to check
-
-    Returns:
-        True if connection successful
-    """
+    """Test connection to vLLM server."""
     try:
         logger.info(f"Testing connection to {endpoint_url}...")
 
-        wrapper = VllmCPUEncoderWrapper(
+        wrapper = OpenAIAPIEncodeWrapper(
             endpoint_url=endpoint_url,
             model_name=model_name,
             verify_ssl=verify_ssl,
+            modalities=["text"],
+            use_chat_template=use_chat_template,
         )
 
-        # Try a simple embedding request
         test_texts = ["Hello, world!"]
         logger.info("Sending test embedding request...")
 
-        import numpy as np
         from torch.utils.data import DataLoader
 
-        # Create a simple batch for testing
         class SimpleDataset:
             def __init__(self, texts):
                 self.texts = texts
@@ -234,7 +296,6 @@ def test_connection(
         dataset = SimpleDataset(test_texts)
         dataloader = DataLoader(dataset, batch_size=1)
 
-        # Mock task metadata
         class MockMetadata:
             name = "test"
             type = "test"
@@ -244,6 +305,8 @@ def test_connection(
             task_metadata=MockMetadata(),
             hf_split="test",
             hf_subset="test",
+            batch_size=1,
+            show_progress_bar=False,
         )
 
         logger.info(f"✓ Connection successful! Embedding shape: {embeddings.shape}")
@@ -255,12 +318,7 @@ def test_connection(
 
 
 def run_benchmark(args):
-    """Run MTEB benchmark with specified configuration.
-
-    Args:
-        args: Parsed command line arguments
-    """
-    # Determine which tasks to run
+    """Run MTEB benchmark with specified configuration."""
     if args.tasks:
         task_names = args.tasks
         logger.info(f"Running custom task list: {task_names}")
@@ -268,21 +326,11 @@ def run_benchmark(args):
         task_names = TASK_PRESETS[args.task_preset]
         logger.info(f"Running task preset '{args.task_preset}': {task_names}")
 
-    # Initialize the wrapper
-    logger.info(f"Initializing vLLM CPU wrapper for endpoint: {args.endpoint_url}")
+    logger.info(f"Initializing OpenAI API wrapper for endpoint: {args.endpoint_url}")
     logger.info(f"Model: {args.model_name}")
 
-    model = VllmCPUEncoderWrapper(
-        endpoint_url=args.endpoint_url,
-        model_name=args.model_name,
-        api_key=args.api_key,
-        timeout=args.timeout,
-        batch_size=args.batch_size,
-        verify_ssl=args.verify_ssl,
-        max_length=args.max_length,
-    )
+    model = create_encoder(args)
 
-    # Get tasks
     logger.info("Loading MTEB tasks...")
     tasks = mteb.get_tasks(
         tasks=task_names,
@@ -291,7 +339,6 @@ def run_benchmark(args):
 
     logger.info(f"Loaded {len(tasks)} tasks: {[task.metadata.name for task in tasks]}")
 
-    # Create output directory
     timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
     model_safe_name = args.model_name.replace("/", "__")
     output_path = args.output_dir / model_safe_name / timestamp
@@ -299,23 +346,26 @@ def run_benchmark(args):
 
     logger.info(f"Results will be saved to: {output_path}")
 
-    # Run evaluation
     logger.info("Starting MTEB evaluation...")
     logger.info("=" * 80)
 
     try:
         evaluation = mteb.MTEB(tasks=tasks)
-        results = evaluation.run(
+        evaluation.run(
             model,
             output_folder=str(output_path),
-            eval_splits=["test"],  # Use test split by default
+            eval_splits=["test"],
             verbosity=2,
+            encode_kwargs={"batch_size": args.batch_size},
         )
+
+        reorganized = reorganize_mteb_results(output_path)
+        if reorganized:
+            logger.info(f"Reorganized {reorganized} task result files")
 
         logger.info("=" * 80)
         logger.info("✓ Evaluation complete!")
 
-        # Save summary metadata
         summary = {
             "model": args.model_name,
             "endpoint_url": args.endpoint_url,
@@ -324,16 +374,16 @@ def run_benchmark(args):
             "tasks_run": task_names,
             "num_tasks": len(tasks),
             "languages": args.languages,
+            "mteb_version": mteb.__version__,
+            "wrapper": "OpenAIAPIEncodeWrapper",
             "results_path": str(output_path),
         }
 
         summary_file = output_path / "run_summary.json"
-        with open(summary_file, "w") as f:
+        with open(summary_file, "w", encoding="utf-8") as f:
             json.dump(summary, f, indent=2)
 
         logger.info(f"Summary saved to: {summary_file}")
-
-        # Print quick summary
         logger.info("\nResults Summary:")
         logger.info(f"  Tasks completed: {len(tasks)}")
         logger.info(f"  Output directory: {output_path}")
@@ -349,14 +399,15 @@ def main():
     """Main entry point."""
     args = parse_args()
 
-    # Test connection if requested
     if args.test_connection:
         success = test_connection(
-            args.endpoint_url, args.model_name, args.verify_ssl
+            args.endpoint_url,
+            args.model_name,
+            args.verify_ssl,
+            use_chat_template=args.use_chat_template,
         )
         return 0 if success else 1
 
-    # Run benchmark
     return run_benchmark(args)
 
 

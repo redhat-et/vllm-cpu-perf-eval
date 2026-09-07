@@ -26,18 +26,16 @@ RUN pip install --upgrade pip==24.3.1 setuptools==75.6.0 wheel==0.45.1
 RUN pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cpu
 
 # Install MTEB and other dependencies from PyPI (pinned versions)
+# OpenAIAPIEncodeWrapper for HTTP vLLM endpoints landed in MTEB 2.19.0
+# (embeddings-benchmark/mteb#4834).
 RUN pip install \
-    mteb==2.12.30 \
+    mteb==2.20.10 \
     numpy==2.1.3 \
     pandas==2.2.3 \
     requests==2.32.3 \
     sentence-transformers==3.3.1
 
-# Copy custom vLLM CPU wrapper
-COPY wrappers/vllm_cpu_wrapper.py /opt/mteb/vllm_cpu_wrapper.py
-ENV PYTHONPATH="/opt/mteb:${PYTHONPATH}"
-
-# Copy scripts
+# Copy benchmark runner script
 COPY scripts/ /opt/mteb/scripts/
 RUN chmod +x /opt/mteb/scripts/*.py
 
@@ -45,4 +43,4 @@ RUN chmod +x /opt/mteb/scripts/*.py
 RUN mkdir -p /results
 
 # Default command
-CMD ["python", "-c", "import mteb; print(f'MTEB version: {mteb.__version__}')"]
+CMD ["python", "-c", "import mteb; from mteb.models import OpenAIAPIEncodeWrapper; print(f'MTEB version: {mteb.__version__}')"]
