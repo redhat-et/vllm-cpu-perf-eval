@@ -151,18 +151,22 @@
       ansible.builtin.assert:
         that:
           - vllm_cpus | string | trim | regex_search('^[0-9]+(-[0-9]+)?(,[0-9]+(-[0-9]+)?)*$') is not none
+          - vllm_cpus | string | trim | cpu_ranges_ordered
         fail_msg: >-
           vllm_cpus='{{ vllm_cpus }}' is not valid. Expected a range (e.g. '0-31'),
           comma-separated list, or hyphenated range.
+          Ranges must be ascending (start <= end).
       when: vllm_cpus is defined and vllm_cpus | string | trim != ''
 
     - name: Validate guidellm_cpus format if provided
       ansible.builtin.assert:
         that:
           - guidellm_cpus | string | trim | regex_search('^[0-9]+(-[0-9]+)?(,[0-9]+(-[0-9]+)?)*$') is not none
+          - guidellm_cpus | string | trim | cpu_ranges_ordered
         fail_msg: >-
           guidellm_cpus='{{ guidellm_cpus }}' is not valid. Expected a range (e.g. '32-47'),
           comma-separated list, or hyphenated range.
+          Ranges must be ascending (start <= end).
       when: guidellm_cpus is defined and guidellm_cpus | string | trim != ''
 
     - name: Generate test run ID

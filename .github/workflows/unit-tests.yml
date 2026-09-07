@@ -55,6 +55,7 @@ jobs:
           cd automation/test-execution/tests/scripts
           bash test_run_offline_batch_suite.sh
           bash test_run_lm_eval_suite.sh
+          bash test_run_concurrent_load_suite.sh
 
       - name: Test results summary
         if: always()

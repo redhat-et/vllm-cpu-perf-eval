@@ -160,6 +160,17 @@
         fail_msg: "vllm_numa_node must be a non-negative integer, got: {{ vllm_numa_node }}"
       when: vllm_numa_node is defined and vllm_numa_node is not none
 
+    - name: Validate guidellm_cpus format if provided
+      ansible.builtin.assert:
+        that:
+          - guidellm_cpus | string | trim | regex_search('^[0-9]+(-[0-9]+)?(,[0-9]+(-[0-9]+)?)*$') is not none
+          - guidellm_cpus | string | trim | cpu_ranges_ordered
+        fail_msg: >-
+          guidellm_cpus='{{ guidellm_cpus }}' is not valid. Expected a range (e.g. '0-31'),
+          a single core ('0'), or a comma-separated list ('0,1,2').
+          Ranges must be ascending (start <= end).
+      when: guidellm_cpus is defined and guidellm_cpus is not none and guidellm_cpus | string | trim != ''
+
     - name: Validate guidellm_numa_node if provided
       ansible.builtin.assert:
         that:

@@ -300,7 +300,7 @@ def cpu_ranges_ordered(cpu_range_str: str) -> bool:
             if int(start.strip()) > int(end.strip()):
                 return False
         except ValueError:
-            continue
+            return False
     return True
 
 

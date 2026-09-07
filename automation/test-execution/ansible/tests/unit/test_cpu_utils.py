@@ -210,6 +210,9 @@ class TestCpuRangesOrdered:
     def test_descending_in_list(self):
         assert cpu_ranges_ordered("64-66,95-64") is False
 
+    def test_invalid_range_component(self):
+        assert cpu_ranges_ordered("64-abc") is False
+
     def test_empty_string(self):
         assert cpu_ranges_ordered("") is True
 

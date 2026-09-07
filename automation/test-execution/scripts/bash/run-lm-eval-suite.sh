@@ -346,17 +346,6 @@ for model in "${MODELS[@]}"; do
         MODEL_SHORT=$(basename "${model}")
         TEST_NAME=$(sanitize_test_name "${MODEL_SHORT}-${cores}C")
 
-        if [[ -n "${TAG}" ]]; then
-            EFFECTIVE_TEST_NAME="$(sanitize_test_name "${TAG}")-${TEST_NAME}"
-        else
-            EFFECTIVE_TEST_NAME="${TEST_NAME}"
-        fi
-
-        if [[ ${#EFFECTIVE_TEST_NAME} -gt 100 ]]; then
-            log_error "test_name '${EFFECTIVE_TEST_NAME}' exceeds 100 chars (${#EFFECTIVE_TEST_NAME}). Shorten --tag."
-            exit 1
-        fi
-
         cmd=(
             ansible-playbook
             -i "automation/test-execution/ansible/inventory/hosts.yml"
@@ -368,8 +357,16 @@ for model in "${MODELS[@]}"; do
             -e "lm_eval_dtype=${DTYPE}"
             -e "lm_eval_kv_cache_space=${KV_CACHE_SPACE}"
             -e "lm_eval_image=${LM_EVAL_IMAGE}"
-            -e "test_name=${EFFECTIVE_TEST_NAME}"
         )
+
+        if [[ -n "${TAG}" ]]; then
+            EFFECTIVE_TEST_NAME="$(sanitize_test_name "${TAG}")-${TEST_NAME}"
+            if [[ ${#EFFECTIVE_TEST_NAME} -gt 100 ]]; then
+                log_error "test_name '${EFFECTIVE_TEST_NAME}' exceeds 100 chars (${#EFFECTIVE_TEST_NAME}). Shorten --tag."
+                exit 1
+            fi
+            cmd+=(-e "test_name=${EFFECTIVE_TEST_NAME}")
+        fi
 
         [[ -n "${MAX_MODEL_LEN}" ]]  && cmd+=(-e "lm_eval_max_model_len=${MAX_MODEL_LEN}")
         [[ -n "${LIMIT}" ]]          && cmd+=(-e "lm_eval_limit=${LIMIT}")

@@ -340,9 +340,8 @@ for model in "${MODELS[@]}"; do
         echo "Scenario: ${SCENARIO}"
         echo ""
 
-        # Create test name
         MODEL_SHORT=$(basename "${model}")
-        TEST_NAME="${MODEL_SHORT}-${cores}C"
+        RUN_LABEL="${MODEL_SHORT}-${cores}C"
 
         # Build ansible command
         cmd=(
@@ -353,7 +352,6 @@ for model in "${MODELS[@]}"; do
             -e "scenario=${SCENARIO}"
             -e "requested_cores=${cores}"
             -e "num_prompts=${NUM_PROMPTS}"
-            -e "test_name=${TEST_NAME}"
         )
 
         [[ -n "${MAX_SECONDS}" ]] && cmd+=(-e "guidellm_max_seconds=${MAX_SECONDS}")
@@ -384,14 +382,14 @@ for model in "${MODELS[@]}"; do
         if "${cmd[@]}" 2>&1 | tee -a "${RESULTS_LOG}"; then
             test_end=$(date +%s)
             test_duration=$((test_end - test_start))
-            log_success "✓ Test passed: ${TEST_NAME} (${test_duration}s)"
+            log_success "✓ Test passed: ${RUN_LABEL} (${test_duration}s)"
             PASSED_TESTS=$((PASSED_TESTS + 1))
         else
             test_end=$(date +%s)
             test_duration=$((test_end - test_start))
-            log_error "✗ Test failed: ${TEST_NAME} (${test_duration}s)"
+            log_error "✗ Test failed: ${RUN_LABEL} (${test_duration}s)"
             FAILED_TESTS=$((FAILED_TESTS + 1))
-            FAILED_LIST+=("${TEST_NAME}")
+            FAILED_LIST+=("${RUN_LABEL}")
 
             if [[ "${CONTINUE_ON_ERROR}" == false ]]; then
                 log_error "Aborting test suite due to failure"
