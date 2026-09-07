@@ -32,8 +32,8 @@
 #   --vllm-args ARGS        Extra vLLM CLI flags (space-separated; quote values with spaces)
 #   --vllm-env VARS         Extra vLLM container env vars as space-separated KEY=VALUE pairs
 #                           (values cannot contain spaces; e.g. "VLLM_V1_OUTPUT_PROC_CHUNK_SIZE=256")
-#   --tag LABEL             Custom label combined with auto-generated name for result run ID
-#                             (prepended: LABEL-MODEL-WORKLOAD-COREC; combined max 100 chars)
+#   --tag LABEL             Custom label for the result run ID (format: LABEL-MODEL-WORKLOAD-COREC;
+#                             1-30 chars, alphanumeric/hyphens; combined max 100 chars)
 #   --continue-on-error     Continue testing if a model/workload fails
 #   --dry-run               Show what would run without executing
 #   -h, --help              Show this help
@@ -364,18 +364,16 @@ for model in "${FINAL_MODELS[@]}"; do
                 CMD+=(-e "$(ansible_extra_var vllm_extra_env_str "$VLLM_EXTRA_ENV")")
             fi
 
-            MODEL_SHORT=$(basename "${model}")
-            TEST_NAME=$(sanitize_test_name "${MODEL_SHORT}-${workload}-${cores}C")
             if [[ -n "${TAG}" ]]; then
-                EFFECTIVE_TEST_NAME="$(sanitize_test_name "${TAG}")-${TEST_NAME}"
-            else
-                EFFECTIVE_TEST_NAME="${TEST_NAME}"
+                MODEL_SHORT=$(basename "${model}")
+                BASE_NAME=$(sanitize_test_name "${MODEL_SHORT}-${workload}-${cores}C")
+                EFFECTIVE_TEST_NAME="$(sanitize_test_name "${TAG}")-${BASE_NAME}"
+                if [[ ${#EFFECTIVE_TEST_NAME} -gt 100 ]]; then
+                    echo "ERROR: test_name '${EFFECTIVE_TEST_NAME}' exceeds 100 chars (${#EFFECTIVE_TEST_NAME}). Shorten --tag." >&2
+                    exit 1
+                fi
+                CMD+=(-e "test_name=${EFFECTIVE_TEST_NAME}")
             fi
-            if [[ ${#EFFECTIVE_TEST_NAME} -gt 100 ]]; then
-                echo "ERROR: test_name '${EFFECTIVE_TEST_NAME}' exceeds 100 chars (${#EFFECTIVE_TEST_NAME}). Shorten --tag." >&2
-                exit 1
-            fi
-            CMD+=(-e "test_name=${EFFECTIVE_TEST_NAME}")
 
             # Parallel instance overrides — set env vars to run multiple instances
             # simultaneously on the same host (each with its own container, port, NUMA nodes):
