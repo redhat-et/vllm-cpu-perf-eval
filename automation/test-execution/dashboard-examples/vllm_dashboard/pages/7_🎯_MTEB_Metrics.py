@@ -74,15 +74,23 @@ def load_mteb_data(results_dir: str) -> pd.DataFrame:
                 if test_file.exists():
                     task_files.append((task_dir.name, test_file))
 
+            format1_tasks = {name for name, _ in task_files}
+
             # Format 2: no_model_name_available/no_revision_available/*.json
             mteb_output_dir = test_run_dir / "no_model_name_available" / "no_revision_available"
             if mteb_output_dir.exists():
                 for result_file in mteb_output_dir.glob("*.json"):
                     if result_file.name == "model_meta.json":
                         continue
+                    if result_file.stem in format1_tasks:
+                        continue
                     task_files.append((result_file.stem, result_file))
 
+            seen_tasks: set[str] = set()
             for task_name, task_file in task_files:
+                if task_name in seen_tasks:
+                    continue
+                seen_tasks.add(task_name)
                 try:
                     with open(task_file) as f:
                         task_results = json.load(f)
@@ -597,23 +605,25 @@ def main():
         """)
         return
 
-    # ── Platform filter (only shown when multiple platforms exist) ───────────
-    platforms = sorted(p for p in df["platform"].unique() if p and p != "unknown")
-    if len(platforms) > 1:
+    # ── Platform filter ──────────────────────────────────────────────────────
+    known_platforms = sorted(p for p in df["platform"].unique() if p and p != "unknown")
+    has_unknown = (df["platform"] == "unknown").any()
+    platform_options = known_platforms + (["unknown"] if has_unknown else [])
+
+    if len(platform_options) > 1:
         selected_platforms = st.multiselect(
             "Platforms",
-            options=platforms,
-            default=platforms,
+            options=platform_options,
+            default=platform_options,
             help="Filter by CPU platform recorded during the MTEB run",
         )
         if not selected_platforms:
             st.warning("Please select at least one platform")
             return
         df = df[df["platform"].isin(selected_platforms)]
-    elif platforms:
-        st.caption(f"Platform: {platforms[0]}")
-        df = df[df["platform"] == platforms[0]]
-    # else: all results are "unknown" (pre-platform-tracking runs) — show all
+    elif len(platform_options) == 1:
+        st.caption(f"Platform: {platform_options[0]}")
+    # else: no platform metadata — show all rows
 
     # ── Model filter ─────────────────────────────────────────────────────────
     models = sorted(df["model"].unique())

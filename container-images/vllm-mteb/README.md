@@ -81,6 +81,10 @@ Automated test orchestration:
 
 ### Quick Start
 
+Requires **MTEB 2.19.0+** (ships with `OpenAIAPIEncodeWrapper`). Rebuild and push
+to Quay after changing dependencies in this directory so `quay.io/.../vllm-mteb:latest`
+matches the benchmark scripts in this repo.
+
 #### 1. Build the Container
 
 ```bash

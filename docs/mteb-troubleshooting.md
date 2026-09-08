@@ -17,7 +17,8 @@ results/mteb/MODEL/TIMESTAMP/TaskName/test.json
 ```
 
 ### Solution
-The dashboard (`pages/3_📊_Embedding_Metrics.py`) has been updated to handle both formats automatically. The `load_mteb_data()` function now:
+Use the **🎯 MTEB Metrics** dashboard page (`pages/7_🎯_MTEB_Metrics.py`). The
+`load_mteb_data()` function handles both formats automatically. It:
 
 1. Scans for `run_summary.json` files to find test runs
 2. Looks for task results in multiple locations:

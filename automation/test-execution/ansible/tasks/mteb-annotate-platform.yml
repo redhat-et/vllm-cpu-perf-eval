@@ -1,6 +1,7 @@
 ---
 # Inject CPU platform into run_summary.json after the MTEB container exits.
 # Kept out of the container CLI so older vllm-mteb images without --platform still work.
+# Only the most recent run for this model is annotated so historical runs keep their metadata.
 
 - name: Annotate MTEB run_summary with CPU platform metadata
   ansible.builtin.shell: |
@@ -8,8 +9,12 @@
     model_dir="{{ results_base_dir }}/{{ test_model | replace('/', '__') }}"
     platform="{{ dut_platform_name | default('unknown') }}"
     shopt -s nullglob
-    for summary in "$model_dir"/*/run_summary.json; do
-      python3 - "$summary" "$platform" <<'PY'
+    summaries=( "$model_dir"/*/run_summary.json )
+    if [[ ${#summaries[@]} -eq 0 ]]; then
+      exit 0
+    fi
+    latest_summary="$(ls -t "${summaries[@]}" | head -1)"
+    python3 - "$latest_summary" "$platform" <<'PY'
     import json
     import sys
 
@@ -21,7 +26,6 @@
         json.dump(data, handle, indent=2)
         handle.write("\n")
     PY
-    done
   args:
     executable: /bin/bash
   changed_when: false

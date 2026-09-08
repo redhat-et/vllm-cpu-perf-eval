@@ -10,6 +10,27 @@ See [MTEB Timing Guide](mteb-timing-guide.md) for detailed timing information.
 
 Having issues? Check the [MTEB Troubleshooting Guide](mteb-troubleshooting.md).
 
+## Container image requirements
+
+MTEB benchmarks require the `vllm-mteb` container with **MTEB 2.19.0+**
+(upstream `OpenAIAPIEncodeWrapper`). The default image is:
+
+```text
+quay.io/vllm-cpu-perf-eval/vllm-mteb:latest
+```
+
+After upgrading the benchmark runner in this repo, rebuild and push the image
+before running sweeps against `:latest`:
+
+```bash
+cd container-images/vllm-mteb
+./build.sh
+# or trigger .github/workflows/build-mteb-container.yml on merge to main
+```
+
+To pin a known-good image, set `MTEB_CONTAINER_IMAGE` or pass
+`--extra mteb_container_image=quay.io/vllm-cpu-perf-eval/vllm-mteb:latest-<git-sha>`.
+
 ## Quick Start
 
 ```bash

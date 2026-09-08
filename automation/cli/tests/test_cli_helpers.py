@@ -19,6 +19,21 @@ from cpueval.cli import (
 from cpueval.suite_registry import SuiteRegistry
 
 
+def _script_args_as_dict(args: list[str]) -> dict[str, str | bool]:
+    """Map script CLI flags to values (boolean flags map to True)."""
+    pairs: dict[str, str | bool] = {}
+    i = 0
+    while i < len(args):
+        flag = args[i]
+        if i + 1 < len(args) and not args[i + 1].startswith("-"):
+            pairs[flag] = args[i + 1]
+            i += 2
+        else:
+            pairs[flag] = True
+            i += 1
+    return pairs
+
+
 def test_apply_endpoint_env_sets_external_mode(monkeypatch):
     """--endpoint-url sets VLLM_ENDPOINT_MODE and VLLM_ENDPOINT_URL."""
     monkeypatch.delenv("VLLM_ENDPOINT_MODE", raising=False)
@@ -89,14 +104,11 @@ def test_build_script_args_mteb_endpoint_url():
         },
     )
 
-    assert args == [
-        "--models",
-        "all",
-        "--vllm-mode",
-        "external",
-        "--endpoint",
-        "http://vllm.example:8000",
-    ]
+    assert _script_args_as_dict(args) == {
+        "--models": "all",
+        "--vllm-mode": "external",
+        "--endpoint": "http://vllm.example:8000",
+    }
 
 
 def test_build_script_args_mteb_suite():

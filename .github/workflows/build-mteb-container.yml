@@ -64,7 +64,7 @@ jobs:
       - name: Test container image
         run: |
           docker run --rm ${{ env.IMAGE_REGISTRY }}/${{ env.IMAGE_REPOSITORY }}:${{ env.IMAGE_TAG }} \
-            python -c "import mteb; print(f'MTEB version: {mteb.__version__}')"
+            python -c "import mteb; from mteb.models import OpenAIAPIEncodeWrapper; print(f'MTEB version: {mteb.__version__}')"
 
       - name: Push container image
         if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/container/'))
