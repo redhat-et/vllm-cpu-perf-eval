@@ -409,6 +409,11 @@ def _execute_suite(
         cli_vars["tag"] = tag
 
     _apply_endpoint_env(endpoint_url)
+    if endpoint_url:
+        # Forward to script suites (e.g. mteb --endpoint) and force external mode
+        # so suite YAML defaults cannot override VLLM_ENDPOINT_MODE.
+        cli_vars["endpoint_url"] = endpoint_url
+        cli_vars["vllm_mode"] = "external"
 
     # Load profile if specified
     profile_vars = {}

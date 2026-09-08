@@ -24,6 +24,8 @@ Having issues? Check the [MTEB Troubleshooting Guide](mteb-troubleshooting.md).
   --extra vllm_mode=dut-only --continue-on-error
 ```
 
+See [Execution modes](#execution-modes) for managed, dut-only, and external setups.
+
 ### Default task preset: `quick`
 
 You only need `--extra task_preset=...` (or `--task-preset` on the bash script)
@@ -58,6 +60,66 @@ export VLLM_MODE=dut-only
 ```
 
 See [cpueval CLI](cpueval-cli.md#mteb-quality) for all flags.
+
+## Execution modes
+
+MTEB uses the same vLLM deployment modes as the embedding performance suite. The Ansible playbook (`mteb-benchmark.yml`) supports all three; `cpueval --suite mteb` forwards mode via env vars or flags (it no longer forces `managed` by default).
+
+| Mode | vLLM | MTEB runner | Hosts | When to use |
+|------|------|-------------|-------|-------------|
+| **managed** | Started on DUT | Load generator | 2 (`DUT_HOSTNAME` ≠ `LOADGEN_HOSTNAME`) | Production-like split: CPU server + client |
+| **dut-only** | Started on DUT | Same DUT | 1 (set both hostnames to the same EC2) | Single-node EC2, lab laptop, all-in-one |
+| **external** | Pre-existing endpoint | Load generator | 1+ (any reachable vLLM URL) | K8s LB, RHAIIS cluster, prod endpoint |
+
+### Managed (2-host, default)
+
+vLLM on the DUT; MTEB container runs on the load generator and calls the DUT over the network.
+
+```bash
+export DUT_HOSTNAME=dut.example.com
+export LOADGEN_HOSTNAME=loadgen.example.com
+# VLLM_MODE defaults to managed
+
+./cpueval --suite mteb --cores 32 --vllm-cpus 0-31
+```
+
+### DUT-only (single-host)
+
+Both vLLM and MTEB on one machine. Point both inventory hostnames at the same host (or only the DUT is used for vLLM+MTEB).
+
+```bash
+export DUT_HOSTNAME=ec2-xxx.compute.amazonaws.com
+export LOADGEN_HOSTNAME=ec2-xxx.compute.amazonaws.com   # same host OK
+
+./cpueval --suite mteb \
+  --cores 32 \
+  --vllm-cpus 0-31 \
+  --extra vllm_mode=dut-only
+```
+
+Or: `export VLLM_MODE=dut-only` (no `--extra` needed after the cpueval fix).
+
+### External endpoint
+
+Skip vLLM startup; run MTEB against an existing `/v1/embeddings` URL. MTEB runs on the load generator host.
+
+```bash
+export LOADGEN_HOSTNAME=bench-runner.example.com
+
+./cpueval --suite mteb \
+  --endpoint-url http://vllm-lb.example.com:8000 \
+  --model RedHatAI/granite-embedding-english-r2
+```
+
+Equivalent:
+
+```bash
+export VLLM_MODE=external
+export VLLM_ENDPOINT_URL=http://vllm-lb.example.com:8000
+./cpueval --suite mteb --extra vllm_mode=external --extra endpoint_url=http://vllm-lb.example.com:8000
+```
+
+**Note:** `--endpoint-url` on cpueval automatically sets external mode. CPU pinning flags (`--cores`, `--vllm-cpus`) are ignored in external mode.
 
 ### Run Comprehensive Tests
 ```bash

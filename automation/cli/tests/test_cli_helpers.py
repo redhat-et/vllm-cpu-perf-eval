@@ -74,6 +74,31 @@ def test_build_script_args_vllm_cpus_mapping():
     assert args == ["--vllm-cpus", "64-95"]
 
 
+def test_build_script_args_mteb_endpoint_url():
+    """MTEB forwards --endpoint and --vllm-mode external for endpoint-url runs."""
+    suite = SuiteRegistry().get_suite("mteb")
+    assert suite is not None
+    assert "vllm_mode" not in suite.defaults
+
+    args = _build_script_args(
+        suite,
+        {
+            "endpoint_url": "http://vllm.example:8000",
+            "vllm_mode": "external",
+            "models": "all",
+        },
+    )
+
+    assert args == [
+        "--models",
+        "all",
+        "--vllm-mode",
+        "external",
+        "--endpoint",
+        "http://vllm.example:8000",
+    ]
+
+
 def test_build_script_args_mteb_suite():
     """MTEB suite forwards model sweep flags with quick preset by default."""
     suite = SuiteRegistry().get_suite("mteb")

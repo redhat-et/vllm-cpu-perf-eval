@@ -10,10 +10,15 @@
 #
 # Options:
 #   --task-preset PRESET    MTEB task preset (quick|comprehensive|full|etc)
-#                           Default: quick
+#                           Default: quick (ignored when --tasks / MTEB_TASKS set)
+#   --tasks LIST            Custom MTEB tasks (space- or comma-separated)
+#                           Overrides --task-preset. Same as MTEB_TASKS env var.
 #   --vllm-mode MODE        vLLM execution mode (managed|dut-only|external)
 #                           Default: managed (or VLLM_MODE / VLLM_ENDPOINT_MODE)
-#   --endpoint URL          External vLLM endpoint (for external mode)
+#                           managed  = vLLM on DUT, MTEB on load generator (2 hosts)
+#                           dut-only = vLLM + MTEB on DUT (1 host)
+#                           external = MTEB on load generator, existing vLLM URL
+#   --endpoint URL          External vLLM endpoint (implies --vllm-mode external)
 #   --cores NUM             Number of cores for vLLM (managed/dut-only)
 #                           Default: 32
 #   --vllm-cpus RANGE       Explicit CPU set for vLLM (e.g., 0-31)
@@ -32,6 +37,7 @@
 #   VLLM_ENDPOINT_URL                External endpoint URL
 #   VLLM_CONTAINER_IMAGE             vLLM/RHAIIS server image
 #   MTEB_CONTAINER_IMAGE             MTEB runner container image
+#   MTEB_TASKS                       Custom task list (space-separated; overrides preset)
 #   VLLM_CPUS                        Same as --vllm-cpus
 #   HF_TOKEN                         HuggingFace token for gated models
 #
@@ -84,6 +90,7 @@ CONTINUE_ON_ERROR=false
 DRY_RUN=false
 ASSUME_YES=false
 MODELS_INPUT=""
+MTEB_TASKS="${MTEB_TASKS:-}"
 CONTAINER_IMAGE="${MTEB_CONTAINER_IMAGE:-quay.io/vllm-cpu-perf-eval/vllm-mteb:latest}"
 
 PRESET_QUICK=(
@@ -133,8 +140,9 @@ show_help() {
 while [[ $# -gt 0 ]]; do
     case $1 in
         --task-preset)      TASK_PRESET="$2"; shift 2 ;;
+        --tasks)            MTEB_TASKS="${2//,/ }"; shift 2 ;;
         --vllm-mode)        VLLM_MODE="$2"; shift 2 ;;
-        --endpoint)         ENDPOINT_URL="$2"; shift 2 ;;
+        --endpoint)         ENDPOINT_URL="$2"; VLLM_MODE="external"; shift 2 ;;
         --cores)            REQUESTED_CORES="$2"; shift 2 ;;
         --vllm-cpus)        VLLM_CPUS="$2"; shift 2 ;;
         --models)           MODELS_INPUT="$2"; shift 2 ;;
@@ -216,9 +224,25 @@ fi
 
 log_info "MTEB Model Sweep Configuration"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "Task Preset:     ${TASK_PRESET}"
+if [[ -n "${MTEB_TASKS}" ]]; then
+    echo "Custom Tasks:    ${MTEB_TASKS}"
+    echo "Task Preset:     ${TASK_PRESET} (ignored — custom tasks override preset)"
+else
+    echo "Task Preset:     ${TASK_PRESET}"
+fi
 echo "MTEB Image:      ${CONTAINER_IMAGE}"
 echo "vLLM Mode:       ${VLLM_MODE}"
+case "${VLLM_MODE}" in
+    managed)
+        echo "Topology:        vLLM on DUT, MTEB on load generator (2-host)"
+        ;;
+    dut-only)
+        echo "Topology:        vLLM + MTEB on DUT (single-host)"
+        ;;
+    external)
+        echo "Topology:        MTEB on load generator, external vLLM endpoint"
+        ;;
+esac
 if [[ "${VLLM_MODE}" == "external" ]]; then
     echo "Endpoint URL:    ${ENDPOINT_URL}"
 else
@@ -285,7 +309,7 @@ run_mteb_test() {
 
     if [[ "${DRY_RUN}" == true ]]; then
         log_info "DRY RUN: Would execute:"
-        echo "  cd ${REPO_ROOT} && VLLM_MODE=${VLLM_MODE} MTEB_CONTAINER_IMAGE=${CONTAINER_IMAGE} ${cmd[*]}"
+        echo "  cd ${REPO_ROOT} && MTEB_TASKS=${MTEB_TASKS} VLLM_MODE=${VLLM_MODE} MTEB_CONTAINER_IMAGE=${CONTAINER_IMAGE} ${cmd[*]}"
         return 0
     fi
 
@@ -293,6 +317,8 @@ run_mteb_test() {
     start_time=$(date +%s)
     if (
         cd "${REPO_ROOT}" &&
+        export MTEB_TASKS="${MTEB_TASKS}" &&
+        export VLLM_ENDPOINT_URL="${ENDPOINT_URL}" &&
         VLLM_MODE="${VLLM_MODE}" \
         MTEB_CONTAINER_IMAGE="${CONTAINER_IMAGE}" \
         "${cmd[@]}"

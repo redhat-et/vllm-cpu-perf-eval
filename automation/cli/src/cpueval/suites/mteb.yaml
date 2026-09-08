@@ -8,13 +8,15 @@ defaults:
   models: all
   cores: "32"
   task_preset: quick
-  vllm_mode: managed
+  # vllm_mode is not defaulted here — resolved by run-mteb-model-sweep.sh from
+  # --extra vllm_mode=..., --endpoint-url, or VLLM_MODE / VLLM_ENDPOINT_MODE env.
 
 param_mappings:
   models: --models
   model: --models
   cores: --cores
   task_preset: --task-preset
+  tasks: --tasks
   skip_models: --skip-models
   vllm_mode: --vllm-mode
   vllm_cpus: --vllm-cpus

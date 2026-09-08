@@ -1,0 +1,27 @@
+---
+# Inject CPU platform into run_summary.json after the MTEB container exits.
+# Kept out of the container CLI so older vllm-mteb images without --platform still work.
+
+- name: Annotate MTEB run_summary with CPU platform metadata
+  ansible.builtin.shell: |
+    set -euo pipefail
+    model_dir="{{ results_base_dir }}/{{ test_model | replace('/', '__') }}"
+    platform="{{ dut_platform_name | default('unknown') }}"
+    shopt -s nullglob
+    for summary in "$model_dir"/*/run_summary.json; do
+      python3 - "$summary" "$platform" <<'PY'
+    import json
+    import sys
+
+    path, platform = sys.argv[1], sys.argv[2]
+    with open(path, encoding="utf-8") as handle:
+        data = json.load(handle)
+    data["platform"] = platform
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(data, handle, indent=2)
+        handle.write("\n")
+    PY
+    done
+  args:
+    executable: /bin/bash
+  changed_when: false

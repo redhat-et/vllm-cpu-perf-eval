@@ -201,6 +201,13 @@ def parse_args():
         ),
     )
 
+    parser.add_argument(
+        "--platform",
+        type=str,
+        default="unknown",
+        help="CPU platform identifier recorded in run_summary.json (e.g. Intel_R__Xeon_R__Gold_6238)",
+    )
+
     return parser.parse_args()
 
 
@@ -377,6 +384,7 @@ def run_benchmark(args):
             "mteb_version": mteb.__version__,
             "wrapper": "OpenAIAPIEncodeWrapper",
             "results_path": str(output_path),
+            "platform": args.platform,
         }
 
         summary_file = output_path / "run_summary.json"

@@ -77,11 +77,23 @@
           - test_model | length > 0
         fail_msg: "test_model must be specified via -e or TEST_MODEL environment variable"
 
+    - name: Resolve external endpoint URL
+      ansible.builtin.set_fact:
+        vllm_endpoint_url: >-
+          {{ vllm_endpoint_url
+             if (vllm_endpoint_url | default('', true) | length > 0)
+             else (vllm_endpoint.external.url | default('', true)) }}
+      when: vllm_mode == 'external'
+
     - name: Validate external endpoint is provided (external mode)
       ansible.builtin.assert:
         that:
           - vllm_endpoint_url | length > 0
-        fail_msg: "vllm_endpoint_url must be set when vllm_mode=external"
+        fail_msg: >-
+          External mode requires a vLLM endpoint URL.
+          Set via: export VLLM_ENDPOINT_URL=http://host:8000
+          or cpueval --endpoint-url http://host:8000
+          or -e vllm_endpoint_url=http://host:8000
       when: vllm_mode == 'external'
 
     - name: Build test configuration message
@@ -147,6 +159,21 @@
     results_base_dir: "/tmp/mteb-results"
 
   tasks:
+    - name: Get CPU model name for platform identification
+      ansible.builtin.shell: |
+        lscpu | grep -i '^Model name' | sed 's/^[Mm]odel name:[[:space:]]*//' | head -1
+      register: cpu_model_raw
+      changed_when: false
+      when: vllm_mode == 'dut-only'
+
+    - name: Set platform name from CPU model (sanitized)
+      ansible.builtin.set_fact:
+        dut_platform_name: "{{ cpu_model_raw.stdout | trim
+          | regex_replace('[^a-zA-Z0-9]', '_')
+          | regex_replace('_+', '_')
+          | regex_replace('^_|_$', '') }}"
+      when: vllm_mode == 'dut-only'
+
     - name: Build vLLM endpoint URL (dut-only mode)
       ansible.builtin.set_fact:
         vllm_endpoint_url: "http://localhost:{{ hostvars['localhost']['bench_config']['vllm_port'] }}"
@@ -201,6 +228,13 @@
       register: mteb_result
       when: vllm_mode == 'dut-only'
 
+    - name: Annotate MTEB run_summary with CPU platform (dut-only)
+      ansible.builtin.include_tasks: tasks/mteb-annotate-platform.yml
+      when:
+        - vllm_mode == 'dut-only'
+        - mteb_result is defined
+        - not (mteb_result.failed | default(false))
+
     - name: Display MTEB results
       ansible.builtin.debug:
         msg:
@@ -230,6 +264,22 @@
     results_base_dir: "/tmp/mteb-results"
 
   tasks:
+    - name: Get CPU model name of DUT for platform identification
+      ansible.builtin.shell: |
+        lscpu | grep -i '^Model name' | sed 's/^[Mm]odel name:[[:space:]]*//' | head -1
+      register: cpu_model_raw
+      changed_when: false
+      delegate_to: "{{ groups['dut'][0] }}"
+      when: vllm_mode in ['managed', 'external']
+
+    - name: Set platform name from CPU model (sanitized)
+      ansible.builtin.set_fact:
+        dut_platform_name: "{{ cpu_model_raw.stdout | trim
+          | regex_replace('[^a-zA-Z0-9]', '_')
+          | regex_replace('_+', '_')
+          | regex_replace('^_|_$', '') }}"
+      when: vllm_mode in ['managed', 'external']
+
     - name: Build vLLM endpoint URL (managed mode)
       ansible.builtin.set_fact:
         vllm_endpoint_url: "http://{{ hostvars['vllm-server']['ansible_host'] }}:{{ hostvars['localhost']['bench_config']['vllm_port'] }}"
@@ -288,6 +338,13 @@
         command: "{{ mteb_command }}"
       register: mteb_result
       when: vllm_mode in ['managed', 'external']
+
+    - name: Annotate MTEB run_summary with CPU platform (managed/external)
+      ansible.builtin.include_tasks: tasks/mteb-annotate-platform.yml
+      when:
+        - vllm_mode in ['managed', 'external']
+        - mteb_result is defined
+        - not (mteb_result.failed | default(false))
 
     - name: Display MTEB results
       ansible.builtin.debug:
