@@ -272,6 +272,7 @@ def test_connection(
     endpoint_url: str,
     model_name: str,
     verify_ssl: bool = True,
+    api_key: str | None = None,
     *,
     use_chat_template: bool = False,
 ) -> bool:
@@ -282,6 +283,7 @@ def test_connection(
         wrapper = OpenAIAPIEncodeWrapper(
             endpoint_url=endpoint_url,
             model_name=model_name,
+            api_key=api_key,
             verify_ssl=verify_ssl,
             modalities=["text"],
             use_chat_template=use_chat_template,
@@ -412,6 +414,7 @@ def main():
             args.endpoint_url,
             args.model_name,
             args.verify_ssl,
+            args.api_key,
             use_chat_template=args.use_chat_template,
         )
         return 0 if success else 1

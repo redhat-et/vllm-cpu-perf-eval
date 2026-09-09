@@ -17,8 +17,7 @@ Complete reference for environment variables used in vLLM CPU Performance Evalua
 
 | Variable | Description | Default | Example |
 |----------|-------------|---------|---------|
-| `MTEB_TASK_PRESET` | Task preset | `quick` | `quick`, `comprehensive`, `retrieval` |
-| `MTEB_TASKS` | Custom task list | None | `Banking77,Emotion` |
+| `MTEB_TASKS` | Custom task list (space-separated; overrides preset) | None | `Banking77Classification ArguAna` |
 | `MTEB_LANGUAGES` | Language configuration | `en` | `en`, `en,es,fr` |
 | `MTEB_CONTAINER_IMAGE` | Custom MTEB container | `quay.io/vllm-cpu-perf-eval/vllm-mteb:latest` | Custom registry URL |
 | `RESULTS_DIR` | MTEB results directory | `results/mteb` | `/path/to/results` |
@@ -111,17 +110,19 @@ the vLLM server image (e.g. RHAIIS).
 
 ### run-mteb-model-sweep.sh
 
-Also invoked by `./cpueval --suite mteb`. Key variables:
+Also invoked by `./cpueval --suite mteb`. Key variables and flags:
 
-| Variable | Description | Example |
+| Variable / flag | Description | Example |
 |----------|-------------|---------|
-| `MTEB_TASK_PRESET` | Task preset (default: `quick`) | `comprehensive`, `full` |
+| `--task-preset` | Task preset (default: `quick`) | `comprehensive`, `full`, `retrieval`, `sts`, `reranking`, `pair_classification` |
+| `MTEB_TASKS` | Custom task list (overrides preset) | `Banking77Classification ArguAna STS12` |
 | `MTEB_CONTAINER_IMAGE` | MTEB runner container | `quay.io/vllm-cpu-perf-eval/vllm-mteb:latest` |
 | `VLLM_MODE` / `VLLM_ENDPOINT_MODE` | `managed`, `dut-only`, or `external` | `dut-only` |
 | `VLLM_CPUS` | Explicit vLLM CPU range | `0-31` |
 | `REQUESTED_CORES` | vLLM core count | `32` |
 
 Override task preset via cpueval: `./cpueval --suite mteb --extra task_preset=full`
+or on the sweep script: `--task-preset comprehensive`
 
 ### run-lm-eval-suite.sh
 

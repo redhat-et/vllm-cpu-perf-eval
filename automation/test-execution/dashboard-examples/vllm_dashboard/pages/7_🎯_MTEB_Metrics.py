@@ -430,9 +430,16 @@ def plot_mteb_quality_metrics(df: pd.DataFrame):
     filtered_df = df[df["task_name"].isin(selected_tasks)]
 
     # Deduplicate: keep most recent run per (model, platform, task_name)
+    filtered_df = filtered_df.copy()
+    filtered_df["_ts_key"] = pd.to_datetime(
+        filtered_df["timestamp"],
+        format="%Y%m%d-%H%M%S",
+        errors="coerce",
+    )
     filtered_df = (
-        filtered_df.sort_values("timestamp", ascending=False)
+        filtered_df.sort_values("_ts_key", ascending=False, na_position="last")
         .drop_duplicates(subset=["model", "platform", "task_name"], keep="first")
+        .drop(columns="_ts_key")
     )
 
     metric_labels = {

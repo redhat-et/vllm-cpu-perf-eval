@@ -159,20 +159,10 @@
     results_base_dir: "/tmp/mteb-results"
 
   tasks:
-    - name: Get CPU model name for platform identification
-      ansible.builtin.shell: |
-        lscpu | grep -i '^Model name' | sed 's/^[Mm]odel name:[[:space:]]*//' | head -1
-      register: cpu_model_raw
-      changed_when: false
-      when: vllm_mode == 'dut-only'
-
-    - name: Set platform name from CPU model (sanitized)
-      ansible.builtin.set_fact:
-        dut_platform_name: "{{ cpu_model_raw.stdout | trim
-          | regex_replace('[^a-zA-Z0-9]', '_')
-          | regex_replace('_+', '_')
-          | regex_replace('^_|_$', '') }}"
-      when: vllm_mode == 'dut-only'
+    - name: Detect DUT CPU platform (dut-only)
+      ansible.builtin.include_tasks: tasks/detect-dut-platform.yml
+      vars:
+        platform_detect_when: "{{ vllm_mode == 'dut-only' }}"
 
     - name: Build vLLM endpoint URL (dut-only mode)
       ansible.builtin.set_fact:
@@ -264,21 +254,11 @@
     results_base_dir: "/tmp/mteb-results"
 
   tasks:
-    - name: Get CPU model name of DUT for platform identification
-      ansible.builtin.shell: |
-        lscpu | grep -i '^Model name' | sed 's/^[Mm]odel name:[[:space:]]*//' | head -1
-      register: cpu_model_raw
-      changed_when: false
-      delegate_to: "{{ groups['dut'][0] }}"
-      when: vllm_mode in ['managed', 'external']
-
-    - name: Set platform name from CPU model (sanitized)
-      ansible.builtin.set_fact:
-        dut_platform_name: "{{ cpu_model_raw.stdout | trim
-          | regex_replace('[^a-zA-Z0-9]', '_')
-          | regex_replace('_+', '_')
-          | regex_replace('^_|_$', '') }}"
-      when: vllm_mode in ['managed', 'external']
+    - name: Detect DUT CPU platform (managed/external)
+      ansible.builtin.include_tasks: tasks/detect-dut-platform.yml
+      vars:
+        platform_detect_when: "{{ vllm_mode in ['managed', 'external'] }}"
+        platform_detect_delegate_to: "{{ groups['dut'][0] }}"
 
     - name: Build vLLM endpoint URL (managed mode)
       ansible.builtin.set_fact:

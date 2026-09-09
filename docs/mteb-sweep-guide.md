@@ -35,7 +35,7 @@ To pin a known-good image, set `MTEB_CONTAINER_IMAGE` or pass
 
 ```bash
 # Quick smoke test on all models (default task preset: quick, 2 tasks per model)
-./run-mteb-model-sweep.sh
+automation/test-execution/scripts/bash/run-mteb-model-sweep.sh
 
 # Recommended: run via cpueval (skips interactive prompt, same defaults)
 ./cpueval --suite mteb
@@ -57,8 +57,7 @@ coverage — see [Task Presets](#task-presets) below.
 
 ### Run All Models (bash script)
 ```bash
-cd automation/test-execution/scripts
-./run-mteb-model-sweep.sh
+automation/test-execution/scripts/bash/run-mteb-model-sweep.sh
 ```
 
 This runs the "quick" preset (2 tasks) on all 5 models (~10-25 minutes).
@@ -144,14 +143,14 @@ export VLLM_ENDPOINT_URL=http://vllm-lb.example.com:8000
 
 ### Run Comprehensive Tests
 ```bash
-./run-mteb-model-sweep.sh --task-preset comprehensive
+automation/test-execution/scripts/bash/run-mteb-model-sweep.sh --task-preset comprehensive
 ```
 
 This runs 5 tasks on all 5 models (~1.7-2.5 hours).
 
 ### Run Specific Models Only
 ```bash
-./run-mteb-model-sweep.sh \
+automation/test-execution/scripts/bash/run-mteb-model-sweep.sh \
   --models "RedHatAI/all-MiniLM-L6-v2,RedHatAI/granite-embedding-english-r2"
 ```
 
@@ -195,7 +194,7 @@ streamlit run Home.py
 ## All Available Options
 
 ```bash
-./run-mteb-model-sweep.sh --help
+automation/test-execution/scripts/bash/run-mteb-model-sweep.sh --help
 ```
 
 ### Common Options
@@ -205,7 +204,7 @@ streamlit run Home.py
 | `--task-preset` | Task set to run | `--task-preset comprehensive` |
 | `--models` | Specific models | `--models "RedHatAI/all-MiniLM-L6-v2"` |
 | `--skip-models` | Skip large models | `--skip-models "RedHatAI/Qwen3-Embedding-8B"` |
-| `--cores` | CPU cores (default: 4) | `--cores 16` |
+| `--cores` | CPU cores (default: 32) | `--cores 16` |
 | `--dry-run` | Preview without running | `--dry-run` |
 
 ## Task Presets
@@ -244,14 +243,14 @@ streamlit run Home.py
 
 ### Skip slowest models during development
 ```bash
-./run-mteb-model-sweep.sh \
+automation/test-execution/scripts/bash/run-mteb-model-sweep.sh \
   --skip-models "RedHatAI/Qwen3-Embedding-8B,RedHatAI/embeddinggemma-300m"
 ```
 **Time:** ~6-15 minutes (3 models, quick preset)
 
 ### Test only small fast model
 ```bash
-./run-mteb-model-sweep.sh \
+automation/test-execution/scripts/bash/run-mteb-model-sweep.sh \
   --models "RedHatAI/all-MiniLM-L6-v2" \
   --task-preset quick
 ```
@@ -259,7 +258,7 @@ streamlit run Home.py
 
 ### Full benchmark for report
 ```bash
-./run-mteb-model-sweep.sh --task-preset comprehensive
+automation/test-execution/scripts/bash/run-mteb-model-sweep.sh --task-preset comprehensive
 ```
 **Time:** ~1.7-2.5 hours (5 models, 5 tasks)
 

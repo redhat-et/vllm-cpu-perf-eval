@@ -1,0 +1,33 @@
+---
+# Detect and sanitize DUT CPU platform name for result metadata.
+#
+# Optional vars:
+#   platform_detect_when: when expression (default: true)
+#   platform_detect_delegate_to: run lscpu on this host; omit to use play host
+
+- name: Get CPU model name for platform identification
+  ansible.builtin.shell: |
+    lscpu | grep -i '^Model name' | sed 's/^[Mm]odel name:[[:space:]]*//' | head -1
+  register: cpu_model_raw
+  changed_when: false
+  delegate_to: "{{ platform_detect_delegate_to }}"
+  when:
+    - platform_detect_when | default(true)
+    - platform_detect_delegate_to is defined
+
+- name: Get CPU model name for platform identification (current host)
+  ansible.builtin.shell: |
+    lscpu | grep -i '^Model name' | sed 's/^[Mm]odel name:[[:space:]]*//' | head -1
+  register: cpu_model_raw
+  changed_when: false
+  when:
+    - platform_detect_when | default(true)
+    - platform_detect_delegate_to is not defined
+
+- name: Set platform name from CPU model (sanitized)
+  ansible.builtin.set_fact:
+    dut_platform_name: "{{ cpu_model_raw.stdout | trim
+      | regex_replace('[^a-zA-Z0-9]', '_')
+      | regex_replace('_+', '_')
+      | regex_replace('^_|_$', '') }}"
+  when: platform_detect_when | default(true)
