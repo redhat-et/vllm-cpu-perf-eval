@@ -538,12 +538,14 @@ Size GB  = Bytes / 1024³
 - × 1.25 safety margin
 - Workload-tuned `max_model_len`
 
-| Workload | Tokens | Llama-3.2-1B | Granite-3.2-2B | GPT-OSS-20B |
-|----------|--------|--------------|---------------|-------------|
+| Workload | Tokens (ISL+OSL) | Llama-3.2-1B | Granite-3.2-2B | GPT-OSS-20B |
+|----------|-----------------|--------------|---------------|-------------|
 | Chat | 1,024 | 2 GiB | 3 GiB | 2 GiB |
 | RAG | 8,192 | 11 GiB | N/A* | 14 GiB |
 | Code | 2,048 | 3 GiB | 5 GiB | 4 GiB |
 | Summarization | 2,304 | 3 GiB | 4 GiB | 3 GiB |
+
+Values are **budget targets** (`per_request_kv × 32 concurrent × 1.25`, rounded up to the nearest GiB), not raw formula output. Sequence lengths are expected ISL+OSL; production `--max-model-len` adds headroom (e.g. Chat uses 1,024 tokens for sizing but `--max-model-len 2048` in serving). For `VLLM_CPU_KVCACHE_SPACE`, use `max_model_len` in `per_request_kv`, not ISL+OSL alone — the actual allocation will be larger than these floor estimates.
 
 <style scoped>blockquote { color: red; border-left-color: red; font-style: normal; }</style>
 > \*Granite-3.2-2B max context 4K — insufficient for RAG
