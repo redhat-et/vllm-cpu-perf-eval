@@ -48,8 +48,10 @@ KV_cache_memory = 2 × num_layers × num_kv_heads × head_size × max_tokens × 
 
 For example, **Llama-3.2-1B** with 8192 context (bfloat16):
 ```
-= 2 × 16 × 8 × 256 × 8192 × 2 bytes
-= ~1.07 GB per request at full context
+num_layers=16, num_kv_heads=8, head_size=64 (hidden_size 2048 / num_attn_heads 32)
+
+= 2 × 16 × 8 × 64 × 8192 × 2 bytes
+= ~256 MB per request at full context
 ```
 
 ### Three Pillars of CPU Performance
@@ -90,7 +92,7 @@ kv_cache_blocks = (max_model_len × max_num_seqs) / block_size
 total_kv_memory = kv_cache_blocks × block_memory_size
 ```
 
-**Example:** Chat workload (512 input + 512 output = 1024 tokens needed)
+**Example:** Chat workload (512 input + 512 output = 1024 tokens needed), ~7B model (bfloat16, MHA)
 
 | max_model_len | KV Cache Used | Wasted Memory | Max Concurrent (20 GiB) |
 |---------------|---------------|---------------|------------------------|
@@ -137,15 +139,43 @@ vllm serve model-name \
 
 ### Recommendations for KV Cache Size
 
-**System-based sizing:**
+**System-based sizing (RAM heuristic):**
 
-| System RAM | vLLM Cores | Recommended KV Cache | Max Models |
-|------------|-----------|---------------------|-----------|
-| 16 GB      | 8         | 4-8 GiB             | 1B-3B     |
-| 32 GB      | 16        | 12-20 GiB           | 1B-8B     |
-| 64 GB      | 32        | 24-40 GiB           | 1B-13B    |
-| 128 GB     | 64        | 48-80 GiB           | 1B-30B    |
-| 256 GB+    | 96+       | 80-160 GiB          | Any       |
+The table below gives the maximum KV cache that can be allocated after reserving RAM for model weights and OS overhead. It assumes modern GQA models and provides conservative headroom to scale concurrency — use the formula below for workload-specific precision.
+
+| System RAM | vLLM Cores | Model Weights (bfloat16) | Recommended KV Cache | Model Size Range |
+|------------|-----------|-------------------------|---------------------|-----------------|
+| 16 GB      | 8         | ≤6 GB (3B)              | 4-6 GiB             | 1B-3B           |
+| 32 GB      | 16        | ≤16 GB (8B)             | 8-12 GiB            | 1B-8B           |
+| 64 GB      | 32        | ≤26 GB (13B)            | 16-32 GiB           | 1B-13B          |
+| 128 GB     | 64        | ≤60 GB (30B)            | 40-60 GiB           | 1B-30B          |
+| 256 GB+    | 128+      | ≤140 GB (70B)           | 64-100 GiB          | Any             |
+
+### Why the 1.25× Safety Margin?
+
+For workload-specific sizing, always compute the KV budget using the formula and apply a **1.25× safety margin**:
+
+```
+KV cache budget = per_request_kv × max_concurrent_requests × 1.25
+```
+
+The 25% overhead covers:
+- **OS and runtime memory pressure** — kernel, hugepage bookkeeping, allocator metadata
+- **Activation memory during forward passes** — intermediate tensors not counted in the static KV formula
+- **Memory allocator fragmentation** — blocks freed but not yet returned to the OS
+- **Burst headroom** — spikes above the average concurrency target
+
+This convention is established in the project's [KV Cache Sizing Strategy](./design/full-testing-deck.md).
+
+> **Tip — use the LMCache KV Cache Calculator** to get per-model values automatically:
+> [https://docs.lmcache.ai/getting_started/kv_cache_calculator.html](https://docs.lmcache.ai/getting_started/kv_cache_calculator.html)
+>
+> Enter your model, context length, concurrency, and dtype — the calculator applies the architecture-specific formula. Multiply the result by **1.25** before setting `VLLM_CPU_KVCACHE_SPACE`.
+>
+> ```bash
+> # Example: calculator raw KV = 8 GiB for 32 concurrent requests → 8 × 1.25 = 10 GiB
+> export VLLM_CPU_KVCACHE_SPACE=10
+> ```
 
 ---
 
@@ -216,15 +246,15 @@ vllm serve model-name \
 
 ### Quick Reference Table
 
-**For different CPU configurations:**
+**For different CPU configurations** (KV cache ranges are RAM-constrained heuristics for GQA models; for precise values use `per_request_kv × concurrency × 1.25` — see [Why the 1.25× Safety Margin?](#why-the-125-safety-margin)):
 
-| CPU Cores | RAM   | Model Size | max_model_len | KV Cache | block_size | Expected Concurrency |
-|-----------|-------|------------|---------------|----------|------------|---------------------|
-| 8         | 16GB  | 1-3B       | 2048          | 4-8 GB   | 128        | 2-4                 |
-| 16        | 32GB  | 1-8B       | 2048-4096     | 12-20 GB | 128        | 6-10                |
-| 32        | 64GB  | 1-13B      | 2048-4096     | 24-40 GB | 128        | 12-20               |
-| 64        | 128GB | 1-30B      | 2048-8192     | 48-80 GB | 128        | 24-40               |
-| 96+       | 256GB | Any        | 4096-16384    | 80-160GB | 128        | 40-80               |
+| CPU Cores | RAM   | Model Size | max_model_len | KV Cache   | block_size | Expected Concurrency |
+|-----------|-------|------------|---------------|------------|------------|---------------------|
+| 8         | 16GB  | 1-3B       | 2048          | 4-6 GB     | 128        | 2-4                 |
+| 16        | 32GB  | 1-8B       | 2048-4096     | 8-12 GB    | 128        | 6-10                |
+| 32        | 64GB  | 1-13B      | 2048-4096     | 16-32 GB   | 128        | 12-20               |
+| 64        | 128GB | 1-30B      | 2048-8192     | 40-60 GB   | 128        | 24-40               |
+| 128+      | 256GB | Any        | 4096-16384    | 64-100 GB  | 128        | 40-80               |
 
 ### Workload-Specific Presets
 
@@ -369,10 +399,10 @@ vllm serve model --block-size 128  # Or 32, 64, 96, 160, etc.
 
 | Available RAM | Recommended KV cache |
 | --- | --- |
-| 16 GB | 4–8 GB |
-| 32 GB | 12–20 GB |
-| 64 GB | 24–40 GB |
-| 128+ GB | 48–80+ GB |
+| 16 GB | 4–6 GB |
+| 32 GB | 8–12 GB |
+| 64 GB | 16–32 GB |
+| 128+ GB | 40–60+ GB |
 
 ### CPU architecture → `block_size`
 
@@ -413,3 +443,7 @@ Copy final values from the **Practical Recommendations** section above.
 
 3. **Performance Optimization:**
    [Engine Arguments - Performance](https://docs.vllm.ai/en/latest/serving/engine_args.html#performance)
+
+4. **KV Cache Calculator (LMCache):**
+   [https://docs.lmcache.ai/getting_started/kv_cache_calculator.html](https://docs.lmcache.ai/getting_started/kv_cache_calculator.html)
+   — Model-specific KV cache sizing tool; apply a **1.25× safety margin** (`raw_kv × concurrent_requests × 1.25`) before setting `VLLM_CPU_KVCACHE_SPACE`.
