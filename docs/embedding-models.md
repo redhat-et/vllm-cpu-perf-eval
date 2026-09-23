@@ -145,6 +145,7 @@ If omitted, `embedding-benchmark.yml` defaults to **`operating_point`** (three p
 Use **`scenario=all`** for the full latency sweep plus operating-point workflow.
 `run-embedding-suite.sh` still defaults to **`all`** when driving many models.
 
+
 ### latency
 Tests concurrent request handling across a range of concurrency levels and
 measures throughput and P50/P99 end-to-end latency at each. This is the

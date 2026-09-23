@@ -150,6 +150,7 @@ def _trim_trailing_zero_mem(sdf: pd.DataFrame) -> pd.DataFrame:
     return sdf.loc[:last_nonzero]
 
 
+
 @st.cache_data(ttl=3600)  # Increased from 5min to 1 hour - results rarely change
 def load_embedding_data(results_dir: str) -> pd.DataFrame:
     """Load embedding benchmark results from directory structure."""

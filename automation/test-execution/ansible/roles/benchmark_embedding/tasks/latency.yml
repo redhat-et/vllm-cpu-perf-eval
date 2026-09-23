@@ -84,6 +84,7 @@
   changed_when: false
   ignore_errors: true
 
+
 - name: Verify embedding endpoint ready before latency sweep
   ansible.builtin.uri:
     url: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/v1/embeddings"
