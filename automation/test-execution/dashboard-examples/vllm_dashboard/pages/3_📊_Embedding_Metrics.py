@@ -27,6 +27,19 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
+def platform_short(platform_str: str) -> str:
+    """Return a short platform label from the full CPU model string."""
+    p = (platform_str or '').lower()
+    if 'epyc' in p:
+        return 'EPYC'
+    if 'xeon' in p:
+        return 'Xeon'
+    if platform_str:
+        return platform_str.split()[0]
+    return 'unknown'
+
+
 # Custom CSS styling
 st.markdown("""
 <style>
@@ -35,6 +48,89 @@ st.markdown("""
     }
 </style>
 """, unsafe_allow_html=True)
+
+
+def _parse_podman_bytes(s: str) -> float:
+    """Convert podman size string (e.g. '4.807GB', '512MiB') to bytes."""
+    if not s:
+        return 0.0
+    s = s.strip()
+    units = {
+        'B': 1, 'KB': 1e3, 'MB': 1e6, 'GB': 1e9, 'TB': 1e12,
+        'KIB': 2**10, 'MIB': 2**20, 'GIB': 2**30, 'TIB': 2**40,
+    }
+    for unit, mult in sorted(units.items(), key=lambda x: -len(x[0])):
+        if s.upper().endswith(unit):
+            try:
+                return float(s[:-len(unit)]) * mult
+            except ValueError:
+                return 0.0
+    try:
+        return float(s)
+    except ValueError:
+        return 0.0
+
+
+def _parse_podman_pct(s: str) -> float:
+    """Convert podman percent string (e.g. '2698.03%') to float."""
+    try:
+        return float((s or '').replace('%', '').strip())
+    except ValueError:
+        return 0.0
+
+
+@st.cache_data(ttl=3600)
+def load_container_stats(results_dir: str) -> dict[str, pd.DataFrame]:
+    """Load per-run container-stats.jsonl files from the results tree.
+
+    Returns a dict keyed by test_run_id -> DataFrame with columns:
+    timestamp, cpu_pct, mem_usage_gb, mem_limit_gb, mem_pct, pids.
+    """
+    results_path = Path(results_dir)
+    run_stats: dict[str, pd.DataFrame] = {}
+
+    for stats_file in results_path.rglob("container-stats.jsonl"):
+        test_run_id = stats_file.parent.name
+        rows = []
+        try:
+            with open(stats_file) as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        item = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+
+                    # podman stats --format json field names vary by version;
+                    # handle both CamelCase (podman 4.x) and lower_snake (some builds).
+                    cpu_str = item.get('CPUPerc') or item.get('cpu_percent', '0%')
+                    mem_str = item.get('MemUsage') or item.get('mem_usage', '0B / 0B')
+                    pids = item.get('PIDs') or item.get('pids', 0)
+                    ts = item.get('timestamp', '')
+
+                    # MemUsage is "used / limit"
+                    mem_parts = str(mem_str).split('/')
+                    mem_used_bytes = _parse_podman_bytes(mem_parts[0].strip()) if mem_parts else 0.0
+                    mem_limit_bytes = _parse_podman_bytes(mem_parts[1].strip()) if len(mem_parts) > 1 else 0.0
+
+                    rows.append({
+                        'timestamp': pd.to_datetime(ts, utc=True, errors='coerce'),
+                        'cpu_pct': _parse_podman_pct(str(cpu_str)),
+                        'mem_usage_gb': mem_used_bytes / 1e9,
+                        'mem_limit_gb': mem_limit_bytes / 1e9,
+                        'mem_pct': _parse_podman_pct(str(item.get('MemPerc') or item.get('mem_percent', '0%'))),
+                        'pids': int(str(pids)) if str(pids).isdigit() else 0,
+                    })
+        except OSError:
+            continue
+
+        if rows:
+            df = pd.DataFrame(rows).dropna(subset=['timestamp']).sort_values('timestamp')
+            run_stats[test_run_id] = df
+
+    return run_stats
 
 
 @st.cache_data(ttl=3600)  # Increased from 5min to 1 hour - results rarely change
@@ -214,14 +310,13 @@ def plot_saturation_curve(df: pd.DataFrame):
 
         # Build concise trace label
         model_short = model.split('/')[-1]
+        plat = platform_short(platform)
         run_id_short = test_id[-6:] if len(test_id) >= 6 else test_id
 
-        # If test_name exists (e.g., "embeddinggemma-300m-8C"), use it since it's already compact
         if test_name and test_name.strip():
-            base_label = f"{test_name} ({run_id_short})"
+            base_label = f"{plat} | {test_name} ({run_id_short})"
         else:
-            # Otherwise: model | cores | input_len
-            base_label = f"{model_short} | {cores}c | {input_len}tok ({run_id_short})"
+            base_label = f"{plat} | {model_short} | {cores}c | {input_len}tok ({run_id_short})"
 
         # Graph 1: Load (x-axis) vs Throughput (y-axis)
         fig.add_trace(
@@ -294,18 +389,19 @@ def plot_saturation_curve(df: pd.DataFrame):
     fig_tokens = go.Figure()
     color_idx = 0
 
-    for (_, model, _, cores, input_len, test_name, test_id), group_df in grouped:
+    for (platform, model, _, cores, input_len, test_name, test_id), group_df in grouped:
         group_df = group_df.copy()
         group_df['load_order'] = group_df['parameter'].map(load_order).fillna(0)
         group_df = group_df.sort_values('load_order')
 
         model_short = model.split('/')[-1]
+        plat = platform_short(platform)
         run_id_short = test_id[-6:] if len(test_id) >= 6 else test_id
 
         if test_name and test_name.strip():
-            label = f"{test_name} ({run_id_short})"
+            label = f"{plat} | {test_name} ({run_id_short})"
         else:
-            label = f"{model_short} | {cores}c | {input_len}tok ({run_id_short})"
+            label = f"{plat} | {model_short} | {cores}c | {input_len}tok ({run_id_short})"
 
         fig_tokens.add_trace(go.Scatter(
             x=group_df['parameter'],
@@ -392,17 +488,18 @@ def plot_concurrent_load(df: pd.DataFrame):
     # Throughput vs concurrency
     fig1 = go.Figure()
 
-    for (_, model, _, cores, input_len, test_name, test_id), group_df in grouped:
+    for (platform, model, _, cores, input_len, test_name, test_id), group_df in grouped:
         group_df = group_df.sort_values('concurrency')
 
         # Build concise trace label
         model_short = model.split('/')[-1]
+        plat = platform_short(platform)
         run_id_short = test_id[-6:] if len(test_id) >= 6 else test_id
 
         if test_name and test_name.strip():
-            label = f"{test_name} ({run_id_short})"
+            label = f"{plat} | {test_name} ({run_id_short})"
         else:
-            label = f"{model_short} | {cores}c | {input_len}tok ({run_id_short})"
+            label = f"{plat} | {model_short} | {cores}c | {input_len}tok ({run_id_short})"
 
         fig1.add_trace(go.Scatter(
             x=group_df['concurrency'],
@@ -421,13 +518,13 @@ def plot_concurrent_load(df: pd.DataFrame):
         height=650,
         legend=dict(
             orientation="h",
-            yanchor="bottom",
-            y=-0.45,
+            yanchor="top",
+            y=-0.2,
             xanchor="center",
             x=0.5,
             font=dict(size=10)
         ),
-        margin=dict(b=200)
+        margin=dict(b=250)
     )
     st.plotly_chart(fig1, use_container_width=True)
 
@@ -444,17 +541,18 @@ def plot_concurrent_load(df: pd.DataFrame):
     fig2 = go.Figure()
     color_idx = 0
 
-    for (_, model, _, cores, input_len, test_name, test_id), group_df in grouped:
+    for (platform, model, _, cores, input_len, test_name, test_id), group_df in grouped:
         group_df = group_df.sort_values('concurrency')
 
         # Build concise trace label
         model_short = model.split('/')[-1]
+        plat = platform_short(platform)
         run_id_short = test_id[-6:] if len(test_id) >= 6 else test_id
 
         if test_name and test_name.strip():
-            label = f"{test_name} ({run_id_short})"
+            label = f"{plat} | {test_name} ({run_id_short})"
         else:
-            label = f"{model_short} | {cores}c | {input_len}tok ({run_id_short})"
+            label = f"{plat} | {model_short} | {cores}c | {input_len}tok ({run_id_short})"
 
         fig2.add_trace(go.Scatter(
             x=group_df['concurrency'],
@@ -473,13 +571,13 @@ def plot_concurrent_load(df: pd.DataFrame):
         height=650,
         legend=dict(
             orientation="h",
-            yanchor="bottom",
-            y=-0.45,
+            yanchor="top",
+            y=-0.2,
             xanchor="center",
             x=0.5,
             font=dict(size=10)
         ),
-        margin=dict(b=200)
+        margin=dict(b=250)
     )
     st.plotly_chart(fig2, use_container_width=True)
 
@@ -641,8 +739,9 @@ def main():
         - Concurrent Request Handling
         """)
 
-    # Load performance data
+    # Load performance data and container stats
     df = load_embedding_data(results_dir_input)
+    container_stats = load_container_stats(results_dir_input)
 
     # Check for imported CSV data in session state
     if 'imported_embedding_performance' in st.session_state:
@@ -855,7 +954,7 @@ def main():
     # Main analysis tabs
     st.header("📊 Performance Analysis")
 
-    tab1, tab2, tab3 = st.tabs(["🔀 Concurrent Load", "📊 Saturation Analysis", "⚙️ Core Scaling"])
+    tab1, tab2, tab3, tab4 = st.tabs(["🔀 Concurrent Load", "📊 Saturation Analysis", "⚙️ Core Scaling", "💾 System Metrics"])
 
     with tab1:
         concurrent_data = filtered_df[filtered_df['test_type'] == 'concurrent']
@@ -1017,6 +1116,87 @@ def main():
                 - **Best Throughput**: Maximum RPS - use when you need highest absolute performance
                 - **Best Efficiency**: Lowest resource usage per request - use for cost optimization or when running multiple instances
                 """)
+
+    with tab4:
+        st.markdown("*Container resource usage collected during the benchmark run (10s polling interval).*")
+
+        # Only show runs visible in the current filter
+        visible_run_ids = set(filtered_df['test_run_id'].unique())
+        visible_stats = {k: v for k, v in container_stats.items() if k in visible_run_ids}
+
+        if not visible_stats:
+            st.info(
+                "No container stats found for the selected runs. "
+                "Stats are collected automatically when running embedding benchmarks from Ansible (v0.x+). "
+                "Older result directories will not have this data."
+            )
+        else:
+            # Summary table: one row per run
+            summary_rows = []
+            for run_id, sdf in visible_stats.items():
+                run_meta = filtered_df[filtered_df['test_run_id'] == run_id].iloc[0]
+                summary_rows.append({
+                    'Test Run': run_id[-12:],
+                    'Model': run_meta['model'].split('/')[-1],
+                    'Platform': platform_short(run_meta['platform']),
+                    'Samples': len(sdf),
+                    'Peak Memory (GB)': round(sdf['mem_usage_gb'].max(), 2),
+                    'Avg Memory (GB)': round(sdf['mem_usage_gb'].mean(), 2),
+                    'Peak CPU %': round(sdf['cpu_pct'].max(), 1),
+                    'Avg CPU %': round(sdf['cpu_pct'].mean(), 1),
+                    'Peak PIDs': int(sdf['pids'].max()),
+                })
+
+            st.subheader("Resource Usage Summary")
+            st.dataframe(pd.DataFrame(summary_rows), use_container_width=True, hide_index=True)
+
+            # Time-series charts for each visible run
+            st.subheader("Memory Usage Over Time")
+            colors = px.colors.qualitative.Set2
+
+            fig_mem = go.Figure()
+            fig_cpu = go.Figure()
+            for i, (run_id, sdf) in enumerate(visible_stats.items()):
+                run_meta = filtered_df[filtered_df['test_run_id'] == run_id].iloc[0]
+                label = f"{platform_short(run_meta['platform'])} | {run_meta['model'].split('/')[-1]} | {run_id[-8:]}"
+                color = colors[i % len(colors)]
+
+                fig_mem.add_trace(go.Scatter(
+                    x=sdf['timestamp'],
+                    y=sdf['mem_usage_gb'],
+                    name=label,
+                    mode='lines',
+                    line=dict(width=2, color=color),
+                ))
+                fig_cpu.add_trace(go.Scatter(
+                    x=sdf['timestamp'],
+                    y=sdf['cpu_pct'],
+                    name=label,
+                    mode='lines',
+                    line=dict(width=2, color=color),
+                ))
+
+            fig_mem.update_layout(
+                xaxis_title="Time",
+                yaxis_title="Memory Usage (GB)",
+                height=400,
+                hovermode='x unified',
+                legend=dict(orientation="h", y=-0.3, xanchor="center", x=0.5),
+                margin=dict(b=120),
+            )
+            st.plotly_chart(fig_mem, use_container_width=True)
+
+            st.subheader("CPU Usage Over Time")
+            st.caption("CPU % > 100% is expected on CPU-only deployments — Linux reports total across all cores (2700% ≈ 27 fully-used cores).")
+            fig_cpu.update_layout(
+                xaxis_title="Time",
+                yaxis_title="CPU Usage (%)",
+                height=400,
+                hovermode='x unified',
+                legend=dict(orientation="h", y=-0.3, xanchor="center", x=0.5),
+                margin=dict(b=120),
+            )
+            st.plotly_chart(fig_cpu, use_container_width=True)
 
     st.markdown("---")
 

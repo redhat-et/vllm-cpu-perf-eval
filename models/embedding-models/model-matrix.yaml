@@ -45,6 +45,43 @@ matrix:
       quantization: false
       kv_cache: "1GiB"
 
+    # Test Case 3.1: granite-ml parallel benchmark - embeddinggemma-300m
+    - id: "EMB-BASELINE-GEMMA-300M-EMB512"
+      description: "Baseline performance for embeddinggemma-300m (granite-ml preset, slot 0)"
+      model: "embeddinggemma-300m"
+      model_path: "RedHatAI/embeddinggemma-300m"
+      architecture: "Gemma/Decoder"
+      focus: "Decoder-based Dense Embedding Throughput"
+      scenarios:
+        - baseline-sweep
+      quantization: false
+      kv_cache: "1GiB"
+
+    # Test Case 3.2: granite-ml parallel benchmark - harrier-oss-v1-270m
+    - id: "EMB-BASELINE-HARRIER-270M-EMB512"
+      description: "Baseline performance for microsoft/harrier-oss-v1-270m (granite-ml preset, slot 1)"
+      model: "harrier-oss-v1-270m"
+      model_path: "microsoft/harrier-oss-v1-270m"
+      architecture: "Decoder"
+      focus: "Microsoft OSS Embedding Throughput"
+      scenarios:
+        - baseline-sweep
+      quantization: false
+      kv_cache: "1GiB"
+      notes: "Requires --trust-remote-code"
+
+    # Test Case 3.3: granite-ml parallel benchmark - granite-embedding-311m-multilingual-r2
+    - id: "EMB-BASELINE-GRANITE-311M-ML-R2-EMB512"
+      description: "Baseline performance for granite-embedding-311m-multilingual-r2 (granite-ml preset, slot 2)"
+      model: "granite-embedding-311m-multilingual-r2"
+      model_path: "ibm-granite/granite-embedding-311m-multilingual-r2"
+      architecture: "XLM-RoBERTa"
+      focus: "Multilingual Embedding Throughput (r2 release)"
+      scenarios:
+        - baseline-sweep
+      quantization: false
+      kv_cache: "1GiB"
+
   # Embedding model definitions
   embedding_models:
     # English Dense Encoder (MiniLM/BERT family)
@@ -76,6 +113,46 @@ matrix:
       default_scenarios:
         - baseline-sweep
         - latency-concurrent
+
+    # Decoder-based Dense Encoder (~300M, Gemma architecture)
+    - name: "embeddinggemma-300m"
+      full_name: "RedHatAI/embeddinggemma-300m"
+      gated: false
+      architecture_family: "Gemma/Decoder"
+      application_focus: "Decoder-based Dense Embedding"
+      language: "Multilingual"
+      parameters: "~300M"
+      dimensions: 1024
+      max_sequence_length: 512
+      default_scenarios:
+        - baseline-sweep
+
+    # Microsoft OSS Embedding (~270M, Decoder)
+    - name: "harrier-oss-v1-270m"
+      full_name: "microsoft/harrier-oss-v1-270m"
+      gated: false
+      architecture_family: "Decoder"
+      application_focus: "Microsoft OSS Dense Embedding"
+      language: "Multilingual"
+      parameters: "~270M"
+      dimensions: 1024
+      max_sequence_length: 512
+      trust_remote_code: true
+      default_scenarios:
+        - baseline-sweep
+
+    # Granite Multilingual r2 (311M, XLM-RoBERTa family)
+    - name: "granite-embedding-311m-multilingual-r2"
+      full_name: "ibm-granite/granite-embedding-311m-multilingual-r2"
+      gated: false
+      architecture_family: "XLM-RoBERTa"
+      application_focus: "Encoder-Only (Multilingual, r2)"
+      language: "Multilingual"
+      parameters: "311M"
+      dimensions: 1024
+      max_sequence_length: 512
+      default_scenarios:
+        - baseline-sweep
 
   # Common test parameters
   common_parameters:

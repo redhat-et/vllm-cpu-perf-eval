@@ -1,0 +1,41 @@
+---
+# Identifies cal_peak_concurrency from latency sweep results.
+# Must run after latency.yml has produced results_base_dir/latency/concurrent-*.json.
+#
+# Output (host fact consumed by operating_point.yml):
+#   cal_peak_concurrency — concurrency level that achieved peak throughput in the sweep
+
+- name: Read latency sweep result files
+  ansible.builtin.slurp:
+    src: "{{ results_base_dir }}/latency/concurrent-{{ item }}.json"
+  loop: "{{ concurrency_levels }}"
+  register: latency_slurp
+  ignore_errors: true
+
+- name: Extract concurrency and throughput from each latency result
+  ansible.builtin.set_fact:
+    latency_peak_table: >-
+      {{ latency_slurp.results
+         | rejectattr('failed', 'equalto', true)
+         | map(attribute='content')
+         | map('b64decode')
+         | map('from_json')
+         | map('dict2items')
+         | map('selectattr', 'key', 'in', ['max_concurrency', 'request_throughput'])
+         | map('items2dict')
+         | list }}
+
+- name: Validate at least one latency result was readable
+  ansible.builtin.assert:
+    that:
+      - latency_peak_table | length > 0
+    fail_msg: "No readable latency results found in {{ results_base_dir }}/latency/"
+
+- name: Set cal_peak_concurrency from latency sweep peak
+  ansible.builtin.set_fact:
+    cal_peak_concurrency: >-
+      {{ (latency_peak_table | sort(attribute='request_throughput') | last).max_concurrency | int }}
+
+- name: Display peak concurrency found
+  ansible.builtin.debug:
+    msg: "Peak throughput concurrency: {{ cal_peak_concurrency }} (used as operating-point peak probe)"

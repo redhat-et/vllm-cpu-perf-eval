@@ -130,9 +130,12 @@
       ansible.builtin.meta: end_play
       when: not is_dut_only
 
-    - name: Override bench_config for dut-only
+    - name: Initialize bench_config for dut-only mode
       ansible.builtin.set_fact:
-        bench_config: "{{ bench_config | combine({'vllm_host': 'localhost'}) }}"
+        bench_config:
+          vllm_host: "localhost"
+          vllm_port: "{{ vllm_port | default(8000) }}"
+          results_dir: "{{ lookup('env', 'HOME') ~ '/benchmark-results' if (lookup('env', 'AWX_JOB_ID') | length > 0) else playbook_dir ~ '/../../../results/llm' }}"
 
     - name: Run vLLM health check
       ansible.builtin.include_role:
@@ -192,7 +195,7 @@
   become: true
   vars:
     model_name: "{{ test_model | default('RedHatAI/granite-embedding-english-r2') }}"
-    scenario_name: "{{ lookup('env', 'SCENARIO') | default('baseline', true) }}"  # baseline, latency, or all
+    scenario_name: "{{ lookup('env', 'SCENARIO') | default('operating_point', true) }}"  # operating_point, latency, or all
     test_run_base: "{{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/{{ hostvars['localhost']['test_run_id'] }}"
 
   pre_tasks:
@@ -231,7 +234,7 @@
 
     - name: Set results directories for roles
       ansible.builtin.set_fact:
-        baseline_results_dir: "{{ test_run_base_expanded }}/baseline"
+        op_results_dir: "{{ test_run_base_expanded }}/operating_point"
         latency_results_dir: "{{ test_run_base_expanded }}/latency"
 
   roles:
@@ -272,7 +275,7 @@
   vars:
     # Use detected_model if set (external mode auto-detect), otherwise use test_model or default
     model_name: "{{ detected_model | default(test_model | default('RedHatAI/granite-embedding-english-r2')) }}"
-    scenario_name: "{{ lookup('env', 'SCENARIO') | default('baseline', true) }}"  # baseline, latency, or all
+    scenario_name: "{{ lookup('env', 'SCENARIO') | default('operating_point', true) }}"  # operating_point, latency, or all
     test_run_base: "{{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/{{ hostvars['localhost']['test_run_id'] }}"
 
   pre_tasks:
@@ -317,7 +320,7 @@
 
     - name: Set results directories for roles
       ansible.builtin.set_fact:
-        baseline_results_dir: "{{ test_run_base_expanded }}/baseline"
+        op_results_dir: "{{ test_run_base_expanded }}/operating_point"
         latency_results_dir: "{{ test_run_base_expanded }}/latency"
 
   roles:

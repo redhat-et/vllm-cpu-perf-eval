@@ -1,13 +1,18 @@
 ---
 # Benchmark Embedding Role - Main Entry Point
 # Runs embedding model benchmarks using vllm-bench
+#
+# Scenario execution order:
+#   all            — latency sweep → find peak concurrency → operating-point probes
+#   latency        — latency sweep only
+#   operating_point — operating-point probes only (uses default peak concurrency)
 
 - name: Validate scenario
   ansible.builtin.assert:
     that:
       - scenario is defined
-      - scenario in ['baseline', 'latency', 'all']
-    fail_msg: "Invalid scenario '{{ scenario | default('undefined') }}'. Must be one of: baseline, latency, all"
+      - scenario in ['operating_point', 'latency', 'all']
+    fail_msg: "Invalid scenario '{{ scenario | default('undefined') }}'. Must be one of: operating_point, latency, all"
     success_msg: "Scenario validated: {{ scenario }}"
 
 - name: Validate results_base_dir
@@ -18,10 +23,52 @@
     fail_msg: "results_base_dir must be provided"
     success_msg: "results_base_dir: {{ results_base_dir }}"
 
-- name: Run baseline performance test (throughput sweep)
-  ansible.builtin.include_tasks: baseline.yml
-  when: scenario == 'baseline' or scenario == 'all'
+# ── Container Stats Collection Setup ───────────────────────────────────────
+# Skipped in external mode (no DUT container to stat).
 
-- name: Run latency performance test
+- name: Set up container stats collection
+  ansible.builtin.set_fact:
+    _embed_stats_host: "{{ groups['dut'][0] }}"
+    # Include container name so parallel slots on the same DUT don't collide.
+    _embed_stats_output: "/tmp/container-stats-{{ vllm_container_name | default('vllm-server') }}-{{ hostvars['localhost']['test_run_id'] | default('unknown') }}.jsonl"
+  when:
+    - hostvars['localhost']['vllm_mode'] | default('managed') != 'external'
+    - "'dut' in groups"
+    - groups['dut'] | length > 0
+
+- name: Start container stats collector
+  ansible.builtin.include_tasks: container_stats_collector.yml
+  vars:
+    stats_collector_action: start
+  when: _embed_stats_host is defined
+
+# ── Step 1: Latency sweep ───────────────────────────────────────────────────
+# Runs for 'latency' and 'all'. For 'all', results feed the peak-finding step.
+
+- name: Run latency sweep
   ansible.builtin.include_tasks: latency.yml
   when: scenario == 'latency' or scenario == 'all'
+
+# ── Step 2: Find peak concurrency from latency sweep (all scenario only) ────
+# Sets cal_peak_concurrency for the operating-point peak probe.
+
+- name: Find peak concurrency from latency sweep
+  ansible.builtin.include_tasks: derive_calibrated_rps.yml
+  when: scenario == 'all'
+
+# ── Step 3: Operating-point probes ─────────────────────────────────────────
+# Tests at conc=1 (sequential), conc=8 (light load), conc=peak (max throughput).
+# For 'all', peak concurrency comes from the latency sweep.
+# For standalone 'operating_point', defaults to conc=32 (or op_peak_concurrency).
+
+- name: Run operating-point probes
+  ansible.builtin.include_tasks: operating_point.yml
+  when: scenario == 'operating_point' or scenario == 'all'
+
+# ── Container Stats Collection Cleanup ─────────────────────────────────────
+
+- name: Stop container stats collector
+  ansible.builtin.include_tasks: container_stats_collector.yml
+  vars:
+    stats_collector_action: stop
+  when: _embed_stats_host is defined

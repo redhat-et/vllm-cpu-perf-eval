@@ -1,6 +1,10 @@
 ---
-# Latency and concurrent load test tasks
-# Included by run-embedding-tests.yml
+# Operating-point tests
+# Runs three fixed concurrency probes to characterise latency and throughput
+# at representative load levels:
+#   conc=1  — sequential (minimum latency, zero queuing)
+#   conc=8  — light load (interactive workload)
+#   conc=N  — peak throughput (cal_peak_concurrency from latency sweep, or default 32)
 
 - name: Detect architecture and set defaults
   ansible.builtin.include_role:
@@ -11,7 +15,7 @@
   ansible.builtin.set_fact:
     use_vllm_bench_container: "{{ benchmark_tool.vllm_bench.use_container | default(true) | bool }}"
     vllm_bench_image: "{{ benchmark_tool.vllm_bench.container_image | default(vllm_server_image_default) }}"
-    num_prompts: "{{ benchmark_tool.vllm_bench.num_prompts | default(250) }}"
+    num_prompts: "{{ benchmark_tool.vllm_bench.num_prompts | default(1000) }}"
     vllm_bench_cpuset_cpus: "{{ vllm_bench_cpus | default(benchmark_tool.vllm_bench.cpuset_cpus | default('')) }}"
     vllm_bench_cpuset_mems: "{{ vllm_bench_numa_node | default(benchmark_tool.vllm_bench.cpuset_mems | default('')) }}"
     vllm_bench_max_seconds: "{{ guidellm_max_seconds | default(300) | int }}"
@@ -55,19 +59,29 @@
       vllm bench serve
       {% endif %}
 
-- name: Ensure latency result directory exists
+- name: Ensure operating_point result directory exists
   ansible.builtin.file:
-    path: "{{ results_base_dir }}/latency"
+    path: "{{ results_base_dir }}/operating_point"
     state: directory
     mode: "0755"
 
-- name: Define concurrency levels to test
+- name: Set operating-point concurrency levels
   ansible.builtin.set_fact:
-    # Fine-grained at low end (catches peaks between 16–32 for few-core instances),
-    # then wider steps up to 384 for models still scaling at high concurrency.
-    concurrency_levels: [16, 24, 32, 48, 64, 96, 128, 192, 256, 384]
+    # sequential (1), light load (8), peak from latency sweep or default 32
+    op_concurrency_levels: >-
+      {{ [1, 8] + [cal_peak_concurrency | default(op_peak_concurrency | default(32)) | int] }}
 
-- name: "Warmup - Stabilize vLLM batching before latency measurement"
+- name: Display operating-point operating points
+  ansible.builtin.debug:
+    msg:
+      - "Operating-point concurrency levels: {{ op_concurrency_levels }}"
+      - "  conc=1   → sequential, minimum latency"
+      - "  conc=8   → light load"
+      - "  conc={{ op_concurrency_levels | last }} → peak throughput{{ ' (from latency sweep)' if cal_peak_concurrency is defined else ' (default)' }}"
+
+# Warmup — only needed when operating_point runs standalone (scenario=operating_point).
+# For scenario=all the latency sweep already warmed up the server.
+- name: "Warmup - Stabilize vLLM batching before operating-point measurement"
   ansible.builtin.command:
     cmd: >
       timeout 120
@@ -83,8 +97,9 @@
       --endpoint /v1/embeddings
   changed_when: false
   ignore_errors: true
+  when: scenario == 'operating_point'
 
-- name: "Latency Test - Run at each concurrency level"
+- name: "Operating-point Test - Run at each concurrency level"
   ansible.builtin.command:
     cmd: >
       timeout {{ (vllm_bench_max_seconds | int) * 2 }}
@@ -96,18 +111,15 @@
       --dataset-name random
       --random-input-len {{ embedding_random_input_len | default(512) }}
       --num-prompts {{ num_prompts }}
-      --endpoint /v1/embeddings
       --request-rate inf
       --max-concurrency {{ item }}
+      --endpoint /v1/embeddings
       --save-result
-      --result-filename "{{ results_base_dir }}/latency/concurrent-{{ item }}.json"
-  loop: "{{ concurrency_levels }}"
-  register: latency_tests
+      --result-filename "{{ results_base_dir }}/operating_point/conc-{{ item }}.json"
+  loop: "{{ op_concurrency_levels }}"
+  register: operating_point_tests
   changed_when: true
 
-- name: Display latency test results summary
+- name: Display operating-point test completion
   ansible.builtin.debug:
-    msg:
-      - "Latency tests completed for concurrency levels: {{ concurrency_levels }}"
-      - "Results saved to {{ results_base_dir }}/latency/"
-      - "Look for P99 latency sweet spot and degradation point"
+    msg: "Operating-point tests completed. Results saved to {{ results_base_dir }}/operating_point/"

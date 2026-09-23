@@ -40,24 +40,15 @@
 # vllm_bench_numa_node: ""
 
 # ==============================================================================
-# Baseline Load Test Configuration
+# Operating-Point Test Configuration
 # ==============================================================================
-# Controls the load percentages tested during baseline sweep tests.
-# Each percentage is relative to the maximum RPS discovered during the
-# infinite-rate test.
+# Sets the default peak concurrency used when running scenario=operating_point
+# standalone (without a prior latency sweep). When scenario=all, the peak is
+# derived from the latency sweep results instead.
 #
-# Example:
-#   baseline_load_percentages: [25, 50, 75, 90]
-#   # Tests at 25%, 50%, 75%, and 90% of max RPS
-#
-# Constraints:
-#   - Each value must be between 1 and 100 (inclusive)
-#   - No duplicate values allowed
-#   - Array must contain at least one value
-#
-# Default: [25, 50, 75]
+# Default: 32
 
-# baseline_load_percentages: [25, 50, 75]
+# op_peak_concurrency: 32
 
 # ==============================================================================
 # Input Configuration

@@ -103,6 +103,15 @@
     flat: true
   when: collect_system_metrics | default(true)
 
+- name: Fetch container stats time-series to controller
+  ansible.builtin.fetch:
+    src: "/tmp/container-stats-{{ vllm_container_name | default('vllm-server') }}-{{ hostvars['localhost']['test_run_id'] }}.jsonl"
+    dest: "{{ log_collection_dest }}/container-stats.jsonl"
+    flat: true
+  failed_when: false
+  when:
+    - hostvars['localhost']['test_run_id'] is defined
+
 - name: Display log collection status
   ansible.builtin.debug:
     msg:

@@ -8,29 +8,36 @@
 #   ./run-embedding-suite.sh [options]
 #
 # Options:
-#   --models LIST           Comma-separated models or preset (all|small|large|quick)
+#   --models LIST           Comma-separated models or preset (all|small|medium|large|quick|ibm-ml)
 #                           Default: all
 #   --cores LIST            Comma-separated core counts
 #                           Default: 4,8,16,32
 #   --scenario TYPE         Test scenario (baseline|latency|all)
 #                           Default: all
 #   --num-prompts NUM       Number of prompts per test
-#                           Default: 250
+#                           Default: 1000
 #   --max-seconds SEC       Per-test time limit in seconds; sets guidellm_max_seconds
 #                           Default: Ansible default (300s); env var GUIDELLM_MAX_SECONDS also accepted
 #   --vllm-bench-cpus RANGE CPU range for vllm-bench loadgen container (e.g., 8-15)
 #   --vllm-bench-numa-node NUM NUMA node for vllm-bench loadgen container
+#   --vllm-cpus RANGE       Explicit CPU range for vLLM server (e.g., 0-3 or 64-67)
+#                           Overrides the automatic allocation from --cores
 #   --skip-models LIST      Comma-separated models to skip
 #   --continue-on-error     Continue testing if a model fails
+#   --yes                   Skip confirmation prompt (non-interactive / scripted use)
 #   --dry-run               Show what would run without executing
 #   -h, --help              Show this help
 #
 # Model Presets:
-#   all     - All 5 models (22M to 8B)
+#   all     - All 5 RedHatAI models (22M to 8B)
 #   small   - Fast models: all-MiniLM (22M), granite-english (109M)
 #   medium  - Mid-size: nomic-embed (137M), embeddinggemma (300M)
 #   large   - Large model: Qwen3-Embedding-8B
 #   quick   - Single fast model for testing: all-MiniLM-L6-v2
+#   granite-ml - IBM/Microsoft multilingual models:
+#               embeddinggemma-300m, harrier-oss-v1-270m,
+#               granite-embedding-278m-multilingual,
+#               granite-embedding-311m-multilingual-r2
 #
 # Examples:
 #   # Run all models on all core counts
@@ -42,6 +49,10 @@
 #   # Test small models only
 #   ./run-embedding-suite.sh --models small --cores 8,16,32
 #
+#   # IBM/Microsoft multilingual models on 4 cores (RHAIIS image)
+#   export VLLM_CONTAINER_IMAGE=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
+#   ./run-embedding-suite.sh --models ibm-ml --cores 4 --scenario baseline
+#
 #   # Test specific models
 #   ./run-embedding-suite.sh \
 #     --models "RedHatAI/all-MiniLM-L6-v2,RedHatAI/granite-embedding-english-r2"
@@ -51,6 +62,9 @@
 #
 #   # Baseline tests only on 16 cores
 #   ./run-embedding-suite.sh --scenario baseline --cores 16
+#
+#   # Pin vLLM to explicit CPU range (e.g., NUMA node 2 on a 6-NUMA system)
+#   ./run-embedding-suite.sh --models ibm-ml --cores 4 --vllm-cpus 64-67
 #
 #   # Increase per-test time limit for slow models (e.g. Qwen3-Embedding-8B)
 #   ./run-embedding-suite.sh --models large --max-seconds 600
@@ -88,12 +102,15 @@ export ANSIBLE_CONFIG="${REPO_ROOT}/automation/test-execution/ansible/ansible.cf
 # All available models from RedHatAI Intel Xeon-compatible collection
 get_model_size() {
     case "$1" in
-        "RedHatAI/all-MiniLM-L6-v2")             echo "22.7M" ;;
-        "RedHatAI/granite-embedding-english-r2")  echo "109M" ;;
-        "RedHatAI/nomic-embed-text-v1.5")         echo "137M" ;;
-        "RedHatAI/embeddinggemma-300m")           echo "300M" ;;
-        "RedHatAI/Qwen3-Embedding-8B")            echo "8B" ;;
-        *)                                         echo "unknown" ;;
+        "RedHatAI/all-MiniLM-L6-v2")                            echo "22.7M" ;;
+        "RedHatAI/granite-embedding-english-r2")                 echo "109M" ;;
+        "RedHatAI/nomic-embed-text-v1.5")                        echo "137M" ;;
+        "RedHatAI/embeddinggemma-300m")                          echo "300M" ;;
+        "RedHatAI/Qwen3-Embedding-8B")                           echo "8B" ;;
+        "microsoft/harrier-oss-v1-270m")                         echo "270M" ;;
+        "ibm-granite/granite-embedding-278m-multilingual")       echo "278M" ;;
+        "ibm-granite/granite-embedding-311m-multilingual-r2")    echo "311M" ;;
+        *)                                                        echo "unknown" ;;
     esac
 }
 
@@ -124,16 +141,27 @@ PRESET_QUICK=(
     "RedHatAI/all-MiniLM-L6-v2"
 )
 
+# IBM/Microsoft multilingual models (~270-311M, RHAIIS-compatible)
+# Designed for parallel evaluation on a 6-NUMA-node host (4 cores per instance)
+PRESET_GRANITE_ML=(
+    "RedHatAI/embeddinggemma-300m"
+    "microsoft/harrier-oss-v1-270m"
+    "ibm-granite/granite-embedding-278m-multilingual"
+    "ibm-granite/granite-embedding-311m-multilingual-r2"
+)
+
 # Default configuration
 MODELS_INPUT="all"
 CORES_INPUT="4,8,16,32"
 SCENARIO="all"
-NUM_PROMPTS=250
+NUM_PROMPTS=1000
 MAX_SECONDS="${GUIDELLM_MAX_SECONDS:-}"
 VLLM_BENCH_CPUS=""
 VLLM_BENCH_NUMA_NODE=""
+VLLM_CPUS=""
 CONTINUE_ON_ERROR=false
 DRY_RUN=false
+YES=false
 SKIP_MODELS_INPUT=""
 
 # Colors
@@ -183,12 +211,20 @@ while [[ $# -gt 0 ]]; do
             VLLM_BENCH_NUMA_NODE="$2"
             shift 2
             ;;
+        --vllm-cpus)
+            VLLM_CPUS="$2"
+            shift 2
+            ;;
         --skip-models)
             SKIP_MODELS_INPUT="$2"
             shift 2
             ;;
         --continue-on-error)
             CONTINUE_ON_ERROR=true
+            shift
+            ;;
+        --yes|-y)
+            YES=true
             shift
             ;;
         --dry-run)
@@ -224,6 +260,9 @@ case "${MODELS_INPUT}" in
         ;;
     quick)
         MODELS=("${PRESET_QUICK[@]}")
+        ;;
+    granite-ml)
+        MODELS=("${PRESET_GRANITE_ML[@]}")
         ;;
     *)
         IFS=',' read -ra MODELS <<< "${MODELS_INPUT}"
@@ -307,7 +346,7 @@ echo "Total test combinations: ${TOTAL_TESTS}"
 echo ""
 
 # Confirm execution
-if [[ "${DRY_RUN}" == false ]]; then
+if [[ "${DRY_RUN}" == false && "${YES}" == false ]]; then
     read -p "Proceed with test suite? [y/N] " -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
@@ -357,6 +396,7 @@ for model in "${MODELS[@]}"; do
         [[ -n "${MAX_SECONDS}" ]] && cmd+=(-e "guidellm_max_seconds=${MAX_SECONDS}")
         [[ -n "${VLLM_BENCH_CPUS}" ]] && cmd+=(-e "vllm_bench_cpus=${VLLM_BENCH_CPUS}")
         [[ -n "${VLLM_BENCH_NUMA_NODE}" ]] && cmd+=(-e "vllm_bench_numa_node=${VLLM_BENCH_NUMA_NODE}")
+        [[ -n "${VLLM_CPUS}" ]] && cmd+=(-e "vllm_cpus=${VLLM_CPUS}")
 
         # Parallel instance overrides — set env vars to run multiple instances
         # simultaneously on the same host (each with its own container, port, NUMA nodes):

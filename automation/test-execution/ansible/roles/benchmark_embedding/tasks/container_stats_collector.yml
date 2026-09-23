@@ -1,0 +1,125 @@
+---
+# Container Stats Collector
+# Starts/stops a background podman stats poller on the DUT.
+#
+# Call with stats_collector_action=start before tests,
+# stats_collector_action=stop after tests.
+#
+# Requires: _embed_stats_host, _embed_stats_output, vllm_container_name
+# Produces (on start): _embed_stats_pid fact on inventory_hostname
+
+- name: Set stats collection script path
+  ansible.builtin.set_fact:
+    _embed_stats_script: "/tmp/collect-container-stats-{{ vllm_container_name | default('vllm-server') }}-{{ hostvars['localhost']['test_run_id'] | default('unknown') }}.py"
+  when: stats_collector_action == 'start'
+
+- name: Create container stats collection script on DUT
+  ansible.builtin.copy:
+    dest: "{{ _embed_stats_script }}"
+    mode: "0755"
+    content: |
+      #!/usr/bin/env python3
+      """
+      Container Stats Collector
+      Polls podman stats periodically and writes timestamped JSONL.
+      No external dependencies required (stdlib only).
+      """
+      import json
+      import subprocess
+      import time
+      import sys
+      import signal
+
+      CONTAINER = sys.argv[1]
+      OUTPUT = sys.argv[2]
+      INTERVAL = int(sys.argv[3]) if len(sys.argv) > 3 else 10
+
+      should_stop = False
+
+      def handler(signum, frame):
+          global should_stop
+          should_stop = True
+          print("\nContainer stats collector stopping...", flush=True)
+
+      signal.signal(signal.SIGTERM, handler)
+      signal.signal(signal.SIGINT, handler)
+
+      print(f"Container stats collector started", flush=True)
+      print(f"  Container: {CONTAINER}", flush=True)
+      print(f"  Interval:  {INTERVAL}s", flush=True)
+      print(f"  Output:    {OUTPUT}", flush=True)
+
+      sample_count = 0
+
+      with open(OUTPUT, 'w') as fout:
+          while not should_stop:
+              r = subprocess.run(
+                  ['podman', 'stats', '--no-stream', '--format', 'json', CONTAINER],
+                  capture_output=True, text=True
+              )
+              if r.returncode == 0 and r.stdout.strip():
+                  try:
+                      items = json.loads(r.stdout)
+                      ts = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+                      for item in items:
+                          item['timestamp'] = ts
+                          fout.write(json.dumps(item) + '\n')
+                      fout.flush()
+                      sample_count += 1
+                      if sample_count % 6 == 0:
+                          print(f"  Collected {sample_count} samples...", flush=True)
+                  except (json.JSONDecodeError, ValueError):
+                      pass
+
+              deadline = time.time() + INTERVAL
+              while time.time() < deadline and not should_stop:
+                  time.sleep(0.5)
+
+      print(f"Container stats collector stopped. {sample_count} samples written to {OUTPUT}", flush=True)
+  delegate_to: "{{ _embed_stats_host }}"
+  become: true
+  when: stats_collector_action == 'start'
+
+- name: Start container stats collector in background
+  ansible.builtin.shell: |
+    nohup python3 -u {{ _embed_stats_script }} \
+      "{{ vllm_container_name | default('vllm-server') }}" \
+      "{{ _embed_stats_output }}" \
+      "{{ container_stats_interval | default(10) }}" \
+      > /tmp/container-stats-collector-{{ vllm_container_name | default('vllm-server') }}-{{ hostvars['localhost']['test_run_id'] | default('unknown') }}.log 2>&1 &
+    echo $!
+  register: _stats_pid_result
+  delegate_to: "{{ _embed_stats_host }}"
+  become: true
+  changed_when: false
+  when: stats_collector_action == 'start'
+
+- name: Save collector PID
+  ansible.builtin.set_fact:
+    _embed_stats_pid: "{{ _stats_pid_result.stdout | trim }}"
+  when: stats_collector_action == 'start'
+
+- name: Display stats collector start status
+  ansible.builtin.debug:
+    msg:
+      - "Container stats collector started on {{ _embed_stats_host }}"
+      - "  PID: {{ _embed_stats_pid }}"
+      - "  Output: {{ _embed_stats_output }}"
+      - "  Interval: {{ container_stats_interval | default(10) }}s"
+  when: stats_collector_action == 'start'
+
+- name: Stop container stats collector
+  ansible.builtin.shell: "kill {{ _embed_stats_pid }} 2>/dev/null; sleep 1; true"
+  delegate_to: "{{ _embed_stats_host }}"
+  become: true
+  changed_when: false
+  when:
+    - stats_collector_action == 'stop'
+    - _embed_stats_pid is defined
+
+- name: Display stats collector stop status
+  ansible.builtin.debug:
+    msg: "Container stats collector stopped (PID {{ _embed_stats_pid }})"
+  when:
+    - stats_collector_action == 'stop'
+    - _embed_stats_pid is defined

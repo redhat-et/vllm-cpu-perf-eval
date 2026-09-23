@@ -141,31 +141,40 @@ The following embedding models from the [RedHatAI Intel Xeon-compatible collecti
 
 The `scenario` parameter controls which test suite to run:
 
-### baseline
-Finds maximum throughput and tests at configurable load levels (default: 25%, 50%, 75%):
-- Infinite rate test to determine max throughput
-- Fixed-rate tests at percentage intervals
-
-```bash
-# Use default percentages (25, 50, 75)
--e "scenario=baseline"
-
-# Customize load percentages
--e "scenario=baseline" \
--e "baseline_load_percentages=[10,25,50,75,90]"
-```
-
 ### latency
-Tests concurrent request handling at different concurrency levels:
-- Default levels: [16, 32, 64, 128, 196]
-- Measures P50, P90, P99 latencies
+Tests concurrent request handling across a range of concurrency levels and
+measures throughput and P50/P99 end-to-end latency at each. This is the
+primary benchmark — it characterises the full operating envelope of the model.
+
+Default levels: [16, 24, 32, 48, 64, 96, 128, 192, 256, 384]
 
 ```bash
 -e "scenario=latency"
 ```
 
+### baseline
+Tests at three fixed concurrency operating points that represent distinct
+real-world load regimes:
+
+| Probe | Concurrency | Characterises |
+|---|---|---|
+| Sequential | 1 | Minimum latency, zero queuing |
+| Light load | 8 | Interactive / low-traffic workload |
+| Peak | from latency sweep (default: 32) | Maximum throughput |
+
+```bash
+-e "scenario=baseline"
+
+# Override the peak concurrency if running without a latency sweep
+-e "scenario=baseline" -e "baseline_peak_concurrency=64"
+```
+
 ### all
-Runs both baseline and latency test suites:
+Recommended — runs the latency sweep first, identifies the concurrency level
+with peak throughput, then runs the three baseline operating-point probes
+using that concurrency as the peak probe.
+
+Execution order: **latency sweep → find peak concurrency → baseline probes**
 
 ```bash
 -e "scenario=all"
@@ -255,39 +264,6 @@ Enable persistent model caching to avoid re-downloading on each test:
 
 See [Model Pre-Download Documentation](ansible/model-predownload.md) for details.
 
-### Customizing Baseline Load Percentages
-
-By default, baseline tests run at 25%, 50%, and 75% of maximum throughput. You can customize these percentages:
-
-```bash
-# Default behavior (25%, 50%, 75%)
-ansible-playbook embedding-benchmark.yml \
-  -e "scenario=baseline"
-
-# Custom percentages for fine-grained analysis
-ansible-playbook embedding-benchmark.yml \
-  -e "scenario=baseline" \
-  -e "baseline_load_percentages=[10,25,50,75,90,95]"
-
-# Focus on high-load scenarios
-ansible-playbook embedding-benchmark.yml \
-  -e "scenario=baseline" \
-  -e "baseline_load_percentages=[80,85,90,95,99]"
-
-# Quick test with fewer data points
-ansible-playbook embedding-benchmark.yml \
-  -e "scenario=baseline" \
-  -e "baseline_load_percentages=[50,75]"
-```
-
-**Use Cases:**
-- **Fine-grained saturation curves**: `[10,20,30,40,50,60,70,80,90,95]`
-- **High-load focus**: `[75,80,85,90,95,99]` - Find breaking point
-- **Quick validation**: `[50]` - Single mid-point check
-- **Custom SLO testing**: `[60,80]` - Match your target load levels
-
-**Results:**
-Files are generated as `sweep-{percentage}pct.json` (e.g., `sweep-10pct.json`, `sweep-95pct.json`)
 
 ## Benchmark Parameters
 
@@ -322,7 +298,7 @@ Override default benchmark settings:
 
 ```bash
 # Adjust number of test prompts (trade-off: sample size vs duration)
--e "num_prompts=500"  # Default: 250
+-e "num_prompts=500"  # Default: 1000
 
 # Set input token length for random text generation
 -e "embedding_random_input_len=1024"  # Default: 512
@@ -358,7 +334,7 @@ Configuration in `inventory/group_vars/all/benchmark-tools.yml`:
 vllm_bench:
   use_container: true
   container_image: docker.io/vllm/vllm-openai-cpu:v0.25.1
-  num_prompts: 250
+  num_prompts: 1000
 ```
 
 ## Architecture Support
@@ -569,15 +545,19 @@ Performance test results are collected under
 
 | Path | Description |
 | --- | --- |
-| `baseline/sweep-inf.json` | Max throughput test |
-| `baseline/sweep-25pct.json` | 25% load test |
-| `baseline/sweep-50pct.json` | 50% load test |
-| `baseline/sweep-75pct.json` | 75% load test |
-| `latency/concurrent-16.json` | Concurrency level test |
-| `latency/concurrent-32.json` | Concurrency level test |
-| `latency/concurrent-64.json` | Concurrency level test |
-| `latency/concurrent-128.json` | Concurrency level test |
-| `latency/concurrent-196.json` | Concurrency level test |
+| `baseline/conc-1.json` | Sequential probe — minimum latency, zero queuing |
+| `baseline/conc-8.json` | Light load probe — interactive workload |
+| `baseline/conc-{N}.json` | Peak throughput probe — N = concurrency at peak |
+| `latency/concurrent-16.json` | Concurrency sweep level |
+| `latency/concurrent-24.json` | Concurrency sweep level |
+| `latency/concurrent-32.json` | Concurrency sweep level |
+| `latency/concurrent-48.json` | Concurrency sweep level |
+| `latency/concurrent-64.json` | Concurrency sweep level |
+| `latency/concurrent-96.json` | Concurrency sweep level |
+| `latency/concurrent-128.json` | Concurrency sweep level |
+| `latency/concurrent-192.json` | Concurrency sweep level |
+| `latency/concurrent-256.json` | Concurrency sweep level |
+| `latency/concurrent-384.json` | Concurrency sweep level |
 | `test-metadata.json` | Test run metadata |
 | `logs/vllm-server.log` | vLLM server logs (managed/dut-only modes) |
 
