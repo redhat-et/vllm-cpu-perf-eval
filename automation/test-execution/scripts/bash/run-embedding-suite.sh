@@ -67,6 +67,9 @@
 #   # Pin vLLM to explicit CPU range (e.g., NUMA node 2 on a 6-NUMA system)
 #   ./run-embedding-suite.sh --models granite-ml --cores 4 --vllm-cpus 64-67
 #
+#   # Pin vLLM to explicit CPU range (e.g., NUMA node 2 on a 6-NUMA system)
+#   ./run-embedding-suite.sh --models ibm-ml --cores 4 --vllm-cpus 64-67
+#
 #   # Increase per-test time limit for slow models (e.g. Qwen3-Embedding-8B)
 #   ./run-embedding-suite.sh --models large --max-seconds 600
 #   GUIDELLM_MAX_SECONDS=600 ./run-embedding-suite.sh --models large
