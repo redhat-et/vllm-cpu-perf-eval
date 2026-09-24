@@ -175,7 +175,7 @@
     command: "{{ vllm_cmd }}"
     log_driver: journald
     log_opt:
-      tag: "vllm-embedding-{{ core_cfg.cores | default('auto') }}c"
+      tag: "vllm-embedding"
   when:
     - container_cfg.engine == 'podman'
     - core_cfg.cpuset_cpus is defined
@@ -200,7 +200,7 @@
     command: "{{ vllm_cmd }}"
     log_driver: journald
     log_opt:
-      tag: "vllm-embedding-auto"
+      tag: "vllm-embedding"
   when:
     - container_cfg.engine == 'podman'
     - core_cfg.cpuset_cpus is not defined
