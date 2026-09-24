@@ -36,4 +36,4 @@
         name: vllm_server
         tasks_from: start-embedding
       vars:
-        embedding_max_model_len: null  # Use model default
+        embedding_max_model_len: "{{ test_configs.embedding.isl | default(512) }}"  # Cap to benchmark ISL; prevents decoder models from pre-allocating blocks for unused context
