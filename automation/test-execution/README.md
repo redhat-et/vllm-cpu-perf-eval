@@ -166,7 +166,7 @@ ansible-playbook -i ansible/inventory/hosts.yml ansible/embedding-benchmark.yml 
 export VLLM_MODE=external
 export VLLM_ENDPOINT_URL=http://your-endpoint:8000
 ansible-playbook -i ansible/inventory/hosts.yml ansible/embedding-benchmark.yml \
-  -e "scenario=baseline"
+  -e "scenario=all"
 ```
 
 ## Results

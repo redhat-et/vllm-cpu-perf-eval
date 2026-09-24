@@ -17,7 +17,7 @@ matrix:
       architecture: "MiniLM/BERT"
       focus: "Enterprise English Embedding Throughput"
       scenarios:
-        - baseline-sweep
+        - operating-point
       quantization: false
       kv_cache: "1GiB"
 
@@ -29,7 +29,7 @@ matrix:
       architecture: "XLM-RoBERTa"
       focus: "Multilingual Embedding Throughput"
       scenarios:
-        - baseline-sweep
+        - operating-point
       quantization: false
       kv_cache: "1GiB"
 
@@ -41,7 +41,7 @@ matrix:
       architecture: "XLM-RoBERTa"
       focus: "P99 Latency Scaling for Multilingual Encoder"
       scenarios:
-        - latency-concurrent
+        - latency
       quantization: false
       kv_cache: "1GiB"
 
@@ -53,7 +53,7 @@ matrix:
       architecture: "Gemma/Decoder"
       focus: "Decoder-based Dense Embedding Throughput"
       scenarios:
-        - baseline-sweep
+        - operating-point
       quantization: false
       kv_cache: "1GiB"
 
@@ -65,7 +65,7 @@ matrix:
       architecture: "Decoder"
       focus: "Microsoft OSS Embedding Throughput"
       scenarios:
-        - baseline-sweep
+        - operating-point
       quantization: false
       kv_cache: "1GiB"
       notes: "Requires --trust-remote-code"
@@ -78,7 +78,7 @@ matrix:
       architecture: "XLM-RoBERTa"
       focus: "Multilingual Embedding Throughput (r2 release)"
       scenarios:
-        - baseline-sweep
+        - operating-point
       quantization: false
       kv_cache: "1GiB"
 
@@ -95,7 +95,7 @@ matrix:
       dimensions: 384
       max_sequence_length: 512
       default_scenarios:
-        - baseline-sweep
+        - operating-point
 
     # Multilingual Dense Encoder (XLM-RoBERTa family)
     - name: "granite-embedding-278m-multilingual"
@@ -111,8 +111,8 @@ matrix:
         - "granite-embedding-107m-multilingual"
         - "Multilingual-e5-large"
       default_scenarios:
-        - baseline-sweep
-        - latency-concurrent
+        - operating-point
+        - latency
 
     # Decoder-based Dense Encoder (~300M, Gemma architecture)
     - name: "embeddinggemma-300m"
@@ -125,7 +125,7 @@ matrix:
       dimensions: 1024
       max_sequence_length: 512
       default_scenarios:
-        - baseline-sweep
+        - operating-point
 
     # Microsoft OSS Embedding (~270M, Decoder)
     - name: "harrier-oss-v1-270m"
@@ -139,7 +139,7 @@ matrix:
       max_sequence_length: 512
       trust_remote_code: true
       default_scenarios:
-        - baseline-sweep
+        - operating-point
 
     # Granite Multilingual r2 (311M, XLM-RoBERTa family)
     - name: "granite-embedding-311m-multilingual-r2"
@@ -152,7 +152,7 @@ matrix:
       dimensions: 1024
       max_sequence_length: 512
       default_scenarios:
-        - baseline-sweep
+        - operating-point
 
   # Common test parameters
   common_parameters:
@@ -175,31 +175,30 @@ matrix:
 
   # Expected test duration (approximate)
   estimated_duration:
-    baseline_sweep:
-      per_model: "20-30 minutes"
-      stages: 4  # inf, 25%, 50%, 75%
-    latency_concurrent:
-      per_model: "25-40 minutes"
-      stages: 5  # 16, 32, 64, 128, 196 concurrency
+    operating_point:
+      per_model: "15-25 minutes"
+      stages: 3  # conc-1, conc-8, conc-peak
+    latency:
+      per_model: "40-60 minutes"
+      stages: 10  # 16, 24, 32, 48, 64, 96, 128, 192, 256, 384 concurrency
 
   # Results storage structure
   results_structure: |
-    results/embedding-models/
-    ├── granite-embedding-english-r2/
-    │   └── baseline/
-    │       ├── sweep-inf.json
-    │       ├── sweep-25pct.json
-    │       ├── sweep-50pct.json
-    │       └── sweep-75pct.json
-    └── granite-embedding-278m-multilingual/
-        ├── baseline/
-        │   ├── sweep-inf.json
-        │   ├── sweep-25pct.json
-        │   ├── sweep-50pct.json
-        │   └── sweep-75pct.json
-        └── latency/
-            ├── concurrent-16.json
-            ├── concurrent-32.json
-            ├── concurrent-64.json
-            ├── concurrent-128.json
-            └── concurrent-196.json
+    results/embedding/<model-name>/<timestamp>/
+    ├── operating_point/
+    │   ├── conc-1.json      # sequential probe
+    │   ├── conc-8.json      # light-load probe
+    │   └── conc-{N}.json    # peak-throughput probe
+    ├── latency/
+    │   ├── concurrent-16.json
+    │   ├── concurrent-24.json
+    │   ├── concurrent-32.json
+    │   ├── concurrent-48.json
+    │   ├── concurrent-64.json
+    │   ├── concurrent-96.json
+    │   ├── concurrent-128.json
+    │   ├── concurrent-192.json
+    │   ├── concurrent-256.json
+    │   └── concurrent-384.json
+    ├── container-stats.jsonl
+    └── test-metadata.json

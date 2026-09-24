@@ -537,7 +537,7 @@ cd automation/test-execution/dashboard-examples/vllm_dashboard
                 "RedHatAI/granite-embedding-english-r2"; do
      ansible-playbook embedding-benchmark.yml \
        -e "test_model=$model" \
-       -e "scenario=baseline"
+       -e "scenario=all"
    done
    ```
 

@@ -1,9 +1,10 @@
 name: embedding
 description: >
-  Embedding model performance - baseline + latency tests.
+  Embedding model performance - operating-point probes + latency sweep.
   Presets: all (5 RedHatAI models), small, medium, large, quick,
   granite-ml (embeddinggemma-300m, harrier-oss-v1-270m,
   granite-embedding-278m-multilingual, granite-embedding-311m-multilingual-r2).
+  Scenarios: operating_point, latency, all (baseline accepted as alias for operating_point).
   For parallel 3-slot execution use run-parallel-embedding.sh directly.
 runner: script
 target: automation/test-execution/scripts/bash/run-embedding-suite.sh

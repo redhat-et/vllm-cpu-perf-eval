@@ -109,7 +109,7 @@ benchmark_tool:
     # - 250 prompts: ~4-5 min/test, good for throughput & P50/P90 latency
     # - 500 prompts: ~9-10 min/test, better P99 stability
     # - 1000 prompts: ~18-20 min/test, production-grade measurements
-    num_prompts: 250  # Quick tests
+    num_prompts: 1000
 
 # ============================================================================
 # Profile Examples for Different Use Cases

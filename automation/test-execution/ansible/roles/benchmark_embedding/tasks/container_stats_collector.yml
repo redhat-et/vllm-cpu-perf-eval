@@ -82,7 +82,11 @@
 
 - name: Start container stats collector in background
   ansible.builtin.shell: |
+    {% if _embed_stats_cpus | default('') | length > 0 %}
+    nohup taskset -c {{ _embed_stats_cpus }} python3 -u {{ _embed_stats_script }} \
+    {% else %}
     nohup python3 -u {{ _embed_stats_script }} \
+    {% endif %}
       "{{ vllm_container_name | default('vllm-server') }}" \
       "{{ _embed_stats_output }}" \
       "{{ container_stats_interval | default(10) }}" \
@@ -106,6 +110,7 @@
       - "  PID: {{ _embed_stats_pid }}"
       - "  Output: {{ _embed_stats_output }}"
       - "  Interval: {{ container_stats_interval | default(10) }}s"
+      - "  CPU pinning: {{ 'taskset -c ' + _embed_stats_cpus if _embed_stats_cpus | default('') | length > 0 else 'none (container_stats_cpus not set)' }}"
   when: stats_collector_action == 'start'
 
 - name: Stop container stats collector

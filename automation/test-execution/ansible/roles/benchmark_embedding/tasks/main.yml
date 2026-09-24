@@ -31,6 +31,7 @@
     _embed_stats_host: "{{ groups['dut'][0] }}"
     # Include container name so parallel slots on the same DUT don't collide.
     _embed_stats_output: "/tmp/container-stats-{{ vllm_container_name | default('vllm-server') }}-{{ hostvars['localhost']['test_run_id'] | default('unknown') }}.jsonl"
+    _embed_stats_cpus: "{{ container_stats_cpus | default('') }}"
   when:
     - hostvars['localhost']['vllm_mode'] | default('managed') != 'external'
     - "'dut' in groups"
@@ -42,33 +43,52 @@
     stats_collector_action: start
   when: _embed_stats_host is defined
 
-# ── Step 1: Latency sweep ───────────────────────────────────────────────────
-# Runs for 'latency' and 'all'. For 'all', results feed the peak-finding step.
+# ── Steps 1-3: Benchmark tasks in a block so the collector always stops ─────
 
-- name: Run latency sweep
-  ansible.builtin.include_tasks: latency.yml
-  when: scenario == 'latency' or scenario == 'all'
+- name: Run embedding benchmark tasks
+  block:
+    # Step 1: Latency sweep — runs for 'latency' and 'all'.
+    # For 'all', results feed the peak-finding step.
+    - name: Run latency sweep
+      ansible.builtin.include_tasks: latency.yml
+      when: scenario == 'latency' or scenario == 'all'
 
-# ── Step 2: Find peak concurrency from latency sweep (all scenario only) ────
-# Sets cal_peak_concurrency for the operating-point peak probe.
+    # Step 2: Find peak concurrency from latency sweep (all scenario only).
+    # Sets cal_peak_concurrency for the operating-point peak probe.
+    - name: Find peak concurrency from latency sweep
+      ansible.builtin.include_tasks: derive_calibrated_rps.yml
+      when: scenario == 'all'
 
-- name: Find peak concurrency from latency sweep
-  ansible.builtin.include_tasks: derive_calibrated_rps.yml
-  when: scenario == 'all'
+    # ── Inter-sweep health check ────────────────────────────────────────────────
+    # Verify the server is still responsive after the latency sweep before
+    # running operating-point probes. High-concurrency load can destabilise
+    # a server that was fine during warmup.
 
-# ── Step 3: Operating-point probes ─────────────────────────────────────────
-# Tests at conc=1 (sequential), conc=8 (light load), conc=peak (max throughput).
-# For 'all', peak concurrency comes from the latency sweep.
-# For standalone 'operating_point', defaults to conc=32 (or op_peak_concurrency).
+    - name: Verify vLLM server still healthy after latency sweep
+      ansible.builtin.uri:
+        url: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/health"
+        method: GET
+        status_code: 200
+      register: inter_sweep_health
+      retries: 6
+      delay: 5
+      until: inter_sweep_health.status == 200
+      changed_when: false
+      when: scenario == 'all'
 
-- name: Run operating-point probes
-  ansible.builtin.include_tasks: operating_point.yml
-  when: scenario == 'operating_point' or scenario == 'all'
+    # Step 3: Operating-point probes.
+    # Tests at conc=1 (sequential), conc=8 (light load), conc=peak (max throughput).
+    # For 'all', peak concurrency comes from the latency sweep.
+    # For standalone 'operating_point', defaults to conc=32 (or op_peak_concurrency).
+    - name: Run operating-point probes
+      ansible.builtin.include_tasks: operating_point.yml
+      when: scenario == 'operating_point' or scenario == 'all'
 
-# ── Container Stats Collection Cleanup ─────────────────────────────────────
-
-- name: Stop container stats collector
-  ansible.builtin.include_tasks: container_stats_collector.yml
-  vars:
-    stats_collector_action: stop
-  when: _embed_stats_host is defined
+  always:
+    # ── Container Stats Collection Cleanup ───────────────────────────────────
+    # always: ensures the collector is stopped even if a benchmark task fails.
+    - name: Stop container stats collector
+      ansible.builtin.include_tasks: container_stats_collector.yml
+      vars:
+        stats_collector_action: stop
+      when: _embed_stats_host is defined

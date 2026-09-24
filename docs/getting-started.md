@@ -513,7 +513,7 @@ ansible-playbook -i inventory/hosts.yml llm-benchmark-auto.yml \
 ```bash
 ansible-playbook -i inventory/hosts.yml embedding-benchmark.yml \
   -e "test_model=ibm-granite/granite-embedding-278m-multilingual" \
-  -e "scenario=baseline"
+  -e "scenario=all"
 ```
 
 ## Available Workload Types

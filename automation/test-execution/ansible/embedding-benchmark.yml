@@ -23,6 +23,18 @@
         vllm_mode: "{{ lookup('env', 'VLLM_MODE') | default(vllm_endpoint.mode | default('managed'), true) }}"
         test_model: "{{ lookup('env', 'TEST_MODEL') | default(test_model | default('RedHatAI/granite-embedding-english-r2'), true) }}"
         requested_cores: "{{ lookup('env', 'REQUESTED_CORES') | default(requested_cores | default(16), true) | int }}"
+        vllm_cpus: "{{ vllm_cpus | default(lookup('env', 'VLLM_CPUS') | default('', true), true) }}"
+        vllm_numa_nodes: "{{ vllm_numa_nodes | default(lookup('env', 'VLLM_NUMA_NODES') | default('', true), true) }}"
+
+    - name: Validate vllm_cpus format if provided
+      ansible.builtin.assert:
+        that:
+          - vllm_cpus | string | trim | regex_search('^[0-9]+(-[0-9]+)?(,[0-9]+(-[0-9]+)?)*$') is not none
+          - vllm_cpus | string | trim | cpu_ranges_ordered
+        fail_msg: >-
+          vllm_cpus='{{ vllm_cpus }}' is not valid. Expected a range (e.g. '64-95'),
+          a single core ('64'), or a comma-separated list ('64,65,66').
+      when: vllm_cpus is defined and vllm_cpus | string | trim != ''
 
     - name: Validate vLLM mode
       ansible.builtin.assert:
@@ -53,6 +65,16 @@
       ansible.builtin.set_fact:
         dut_platform_name: "external"
         dut_platform_raw: "External vLLM Endpoint"
+      when: vllm_mode == 'external'
+
+    - name: Set fallback core configuration for external mode
+      ansible.builtin.set_fact:
+        core_configuration:
+          name: "external-endpoint"
+          cores: "{{ requested_cores | int }}"
+          cpuset_cpus: "n/a"
+          cpuset_mems: "n/a"
+          tensor_parallel: 1
       when: vllm_mode == 'external'
 
     - name: Generate test run ID
@@ -108,6 +130,48 @@
         msg:
           - "Platform detected: {{ cpu_model_raw.stdout | trim }}"
           - "Sanitized: {{ dut_platform_name }}"
+
+- name: "Phase 1a.5 - Detect NUMA Topology"
+  hosts: dut
+  become: true
+  gather_facts: false
+
+  pre_tasks:
+    - name: End play if external mode
+      ansible.builtin.meta: end_play
+      when: hostvars['localhost']['vllm_mode'] == 'external'
+
+  tasks:
+    - name: Detect NUMA topology on DUT
+      ansible.builtin.include_role:
+        name: common
+        tasks_from: detect-numa-topology
+
+- name: "Phase 1a.6 - Allocate vLLM Cores"
+  hosts: dut
+  become: true
+  gather_facts: false
+  vars:
+    requested_cores: "{{ hostvars['localhost']['requested_cores'] }}"
+    vllm_cpus: "{{ hostvars['localhost']['vllm_cpus'] | default(omit) }}"
+    vllm_numa_nodes: "{{ hostvars['localhost']['vllm_numa_nodes'] | default(omit) }}"
+
+  pre_tasks:
+    - name: End play if external mode
+      ansible.builtin.meta: end_play
+      when: hostvars['localhost']['vllm_mode'] == 'external'
+
+  tasks:
+    - name: Allocate cores from NUMA topology
+      ansible.builtin.include_role:
+        name: common
+        tasks_from: allocate-cores-from-count
+
+    - name: Save auto-allocated config to localhost
+      ansible.builtin.set_fact:
+        core_configuration: "{{ auto_core_config }}"
+      delegate_to: localhost
+      delegate_facts: true
 
 - name: "Phase 1b - Start vLLM Embedding Server"
   ansible.builtin.import_playbook: common/vllm-embedding-startup.yml
@@ -195,7 +259,7 @@
   become: true
   vars:
     model_name: "{{ test_model | default('RedHatAI/granite-embedding-english-r2') }}"
-    scenario_name: "{{ lookup('env', 'SCENARIO') | default('operating_point', true) }}"  # operating_point, latency, or all
+    scenario_name: "{{ scenario | default(lookup('env', 'SCENARIO') | default('all', true), true) }}"  # operating_point, latency, or all; -e wins over $SCENARIO
     test_run_base: "{{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/{{ hostvars['localhost']['test_run_id'] }}"
 
   pre_tasks:
@@ -258,7 +322,7 @@
             "vllm_endpoint_url": "n/a",
             "vllm_bench_version": "{{ benchmark_tool.vllm_bench.version | default('built-in') }}",
             "vllm_bench_container": "{{ benchmark_tool.vllm_bench.use_container | default(true) }}",
-            "num_prompts": "{{ benchmark_tool.vllm_bench.num_prompts | default(250) }}",
+            "num_prompts": {{ num_prompts | default(benchmark_tool.vllm_bench.num_prompts | default(1000)) | int }},
             "embedding_random_input_len": {{ embedding_random_input_len | default(512) }},
             "requested_cores": {{ requested_cores | default('null') }},
             "timestamp": "{{ lookup('pipe', 'date -Iseconds') }}"
@@ -275,7 +339,7 @@
   vars:
     # Use detected_model if set (external mode auto-detect), otherwise use test_model or default
     model_name: "{{ detected_model | default(test_model | default('RedHatAI/granite-embedding-english-r2')) }}"
-    scenario_name: "{{ lookup('env', 'SCENARIO') | default('operating_point', true) }}"  # operating_point, latency, or all
+    scenario_name: "{{ scenario | default(lookup('env', 'SCENARIO') | default('all', true), true) }}"  # operating_point, latency, or all; -e wins over $SCENARIO
     test_run_base: "{{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/{{ hostvars['localhost']['test_run_id'] }}"
 
   pre_tasks:
@@ -344,7 +408,7 @@
             "vllm_endpoint_url": "{{ vllm_endpoint.external.url if hostvars['localhost']['vllm_mode'] == 'external' else 'n/a' }}",
             "vllm_bench_version": "{{ benchmark_tool.vllm_bench.version | default('built-in') }}",
             "vllm_bench_container": "{{ benchmark_tool.vllm_bench.use_container | default(true) }}",
-            "num_prompts": "{{ benchmark_tool.vllm_bench.num_prompts | default(250) }}",
+            "num_prompts": {{ num_prompts | default(benchmark_tool.vllm_bench.num_prompts | default(1000)) | int }},
             "embedding_random_input_len": {{ embedding_random_input_len | default(512) }},
             "requested_cores": {{ requested_cores | default('null') }},
             "timestamp": "{{ lookup('pipe', 'date -Iseconds') }}"
