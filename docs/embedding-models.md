@@ -23,7 +23,7 @@ export VLLM_MODE=managed  # or omit (default)
 
 ansible-playbook -i inventory/hosts.yml embedding-benchmark.yml \
   -e "test_model=RedHatAI/granite-embedding-english-r2" \
-  -e "scenario=baseline"
+  -e "scenario=all"
 ```
 
 ### 2. DUT-Only Mode
@@ -95,7 +95,7 @@ The following embedding models from the [RedHatAI Intel Xeon-compatible collecti
   ```bash
   ansible-playbook -i inventory/hosts.yml embedding-benchmark.yml \
     -e "test_model=RedHatAI/nomic-embed-text-v1.5" \
-    -e "scenario=baseline"
+    -e "scenario=all"
   ```
 
 #### 3. RedHatAI/granite-embedding-english-r2
@@ -119,7 +119,7 @@ The following embedding models from the [RedHatAI Intel Xeon-compatible collecti
   ```bash
   ansible-playbook -i inventory/hosts.yml embedding-benchmark.yml \
     -e "test_model=RedHatAI/embeddinggemma-300m" \
-    -e "scenario=baseline"
+    -e "scenario=all"
   ```
 
 ### Large Models (> 1B parameters)
@@ -152,7 +152,7 @@ Default levels: [16, 24, 32, 48, 64, 96, 128, 192, 256, 384]
 -e "scenario=latency"
 ```
 
-### baseline
+### operating_point
 Tests at three fixed concurrency operating points that represent distinct
 real-world load regimes:
 
@@ -163,18 +163,18 @@ real-world load regimes:
 | Peak | from latency sweep (default: 32) | Maximum throughput |
 
 ```bash
--e "scenario=baseline"
+-e "scenario=operating_point"
 
 # Override the peak concurrency if running without a latency sweep
--e "scenario=baseline" -e "baseline_peak_concurrency=64"
+-e "scenario=operating_point" -e "op_peak_concurrency=64"
 ```
 
 ### all
 Recommended — runs the latency sweep first, identifies the concurrency level
-with peak throughput, then runs the three baseline operating-point probes
-using that concurrency as the peak probe.
+with peak throughput, then runs the three operating-point probes using that
+concurrency as the peak probe.
 
-Execution order: **latency sweep → find peak concurrency → baseline probes**
+Execution order: **latency sweep → find peak concurrency → operating-point probes**
 
 ```bash
 -e "scenario=all"
@@ -205,7 +205,7 @@ export VLLM_MODE=dut-only
 
 ansible-playbook -i inventory/hosts.yml embedding-benchmark.yml \
   -e "test_model=RedHatAI/all-MiniLM-L6-v2" \
-  -e "scenario=baseline" \
+  -e "scenario=operating_point" \
   -e "requested_cores=16"
 ```
 
@@ -545,9 +545,9 @@ Performance test results are collected under
 
 | Path | Description |
 | --- | --- |
-| `baseline/conc-1.json` | Sequential probe — minimum latency, zero queuing |
-| `baseline/conc-8.json` | Light load probe — interactive workload |
-| `baseline/conc-{N}.json` | Peak throughput probe — N = concurrency at peak |
+| `operating_point/conc-1.json` | Sequential probe — minimum latency, zero queuing |
+| `operating_point/conc-8.json` | Light load probe — interactive workload |
+| `operating_point/conc-{N}.json` | Peak throughput probe — N = concurrency at peak |
 | `latency/concurrent-16.json` | Concurrency sweep level |
 | `latency/concurrent-24.json` | Concurrency sweep level |
 | `latency/concurrent-32.json` | Concurrency sweep level |
@@ -558,10 +558,11 @@ Performance test results are collected under
 | `latency/concurrent-192.json` | Concurrency sweep level |
 | `latency/concurrent-256.json` | Concurrency sweep level |
 | `latency/concurrent-384.json` | Concurrency sweep level |
+| `container-stats.jsonl` | Container CPU/memory time-series (10 s polling) |
 | `test-metadata.json` | Test run metadata |
-| `logs/vllm-server.log` | vLLM server logs (managed/dut-only modes) |
+| `vllm-server.log` | vLLM server logs (managed/dut-only modes) |
 
-The `baseline/` directory is created when `scenario=baseline` or `all`.
+The `operating_point/` directory is created when `scenario=operating_point` or `all`.
 The `latency/` directory is created when `scenario=latency` or `all`.
 
 ## Adding Custom Models

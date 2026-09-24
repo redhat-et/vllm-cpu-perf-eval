@@ -201,7 +201,7 @@ Done! See sections below for advanced usage and additional playbooks.
 | **[llm-benchmark-concurrent-load.yml](llm-benchmark-concurrent-load.yml)** | **3-phase concurrent load testing** | `-e "base_workload=chat" -e "core_sweep_counts=[16,32]"` |
 | [llm-core-sweep.yml](llm-core-sweep.yml) | Test multiple core configs | `-e "core_config_names=[...]"` |
 | [llm-core-sweep-auto.yml](llm-core-sweep-auto.yml) | Test multiple core counts (auto-allocated) | `-e "requested_cores_list=[8,16,32]"` |
-| [embedding-benchmark.yml](embedding-benchmark.yml) | Single embedding test | `-e "test_model=..." -e "scenario=baseline"` |
+| [embedding-benchmark.yml](embedding-benchmark.yml) | Single embedding test | `-e "test_model=..." -e "scenario=operating_point"` |
 | [embedding-core-sweep.yml](embedding-core-sweep.yml) | Embedding core sweep | Multiple configs |
 
 ### Platform Setup
@@ -457,7 +457,7 @@ cd automation/test-execution/ansible
 ansible-playbook -i inventory/hosts.yml \
   embedding-benchmark.yml \
   -e "test_model=ibm-granite/granite-embedding-278m-multilingual" \
-  -e "scenario=baseline"
+  -e "scenario=operating_point"
 ```
 
 ### Test Multiple Models

@@ -58,3 +58,15 @@
 # Default: 512 tokens
 
 # embedding_random_input_len: 512
+
+# ==============================================================================
+# Container Stats Collector Configuration
+# ==============================================================================
+# Controls polling interval for the background podman stats collector.
+# Optional container_stats_cpus (DUT host CPU list) pins the collector via
+# taskset so it stays off vLLM server cores.
+#
+# Default interval: 10 seconds
+
+# container_stats_interval: 10
+# container_stats_cpus: ""  # e.g. housekeeping cores on the DUT (not vllm_bench_cpus)

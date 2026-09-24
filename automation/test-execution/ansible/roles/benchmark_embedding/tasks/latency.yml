@@ -11,7 +11,7 @@
   ansible.builtin.set_fact:
     use_vllm_bench_container: "{{ benchmark_tool.vllm_bench.use_container | default(true) | bool }}"
     vllm_bench_image: "{{ benchmark_tool.vllm_bench.container_image | default(vllm_server_image_default) }}"
-    num_prompts: "{{ benchmark_tool.vllm_bench.num_prompts | default(250) }}"
+    num_prompts: "{{ num_prompts | default(benchmark_tool.vllm_bench.num_prompts | default(1000)) }}"
     vllm_bench_cpuset_cpus: "{{ vllm_bench_cpus | default(benchmark_tool.vllm_bench.cpuset_cpus | default('')) }}"
     vllm_bench_cpuset_mems: "{{ vllm_bench_numa_node | default(benchmark_tool.vllm_bench.cpuset_mems | default('')) }}"
     vllm_bench_max_seconds: "{{ guidellm_max_seconds | default(300) | int }}"
@@ -83,6 +83,21 @@
       --endpoint /v1/embeddings
   changed_when: false
   ignore_errors: true
+
+- name: Verify embedding endpoint ready before latency sweep
+  ansible.builtin.uri:
+    url: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/v1/embeddings"
+    method: POST
+    body_format: json
+    body:
+      model: "{{ model_name }}"
+      input: "readiness check"
+    status_code: 200
+  register: latency_embedding_ready
+  retries: 12
+  delay: 10
+  until: latency_embedding_ready.status == 200
+  changed_when: false
 
 - name: "Latency Test - Run at each concurrency level"
   ansible.builtin.command:

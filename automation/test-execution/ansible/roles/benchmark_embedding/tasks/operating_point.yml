@@ -15,7 +15,7 @@
   ansible.builtin.set_fact:
     use_vllm_bench_container: "{{ benchmark_tool.vllm_bench.use_container | default(true) | bool }}"
     vllm_bench_image: "{{ benchmark_tool.vllm_bench.container_image | default(vllm_server_image_default) }}"
-    num_prompts: "{{ benchmark_tool.vllm_bench.num_prompts | default(1000) }}"
+    num_prompts: "{{ num_prompts | default(benchmark_tool.vllm_bench.num_prompts | default(1000)) }}"
     vllm_bench_cpuset_cpus: "{{ vllm_bench_cpus | default(benchmark_tool.vllm_bench.cpuset_cpus | default('')) }}"
     vllm_bench_cpuset_mems: "{{ vllm_bench_numa_node | default(benchmark_tool.vllm_bench.cpuset_mems | default('')) }}"
     vllm_bench_max_seconds: "{{ guidellm_max_seconds | default(300) | int }}"
@@ -69,7 +69,7 @@
   ansible.builtin.set_fact:
     # sequential (1), light load (8), peak from latency sweep or default 32
     op_concurrency_levels: >-
-      {{ [1, 8] + [cal_peak_concurrency | default(op_peak_concurrency | default(32)) | int] }}
+      {{ ([1, 8] + [cal_peak_concurrency | default(op_peak_concurrency | default(32)) | int]) | unique | list }}
 
 - name: Display operating-point operating points
   ansible.builtin.debug:
@@ -80,7 +80,8 @@
       - "  conc={{ op_concurrency_levels | last }} → peak throughput{{ ' (from latency sweep)' if cal_peak_concurrency is defined else ' (default)' }}"
 
 # Warmup — only needed when operating_point runs standalone (scenario=operating_point).
-# For scenario=all the latency sweep already warmed up the server.
+# For scenario=all the latency sweep already warmed up the server, and the
+# inter-sweep health check in main.yml confirms it is still alive.
 - name: "Warmup - Stabilize vLLM batching before operating-point measurement"
   ansible.builtin.command:
     cmd: >
@@ -97,6 +98,22 @@
       --endpoint /v1/embeddings
   changed_when: false
   ignore_errors: true
+  when: scenario == 'operating_point'
+
+- name: Verify embedding endpoint ready before operating-point probes
+  ansible.builtin.uri:
+    url: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/v1/embeddings"
+    method: POST
+    body_format: json
+    body:
+      model: "{{ model_name }}"
+      input: "readiness check"
+    status_code: 200
+  register: op_embedding_ready
+  retries: 6
+  delay: 10
+  until: op_embedding_ready.status == 200
+  changed_when: false
   when: scenario == 'operating_point'
 
 - name: "Operating-point Test - Run at each concurrency level"

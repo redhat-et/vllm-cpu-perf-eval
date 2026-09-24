@@ -127,10 +127,21 @@ def load_container_stats(results_dir: str) -> dict[str, pd.DataFrame]:
             continue
 
         if rows:
-            df = pd.DataFrame(rows).dropna(subset=['timestamp']).sort_values('timestamp')
+            df = (pd.DataFrame(rows)
+                  .dropna(subset=['timestamp'])
+                  .sort_values('timestamp')
+                  .reset_index(drop=True))
             run_stats[test_run_id] = df
 
     return run_stats
+
+
+def _trim_trailing_zero_mem(sdf: pd.DataFrame) -> pd.DataFrame:
+    """Drop samples after the container stopped (mem_usage_gb falls back to 0)."""
+    nz = sdf['mem_usage_gb'].ne(0)
+    if not nz.any():
+        return sdf.iloc[0:0]
+    return sdf.loc[:nz.cumsum().idxmax()]
 
 
 @st.cache_data(ttl=3600)  # Increased from 5min to 1 hour - results rarely change
@@ -169,8 +180,9 @@ def load_embedding_data(results_dir: str) -> pd.DataFrame:
 
             test_run_dir = metadata_file.parent
 
-            # Process JSON files in baseline/ and latency/ subdirectories
-            result_subdirs = ['baseline', 'latency']
+            # Process JSON files in baseline/, latency/, and operating_point/ subdirectories.
+            # 'baseline' is kept for legacy runs; new runs use 'operating_point'.
+            result_subdirs = ['baseline', 'latency', 'operating_point']
             for subdir_name in result_subdirs:
                 subdir = test_run_dir / subdir_name
                 if not subdir.exists():
@@ -193,11 +205,18 @@ def load_embedding_data(results_dir: str) -> pd.DataFrame:
                         # Parse test type from filename
                         stem = json_file.stem
                         if stem.startswith('sweep-'):
+                            # Legacy saturation sweep (baseline/ dir, old runs)
                             test_type = 'baseline'
                             parameter = stem.replace('sweep-', '')
                         elif stem.startswith('concurrent-'):
+                            # Latency concurrency sweep
                             test_type = 'concurrent'
                             parameter = stem.replace('concurrent-', '')
+                        elif stem.startswith('conc-'):
+                            # Operating-point probes (operating_point/ dir, or
+                            # legacy baseline/ dir in older runs)
+                            test_type = 'operating_point'
+                            parameter = stem.replace('conc-', '')
                         else:
                             test_type = 'unknown'
                             parameter = stem
@@ -275,6 +294,102 @@ def load_embedding_data(results_dir: str) -> pd.DataFrame:
         )
 
     return pd.DataFrame(all_results)
+
+
+def plot_operating_point(df: pd.DataFrame):
+    """Bar charts of throughput and P99 latency for operating-point probes (conc=1,8,peak)."""
+    if df.empty:
+        st.warning("No operating-point data to display")
+        return
+
+    df = df.copy()
+    df['concurrency'] = pd.to_numeric(df['parameter'], errors='coerce')
+    df = df.dropna(subset=['concurrency'])
+    df['concurrency'] = df['concurrency'].astype(int)
+
+    # groupby drops NaN-keyed rows silently (e.g. requested_cores=null for
+    # unpinned runs) — fill so the charts and the table below agree.
+    for key in ('platform', 'model', 'vllm_version', 'requested_cores',
+                'input_length', 'test_name', 'test_run_id'):
+        df[key] = df[key].fillna('n/a')
+
+    grouped = df.groupby([
+        'platform', 'model', 'vllm_version', 'requested_cores',
+        'input_length', 'test_name', 'test_run_id'
+    ])
+    colors = px.colors.qualitative.Set2
+    color_idx = 0
+
+    fig1 = go.Figure()
+    fig2 = go.Figure()
+
+    for (platform, model, _, cores, input_len, test_name, test_id), group_df in grouped:
+        group_df = group_df.sort_values('concurrency')
+        model_short = model.split('/')[-1]
+        plat = platform_short(platform)
+        run_id_short = test_id[-6:] if len(test_id) >= 6 else test_id
+        if test_name and test_name.strip():
+            label = f"{plat} | {test_name} ({run_id_short})"
+        else:
+            label = f"{plat} | {model_short} | {cores}c | {input_len}tok ({run_id_short})"
+
+        color = colors[color_idx % len(colors)]
+        x_labels = group_df['concurrency'].astype(str).tolist()
+
+        fig1.add_trace(go.Bar(
+            x=x_labels,
+            y=group_df['request_throughput_rps'],
+            name=label,
+            marker_color=color,
+        ))
+        fig2.add_trace(go.Bar(
+            x=x_labels,
+            y=group_df['p99_latency_ms'],
+            name=label,
+            marker_color=color,
+            showlegend=False,
+        ))
+        color_idx += 1
+
+    legend_opts = dict(
+        orientation="h", yanchor="top", y=-0.25,
+        xanchor="center", x=0.5, font=dict(size=10)
+    )
+    fig1.update_layout(
+        title="Request Throughput at Operating-Point Probes",
+        xaxis_title="Concurrency (probe)", yaxis_title="Request Throughput (req/s)",
+        barmode='group', height=500,
+        legend=legend_opts, margin=dict(b=200)
+    )
+    st.plotly_chart(fig1, use_container_width=True)
+
+    fig2.update_layout(
+        title="P99 Latency at Operating-Point Probes",
+        xaxis_title="Concurrency (probe)", yaxis_title="P99 E2E Latency (ms)",
+        barmode='group', height=500,
+        legend=legend_opts, margin=dict(b=200)
+    )
+    st.plotly_chart(fig2, use_container_width=True)
+
+    st.subheader("Operating-Point Metrics (All Configurations)")
+    display_df = df.copy()
+    display_df['config'] = display_df.apply(
+        lambda r: (
+            f"{r['model'].split('/')[-1]} | {r['requested_cores']}c"
+            f" | {r['input_length']}tok | run {r['test_run_id'][-8:]}"
+        ),
+        axis=1
+    )
+    metrics_display = display_df[[
+        'config', 'concurrency', 'request_throughput_rps', 'rps_per_core',
+        'token_throughput_tps', 'p99_latency_ms', 'mean_latency_ms', 'median_latency_ms'
+    ]].copy()
+    metrics_display.columns = [
+        'Configuration', 'Concurrency', 'RPS', 'RPS/Core',
+        'Token/s', 'P99 (ms)', 'Mean (ms)', 'Median (ms)'
+    ]
+    metrics_display = metrics_display.round(2)
+    st.dataframe(metrics_display, use_container_width=True)
 
 
 def plot_saturation_curve(df: pd.DataFrame):
@@ -964,19 +1079,44 @@ def main():
             st.info("No concurrent load data available for selected filters. Run latency tests to generate this data.")
 
     with tab2:
-        baseline_data = filtered_df[filtered_df['test_type'] == 'baseline']
-        if not baseline_data.empty:
-            plot_saturation_curve(baseline_data)
-        else:
-            st.info("No baseline saturation data available for selected filters. Run baseline tests to generate this data.")
+        op_data = filtered_df[filtered_df['test_type'] == 'operating_point']
+        baseline_sweep_data = filtered_df[filtered_df['test_type'] == 'baseline']
+
+        if not op_data.empty:
+            st.markdown("*Three fixed probes: sequential (conc=1), light load (conc=8), peak throughput.*")
+            plot_operating_point(op_data)
+
+        if not baseline_sweep_data.empty:
+            st.subheader("Legacy Saturation Sweep")
+            st.markdown("*Load-fraction sweep from older result trees (sweep-\\* files).*")
+            plot_saturation_curve(baseline_sweep_data)
+
+        if op_data.empty and baseline_sweep_data.empty:
+            st.info(
+                "No saturation data available for selected filters. "
+                "Run with scenario=operating_point or scenario=all to generate this data."
+            )
 
     with tab3:
-        st.markdown("*Analyze how performance scales when adding more CPU cores (baseline data at max load)*")
+        st.markdown("*Analyze how performance scales when adding more CPU cores (peak throughput probe)*")
 
-        baseline_inf_data = filtered_df[
-            (filtered_df['test_type'] == 'baseline') &
-            (filtered_df['parameter'] == 'inf')
-        ]
+        # Use the highest-throughput row per (model, cores) from operating_point,
+        # concurrent, or legacy baseline data. Falls back gracefully to whichever
+        # test types are present.
+        _peak_types = ['operating_point', 'concurrent', 'baseline']
+        _peak_candidates = filtered_df[
+            filtered_df['test_type'].isin(_peak_types) &
+            filtered_df['requested_cores'].notna()
+        ].copy()
+        if not _peak_candidates.empty:
+            _peak_idx = (
+                _peak_candidates
+                .groupby(['model', 'requested_cores'])['request_throughput_rps']
+                .idxmax()
+            )
+            baseline_inf_data = _peak_candidates.loc[_peak_idx]
+        else:
+            baseline_inf_data = pd.DataFrame()
 
         if not baseline_inf_data.empty and baseline_inf_data['requested_cores'].nunique() > 1:
             st.subheader("📈 Throughput Scaling")
@@ -1131,26 +1271,30 @@ def main():
                 "Older result directories will not have this data."
             )
         else:
-            # Summary table: one row per run
+            # Summary table: one row per run; exclude trailing zero-mem samples
             summary_rows = []
             for run_id, sdf in visible_stats.items():
                 run_meta = filtered_df[filtered_df['test_run_id'] == run_id].iloc[0]
+                sdf_v = _trim_trailing_zero_mem(sdf)
+                has_samples = len(sdf_v) > 0
                 summary_rows.append({
                     'Test Run': run_id[-12:],
                     'Model': run_meta['model'].split('/')[-1],
                     'Platform': platform_short(run_meta['platform']),
-                    'Samples': len(sdf),
-                    'Peak Memory (GB)': round(sdf['mem_usage_gb'].max(), 2),
-                    'Avg Memory (GB)': round(sdf['mem_usage_gb'].mean(), 2),
-                    'Peak CPU %': round(sdf['cpu_pct'].max(), 1),
-                    'Avg CPU %': round(sdf['cpu_pct'].mean(), 1),
-                    'Peak PIDs': int(sdf['pids'].max()),
+                    'Samples': len(sdf_v),
+                    'Peak Memory (GB)': round(sdf_v['mem_usage_gb'].max(), 2) if has_samples else 0.0,
+                    'Avg Memory (GB)': round(sdf_v['mem_usage_gb'].mean(), 2) if has_samples else 0.0,
+                    'Peak CPU %': round(sdf_v['cpu_pct'].max(), 1) if has_samples else 0.0,
+                    'Avg CPU %': round(sdf_v['cpu_pct'].mean(), 1) if has_samples else 0.0,
+                    'Peak PIDs': int(sdf_v['pids'].max()) if has_samples else 0,
                 })
 
             st.subheader("Resource Usage Summary")
             st.dataframe(pd.DataFrame(summary_rows), use_container_width=True, hide_index=True)
 
-            # Time-series charts for each visible run
+            # Time-series charts — x-axis is elapsed minutes from each run's first
+            # sample so that sequential runs all start at t=0 and are comparable.
+            # Trailing zero-memory samples (container already stopped) are dropped.
             st.subheader("Memory Usage Over Time")
             colors = px.colors.qualitative.Set2
 
@@ -1158,43 +1302,72 @@ def main():
             fig_cpu = go.Figure()
             for i, (run_id, sdf) in enumerate(visible_stats.items()):
                 run_meta = filtered_df[filtered_df['test_run_id'] == run_id].iloc[0]
-                label = f"{platform_short(run_meta['platform'])} | {run_meta['model'].split('/')[-1]} | {run_id[-8:]}"
+                label = (
+                    f"{platform_short(run_meta['platform'])} | "
+                    f"{run_meta['model'].split('/')[-1]} | {run_id[-8:]}"
+                )
                 color = colors[i % len(colors)]
 
+                # Elapsed minutes from first sample
+                t0 = sdf['timestamp'].min()
+                elapsed = (sdf['timestamp'] - t0).dt.total_seconds() / 60
+
+                # Drop trailing zeros — artifact of container stopping before
+                # the stats collector was signalled
+                sdf_trimmed = _trim_trailing_zero_mem(sdf)
+                elapsed_trimmed = elapsed.loc[sdf_trimmed.index]
+
                 fig_mem.add_trace(go.Scatter(
-                    x=sdf['timestamp'],
-                    y=sdf['mem_usage_gb'],
+                    x=elapsed_trimmed,
+                    y=sdf_trimmed['mem_usage_gb'],
                     name=label,
                     mode='lines',
                     line=dict(width=2, color=color),
                 ))
                 fig_cpu.add_trace(go.Scatter(
-                    x=sdf['timestamp'],
-                    y=sdf['cpu_pct'],
+                    x=elapsed_trimmed,
+                    y=sdf_trimmed['cpu_pct'],
                     name=label,
                     mode='lines',
                     line=dict(width=2, color=color),
                 ))
 
+            # n_runs drives the legend height estimate: each row holds ~3 items.
+            n_runs = len(visible_stats)
+            legend_rows = max(1, (n_runs + 2) // 3)
+            extra_b = legend_rows * 28   # ~28 px per legend row
+            _height, _t, _b = 420, 30, 60 + extra_b
+            # Position legend just below the x-axis title (~50 px gap for ticks+title).
+            _legend_y = -(50 / (_height - _t - _b))
+            _stats_legend = dict(
+                orientation="h",
+                yanchor="top", y=_legend_y,
+                xanchor="center", x=0.5,
+                font=dict(size=10),
+            )
+
             fig_mem.update_layout(
-                xaxis_title="Time",
+                xaxis_title="Elapsed time (min)",
                 yaxis_title="Memory Usage (GB)",
-                height=400,
+                height=_height,
                 hovermode='x unified',
-                legend=dict(orientation="h", y=-0.3, xanchor="center", x=0.5),
-                margin=dict(b=120),
+                legend=_stats_legend,
+                margin=dict(t=_t, b=_b),
             )
             st.plotly_chart(fig_mem, use_container_width=True)
 
             st.subheader("CPU Usage Over Time")
-            st.caption("CPU % > 100% is expected on CPU-only deployments — Linux reports total across all cores (2700% ≈ 27 fully-used cores).")
+            st.caption(
+                "CPU % > 100% is expected on CPU-only deployments — "
+                "Linux reports total across all cores (2700% ≈ 27 fully-used cores)."
+            )
             fig_cpu.update_layout(
-                xaxis_title="Time",
+                xaxis_title="Elapsed time (min)",
                 yaxis_title="CPU Usage (%)",
-                height=400,
+                height=_height,
                 hovermode='x unified',
-                legend=dict(orientation="h", y=-0.3, xanchor="center", x=0.5),
-                margin=dict(b=120),
+                legend=_stats_legend,
+                margin=dict(t=_t, b=_b),
             )
             st.plotly_chart(fig_cpu, use_container_width=True)
 

@@ -8,11 +8,12 @@
 #   ./run-embedding-suite.sh [options]
 #
 # Options:
-#   --models LIST           Comma-separated models or preset (all|small|medium|large|quick|ibm-ml)
+#   --models LIST           Comma-separated models or preset (all|small|medium|large|quick|granite-ml)
 #                           Default: all
 #   --cores LIST            Comma-separated core counts
 #                           Default: 4,8,16,32
-#   --scenario TYPE         Test scenario (baseline|latency|all)
+#   --scenario TYPE         Test scenario (operating_point|latency|all)
+#                           'baseline' accepted as alias for operating_point (deprecated)
 #                           Default: all
 #   --num-prompts NUM       Number of prompts per test
 #                           Default: 1000
@@ -51,7 +52,7 @@
 #
 #   # IBM/Microsoft multilingual models on 4 cores (RHAIIS image)
 #   export VLLM_CONTAINER_IMAGE=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
-#   ./run-embedding-suite.sh --models ibm-ml --cores 4 --scenario baseline
+#   ./run-embedding-suite.sh --models granite-ml --cores 4 --scenario operating_point
 #
 #   # Test specific models
 #   ./run-embedding-suite.sh \
@@ -60,11 +61,11 @@
 #   # Skip large model
 #   ./run-embedding-suite.sh --skip-models "RedHatAI/Qwen3-Embedding-8B"
 #
-#   # Baseline tests only on 16 cores
-#   ./run-embedding-suite.sh --scenario baseline --cores 16
+#   # Operating-point tests only on 16 cores
+#   ./run-embedding-suite.sh --scenario operating_point --cores 16
 #
 #   # Pin vLLM to explicit CPU range (e.g., NUMA node 2 on a 6-NUMA system)
-#   ./run-embedding-suite.sh --models ibm-ml --cores 4 --vllm-cpus 64-67
+#   ./run-embedding-suite.sh --models granite-ml --cores 4 --vllm-cpus 64-67
 #
 #   # Increase per-test time limit for slow models (e.g. Qwen3-Embedding-8B)
 #   ./run-embedding-suite.sh --models large --max-seconds 600
@@ -176,6 +177,14 @@ log_success() { echo -e "${GREEN}[SUCCESS]${NC} $*"; }
 log_warning() { echo -e "${YELLOW}[WARNING]${NC} $*"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $*"; }
 
+# Models that require HuggingFace trust_remote_code for vLLM startup
+model_needs_trust_remote_code() {
+    case "$1" in
+        *harrier-oss*|*nomic-embed-text*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 show_help() {
     sed -n '/^# ===/,/^# ===/p' "$0" | sed 's/^# //; s/^#//'
 }
@@ -264,6 +273,10 @@ case "${MODELS_INPUT}" in
     granite-ml)
         MODELS=("${PRESET_GRANITE_ML[@]}")
         ;;
+    ibm-ml)
+        log_warning "Model preset 'ibm-ml' is deprecated; use 'granite-ml' instead"
+        MODELS=("${PRESET_GRANITE_ML[@]}")
+        ;;
     *)
         IFS=',' read -ra MODELS <<< "${MODELS_INPUT}"
         ;;
@@ -303,10 +316,16 @@ if [[ -n "${MAX_SECONDS}" && ! "${MAX_SECONDS}" =~ ^[0-9]+$ ]]; then
     exit 1
 fi
 
+# Accept 'baseline' as a deprecated alias for 'operating_point'
+if [[ "${SCENARIO}" == "baseline" ]]; then
+    log_warning "Scenario 'baseline' is deprecated; using 'operating_point' instead"
+    SCENARIO="operating_point"
+fi
+
 # Validate scenario
-if [[ ! "${SCENARIO}" =~ ^(baseline|latency|all)$ ]]; then
+if [[ ! "${SCENARIO}" =~ ^(operating_point|latency|all)$ ]]; then
     log_error "Invalid scenario: ${SCENARIO}"
-    log_error "Must be: baseline, latency, or all"
+    log_error "Must be: operating_point, latency, or all  (baseline accepted as alias for operating_point)"
     exit 1
 fi
 
@@ -398,6 +417,10 @@ for model in "${MODELS[@]}"; do
         [[ -n "${VLLM_BENCH_NUMA_NODE}" ]] && cmd+=(-e "vllm_bench_numa_node=${VLLM_BENCH_NUMA_NODE}")
         [[ -n "${VLLM_CPUS}" ]] && cmd+=(-e "vllm_cpus=${VLLM_CPUS}")
 
+        if model_needs_trust_remote_code "${model}"; then
+            cmd+=(-e "trust_remote_code=true")
+        fi
+
         # Parallel instance overrides — set env vars to run multiple instances
         # simultaneously on the same host (each with its own container, port, NUMA nodes):
         #   VLLM_CONTAINER_NAME=vllm-0 VLLM_PORT=8000 VLLM_NUMA_NODES="0,1" ./run-embedding-suite.sh
@@ -413,9 +436,13 @@ for model in "${MODELS[@]}"; do
 
         if [[ "${DRY_RUN}" == true ]]; then
             log_info "DRY RUN: Would execute:"
-            echo "  ${cmd[*]}"
+            echo "  SCENARIO=${SCENARIO} ${cmd[*]}"
             continue
         fi
+
+        # Export normalized SCENARIO so any env-based consumers see the
+        # post-alias value; the playbook itself prefers -e scenario=.
+        export SCENARIO
 
         # Execute test
         test_start=$(date +%s)
