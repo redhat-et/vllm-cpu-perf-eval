@@ -39,7 +39,7 @@ def test_embedding_dry_run_without_model():
     assert result.returncode == 0, f"STDERR: {result.stderr}"
     assert "run-embedding-suite.sh" in result.stdout
     assert "--models all" in result.stdout
-    assert "--num-prompts 250" in result.stdout
+    assert "--num-prompts 1000" in result.stdout
 
 
 def test_offline_batch_dry_run_without_model():
