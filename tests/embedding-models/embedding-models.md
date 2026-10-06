@@ -121,7 +121,7 @@ Legacy runs may still have `baseline/sweep-*.json`; dashboards and
 
 | Test ID | Scenario | Focus |
 | --- | --- | --- |
-| `EMB-OP-GRANITE-EN-EMB512` | operating_point | English encoder throughput/latency probes |
+| `EMB-OP-GRANITE-EN-R2-EMB512` | operating_point | English encoder throughput/latency probes |
 | `EMB-LATENCY-GRANITE-ML-EMB512` | latency | Multilingual concurrency envelope |
 | `EMB-ALL-*` | all | Full latency + operating-point workflow |
 

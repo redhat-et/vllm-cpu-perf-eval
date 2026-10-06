@@ -9,9 +9,9 @@ matrix:
 
   # Test case mapping
   test_cases:
-    # Test Case 1.1: Baseline Performance - English Model
+    # Test Case 1.1: Operating-point probes - English Model
     - id: "EMB-OP-GRANITE-EN-R2-EMB512"
-      description: "Baseline performance and scalability for English embedding model"
+      description: "Operating-point probes for English embedding model"
       model: "granite-embedding-english-r2"
       model_path: "ibm-granite/granite-embedding-english-r2"
       architecture: "MiniLM/BERT"
@@ -21,9 +21,9 @@ matrix:
       quantization: false
       kv_cache: "1GiB"
 
-    # Test Case 1.2: Baseline Performance - Multilingual Model
+    # Test Case 1.2: Operating-point probes - Multilingual Model
     - id: "EMB-OP-GRANITE-ML-EMB512"
-      description: "Baseline performance and scalability for Multilingual embedding model"
+      description: "Operating-point probes for multilingual embedding model"
       model: "granite-embedding-278m-multilingual"
       model_path: "ibm-granite/granite-embedding-278m-multilingual"
       architecture: "XLM-RoBERTa"
@@ -47,7 +47,7 @@ matrix:
 
     # Test Case 3.1: granite-ml parallel benchmark - embeddinggemma-300m
     - id: "EMB-OP-GEMMA-300M-EMB512"
-      description: "Baseline performance for embeddinggemma-300m (granite-ml preset, slot 0)"
+      description: "Operating-point probes for embeddinggemma-300m (granite-ml preset, slot 0)"
       model: "embeddinggemma-300m"
       model_path: "RedHatAI/embeddinggemma-300m"
       architecture: "Gemma/Decoder"
@@ -59,7 +59,7 @@ matrix:
 
     # Test Case 3.2: granite-ml parallel benchmark - harrier-oss-v1-270m
     - id: "EMB-OP-HARRIER-270M-EMB512"
-      description: "Baseline performance for microsoft/harrier-oss-v1-270m (granite-ml preset, slot 1)"
+      description: "Operating-point probes for microsoft/harrier-oss-v1-270m (granite-ml preset, slot 1)"
       model: "harrier-oss-v1-270m"
       model_path: "microsoft/harrier-oss-v1-270m"
       architecture: "Decoder"
@@ -72,7 +72,7 @@ matrix:
 
     # Test Case 3.3: granite-ml parallel benchmark - granite-embedding-311m-multilingual-r2
     - id: "EMB-OP-GRANITE-311M-ML-R2-EMB512"
-      description: "Baseline performance for granite-embedding-311m-multilingual-r2 (granite-ml preset, slot 2)"
+      description: "Operating-point probes for granite-embedding-311m-multilingual-r2 (granite-ml preset, slot 2)"
       model: "granite-embedding-311m-multilingual-r2"
       model_path: "ibm-granite/granite-embedding-311m-multilingual-r2"
       architecture: "XLM-RoBERTa"
