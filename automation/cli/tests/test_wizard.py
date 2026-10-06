@@ -9,6 +9,7 @@ from cpueval.wizard import (
     run_wizard,
     select_suite_by_index,
     _sorted_suites,
+    _suite_supports_cpu_pinning,
     _wizard_fields_for_suite,
 )
 
@@ -191,3 +192,47 @@ def test_wizard_cancel_at_launch(host_env):
     )
 
     assert result is None
+
+
+def test_embedding_suite_supports_cpu_pinning():
+    registry = SuiteRegistry()
+    suite = registry.get_suite("embedding")
+    assert suite is not None
+    assert _suite_supports_cpu_pinning(suite)
+
+
+def test_build_params_embedding_cpu_pinning():
+    registry = SuiteRegistry()
+    suite = registry.get_suite("embedding")
+    assert suite is not None
+
+    result = build_params_from_answers(
+        suite,
+        {
+            "models": "quick",
+            "cores": "16",
+            "scenario": "all",
+            "vllm_bench_cpus": "64-95",
+            "vllm_bench_numa_node": "1",
+        },
+    )
+
+    assert result.vllm_bench_cpus == "64-95"
+    assert result.vllm_bench_numa == 1
+    assert result.vllm_cpus is None
+    assert result.guidellm_cpus is None
+
+
+def test_embedding_as_execute_kwargs_includes_bench_cpus():
+    registry = SuiteRegistry()
+    suite = registry.get_suite("embedding")
+    assert suite is not None
+
+    result = build_params_from_answers(
+        suite,
+        {"models": "quick", "vllm_bench_cpus": "0-31", "vllm_bench_numa_node": "0"},
+    )
+
+    kwargs = result.as_execute_kwargs()
+    assert kwargs["vllm_bench_cpus"] == "0-31"
+    assert kwargs["vllm_bench_numa"] == 0
