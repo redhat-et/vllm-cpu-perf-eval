@@ -41,6 +41,7 @@ Thumbs.db
 
 # Results directory - ignore test result data but keep scripts and docs
 results/llm
+results/embedding/
 results/*.csv
 !results/README.md
 !results/README-cpu-results-psap-conversion.md
