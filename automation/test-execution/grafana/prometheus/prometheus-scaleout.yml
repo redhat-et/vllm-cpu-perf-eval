@@ -1,0 +1,114 @@
+# Prometheus Configuration — vLLM Scale-Out Deployment (llm-d: EPP + Envoy)
+#
+# Architecture:
+#   SSH tunnels forward each vLLM instance port and the EPP metrics port.
+#   Prometheus scrapes all backends plus EPP routing metrics.
+#   Grafana (or Streamlit post-test) visualizes per-backend and routing data.
+#
+# SSH Tunnel Setup (adapt DUT_HOSTNAME and instance count as needed):
+#
+#   # 5 vLLM instances (ports 8000-8004) + EPP metrics (9090) + Envoy admin (19000)
+#   ssh -L 8000:localhost:8000 \
+#       -L 8001:localhost:8001 \
+#       -L 8002:localhost:8002 \
+#       -L 8003:localhost:8003 \
+#       -L 8004:localhost:8004 \
+#       -L 9091:localhost:9090 \
+#       -L 19000:localhost:19000 \
+#       ec2-user@$DUT_HOSTNAME
+#
+# Note: EPP is tunneled to local port 9091 to avoid conflict with Prometheus (:9090)
+
+global:
+  scrape_interval: 10s
+  evaluation_interval: 10s
+
+  external_labels:
+    monitor: "vllm-scaleout-perf-eval"
+    environment: "benchmark"
+    routing: "llm-d"
+
+scrape_configs:
+  # ============================================================================
+  # vLLM Instances — per-backend metrics
+  # Each instance exposes: request throughput, queue depth, KV cache utilization,
+  # prefix cache hit rate, token generation latency
+  # ============================================================================
+  - job_name: "vllm-instance-1"
+    scrape_interval: 10s
+    metrics_path: "/metrics"
+    static_configs:
+      - targets: ["localhost:8000"]
+        labels:
+          instance: "vllm-1"
+          source: "vllm-live"
+
+  - job_name: "vllm-instance-2"
+    scrape_interval: 10s
+    metrics_path: "/metrics"
+    static_configs:
+      - targets: ["localhost:8001"]
+        labels:
+          instance: "vllm-2"
+          source: "vllm-live"
+
+  - job_name: "vllm-instance-3"
+    scrape_interval: 10s
+    metrics_path: "/metrics"
+    static_configs:
+      - targets: ["localhost:8002"]
+        labels:
+          instance: "vllm-3"
+          source: "vllm-live"
+
+  - job_name: "vllm-instance-4"
+    scrape_interval: 10s
+    metrics_path: "/metrics"
+    static_configs:
+      - targets: ["localhost:8003"]
+        labels:
+          instance: "vllm-4"
+          source: "vllm-live"
+
+  - job_name: "vllm-instance-5"
+    scrape_interval: 10s
+    metrics_path: "/metrics"
+    static_configs:
+      - targets: ["localhost:8004"]
+        labels:
+          instance: "vllm-5"
+          source: "vllm-live"
+
+  # ============================================================================
+  # EPP (Endpoint Picker) Routing Metrics
+  # Exposes per-backend routing decisions, prefix-cache hit counts, queue depths,
+  # KV cache utilization as seen by the EPP scorer, and routing latency.
+  #
+  # Tunneled to localhost:9091 to avoid conflict with Prometheus (:9090)
+  # ============================================================================
+  - job_name: "epp-routing"
+    scrape_interval: 10s
+    metrics_path: "/metrics"
+    static_configs:
+      - targets: ["localhost:9091"]
+        labels:
+          instance: "epp"
+          source: "llm-d-epp"
+
+  # ============================================================================
+  # Envoy Admin Stats
+  # Exposes upstream cluster health, request rates, connection counts.
+  # ============================================================================
+  - job_name: "envoy"
+    scrape_interval: 10s
+    metrics_path: "/stats/prometheus"
+    static_configs:
+      - targets: ["localhost:19000"]
+        labels:
+          instance: "envoy"
+          source: "envoy-proxy"
+
+  # Prometheus self-monitoring
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]

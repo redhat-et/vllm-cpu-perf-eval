@@ -1,9 +1,14 @@
 ---
-# Example Inventory for vLLM Scale-Out Deployment
-# Copy this to your main inventory and customize
+# Example Inventory for vLLM Scale-Out Deployment (llm-d: EPP + Envoy)
+# Copy this to your main inventory and customize.
 #
 # Usage:
 #   ansible-playbook -i inventory/examples/vllm-scaleout-deployment.yml start-vllm-scaleout.yml
+#
+# Combined lifecycle (deploy + benchmark + teardown):
+#   ansible-playbook -i inventory/examples/vllm-scaleout-deployment.yml embedding-benchmark-scaleout.yml
+#   ansible-playbook -i inventory/examples/vllm-scaleout-deployment.yml llm-benchmark-scaleout.yml
+#   ansible-playbook -i inventory/examples/vllm-scaleout-deployment.yml audio-benchmark-scaleout.yml
 
 all:
   children:
@@ -18,7 +23,7 @@ all:
         # vLLM Server Configuration (from existing setup)
         vllm_server:
           container_runtime: podman
-          container_image: "docker.io/vllm/vllm-openai-cpu:v0.18.0"
+          container_image: "docker.io/vllm/vllm-openai-cpu:v0.25.1"
           host: "0.0.0.0"
           port: 8000
 
@@ -27,19 +32,19 @@ all:
         log_dir: /tmp/vllm-logs
 
         # ======================================================================
-        # vLLM Scale-Out Configuration
+        # vLLM Scale-Out Configuration (llm-d)
         # ======================================================================
 
-        # Scenario 1: Default - 5 instances, 32 cores each, least connections
+        # Scenario 1: LLM inference — 5 instances, 32 cores, intelligent routing (default)
         scaleout_num_instances: 5
         scaleout_cores_per_instance: 32
         scaleout_start_core: 32
         scaleout_enable_smt: false
         scaleout_enable_prefix_caching: true
-        scaleout_nginx_policy: "least_conn"
-        scaleout_nginx_port: 8080
+        scaleout_routing_policy: "intelligent"
+        scaleout_envoy_port: 8081
 
-        # Model to deploy
+        # Model to deploy (override per benchmark type)
         test_model: "RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w8a8"
 
         # Optional: HuggingFace token for gated models
@@ -49,25 +54,46 @@ all:
         # Alternative Scenarios (comment/uncomment as needed)
         # ======================================================================
 
-        # Scenario 2: High instance count with smaller cores
+        # Scenario 2: Embedding — 3 instances, 16 cores, context capped
+        # scaleout_num_instances: 3
+        # scaleout_cores_per_instance: 16
+        # test_model: "RedHatAI/granite-embedding-english-r2"
+        # scaleout_vllm_max_model_len: 512
+        # scaleout_routing_policy: "intelligent"
+
+        # Scenario 3: Audio/Whisper — 4 instances, 8 cores, transcription task
+        # scaleout_num_instances: 4
+        # scaleout_cores_per_instance: 8
+        # test_model: "openai/whisper-large-v3"
+        # scaleout_vllm_task: "transcription"
+        # scaleout_enable_prefix_caching: false
+        # scaleout_routing_policy: "round_robin"  # prefix-cache scoring N/A for ASR
+
+        # Scenario 4: High instance count with SMT
         # scaleout_num_instances: 8
         # scaleout_cores_per_instance: 8
-        # scaleout_start_core: 32
         # scaleout_enable_smt: true
-        # scaleout_nginx_policy: "round_robin"
+        # scaleout_routing_policy: "intelligent"
 
-        # Scenario 3: Medium instance count
-        # scaleout_num_instances: 6
-        # scaleout_cores_per_instance: 16
-        # scaleout_start_core: 32
-        # scaleout_enable_smt: false
-        # scaleout_nginx_policy: "least_conn"
-
-        # Scenario 4: Prefix caching disabled
-        # scaleout_num_instances: 4
+        # Scenario 5: Routing policy comparison baseline
+        # scaleout_num_instances: 5
         # scaleout_cores_per_instance: 32
-        # scaleout_enable_prefix_caching: false
-        # scaleout_nginx_policy: "ip_hash"
+        # scaleout_routing_policy: "round_robin"  # no EPP — pure Envoy round-robin
+
+        # ======================================================================
+        # EPP Scorer Weight Tuning (only for routing_policy: intelligent)
+        # ======================================================================
+        # Defaults favour prefix-cache affinity (useful for RAG, chat history):
+        # scaleout_epp_prefix_cache_weight: 3
+        # scaleout_epp_queue_weight: 2
+        # scaleout_epp_kv_cache_weight: 2
+        # scaleout_epp_lru_weight: 2
+        #
+        # Load-aware round-robin (equal weights, no strong affinity):
+        # scaleout_epp_prefix_cache_weight: 1
+        # scaleout_epp_queue_weight: 1
+        # scaleout_epp_kv_cache_weight: 1
+        # scaleout_epp_lru_weight: 1
 
         # ======================================================================
         # Advanced Options
@@ -75,17 +101,12 @@ all:
 
         # Custom vLLM arguments
         # scaleout_vllm_extra_args:
-        #   - "--max-model-len"
-        #   - "4096"
         #   - "--dtype"
         #   - "bfloat16"
 
-        # Custom nginx cores
-        # scaleout_nginx_cores: "1-15"
-
         # Custom container images
         # scaleout_vllm_image: "quay.io/vllm/automation-vllm:cpu-24515584412"
-        # scaleout_nginx_image: "nginx:alpine"
+        # scaleout_epp_image: "ghcr.io/llm-d/llm-d-router-endpoint-picker:v0.3.1"
 
     load_generator:
       hosts:
@@ -95,6 +116,6 @@ all:
           ansible_connection: ssh
 
       vars:
-        # GuideLLM configuration (for benchmarking the scale-out deployment)
+        # GuideLLM points to the Envoy load balancer (port 8081)
         guidellm:
-          target_url: "http://192.168.1.100:8080/v1"  # Points to nginx load balancer
+          target_url: "http://192.168.1.100:8081/v1"
