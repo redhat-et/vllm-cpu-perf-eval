@@ -137,11 +137,17 @@ def load_container_stats(results_dir: str) -> dict[str, pd.DataFrame]:
 
 
 def _trim_trailing_zero_mem(sdf: pd.DataFrame) -> pd.DataFrame:
-    """Drop samples after the container stopped (mem_usage_gb falls back to 0)."""
+    """Drop samples after the container stopped (mem_usage_gb falls back to 0).
+
+    Trailing zeros are removed by keeping rows through the last non-zero
+    memory sample. Intermittent zero readings earlier in the series are
+    kept (unlike a prefix based on cumulative non-zero count).
+    """
     nz = sdf['mem_usage_gb'].ne(0)
     if not nz.any():
         return sdf.iloc[0:0]
-    return sdf.loc[:nz.cumsum().idxmax()]
+    last_nonzero = nz[nz].index[-1]
+    return sdf.loc[:last_nonzero]
 
 
 @st.cache_data(ttl=3600)  # Increased from 5min to 1 hour - results rarely change
@@ -1308,24 +1314,24 @@ def main():
                 )
                 color = colors[i % len(colors)]
 
-                # Elapsed minutes from first sample
-                t0 = sdf['timestamp'].min()
-                elapsed = (sdf['timestamp'] - t0).dt.total_seconds() / 60
-
-                # Drop trailing zeros — artifact of container stopping before
-                # the stats collector was signalled
+                # Trim first, then elapsed time from the same frame (avoids x/y drift).
                 sdf_trimmed = _trim_trailing_zero_mem(sdf)
-                elapsed_trimmed = elapsed.loc[sdf_trimmed.index]
+                if sdf_trimmed.empty:
+                    continue
+                t0 = sdf_trimmed['timestamp'].min()
+                elapsed_min = (
+                    (sdf_trimmed['timestamp'] - t0).dt.total_seconds() / 60
+                )
 
                 fig_mem.add_trace(go.Scatter(
-                    x=elapsed_trimmed,
+                    x=elapsed_min,
                     y=sdf_trimmed['mem_usage_gb'],
                     name=label,
                     mode='lines',
                     line=dict(width=2, color=color),
                 ))
                 fig_cpu.add_trace(go.Scatter(
-                    x=elapsed_trimmed,
+                    x=elapsed_min,
                     y=sdf_trimmed['cpu_pct'],
                     name=label,
                     mode='lines',
