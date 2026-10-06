@@ -634,6 +634,9 @@ def _collect_answers(
     if requires_model and not answers.get("model") and not answers.get("models"):
         raise typer.Exit(1)
 
+    if _suite_supports_cpu_pinning(suite):
+        _collect_cpu_pinning(driver, console, suite, answers)
+
     return answers
 
 

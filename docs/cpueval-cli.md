@@ -347,10 +347,13 @@ Typical flow:
 3. Choose whether to customize parameters
 4. For `concurrent-load` / `rhaiis-sweep`, customize prompts for models, CPU cores,
    optional DUT/load-generator CPU pinning, and workloads (type a value or Enter to keep defaults).
-   For `embedding`, prompts include optional benchmark-container CPU range and NUMA node
-   (`--vllm-bench-cpus` / `--vllm-bench-numa-node`) in addition to inference-server pinning
+   For `embedding` (and other suites with pinning flags), choosing **customize** also offers
+   optional inference-server and benchmark-container CPU / NUMA prompts
 5. Optionally set a result tag
 6. Confirm dry-run / skip-doctor / launch
+
+Launch runs pre-flight checks via `cpueval doctor` **without** host ping (same as
+`cpueval run`). Run `./cpueval doctor` separately when you want connectivity verified.
 
 After a successful run, view results with `cpueval results --last` or
 `cpueval dashboard start`.
@@ -596,8 +599,9 @@ to pin that container independently:
   --vllm-bench-cpus 32-63 --vllm-bench-numa-node 1
 ```
 
-The wizard also exposes these prompts when the `embedding` suite is
-selected and CPU pinning is enabled.
+In the wizard, choose **customize** on the `embedding` suite to get optional
+prompts for `--vllm-cpus`, `--vllm-numa`, `--vllm-bench-cpus`, and
+`--vllm-bench-numa-node` (Enter to skip any step).
 
 **Using a profile:**
 
