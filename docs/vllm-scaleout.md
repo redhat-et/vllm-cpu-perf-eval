@@ -411,7 +411,7 @@ curl http://localhost:8081/health
 | `llm-benchmark-scaleout.yml` | Deploy + LLM inference benchmark + teardown |
 | `audio-benchmark-scaleout.yml` | Deploy + audio/ASR benchmark + teardown |
 
-### Configuration
+### Configuration Files
 
 | File | Purpose |
 |---|---|
@@ -432,7 +432,7 @@ curl http://localhost:8081/health
 | `templates/epp-config.yaml.j2` | EPP plugin config (scorer weights) |
 | `templates/epp-endpoints.yaml.j2` | EPP worker inventory (live-reloadable) |
 
-### Observability
+### Observability Files
 
 | File | Purpose |
 |---|---|
