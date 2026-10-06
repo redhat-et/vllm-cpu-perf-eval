@@ -101,6 +101,45 @@ with st.sidebar.expander("📋 Workload Reference", expanded=False):
     )
     st.caption("ISL = Input Sequence Length | OSL = Output Sequence Length")
 
+@st.cache_data(ttl=30)
+def load_scaleout_runs(base_dir: str) -> List[Dict]:
+    """Find scale-out run directories that have per-instance metrics files."""
+    runs: List[Dict] = []
+    base = Path(base_dir)
+    if not base.exists():
+        return runs
+    for meta_file in base.rglob("test-metadata.json"):
+        run_dir = meta_file.parent
+        instance_files = sorted(run_dir.glob("vllm-metrics-instance-*.json"))
+        if not instance_files:
+            continue
+        try:
+            meta = json.loads(meta_file.read_text())
+        except Exception:
+            meta = {}
+        if meta.get("deployment_type") != "scaleout":
+            continue
+        runs.append({
+            "path": str(run_dir),
+            "meta": meta,
+            "instance_files": [str(f) for f in instance_files],
+            "has_epp": (run_dir / "epp-metrics.json").exists(),
+            "label": (
+                f"{run_dir.name} "
+                f"({meta.get('num_instances', '?')}× "
+                f"{meta.get('routing_policy', '?')})"
+            ),
+            # fields mirroring the single-instance result dict for filter reuse
+            "test_run_id": meta.get("test_run_id", run_dir.name),
+            "model": meta.get("model", "unknown"),
+            "platform": meta.get("platform", "unknown"),
+            "vllm_mode": "scaleout",
+            "num_instances": meta.get("num_instances", "?"),
+            "routing_policy": meta.get("routing_policy", "?"),
+        })
+    return runs
+
+
 # Load vLLM metrics
 @st.cache_data
 def load_vllm_metrics(base_dir: str):
@@ -150,51 +189,120 @@ def load_vllm_metrics(base_dir: str):
     return metrics_data
 
 results = load_vllm_metrics(results_dir)
+scaleout_runs = load_scaleout_runs(results_dir)
 
-if not results:
+has_managed = any(r.get('vllm_mode') == 'managed' for r in results)
+has_external = any(r.get('vllm_mode') == 'external' for r in results)
+has_scaleout = len(scaleout_runs) > 0
+
+if not results and not has_scaleout:
     st.error("No vLLM metrics found!")
     st.info(f"Looking in: {Path(results_dir).absolute()}")
     st.info("Make sure vLLM metrics collection is enabled in your benchmark runs.")
     st.stop()
 
-st.sidebar.success(f"Loaded {len(results)} metric files")
+if results:
+    st.sidebar.success(f"Loaded {len(results)} single-instance metric file(s)")
+if has_scaleout:
+    st.sidebar.info(f"Found {len(scaleout_runs)} scale-out run(s)")
 
-# Check if we have both managed and external tests
-has_managed = any(r.get('vllm_mode') == 'managed' for r in results)
-has_external = any(r.get('vllm_mode') == 'external' for r in results)
+# Deployment mode selection
+_mode_options: List[str] = []
+if has_managed:
+    _mode_options.append("Managed (DUT Container)")
+if has_external:
+    _mode_options.append("External Endpoints")
+if has_scaleout:
+    _mode_options.append("Scale-Out (llm-d)")
 
-# Deployment mode selection (only show if both types exist)
-if has_managed and has_external:
+if len(_mode_options) > 1:
     st.markdown("---")
     deployment_mode = st.radio(
         "📍 Test Deployment Mode",
-        ["Managed (DUT Container)", "External Endpoints"],
+        _mode_options,
         horizontal=True,
-        help="Managed: vLLM runs on DUT in container | External: vLLM runs on external endpoint (cloud/K8s)"
+        help=(
+            "Managed: vLLM on DUT container | "
+            "External: existing endpoint | "
+            "Scale-Out: llm-d (EPP + Envoy) multi-instance"
+        ),
     )
-    test_mode = 'managed' if deployment_mode == "Managed (DUT Container)" else 'external'
+elif _mode_options:
+    deployment_mode = _mode_options[0]
+else:
+    deployment_mode = "Managed (DUT Container)"
 
-    # Info message about different filters
+if deployment_mode == "Scale-Out (llm-d)":
+    test_mode = 'scaleout'
+elif deployment_mode == "Managed (DUT Container)":
+    test_mode = 'managed'
+else:
+    test_mode = 'external'
+
+# Filter single-instance results to the selected mode (not used in scaleout view)
+if test_mode != 'scaleout' and results:
     if test_mode == 'external':
-        st.info("ℹ️ External endpoint view: Filter by endpoint URL instead of platform/cores")
-
-    # Filter results by mode
-    mode_filtered_results = [r for r in results if r.get('vllm_mode') == test_mode]
-
-    if not mode_filtered_results:
+        st.info(
+            "ℹ️ External endpoint view: "
+            "Filter by endpoint URL instead of platform/cores"
+        )
+    mode_filtered_results = [
+        r for r in results if r.get('vllm_mode') == test_mode
+    ]
+    if not mode_filtered_results and test_mode != 'scaleout':
         st.warning(f"⚠️ No {test_mode} test results found.")
         st.stop()
-
     results = mode_filtered_results
-elif has_external:
-    # Only external tests exist
-    st.info("ℹ️ Showing external endpoint test results only")
-    test_mode = 'external'
-    results = [r for r in results if r.get('vllm_mode') == 'external']
-else:
-    # Only managed tests exist (default)
-    test_mode = 'managed'
-    results = [r for r in results if r.get('vllm_mode') == 'managed']
+
+# ── Scale-Out View ────────────────────────────────────────────────────────────
+if test_mode == 'scaleout':
+    st.markdown("---")
+    st.subheader("🔀 Scale-Out (llm-d) Runs")
+    st.info(
+        "Per-backend time-series and routing analysis is on the "
+        "**🔀 ScaleOut Routing** page (page 8). "
+        "This view shows a quick run summary only."
+    )
+
+    run_labels = [r["label"] for r in scaleout_runs]
+    selected_label = st.selectbox("Select run", run_labels)
+    run = next(r for r in scaleout_runs if r["label"] == selected_label)
+    meta = run["meta"]
+
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Instances", meta.get("num_instances", "?"))
+    c2.metric("Routing Policy", meta.get("routing_policy", "?"))
+    c3.metric("Cores / Instance", meta.get("cores_per_instance", "?"))
+    c4.metric("Model", (meta.get("model", "?") or "?").split("/")[-1])
+
+    with st.expander("Full metadata", expanded=False):
+        st.json(meta)
+
+    st.markdown(f"**Results directory:** `{run['path']}`")
+    st.markdown(
+        f"**Per-instance metric files:** "
+        f"{len(run['instance_files'])} file(s)"
+    )
+    st.markdown(
+        f"**EPP metrics:** {'✅ present' if run['has_epp'] else '❌ not collected'}"
+    )
+
+    if meta.get("epp_scorer_weights"):
+        w = meta["epp_scorer_weights"]
+        st.markdown(
+            f"**EPP scorer weights** — "
+            f"prefix_cache: {w.get('prefix_cache', '?')} · "
+            f"queue: {w.get('queue', '?')} · "
+            f"kv_cache: {w.get('kv_cache', '?')} · "
+            f"lru: {w.get('lru', '?')}"
+        )
+
+    st.info(
+        "👉 Open **🔀 ScaleOut Routing** in the sidebar for per-backend "
+        "load charts, prefix-cache hit rates, and routing policy comparison."
+    )
+    st.stop()
+# ── End Scale-Out View ────────────────────────────────────────────────────────
 
 # Extract filter options based on test mode
 if test_mode == 'managed':

@@ -80,6 +80,7 @@
     - name: Generate test run ID
       ansible.builtin.set_fact:
         test_run_id: "{{ (test_name + '-') if test_name is defined and test_name else '' }}{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
+      when: test_run_id is not defined
 
     - name: Display test run information
       ansible.builtin.debug:

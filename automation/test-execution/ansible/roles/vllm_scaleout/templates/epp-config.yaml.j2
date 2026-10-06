@@ -1,0 +1,44 @@
+apiVersion: llm-d.ai/v1alpha1
+kind: EndpointPickerConfig
+
+plugins:
+  - name: file-discovery
+    type: file-discovery
+    parameters:
+      path: /etc/epp/endpoints.yaml
+      watchFile: true
+
+  - type: queue-scorer
+  - type: kv-cache-utilization-scorer
+  - type: prefix-cache-scorer
+  - type: no-hit-lru-scorer
+
+  - name: metrics-source
+    type: metrics-data-source
+  - name: metrics-extractor
+    type: core-metrics-extractor
+
+schedulingProfiles:
+  - name: default
+    plugins:
+      # Prefer backends with matching KV-cache prefix (avoids redundant computation)
+      - pluginRef: prefix-cache-scorer
+        weight: {{ scaleout_epp_prefix_cache_weight }}
+      # Prefer backends with shorter request queues
+      - pluginRef: queue-scorer
+        weight: {{ scaleout_epp_queue_weight }}
+      # Prefer backends with lower KV-cache memory pressure
+      - pluginRef: kv-cache-utilization-scorer
+        weight: {{ scaleout_epp_kv_cache_weight }}
+      # LRU fallback for cache misses
+      - pluginRef: no-hit-lru-scorer
+        weight: {{ scaleout_epp_lru_weight }}
+
+dataLayer:
+  injectDefaults: false
+  discovery:
+    pluginRef: file-discovery
+  sources:
+    - pluginRef: metrics-source
+      extractors:
+        - pluginRef: metrics-extractor
