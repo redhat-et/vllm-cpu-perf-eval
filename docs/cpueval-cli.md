@@ -128,6 +128,17 @@ export ANSIBLE_SSH_USER=<user>
 export ANSIBLE_SSH_KEY=<path-to-key>
 ```
 
+**Single-host mode** (DUT and load generator on the same machine):
+
+Set both variables to the same hostname. `cpueval doctor` automatically
+detects this and uses `ansible_connection=local` for the connectivity
+check instead of SSH, so root-to-localhost SSH is not required:
+
+```bash
+export DUT_HOSTNAME=<hostname>
+export LOADGEN_HOSTNAME=<hostname>   # same as DUT_HOSTNAME
+```
+
 **External endpoint mode** (test existing vLLM server or load balancer):
 
 ```bash
@@ -335,7 +346,9 @@ Typical flow:
 2. Review suite defaults and **target host** env vars (`DUT_HOSTNAME`, `LOADGEN_HOSTNAME`)
 3. Choose whether to customize parameters
 4. For `concurrent-load` / `rhaiis-sweep`, customize prompts for models, CPU cores,
-   optional DUT/load-generator CPU pinning, and workloads (type a value or Enter to keep defaults)
+   optional DUT/load-generator CPU pinning, and workloads (type a value or Enter to keep defaults).
+   For `embedding`, prompts include optional benchmark-container CPU range and NUMA node
+   (`--vllm-bench-cpus` / `--vllm-bench-numa-node`) in addition to inference-server pinning
 5. Optionally set a result tag
 6. Confirm dry-run / skip-doctor / launch
 
@@ -378,6 +391,12 @@ Verifies:
 - Inventory file exists
 - Required environment variables set
 - Host connectivity (unless --no-ping)
+
+**Single-host mode:** when `DUT_HOSTNAME == LOADGEN_HOSTNAME` (or either resolves to
+`localhost`/`127.0.0.1`), the connectivity check automatically uses
+`ansible_connection=local` instead of SSH. No SSH keys for root@localhost are
+needed. If you still see connectivity failures, pass `--no-ping` to skip the
+check entirely.
 
 ### Execute benchmarks
 
@@ -465,9 +484,16 @@ ansible-playbook -i .../inventory/hosts.yml .../llm-benchmark-auto.yml \
 **Embedding Example:**
 
 ```bash
+# Single model
 ./cpueval --suite embedding \
   --model RedHatAI/granite-embedding-english-r2 \
   --cores 16
+
+# With benchmark-container CPU pinning (inference server on 0-31, bench container on 32-63)
+./cpueval --suite embedding \
+  --models quick --cores 16 \
+  --vllm-cpus 0-31 --vllm-numa 0 \
+  --vllm-bench-cpus 32-63 --vllm-bench-numa-node 1
 ```
 
 **Offline Batch Example:**
@@ -545,7 +571,7 @@ export VLLM_CONTAINER_IMAGE=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
 
 ### CPU Pinning
 
-**Simple pinning via CLI flags:**
+**Simple pinning via CLI flags (LLM suites):**
 
 ```bash
 ./cpueval --suite concurrent-load \
@@ -556,6 +582,22 @@ export VLLM_CONTAINER_IMAGE=registry.redhat.io/rhaii/vllm-cpu-rhel9:3.4.0
   --guidellm-cpus 0-31 \
   --guidellm-numa 0
 ```
+
+**Embedding suite pinning:**
+
+The `embedding` suite runs a separate `vllm-bench` benchmark container
+alongside the inference server. Use `--vllm-bench-cpus` / `--vllm-bench-numa-node`
+to pin that container independently:
+
+```bash
+./cpueval --suite embedding \
+  --models quick --cores 16 \
+  --vllm-cpus 0-31 --vllm-numa 0 \
+  --vllm-bench-cpus 32-63 --vllm-bench-numa-node 1
+```
+
+The wizard also exposes these prompts when the `embedding` suite is
+selected and CPU pinning is enabled.
 
 **Using a profile:**
 
@@ -945,6 +987,21 @@ export HF_TOKEN=hf_xxxxx
 
 # Test connectivity
 ansible -i automation/test-execution/ansible/inventory/hosts.yml all -m ping
+```
+
+**Single-host connectivity failure (`UNREACHABLE` when DUT == LOADGEN):**
+
+`cpueval doctor` now detects this and uses `ansible_connection=local`
+automatically. If you still see SSH errors from the `health` suite or from
+Ansible playbooks, either:
+
+```bash
+# Skip the connectivity ping
+./cpueval doctor --no-ping
+
+# Or pass connection override directly
+ansible -i automation/test-execution/ansible/inventory/hosts.yml all \
+  -m ping -e ansible_connection=local
 ```
 
 **No results found:**
