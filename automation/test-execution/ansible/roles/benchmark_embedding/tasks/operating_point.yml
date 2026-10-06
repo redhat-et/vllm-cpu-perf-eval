@@ -67,7 +67,8 @@
 
 - name: Set operating-point concurrency levels
   ansible.builtin.set_fact:
-    # sequential (1), light load (8), peak from latency sweep or default 32
+    # sequential (1), light load (8), peak from latency sweep or default 32.
+    # unique: when peak is 1 or 8 (e.g. after scenario=all), skip duplicate probes.
     op_concurrency_levels: >-
       {{ ([1, 8] + [cal_peak_concurrency | default(op_peak_concurrency | default(32)) | int]) | unique | list }}
 

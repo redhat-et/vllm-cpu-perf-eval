@@ -259,7 +259,7 @@
   become: true
   vars:
     model_name: "{{ test_model | default('RedHatAI/granite-embedding-english-r2') }}"
-    scenario_name: "{{ scenario | default(lookup('env', 'SCENARIO') | default('all', true), true) }}"  # operating_point, latency, or all; -e wins over $SCENARIO
+    scenario_name: "{{ scenario | default(lookup('env', 'SCENARIO') | default('operating_point', true), true) }}"  # operating_point (default), latency, or all; -e wins over $SCENARIO
     test_run_base: "{{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/{{ hostvars['localhost']['test_run_id'] }}"
 
   pre_tasks:
@@ -339,7 +339,7 @@
   vars:
     # Use detected_model if set (external mode auto-detect), otherwise use test_model or default
     model_name: "{{ detected_model | default(test_model | default('RedHatAI/granite-embedding-english-r2')) }}"
-    scenario_name: "{{ scenario | default(lookup('env', 'SCENARIO') | default('all', true), true) }}"  # operating_point, latency, or all; -e wins over $SCENARIO
+    scenario_name: "{{ scenario | default(lookup('env', 'SCENARIO') | default('operating_point', true), true) }}"  # operating_point (default), latency, or all; -e wins over $SCENARIO
     test_run_base: "{{ bench_config.results_dir }}/{{ model_name | replace('/', '__') }}/{{ hostvars['localhost']['test_run_id'] }}"
 
   pre_tasks:

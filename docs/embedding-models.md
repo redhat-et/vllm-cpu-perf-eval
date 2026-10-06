@@ -141,6 +141,10 @@ The following embedding models from the [RedHatAI Intel Xeon-compatible collecti
 
 The `scenario` parameter controls which test suite to run:
 
+If omitted, `embedding-benchmark.yml` defaults to **`operating_point`** (three probes, ~15–25 min).
+Use **`scenario=all`** for the full latency sweep plus operating-point workflow.
+`run-embedding-suite.sh` still defaults to **`all`** when driving many models.
+
 ### latency
 Tests concurrent request handling across a range of concurrency levels and
 measures throughput and P50/P99 end-to-end latency at each. This is the
