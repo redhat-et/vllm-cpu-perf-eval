@@ -270,11 +270,7 @@ case "${MODELS_INPUT}" in
     quick)
         MODELS=("${PRESET_QUICK[@]}")
         ;;
-    granite-ml)
-        MODELS=("${PRESET_GRANITE_ML[@]}")
-        ;;
-    ibm-ml)
-        log_warning "Model preset 'ibm-ml' is deprecated; use 'granite-ml' instead"
+    granite-ml|ibm-ml)
         MODELS=("${PRESET_GRANITE_ML[@]}")
         ;;
     *)
