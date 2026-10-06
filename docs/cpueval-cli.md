@@ -395,8 +395,9 @@ Verifies:
 - Required environment variables set
 - Host connectivity (unless --no-ping)
 
-**Single-host mode:** when `DUT_HOSTNAME == LOADGEN_HOSTNAME` (or either resolves to
-`localhost`/`127.0.0.1`), the connectivity check automatically uses
+**Single-host mode:** when `DUT_HOSTNAME == LOADGEN_HOSTNAME`, or when both
+hostnames are localhost aliases (`localhost`, `127.0.0.1`, `::1`) or this
+machine's hostname, the connectivity check automatically uses
 `ansible_connection=local` instead of SSH. No SSH keys for root@localhost are
 needed. If you still see connectivity failures, pass `--no-ping` to skip the
 check entirely.

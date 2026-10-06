@@ -204,9 +204,10 @@ def test_wizard_concurrent_load_tailored_flow(host_env):
 def test_wizard_cancel_at_launch(host_env):
     from rich.console import Console
 
+    # chat-smoke: customize=no, tag=skip, dry-run=no, skip-doctor=no, launch=no
     result = run_wizard(
         Console(),
-        inputs=["2", "n", "", "n", "n", "n"],
+        inputs=[_suite_menu_index("chat-smoke"), "n", "", "n", "n", "n"],
     )
 
     assert result is None

@@ -110,20 +110,30 @@ def ping_hosts(skip_dut_in_external: bool = False) -> Tuple[bool, str]:
     if mode == "external" and skip_dut_in_external:
         return True, "Skipped in external mode (soft-OK)"
 
-    cmd = [
-        "ansible",
-        "-i",
-        str(get_inventory_path()),
-        "all",
-        "-m",
-        "ping",
-    ]
-
-    # Single-host: DUT == LOADGEN (or both are localhost). Ansible defaults to
-    # SSH which fails for root@localhost without a key. Override to local transport.
     single_host = _is_single_host_mode()
     if single_host:
-        cmd.extend(["-e", "ansible_connection=local"])
+        dut = os.getenv("DUT_HOSTNAME", "")
+        loadgen = os.getenv("LOADGEN_HOSTNAME", "")
+        host_pattern = f"{dut}:{loadgen}" if dut != loadgen else dut
+        cmd = [
+            "ansible",
+            "-i",
+            str(get_inventory_path()),
+            host_pattern,
+            "-m",
+            "ping",
+            "-e",
+            "ansible_connection=local",
+        ]
+    else:
+        cmd = [
+            "ansible",
+            "-i",
+            str(get_inventory_path()),
+            "all",
+            "-m",
+            "ping",
+        ]
 
     try:
         result = subprocess.run(
@@ -215,10 +225,9 @@ def run_doctor(no_ping: bool = False) -> int:
         if _is_single_host_mode():
             console.print(
                 "\n[yellow]Tip:[/yellow] Single-host mode detected "
-                "(DUT_HOSTNAME == LOADGEN_HOSTNAME). If connectivity "
-                "checks fail, the local Ansible transport is used "
-                "automatically. Ensure your inventory does not force SSH "
-                "for localhost, or run with --no-ping to skip the check."
+                "(both hosts resolve to the local machine). If connectivity "
+                "checks fail, check that your inventory does not force SSH "
+                "for local hosts, or run with --no-ping to skip the check."
             )
         console.print()
         return 1
