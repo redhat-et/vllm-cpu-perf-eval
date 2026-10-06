@@ -293,7 +293,7 @@ All test cases use a hierarchical naming scheme:
 
 - `CONC-LLAMA32-CHAT` — Concurrent load, Llama-3.2-1B, chat workload
 - `OFFLINE-SUMM-LLAMA38` — Offline batch, summarization, Llama-3.1-8B
-- `EMB-OP-GRANITE-EN-EMB512` — Embedding operating-point, Granite English
+- `EMB-OP-GRANITE-EN-R2-EMB512` — Embedding operating-point, Granite English r2
 - `LMEVAL-HELLASWAG-QWEN06` — LM Eval, HellaSwag, Qwen3-0.6B
 - `LMEVAL-GSM8K-GRANITE32` — LM Eval, GSM8K, Granite-3.2-2B
 

@@ -16,7 +16,7 @@ Thin CLI wrapper for running full test matrices with easy overrides.
 
 # Matrix suites - run full test matrix (no --model required!)
 ./cpueval --suite rhaiis-sweep           # 60 combinations: 5 models × 3 cores × 4 workloads
-./cpueval --suite embedding              # 30 combinations: 5 models × 3 cores × 2 scenarios
+./cpueval --suite embedding              # 15 runs: 5 models × 3 cores (scenario=all default)
 ./cpueval --suite mteb                   # 5 models × quick MTEB preset (quality)
 ./cpueval --suite offline-batch          # 33 runs: use-cases 3
 
@@ -409,7 +409,7 @@ Model presets: `all` | `llama` | `qwen` | `tiny`
 |-------|------|--------|-------------|
 | `concurrent-load` | Matrix | script | Upstream LLM concurrent load sweep (60 tests: all models × 3 cores × 4 workloads) |
 | `rhaiis-sweep` | Matrix | script | RHAIIS quantized model sweep (60 tests: 5 models × 3 cores × 4 workloads) |
-| `embedding` | Matrix | script | Embedding model performance matrix (30 tests: 5 models × 3 cores × 2 scenarios) |
+| `embedding` | Matrix | script | Embedding matrix (15 runs: 5 models × 3 cores, scenario=all) |
 | `offline-batch` | Matrix | script | Offline batch processing (33 tests: 11 use-cases × 3 runs) |
 | `audio` | Matrix | script | Audio model benchmarking — all models × transcription-throughput × 32 cores |
 | `chat-smoke` | Single | ansible | Quick auto-configured LLM chat test (requires --model) |
@@ -572,13 +572,13 @@ For comprehensive RHAIIS validation with results by end of week:
   --models all \
   --cores "8,16,32"
 
-# 5 models × 3 cores × 2 scenarios (baseline+latency) = 30 tests (~6-8 hours)
+# 5 models × 3 cores (scenario=all: latency + operating-point) = 15 runs (~8-12 hours)
 
 # Or just small/fast models:
 ./cpueval --suite embedding \
   --models small \
   --cores "8,16,32"
-# 2 models × 3 cores × 2 scenarios = 12 tests (~4-6 hours)
+# 2 models × 3 cores (scenario=all) = 6 runs (~3-5 hours)
 ```
 
 **Day 5: Audio Workloads**
