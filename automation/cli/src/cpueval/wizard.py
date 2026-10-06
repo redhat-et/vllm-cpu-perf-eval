@@ -367,6 +367,24 @@ def _prompt_optional_pinning(driver: _PromptDriver, label: str, hint: str) -> Op
     return value or None
 
 
+def _prompt_optional_int_pinning(
+    driver: _PromptDriver,
+    console: Console,
+    label: str,
+    hint: str,
+) -> Optional[str]:
+    """Prompt for an optional integer pinning value (e.g. NUMA node); Enter skips."""
+    while True:
+        value = driver.prompt(f"{label} ({hint}, Enter to skip)", default="").strip()
+        if not value:
+            return None
+        try:
+            int(value)
+            return value
+        except ValueError:
+            console.print(f"[red]{label} must be an integer, got: {value!r}[/red]")
+
+
 def select_suite_by_index(suites: List[Suite], choice: str) -> Optional[Suite]:
     """Resolve a numeric menu choice to a suite."""
     choice = choice.strip()
@@ -542,7 +560,9 @@ def _collect_cpu_pinning(
         if vllm_cpus:
             answers["vllm_cpus"] = vllm_cpus
 
-        vllm_numa = _prompt_optional_pinning(driver, "DUT vLLM NUMA node", "e.g. 1")
+        vllm_numa = _prompt_optional_int_pinning(
+            driver, console, "DUT vLLM NUMA node", "e.g. 1"
+        )
         if vllm_numa:
             answers["vllm_numa_node"] = vllm_numa
 
@@ -553,8 +573,8 @@ def _collect_cpu_pinning(
         if guidellm_cpus:
             answers["guidellm_cpus"] = guidellm_cpus
 
-        guidellm_numa = _prompt_optional_pinning(
-            driver, "Load generator NUMA node", "e.g. 0"
+        guidellm_numa = _prompt_optional_int_pinning(
+            driver, console, "Load generator NUMA node", "e.g. 0"
         )
         if guidellm_numa:
             answers["guidellm_numa_node"] = guidellm_numa
@@ -566,8 +586,8 @@ def _collect_cpu_pinning(
         if vllm_bench_cpus:
             answers["vllm_bench_cpus"] = vllm_bench_cpus
 
-        vllm_bench_numa = _prompt_optional_pinning(
-            driver, "Benchmark container NUMA node", "e.g. 1"
+        vllm_bench_numa = _prompt_optional_int_pinning(
+            driver, console, "Benchmark container NUMA node", "e.g. 1"
         )
         if vllm_bench_numa:
             answers["vllm_bench_numa_node"] = vllm_bench_numa
@@ -624,10 +644,23 @@ def _collect_answers(
     if suite.name in _LLM_MATRIX_SUITES:
         return _collect_llm_matrix_answers(driver, suite, console)
 
+    _int_fields = frozenset({"runs", "num_prompts"})
     requires_model = _suite_requires_model(suite)
     for field in fields:
         required = requires_model and field in ("model", "models")
-        value = _prompt_field(driver, suite, field, required=required)
+        while True:
+            value = _prompt_field(driver, suite, field, required=required)
+            if value and field in _int_fields:
+                try:
+                    int(value)
+                    break
+                except ValueError:
+                    label = FIELD_META.get(field, {}).get("label", field)
+                    console.print(
+                        f"[red]{label} must be an integer, got: {value!r}[/red]"
+                    )
+            else:
+                break
         if value:
             answers[field] = value
 

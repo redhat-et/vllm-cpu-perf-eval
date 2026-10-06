@@ -519,3 +519,35 @@ def test_is_single_host_mode_localhost(monkeypatch):
     monkeypatch.setenv("DUT_HOSTNAME", "localhost")
     monkeypatch.setenv("LOADGEN_HOSTNAME", "127.0.0.1")
     assert _is_single_host_mode() is True
+
+
+def test_is_single_host_mode_machine_hostname(monkeypatch):
+    """Both hostnames matching gethostname/getfqdn triggers single-host."""
+    import cpueval.doctor as doctor_mod
+
+    monkeypatch.setenv("DUT_HOSTNAME", "my-server")
+    monkeypatch.setenv("LOADGEN_HOSTNAME", "my-server.local")
+    monkeypatch.setattr(doctor_mod.socket, "gethostname", lambda: "my-server")
+    monkeypatch.setattr(doctor_mod.socket, "getfqdn", lambda: "my-server.local")
+    assert _is_single_host_mode() is True
+
+
+def test_is_single_host_mode_hostname_lookup_raises(monkeypatch):
+    """Socket lookup failure falls back to empty set; non-local hosts return False."""
+    import cpueval.doctor as doctor_mod
+
+    def _raise():
+        raise OSError("lookup failed")
+
+    monkeypatch.setenv("DUT_HOSTNAME", "my-server")
+    monkeypatch.setenv("LOADGEN_HOSTNAME", "my-server.local")
+    monkeypatch.setattr(doctor_mod.socket, "gethostname", _raise)
+    monkeypatch.setattr(doctor_mod.socket, "getfqdn", _raise)
+    assert _is_single_host_mode() is False
+
+
+def test_is_single_host_mode_only_one_is_local(monkeypatch):
+    """Only one host being a local alias is not enough; both must be local."""
+    monkeypatch.setenv("DUT_HOSTNAME", "localhost")
+    monkeypatch.setenv("LOADGEN_HOSTNAME", "real-loadgen.example.com")
+    assert _is_single_host_mode() is False
