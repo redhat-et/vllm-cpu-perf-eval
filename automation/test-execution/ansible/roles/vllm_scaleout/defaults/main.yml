@@ -9,16 +9,47 @@ scaleout_start_core: 32
 scaleout_enable_smt: false
 scaleout_enable_prefix_caching: true
 
-# Nginx configuration
-scaleout_nginx_cores: "1-15"
-scaleout_nginx_port: 8080
-scaleout_nginx_policy: "least_conn"  # Options: round_robin, least_conn, ip_hash
+# CPU cores for Envoy proxy (handles all client I/O — dedicate enough for concurrency)
+scaleout_envoy_cores: "1-7"
+
+# CPU cores for EPP (scores every request — needs to be fast and uncontested)
+scaleout_epp_cores: "8-15"
+
+# Base port for vLLM instances (each instance gets base_port + index)
+# Instance 1: base_port, Instance 2: base_port+1, Instance 3: base_port+2, ...
+scaleout_vllm_base_port: 8000
 
 # Container configuration
-scaleout_vllm_image: "docker.io/vllm/vllm-openai-cpu:v0.18.0"
-scaleout_nginx_image: "nginx:alpine"
-scaleout_network_name: "vllm-network"
+scaleout_vllm_image: "docker.io/vllm/vllm-openai-cpu:v0.25.1"
+scaleout_epp_image: "ghcr.io/llm-d/llm-d-router-endpoint-picker:latest"
+scaleout_envoy_image: "docker.io/envoyproxy/envoy:distroless-v1.33.2"
 scaleout_volume_name: "hf-cache"
+
+# Routing policy:
+#   intelligent  — EPP selects backend via prefix-cache + queue + KV-utilisation scoring (default)
+#   round_robin  — Envoy round-robin across all vLLM instances; EPP is not started
+# Use both policies across separate benchmark runs to measure the routing overhead/benefit.
+scaleout_routing_policy: "intelligent"
+
+# EPP (Endpoint Picker) configuration
+scaleout_epp_grpc_port: 9002       # gRPC ext_proc port (Envoy → EPP)
+scaleout_epp_health_port: 9003     # gRPC health check port
+scaleout_epp_metrics_port: 9090    # Prometheus metrics
+
+# EPP scorer weights (only used when scaleout_routing_policy == 'intelligent')
+# Higher weight = stronger influence on backend selection.
+# Equal weights produce load-aware round-robin behaviour.
+scaleout_epp_prefix_cache_weight: 3   # Steer to instance with matching KV-cache prefix
+scaleout_epp_queue_weight: 2          # Steer to instance with shortest request queue
+scaleout_epp_kv_cache_weight: 2       # Steer away from instances under KV-cache pressure
+scaleout_epp_lru_weight: 2            # LRU fallback when no prefix match exists
+
+# Envoy configuration
+scaleout_envoy_port: 8081          # Client-facing inference endpoint
+scaleout_envoy_admin_port: 19000   # Admin interface (/ready, /clusters, /stats)
+# Envoy worker threads — set to match the number of cores in scaleout_envoy_cores
+# Default: 7 (cores 1-7 = 7 cores).  Adjust when you change scaleout_envoy_cores.
+scaleout_envoy_concurrency: 7
 
 # Model configuration (override from inventory)
 scaleout_model_name: "{{ test_model | default('RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w8a8') }}"
@@ -34,12 +65,21 @@ scaleout_health_check_delay: 5
 scaleout_config_dir: "/tmp/vllm-scaleout"
 scaleout_model_cache_dir: "{{ model_cache_dir | default('/var/lib/vllm-models') }}"
 
+# Task type for vLLM serving (leave empty for auto-detection, which covers most LLM and embedding models)
+# Set explicitly when vLLM cannot auto-detect:
+#   - "embed"       : encoder-only embedding models (e.g. Nomic, E5-mistral)
+#   - "generate"    : forced generation mode
+#   - "transcription": audio/Whisper models for ASR
+# scaleout_vllm_task: ""
+
+# Max model length (tokens). Recommended for embedding benchmarks to match ISL (e.g. 512).
+# Leave unset to use the model's default context window.
+# scaleout_vllm_max_model_len: 512
+
 # Advanced vLLM options (optional)
 scaleout_vllm_extra_args: []
 # Example:
 # scaleout_vllm_extra_args:
-#   - "--max-model-len"
-#   - "2048"
 #   - "--dtype"
 #   - "bfloat16"
 

@@ -1,0 +1,186 @@
+---
+# Start per-instance and EPP metrics collection for a scale-out deployment.
+# Runs on the Ansible control node (localhost); scrapes each vLLM instance and
+# the EPP metrics endpoint over the network.
+#
+# Required vars:
+#   scaleout_metrics_tmpdir   : temp directory to save metric JSON files
+#   scaleout_num_instances    : number of vLLM instances
+#   scaleout_vllm_base_port   : base port for vLLM instances (8000, 8001, …)
+#   scaleout_routing_policy   : 'intelligent' or 'round_robin'
+#   scaleout_epp_metrics_port : EPP Prometheus metrics port
+#   test_run_id               : run identifier embedded in each JSON file
+#
+# Optional vars:
+#   scaleout_metrics_host         : host to scrape (defaults to ansible_host of groups['dut'][0])
+#   metrics_collection_interval   : scrape interval in seconds (default: 10)
+#   metrics_collection_duration   : max collection time in seconds (default: 7200)
+#
+# After this task runs, hostvars['localhost']['scaleout_collector_pids'] holds
+# all background PIDs so stop-scaleout-metrics-collection.yml can SIGTERM them.
+
+- name: Resolve DUT scrape host
+  ansible.builtin.set_fact:
+    _sc_metrics_host: >-
+      {{ scaleout_metrics_host
+         | default(hostvars[groups['dut'][0]]['ansible_host']
+                   | default(groups['dut'][0])) }}
+  delegate_to: localhost
+  become: false
+
+- name: Create scaleout metrics temp directory
+  ansible.builtin.file:
+    path: "{{ scaleout_metrics_tmpdir }}"
+    state: directory
+    mode: "0755"
+  delegate_to: localhost
+  become: false
+
+- name: Write shared metrics collector script
+  ansible.builtin.copy:
+    dest: "/tmp/vllm_scaleout_collector_{{ test_run_id }}.py"
+    mode: "0755"
+    content: |
+      #!/usr/bin/env python3
+      """Scrapes a Prometheus /metrics endpoint periodically and saves JSON."""
+      import json, time, sys, re, signal
+      from datetime import datetime
+      try:
+          from urllib.request import urlopen, Request
+          from urllib.error import URLError
+      except ImportError:
+          from urllib2 import urlopen, Request, URLError
+
+      URL = sys.argv[1]
+      OUTPUT = sys.argv[2]
+      INTERVAL = int(sys.argv[3]) if len(sys.argv) > 3 else 10
+      DURATION = int(sys.argv[4]) if len(sys.argv) > 4 else 7200
+      RUN_ID = sys.argv[5] if len(sys.argv) > 5 else "unknown"
+
+      should_stop = False
+
+      def _stop(s, f):
+          global should_stop
+          should_stop = True
+
+      signal.signal(signal.SIGTERM, _stop)
+      signal.signal(signal.SIGINT, _stop)
+
+      def parse_prom(text):
+          metrics = {}
+          for line in text.split('\n'):
+              line = line.strip()
+              if not line or line.startswith('#'):
+                  continue
+              m = re.match(r'([a-zA-Z_:][a-zA-Z0-9_:]*)\{([^}]*)\}\s+([0-9.eE+\-inf]+)', line)
+              if not m:
+                  m = re.match(r'([a-zA-Z_:][a-zA-Z0-9_:]*)\s+([0-9.eE+\-inf]+)', line)
+                  if m:
+                      name, val, labels = m.group(1), m.group(2), {}
+                  else:
+                      continue
+              else:
+                  name, val = m.group(1), m.group(3)
+                  labels = {}
+                  for pair in m.group(2).split(','):
+                      if '=' in pair:
+                          k, v = pair.split('=', 1)
+                          labels[k.strip()] = v.strip(' "')
+              try:
+                  fval = float(val)
+              except ValueError:
+                  continue
+              metrics.setdefault(name, []).append({"labels": labels, "value": fval})
+          return metrics
+
+      data = {
+          "collection_info": {
+              "vllm_url": URL, "interval_seconds": INTERVAL,
+              "duration_seconds": DURATION,
+              "start_time": datetime.now().isoformat(),
+              "test_run_id": RUN_ID,
+          },
+          "samples": [],
+      }
+      start = time.time()
+      n = 0
+      try:
+          while time.time() - start < DURATION and not should_stop:
+              t0 = time.time()
+              try:
+                  resp = urlopen(Request(f"{URL}/metrics"), timeout=5)
+                  if resp.code == 200:
+                      data["samples"].append({
+                          "timestamp": datetime.now().isoformat(),
+                          "elapsed_seconds": round(time.time() - start, 2),
+                          "metrics": parse_prom(resp.read().decode()),
+                      })
+                      n += 1
+              except Exception:
+                  pass
+              rem = INTERVAL - (time.time() - t0)
+              while rem > 0 and not should_stop:
+                  time.sleep(min(0.5, rem))
+                  rem -= 0.5
+      except KeyboardInterrupt:
+          pass
+      data["collection_info"]["end_time"] = datetime.now().isoformat()
+      data["collection_info"]["total_samples"] = n
+      with open(OUTPUT, 'w') as f:
+          json.dump(data, f, indent=2)
+      print(f"saved {n} samples → {OUTPUT}")
+  delegate_to: localhost
+  become: false
+
+- name: Start per-instance metrics collector (one per vLLM instance)
+  ansible.builtin.shell: |
+    port=$(( {{ scaleout_vllm_base_port | default(8000) }} + {{ item }} - 1 ))
+    nohup python3 -u /tmp/vllm_scaleout_collector_{{ test_run_id }}.py \
+      "http://{{ _sc_metrics_host }}:${port}" \
+      "{{ scaleout_metrics_tmpdir }}/vllm-metrics-instance-{{ item }}.json" \
+      "{{ metrics_collection_interval | default(10) }}" \
+      "{{ metrics_collection_duration | default(7200) }}" \
+      "{{ test_run_id }}" \
+      > "{{ scaleout_metrics_tmpdir }}/collector-instance-{{ item }}.log" 2>&1 &
+    echo $!
+  loop: "{{ range(1, scaleout_num_instances | int + 1) | list }}"
+  register: _instance_pid_results
+  delegate_to: localhost
+  become: false
+
+- name: Start EPP metrics collector (intelligent routing only)
+  ansible.builtin.shell: |
+    nohup python3 -u /tmp/vllm_scaleout_collector_{{ test_run_id }}.py \
+      "http://{{ _sc_metrics_host }}:{{ scaleout_epp_metrics_port | default(9090) }}" \
+      "{{ scaleout_metrics_tmpdir }}/epp-metrics.json" \
+      "{{ metrics_collection_interval | default(10) }}" \
+      "{{ metrics_collection_duration | default(7200) }}" \
+      "{{ test_run_id }}" \
+      > "{{ scaleout_metrics_tmpdir }}/collector-epp.log" 2>&1 &
+    echo $!
+  register: _epp_pid_result
+  delegate_to: localhost
+  become: false
+  when: scaleout_routing_policy | default('intelligent') == 'intelligent'
+
+- name: Save all collector PIDs to hostvars
+  ansible.builtin.set_fact:
+    scaleout_collector_pids: >-
+      {{ (_instance_pid_results.results | map(attribute='stdout') | map('trim') | list)
+         + ([_epp_pid_result.stdout | trim]
+            if (scaleout_routing_policy | default('intelligent') == 'intelligent'
+                and _epp_pid_result.stdout is defined
+                and _epp_pid_result.stdout | trim != '')
+            else []) }}
+  delegate_to: localhost
+  delegate_facts: true
+
+- name: Display metrics collection status
+  ansible.builtin.debug:
+    msg:
+      - "╔══ Scale-Out Metrics Collection Started ═══════════════════════════╗"
+      - "║  Instances : {{ scaleout_num_instances }} collector(s) scraping {{ _sc_metrics_host }}:{{ scaleout_vllm_base_port | default(8000) }}–{{ (scaleout_vllm_base_port | default(8000) | int) + (scaleout_num_instances | int) - 1 }}"
+      - "║  EPP       : {{ 'enabled → ' + _sc_metrics_host + ':' + (scaleout_epp_metrics_port | default(9090) | string) if scaleout_routing_policy | default('intelligent') == 'intelligent' else 'disabled (round_robin)' }}"
+      - "║  Output    : {{ scaleout_metrics_tmpdir }}/"
+      - "║  PIDs      : {{ hostvars['localhost']['scaleout_collector_pids'] | join(', ') }}"
+      - "╚═══════════════════════════════════════════════════════════════════╝"
