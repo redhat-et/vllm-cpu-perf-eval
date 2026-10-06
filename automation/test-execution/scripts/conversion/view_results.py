@@ -459,8 +459,9 @@ def collect_embedding_results(result_dir):
             results.append((test_type, label, data))
 
     sweep = list(result_dir.glob("sweep-*.json"))
+    op_root = list(result_dir.glob("conc-*.json"))
     conc = list(result_dir.glob("concurrent-*.json"))
-    for json_file in sorted(sweep + conc):
+    for json_file in sorted(sweep + op_root + conc):
         data = load_json(json_file)
         if data is None:
             continue
@@ -469,6 +470,12 @@ def collect_embedding_results(result_dir):
             results.append((
                 "baseline",
                 stem.replace("sweep-", ""),
+                data,
+            ))
+        elif stem.startswith("conc-"):
+            results.append((
+                "operating",
+                stem.replace("conc-", ""),
                 data,
             ))
         elif stem.startswith("concurrent-"):
