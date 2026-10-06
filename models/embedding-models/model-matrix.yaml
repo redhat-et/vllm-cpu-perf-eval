@@ -10,7 +10,7 @@ matrix:
   # Test case mapping
   test_cases:
     # Test Case 1.1: Baseline Performance - English Model
-    - id: "EMB-BASELINE-GRANITE-EN-R2-EMB512"
+    - id: "EMB-OP-GRANITE-EN-R2-EMB512"
       description: "Baseline performance and scalability for English embedding model"
       model: "granite-embedding-english-r2"
       model_path: "ibm-granite/granite-embedding-english-r2"
@@ -22,7 +22,7 @@ matrix:
       kv_cache: "1GiB"
 
     # Test Case 1.2: Baseline Performance - Multilingual Model
-    - id: "EMB-BASELINE-GRANITE-ML-EMB512"
+    - id: "EMB-OP-GRANITE-ML-EMB512"
       description: "Baseline performance and scalability for Multilingual embedding model"
       model: "granite-embedding-278m-multilingual"
       model_path: "ibm-granite/granite-embedding-278m-multilingual"
@@ -46,7 +46,7 @@ matrix:
       kv_cache: "1GiB"
 
     # Test Case 3.1: granite-ml parallel benchmark - embeddinggemma-300m
-    - id: "EMB-BASELINE-GEMMA-300M-EMB512"
+    - id: "EMB-OP-GEMMA-300M-EMB512"
       description: "Baseline performance for embeddinggemma-300m (granite-ml preset, slot 0)"
       model: "embeddinggemma-300m"
       model_path: "RedHatAI/embeddinggemma-300m"
@@ -58,7 +58,7 @@ matrix:
       kv_cache: "1GiB"
 
     # Test Case 3.2: granite-ml parallel benchmark - harrier-oss-v1-270m
-    - id: "EMB-BASELINE-HARRIER-270M-EMB512"
+    - id: "EMB-OP-HARRIER-270M-EMB512"
       description: "Baseline performance for microsoft/harrier-oss-v1-270m (granite-ml preset, slot 1)"
       model: "harrier-oss-v1-270m"
       model_path: "microsoft/harrier-oss-v1-270m"
@@ -71,7 +71,7 @@ matrix:
       notes: "Requires --trust-remote-code"
 
     # Test Case 3.3: granite-ml parallel benchmark - granite-embedding-311m-multilingual-r2
-    - id: "EMB-BASELINE-GRANITE-311M-ML-R2-EMB512"
+    - id: "EMB-OP-GRANITE-311M-ML-R2-EMB512"
       description: "Baseline performance for granite-embedding-311m-multilingual-r2 (granite-ml preset, slot 2)"
       model: "granite-embedding-311m-multilingual-r2"
       model_path: "ibm-granite/granite-embedding-311m-multilingual-r2"

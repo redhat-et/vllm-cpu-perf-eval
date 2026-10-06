@@ -371,7 +371,7 @@ Located in `automation/test-execution/ansible/scripts/`
 **Usage:**
 ```bash
 # Log results to MLflow
-./scripts/mlflow-quick-log.sh results/embedding/model-name/baseline/sweep-inf.json
+./scripts/mlflow-quick-log.sh results/embedding/model-name/run-id/operating_point/conc-1.json
 ```
 
 ---
@@ -390,53 +390,17 @@ Located in `automation/test-execution/ansible/scripts/`
 
 ---
 
-## Manual Test Scripts
+## Legacy manual scripts (deprecated)
 
-Located in `automation/test-execution/bash/embedding/`
+Located in `automation/test-execution/bash/embedding/`. These scripts target the
+**legacy load-fraction saturation sweep** (`baseline/sweep-*`). Prefer:
 
-### run-baseline.sh
-
-**Purpose:** Manually run baseline performance test for a single model.
-
-**Location:** `automation/test-execution/bash/embedding/run-baseline.sh`
-
-**Usage:**
 ```bash
-# Set endpoint
-export VLLM_HOST=192.168.1.10
-export VLLM_PORT=8000
-
-# Run baseline test
-./bash/embedding/run-baseline.sh RedHatAI/all-MiniLM-L6-v2
+./bash/run-embedding-suite.sh --models quick --cores 16 --scenario all
 ```
 
----
-
-### run-latency.sh
-
-**Purpose:** Manually run latency test for a single model.
-
-**Location:** `automation/test-execution/bash/embedding/run-latency.sh`
-
-**Usage:**
-```bash
-# Run latency test
-./bash/embedding/run-latency.sh RedHatAI/all-MiniLM-L6-v2
-```
-
----
-
-### run-all.sh
-
-**Purpose:** Run both baseline and latency tests for a single model.
-
-**Location:** `automation/test-execution/bash/embedding/run-all.sh`
-
-**Usage:**
-```bash
-# Run all tests
-./bash/embedding/run-all.sh RedHatAI/all-MiniLM-L6-v2
-```
+or `embedding-benchmark.yml` with `scenario=operating_point`, `latency`, or `all`.
+See [Embedding Models Guide](embedding-models.md#test-scenarios).
 
 ---
 

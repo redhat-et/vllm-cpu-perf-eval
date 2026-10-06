@@ -155,7 +155,7 @@ cpueval results --last
 |------|---------|
 | Client Metrics | LLM latency / throughput curves |
 | Server Metrics | vLLM KV cache %, CPU, memory |
-| Embedding Metrics | RPS, latency scaling by model |
+| Embedding Metrics | Operating-point probes, latency sweep, container stats |
 | Audio Metrics | RTF, WER, throughput by model |
 | Offline Batch | Items/hr, tok/s by use case |
 
@@ -281,7 +281,7 @@ Core sweep per use case: **8, 16, 24, 32**
 ## 3-Phase Testing Methodology
 <style scoped>blockquote { color: blue; border-left-color: blue; font-style: normal; }</style>
 > **Note:** 3-phase testing is currently only implemented for Concurrent Load.
-> Embedding and Offline Batch use baseline-style approaches.
+> Embedding uses latency + operating-point probes; Offline Batch uses throughput sweeps.
 
 ```text
           /\
@@ -373,14 +373,14 @@ vllm bench serve --backend openai-embeddings --endpoint /v1/embeddings
 ```
 ### Performance
 
-#### 1. Sweep
+#### 1. Latency sweep (`scenario=latency` or first phase of `all`)
 
-  1. Measure Max throughput (`--request-rate inf`)
-  2. Measure 25% / 50% / 75% of max load
+**Concurrency levels** (`--max-concurrency`): **16, 24, 32, 48, 64, 96, 128, 192, 256, 384**
 
-#### 2. Latency Concurrent
+#### 2. Operating-point probes (`scenario=operating_point` or second phase of `all`)
 
-**Concurrency levels** (`vllm bench serve --max-concurrency`): **16, 32, 64, 128, 196**
+Fixed probes at **conc=1**, **conc=8**, and **peak** (from sweep or default 32).
+Results: `operating_point/conc-*.json`
 
 ### MTEB quality testing
 

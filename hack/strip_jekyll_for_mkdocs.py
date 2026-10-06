@@ -55,6 +55,7 @@ SITE_PAGES = {
     "tests/concurrent-load/rhaiis-testing.md",
     "tests/embedding-models/baseline-sweep.md",
     "tests/embedding-models/latency-concurrent.md",
+    "tests/embedding-models/operating-point.md",
     "models/audio-models/audio-models.md",
     "models/llm-models/llm-models.md",
 }

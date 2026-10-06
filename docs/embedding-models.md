@@ -279,7 +279,6 @@ Embedding benchmarks resolve `guidellm_max_seconds` as `vllm_bench_max_seconds` 
 | What it affects | How |
 |---|---|
 | Hang guard | `timeout 2 × guidellm_max_seconds` wraps every `vllm-bench` command |
-| Load-% `--num-prompts` cap | `min(num_prompts, max(20, rate × guidellm_max_seconds))` — prevents low-throughput models from running far longer than the time limit |
 
 **Default: 300 seconds** (GuideLLM LLM tests default to 600 s; embedding uses 300 s intentionally for shorter runs).
 

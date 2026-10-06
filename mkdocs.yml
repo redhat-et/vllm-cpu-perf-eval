@@ -95,7 +95,11 @@ nav:
           - Concurrent Load: tests/concurrent-load/concurrent-load.md
           - Scalability: tests/scalability/scalability.md
           - Offline Batch: tests/offline-batch/offline-batch.md
-          - Embedding Models: tests/embedding-models/embedding-models.md
+          - Embedding Models:
+              - Overview: tests/embedding-models/embedding-models.md
+              - Operating-point: tests/embedding-models/operating-point.md
+              - Latency sweep: tests/embedding-models/latency-concurrent.md
+              - Legacy saturation sweep: tests/embedding-models/baseline-sweep.md
           - Audio Models: tests/audio-models/README.md
           - LM Eval: tests/lm-eval/lm-eval.md
           - Resource Contention: tests/resource-contention/resource-contention.md

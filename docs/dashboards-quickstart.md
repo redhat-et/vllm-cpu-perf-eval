@@ -262,7 +262,7 @@ filtering for multi-dimensional analysis:
 2. **Configuration Filters** (Row 2)
    - **Core Count** - CPU cores allocated to vLLM (8, 16, 32, 64, etc.)
    - **Input Length** - Token length used for testing (512, 1024, 2048, etc.)
-   - **Scenario** - Test type (baseline, latency, or all)
+   - **Scenario** - Test type (operating_point, latency, or all)
 
 3. **Version & Identification** (Row 3)
    - **vLLM Version** - Software version tested
@@ -452,7 +452,7 @@ ansible-playbook llm-benchmark-auto.yml -e "guidellm_max_seconds=600" ...
 ### Example 4: Analyze Embedding Model Performance
 
 ```bash
-# 1. Run embedding test (baseline + concurrent load)
+# 1. Run embedding test (latency sweep + operating-point probes)
 ansible-playbook -i inventory/hosts.yml embedding-benchmark.yml \
   -e "test_model=RedHatAI/all-MiniLM-L6-v2" \
   -e "scenario=all"
@@ -462,8 +462,8 @@ cd automation/test-execution/dashboard-examples/vllm_dashboard
 ./launch-dashboard.sh
 
 # 3. Navigate to Embedding Metrics page
-# 4. View saturation curve to identify max throughput
-# 5. Check concurrent load analysis for sweet spot
+# 4. View operating-point probes and latency sweep on Embedding Metrics
+# 5. Check container stats tab for CPU/memory time series (when collected)
 # 6. Export to CSV if needed
 
 # Note: Embedding tests use vLLM bench serve for benchmarking
@@ -529,7 +529,7 @@ cd automation/test-execution/dashboard-examples/vllm_dashboard
 
 ### Workflow: Find Optimal Embedding Model
 
-1. **Run baseline tests for multiple models:**
+1. **Run full embedding workflow for multiple models:**
    ```bash
    # Test multiple embedding models
    for model in "RedHatAI/all-MiniLM-L6-v2" \

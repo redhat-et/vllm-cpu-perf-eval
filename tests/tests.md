@@ -21,8 +21,9 @@ This directory contains per-suite methodology and configuration documentation.
 | CVE Scanning / VLoc Bench | [cve-scanning.md](cve-scanning/cve-scanning.md) | Ansible |
 | Resource Contention | [resource-contention.md](resource-contention/resource-contention.md) | Planned |
 
-Sub-pages for embedding: [baseline-sweep.md](embedding-models/baseline-sweep.md),
-[latency-concurrent.md](embedding-models/latency-concurrent.md).
+Sub-pages for embedding: [operating-point.md](embedding-models/operating-point.md),
+[latency-concurrent.md](embedding-models/latency-concurrent.md),
+[baseline-sweep.md](embedding-models/baseline-sweep.md) (legacy).
 # Test ID Naming Convention
 
 All test cases use a hierarchical naming scheme:
@@ -49,7 +50,7 @@ All test cases use a hierarchical naming scheme:
 - `OFFLINE-CLASS-QWEN38`: Offline Batch suite, Classification use case, Qwen3-8B
 - `CVE-VLOC-GRANITE1B`: CVE Scanning suite, VLoc localization, Granite-4.0-1B
 - `CVE-CAP-ANTARES1B`: CVE Scanning suite, Capacity proxy, Antares-1B
-- `EMB-BASELINE-GRANITE-EN-EMB512`: Embedding suite, Baseline test, Granite English model
+- `EMB-OP-GRANITE-EN-R2-EMB512`: Embedding suite, operating-point probes, Granite English model
 - `EMB-LATENCY-GRANITE-ML-EMB512`: Embedding suite, Latency test, Granite Multilingual model
 - `LMEVAL-HELLASWAG-QWEN06`: LM Eval suite, HellaSwag task, Qwen3-0.6B
 - `LMEVAL-GSM8K-GRANITE32`: LM Eval suite, GSM8K math task, Granite-3.2-2B

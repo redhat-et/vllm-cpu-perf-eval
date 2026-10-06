@@ -80,8 +80,8 @@ The playbook auto-detects the result format:
 | Directory contents | Detected as |
 |--------------------|-------------|
 | Contains `benchmarks.json` | LLM |
-| Contains `baseline/` or `latency/` subdirs | Embedding |
-| Contains `sweep-*.json` or `concurrent-*.json` | Embedding |
+| Contains `operating_point/`, `latency/`, or legacy `baseline/` | Embedding |
+| Contains `conc-*.json`, `sweep-*.json`, or `concurrent-*.json` | Embedding |
 
 ### Auto-Display After Benchmark Runs
 
@@ -165,15 +165,16 @@ Rows are sorted by concurrency level ascending.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  Model:    BAAI/bge-small-en-v1.5
  Scenario: all | Cores: N/A | Platform: Intel Xeon 6975P
- vLLM: 0.8.5.post1 | Prompts: 250 | Input len: 512 | Date: 2026-07-10
+ vLLM: 0.8.5.post1 | Prompts: 1000 | Input len: 512 | Date: 2026-07-10
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
        Type │    Label │        RPS │        Tok/s │        E2E Latency (ms)                          │   Reqs │  Dur(s)
             │          │            │              │       mean        med        std        p99       │        │
   ──────────┼──────────┼────────────┼──────────────┼──────────────────────────────────────────────────-┼────────┼────────
-   baseline │      inf │      52.10 │      26675.2 │       19.1       18.5        3.2       32.4      │    250 │    4.8
-   baseline │    25pct │      13.03 │       6671.0 │       19.2       18.6        3.1       31.9      │    250 │   19.2
- concurrent │        2 │      51.90 │      26576.0 │       38.2       37.5        5.8       58.1      │    250 │    4.8
+  operating │        1 │      48.20 │      24678.4 │       20.5       19.8        2.9       35.1      │   1000 │   20.7
+  operating │        8 │     112.40 │      57548.8 │       71.2       68.4       12.1      102.3      │   1000 │    8.9
+  operating │       32 │     128.50 │      65824.0 │      248.1      241.0       38.2      412.5      │   1000 │    7.8
+ concurrent │       16 │     105.30 │      53913.6 │      152.0      148.2       22.4      285.0      │   1000 │    9.5
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ```
 
@@ -185,8 +186,8 @@ Rows are sorted by concurrency level ascending.
 
 | Column | Source | Unit |
 |--------|--------|------|
-| Type | `baseline` (sweep) or `concurrent` | - |
-| Label | `inf`, `25pct`, `2`, etc. | - |
+| Type | `operating` (conc probes), `concurrent` (latency sweep), or legacy `baseline` (sweep) | - |
+| Label | Concurrency (`1`, `8`, `32`, …) or sweep tag (`inf`, `25pct`, …) | - |
 | RPS | `request_throughput` | req/sec |
 | Tok/s | `total_token_throughput` | tokens/sec |
 | E2E Latency | `mean_e2el_ms`, `median_e2el_ms`, etc. | ms |
@@ -195,8 +196,8 @@ Rows are sorted by concurrency level ascending.
 
 <!-- markdownlint-enable MD013 -->
 
-Rows are sorted: baseline first (inf, then by percentage), then
-concurrent by concurrency count.
+Rows are sorted: legacy baseline sweeps first (if present), then
+operating-point probes, then latency sweep by concurrency.
 
 ## Metadata Header
 
@@ -233,11 +234,11 @@ correct results directory:
 # LLM: should contain benchmarks.json
 ls <path>/benchmarks.json
 
-# Embedding: subdirectory layout
-ls <path>/baseline/ <path>/latency/
+# Embedding: current layout
+ls <path>/operating_point/ <path>/latency/
 
-# Embedding: top-level file layout
-ls <path>/sweep-*.json <path>/concurrent-*.json
+# Embedding: legacy layout
+ls <path>/baseline/ <path>/sweep-*.json
 
 # LM Eval: use Streamlit dashboard (not terminal viewer)
 ls results/lm-eval/*/test-metadata.json

@@ -138,8 +138,8 @@ suite directory.
 ### 3-Phase Testing Methodology
 
 > **Note:** 3-phase testing is currently **only implemented for concurrent
-> load tests**. Other test suites (scalability, embedding models) use baseline
-> testing approaches.
+> load tests**. Embedding uses a **latency sweep** and **operating-point**
+> workflow; scalability uses separate sweep tooling.
 
 The **Concurrent Load Test Suite** implements a structured 3-phase testing approach:
 
