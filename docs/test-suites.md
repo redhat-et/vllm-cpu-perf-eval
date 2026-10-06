@@ -73,7 +73,7 @@ A typical session looks like this:
 ┡━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━┩
 │ embedding                 │ Matrix       │ script     │ Embedding model      │
 │                           │              │            │ performance -        │
-│                           │              │            │ baseline + latency   │
+│                           │              │            │ latency + OP (all)   │
 │ concurrent-load           │ Matrix       │ script     │ Upstream LLM         │
 │                           │              │            │ concurrent load      │
 │ rhaiis-sweep              │ Matrix       │ script     │ RHAIIS model         │
@@ -184,7 +184,7 @@ without requiring `--model`.
 | `rhaiis-sweep` | 5 models × 3 cores × 4 workloads | RHAIIS quantized model concurrent load sweep |
 | `concurrent-load` | all models × 3 cores × 4 workloads (60 tests, use `--models`/`--workload` to narrow) | Upstream LLM concurrent load sweep |
 | `lm-eval` | 6 models × 3 cores (hellaswag, winogrande, arc_easy, arc_challenge by default) | LM Evaluation Harness accuracy tests |
-| `embedding` | 5 models × 3 cores × 2 scenarios | Embedding model performance matrix |
+| `embedding` | 5 models × 3 cores (`scenario=all` default) | Embedding latency + operating-point matrix |
 | `offline-batch` | 11 use-cases × 3 runs | Offline batch processing |
 | `audio` | all models × `transcription-throughput` × 32 cores (override with `--scenario`, `--cores`) | Audio model benchmarking (Whisper ASR) |
 
@@ -254,13 +254,15 @@ Each suite has detailed methodology, metrics, and configuration in the
 ### Embedding Models
 
 - **[Embedding Models](../tests/embedding-models/embedding-models.md)** —
-  Comprehensive embedding performance testing.
-- **[Baseline Sweep](../tests/embedding-models/baseline-sweep.md)** — Throughput
-  scaling across concurrency levels.
-- **[Latency Concurrent](../tests/embedding-models/latency-concurrent.md)** —
-  Latency under concurrent load.
-- [Embedding Models Guide](embedding-models.md) — Setup, RHAIIS images, and
-  troubleshooting.
+  Suite overview and quick start.
+- **[Operating-point probes](../tests/embedding-models/operating-point.md)** —
+  Fixed probes at conc=1, 8, and peak.
+- **[Latency sweep](../tests/embedding-models/latency-concurrent.md)** —
+  Concurrency envelope (16–384).
+- **[Legacy saturation sweep](../tests/embedding-models/baseline-sweep.md)** —
+  Deprecated load-fraction tests (old result trees).
+- [Embedding Models Guide](embedding-models.md) — Setup, RHAIIS images, modes,
+  and troubleshooting.
 
 ### Audio Models
 
@@ -291,7 +293,7 @@ All test cases use a hierarchical naming scheme:
 
 - `CONC-LLAMA32-CHAT` — Concurrent load, Llama-3.2-1B, chat workload
 - `OFFLINE-SUMM-LLAMA38` — Offline batch, summarization, Llama-3.1-8B
-- `EMB-BASELINE-GRANITE-EN-EMB512` — Embedding baseline, Granite English
+- `EMB-OP-GRANITE-EN-EMB512` — Embedding operating-point, Granite English
 - `LMEVAL-HELLASWAG-QWEN06` — LM Eval, HellaSwag, Qwen3-0.6B
 - `LMEVAL-GSM8K-GRANITE32` — LM Eval, GSM8K, Granite-3.2-2B
 

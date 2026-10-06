@@ -33,6 +33,12 @@ configurations for evaluating vLLM inference performance on CPU-based systems.
   </div>
 
   <div class="link-card">
+    <h3>Embedding testing</h3>
+    <p>Scenarios, Ansible setup, and result layout</p>
+    <a href="docs/embedding-models/">Embedding Models Guide →</a>
+  </div>
+
+  <div class="link-card">
     <h3>Results</h3>
     <p>Analyze results with dashboards and experiment tracking</p>
     <a href="docs/dashboards-quickstart/">Dashboards Guide →</a>
@@ -51,7 +57,7 @@ configurations for evaluating vLLM inference performance on CPU-based systems.
 | --- | --- | --- |
 | [Concurrent Load](tests/concurrent-load/concurrent-load/) | Validated | P95 latency under concurrent requests |
 | [Offline Batch](tests/offline-batch/offline-batch/) | Validated | Bulk document processing |
-| [Embedding Models](tests/embedding-models/embedding-models/) | Validated | Embedding throughput and latency |
+| [Embedding Models](tests/embedding-models/embedding-models/) | Validated | Latency sweep + operating-point probes |
 | [Audio Models](tests/audio-models/) | Validated | Whisper ASR performance |
 | [LM Eval](tests/lm-eval/lm-eval.md) | WIP | LLM accuracy (hellaswag, arc, gsm8k, …) |
 | [Scalability](tests/scalability/scalability/) | WIP | Maximum throughput and sweep curves |

@@ -2,7 +2,7 @@
 
 ## Overview
 
-> **Current Status:** 3-phase testing is **only implemented for the Concurrent Load Test Suite**. Scalability and embedding model tests currently use baseline testing approaches only.
+> **Current Status:** 3-phase testing is **only implemented for the Concurrent Load Test Suite**. Embedding tests use a **latency concurrency sweep** plus **operating-point probes** (`scenario=all`), not the GuideLLM 3-phase workflow.
 
 The vLLM CPU performance evaluation uses a structured 3-phase testing approach to separate baseline performance measurement, realistic variability analysis, and production optimization evaluation. This methodology was designed to be adaptable across test suites but is currently fully implemented only for concurrent load testing.
 

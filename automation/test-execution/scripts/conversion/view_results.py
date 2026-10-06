@@ -125,14 +125,16 @@ def detect_format(path):
         if benchmarks.exists():
             return "llm", p, benchmarks
 
+        has_operating = (p / "operating_point").is_dir()
         has_baseline = (p / "baseline").is_dir()
         has_latency = (p / "latency").is_dir()
-        if has_baseline or has_latency:
+        if has_operating or has_baseline or has_latency:
             return "embedding", p, None
 
+        has_op_files = list(p.glob("conc-*.json"))
         has_sweep = list(p.glob("sweep-*.json"))
         has_conc = list(p.glob("concurrent-*.json"))
-        if has_sweep or has_conc:
+        if has_op_files or has_sweep or has_conc:
             return "embedding", p, None
 
     print(
@@ -141,7 +143,7 @@ def detect_format(path):
     )
     print(
         "Expected: benchmarks.json (LLM) "
-        "or baseline/latency subdirs (embedding)",
+        "or operating_point/latency/baseline subdirs (embedding)",
         file=sys.stderr,
     )
     sys.exit(1)
@@ -432,7 +434,7 @@ def collect_embedding_results(result_dir):
     """
     results = []
 
-    for subdir_name in ["baseline", "latency"]:
+    for subdir_name in ["baseline", "operating_point", "latency"]:
         subdir = result_dir / subdir_name
         if not subdir.is_dir():
             continue
@@ -444,6 +446,9 @@ def collect_embedding_results(result_dir):
             if stem.startswith("sweep-"):
                 test_type = "baseline"
                 label = stem.replace("sweep-", "")
+            elif stem.startswith("conc-"):
+                test_type = "operating"
+                label = stem.replace("conc-", "")
             elif stem.startswith("concurrent-"):
                 test_type = "concurrent"
                 label = stem.replace(
@@ -477,7 +482,7 @@ def collect_embedding_results(result_dir):
 
 
 def _sort_key_embedding(item):
-    """Sort: baseline first (inf, then pct), then concurrent."""
+    """Sort: legacy baseline, operating probes, then latency sweep."""
     test_type, label, _ = item
     if test_type == "baseline":
         if label == "inf":
@@ -487,11 +492,15 @@ def _sort_key_embedding(item):
             return (0, int(pct))
         except ValueError:
             return (0, 999)
-    else:
+    if test_type == "operating":
         try:
             return (1, int(label))
         except ValueError:
             return (1, 999)
+    try:
+        return (2, int(label))
+    except ValueError:
+        return (2, 999)
 
 
 def build_embedding_table(results):

@@ -17,7 +17,7 @@ Matrix-first CLI for running comprehensive CPU benchmarks. Most suites run full 
 
 # Matrix suites - run full matrices (no --model required!)
 ./cpueval --suite rhaiis-sweep           # 60 combinations: 5 models × 3 cores × 4 workloads
-./cpueval --suite embedding              # 30 combinations: 5 models × 3 cores × 2 scenarios
+./cpueval --suite embedding              # 15 runs: 5 models × 3 cores (scenario=all default)
 ./cpueval --suite mteb                   # 5 models × quick MTEB preset (quality)
 ./cpueval --suite offline-batch          # 33 runs: use-cases 3
 ./cpueval --suite audio                  # Default: all models, transcription-throughput scenario, 32 cores
@@ -701,7 +701,7 @@ via `./cpueval results --open`.
 | `rhaiis-sweep` | 5 models × 3 cores × 4 workloads | RHAIIS model concurrent load sweep (60 tests) |
 | `concurrent-load` | all models × 3 cores × 4 workloads (60 tests) | Upstream LLM concurrent load sweep |
 | `lm-eval` | 6 models × 3 cores (default MC tasks) | LM Evaluation Harness accuracy tests (18 tests) |
-| `embedding` | 5 models × 3 cores × 2 scenarios | Embedding model performance matrix (30 tests) |
+| `embedding` | 5 models × 3 cores (`scenario=all`) | Embedding latency + operating-point matrix (15 runs) |
 | `mteb` | 5 models × `quick` task preset | MTEB embedding quality benchmarks (default: 2 tasks/model) |
 | `offline-batch` | 11 use-cases × 3 runs | Offline batch processing suite (33 tests) |
 | `audio` | all models × `transcription-throughput` × 32 cores | Audio model benchmarking (Whisper ASR) |
