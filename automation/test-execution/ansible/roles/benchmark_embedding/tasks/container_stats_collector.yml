@@ -114,7 +114,13 @@
   when: stats_collector_action == 'start'
 
 - name: Stop container stats collector
-  ansible.builtin.shell: "kill {{ _embed_stats_pid }} 2>/dev/null; sleep 1; true"
+  ansible.builtin.shell: |
+    kill {{ _embed_stats_pid }} 2>/dev/null
+    for i in $(seq 1 15); do
+      kill -0 {{ _embed_stats_pid }} 2>/dev/null || break
+      sleep 1
+    done
+    true
   delegate_to: "{{ _embed_stats_host }}"
   become: true
   changed_when: false
