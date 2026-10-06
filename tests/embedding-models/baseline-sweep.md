@@ -12,13 +12,11 @@
 
 Older automation and `run-baseline.sh` generated:
 
-```text
-results/.../baseline/
-├── sweep-inf.json
-├── sweep-25pct.json
-├── sweep-50pct.json
-└── sweep-75pct.json
-```
+    results/.../baseline/
+    ├── sweep-inf.json
+    ├── sweep-25pct.json
+    ├── sweep-50pct.json
+    └── sweep-75pct.json
 
 Some result trees under `results/embedding-models/` use this layout.
 
