@@ -136,6 +136,8 @@ class WizardResult:
     vllm_numa: Optional[int] = None
     guidellm_cpus: Optional[str] = None
     guidellm_numa: Optional[int] = None
+    vllm_bench_cpus: Optional[str] = None
+    vllm_bench_numa: Optional[int] = None
     tag: Optional[str] = None
     extra: Optional[List[str]] = None
     dry_run: bool = False
@@ -165,10 +167,10 @@ class WizardResult:
             "vllm_numa": self.vllm_numa,
             "guidellm_cpus": self.guidellm_cpus,
             "guidellm_numa": self.guidellm_numa,
+            "vllm_bench_cpus": self.vllm_bench_cpus,
+            "vllm_bench_numa": self.vllm_bench_numa,
             "profile": None,
             "endpoint_url": None,
-            "vllm_bench_cpus": None,
-            "vllm_bench_numa": None,
             "max_seconds": None,
             "continue_on_error": False,
             "tag": self.tag,
@@ -346,7 +348,11 @@ def _parse_optional_int(value: str, field: str) -> int:
 
 
 def _suite_supports_cpu_pinning(suite: Suite) -> bool:
-    return "vllm_cpus" in suite.param_mappings or "guidellm_cpus" in suite.param_mappings
+    return (
+        "vllm_cpus" in suite.param_mappings
+        or "guidellm_cpus" in suite.param_mappings
+        or "vllm_bench_cpus" in suite.param_mappings
+    )
 
 
 def _prompt_keep_default(driver: _PromptDriver, label: str, default: str) -> str:
@@ -420,6 +426,10 @@ def build_params_from_answers(
             result.guidellm_cpus = value
         elif field == "guidellm_numa_node":
             result.guidellm_numa = _parse_optional_int(value, "guidellm_numa_node")
+        elif field == "vllm_bench_cpus":
+            result.vllm_bench_cpus = value
+        elif field == "vllm_bench_numa_node":
+            result.vllm_bench_numa = _parse_optional_int(value, "vllm_bench_numa_node")
         elif field in ("tasks", "batch_size", "phase", "dtype"):
             extra_pairs.append(f"{field}={value}")
 
@@ -504,38 +514,63 @@ def _collect_cpu_pinning(
     suite: Suite,
     answers: Dict[str, str],
 ) -> None:
-    """Collect optional DUT / load-generator CPU pinning for LLM matrix suites."""
+    """Collect optional CPU pinning parameters."""
     if not _suite_supports_cpu_pinning(suite):
         return
 
+    has_vllm = "vllm_cpus" in suite.param_mappings
+    has_guidellm = "guidellm_cpus" in suite.param_mappings
+    has_vllm_bench = "vllm_bench_cpus" in suite.param_mappings
+
     console.print()
-    console.print(
-        "[bold]CPU pinning[/bold] (optional — pin vLLM on DUT and GuideLLM on load generator)"
-    )
-    console.print(
-        "[dim]Example: DUT vLLM 64-95 NUMA 1, load generator 0-31 NUMA 0 "
-        "(see profiles/dual-socket-split.yaml)[/dim]"
-    )
+    console.print("[bold]CPU pinning[/bold] (optional)")
+    if has_vllm_bench:
+        console.print(
+            "[dim]Example: inference server 0-63 NUMA 0, "
+            "benchmark container 64-95 NUMA 1[/dim]"
+        )
+    else:
+        console.print(
+            "[dim]Example: DUT vLLM 64-95 NUMA 1, load generator 0-31 NUMA 0 "
+            "(see profiles/dual-socket-split.yaml)[/dim]"
+        )
 
-    vllm_cpus = _prompt_optional_pinning(driver, "DUT vLLM CPU range", "e.g. 64-95")
-    if vllm_cpus:
-        answers["vllm_cpus"] = vllm_cpus
+    if has_vllm:
+        vllm_cpus = _prompt_optional_pinning(
+            driver, "DUT vLLM CPU range", "e.g. 64-95"
+        )
+        if vllm_cpus:
+            answers["vllm_cpus"] = vllm_cpus
 
-    vllm_numa = _prompt_optional_pinning(driver, "DUT vLLM NUMA node", "e.g. 1")
-    if vllm_numa:
-        answers["vllm_numa_node"] = vllm_numa
+        vllm_numa = _prompt_optional_pinning(driver, "DUT vLLM NUMA node", "e.g. 1")
+        if vllm_numa:
+            answers["vllm_numa_node"] = vllm_numa
 
-    guidellm_cpus = _prompt_optional_pinning(
-        driver, "Load generator CPU range", "e.g. 0-31"
-    )
-    if guidellm_cpus:
-        answers["guidellm_cpus"] = guidellm_cpus
+    if has_guidellm:
+        guidellm_cpus = _prompt_optional_pinning(
+            driver, "Load generator CPU range", "e.g. 0-31"
+        )
+        if guidellm_cpus:
+            answers["guidellm_cpus"] = guidellm_cpus
 
-    guidellm_numa = _prompt_optional_pinning(
-        driver, "Load generator NUMA node", "e.g. 0"
-    )
-    if guidellm_numa:
-        answers["guidellm_numa_node"] = guidellm_numa
+        guidellm_numa = _prompt_optional_pinning(
+            driver, "Load generator NUMA node", "e.g. 0"
+        )
+        if guidellm_numa:
+            answers["guidellm_numa_node"] = guidellm_numa
+
+    if has_vllm_bench:
+        vllm_bench_cpus = _prompt_optional_pinning(
+            driver, "Benchmark container CPU range", "e.g. 64-95"
+        )
+        if vllm_bench_cpus:
+            answers["vllm_bench_cpus"] = vllm_bench_cpus
+
+        vllm_bench_numa = _prompt_optional_pinning(
+            driver, "Benchmark container NUMA node", "e.g. 1"
+        )
+        if vllm_bench_numa:
+            answers["vllm_bench_numa_node"] = vllm_bench_numa
 
 
 def _collect_llm_matrix_answers(
@@ -617,6 +652,10 @@ def _print_summary(console: Console, suite: Suite, answers: Dict[str, str], resu
         console.print(f"  Load generator CPUs: {result.guidellm_cpus}")
     if result.guidellm_numa is not None:
         console.print(f"  Load generator NUMA: {result.guidellm_numa}")
+    if result.vllm_bench_cpus:
+        console.print(f"  Benchmark container CPUs: {result.vllm_bench_cpus}")
+    if result.vllm_bench_numa is not None:
+        console.print(f"  Benchmark container NUMA: {result.vllm_bench_numa}")
     if result.tag:
         console.print(f"  Tag: {result.tag}")
     flags = []

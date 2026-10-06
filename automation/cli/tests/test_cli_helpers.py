@@ -6,6 +6,7 @@ import pathlib
 
 import pytest
 
+from cpueval.doctor import _is_single_host_mode
 from cpueval.cli import (
     _apply_endpoint_env,
     _build_script_args,
@@ -492,3 +493,29 @@ def test_uninstall_completion_unsupported_shell(tmp_path, monkeypatch):
         _uninstall_completion("cpueval", "fish")
 
     assert exc_info.value.exit_code != 0
+
+
+# --- _is_single_host_mode tests ---
+
+def test_is_single_host_mode_same_hostname(monkeypatch):
+    monkeypatch.setenv("DUT_HOSTNAME", "myhost.example.com")
+    monkeypatch.setenv("LOADGEN_HOSTNAME", "myhost.example.com")
+    assert _is_single_host_mode() is True
+
+
+def test_is_single_host_mode_different_hosts(monkeypatch):
+    monkeypatch.setenv("DUT_HOSTNAME", "dut.example.com")
+    monkeypatch.setenv("LOADGEN_HOSTNAME", "loadgen.example.com")
+    assert _is_single_host_mode() is False
+
+
+def test_is_single_host_mode_missing_env(monkeypatch):
+    monkeypatch.delenv("DUT_HOSTNAME", raising=False)
+    monkeypatch.delenv("LOADGEN_HOSTNAME", raising=False)
+    assert _is_single_host_mode() is False
+
+
+def test_is_single_host_mode_localhost(monkeypatch):
+    monkeypatch.setenv("DUT_HOSTNAME", "localhost")
+    monkeypatch.setenv("LOADGEN_HOSTNAME", "127.0.0.1")
+    assert _is_single_host_mode() is True

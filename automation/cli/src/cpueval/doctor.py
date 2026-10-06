@@ -2,6 +2,7 @@
 
 import os
 import shutil
+import socket
 import subprocess
 from typing import Tuple
 
@@ -80,6 +81,23 @@ def check_inventory() -> Tuple[bool, str]:
     return False, f"Inventory not found: {inventory}"
 
 
+def _is_single_host_mode() -> bool:
+    """Return True when both DUT and LOADGEN resolve to the local machine."""
+    dut = os.getenv("DUT_HOSTNAME", "")
+    loadgen = os.getenv("LOADGEN_HOSTNAME", "")
+    if not dut or not loadgen:
+        return False
+    if dut == loadgen:
+        return True
+    localhost_aliases = {"localhost", "127.0.0.1", "::1"}
+    try:
+        local_names = {socket.gethostname(), socket.getfqdn()}
+    except Exception:
+        local_names = set()
+    both = {dut, loadgen}
+    return both <= (localhost_aliases | local_names)
+
+
 def ping_hosts(skip_dut_in_external: bool = False) -> Tuple[bool, str]:
     """Ping Ansible hosts to verify connectivity.
 
@@ -92,16 +110,24 @@ def ping_hosts(skip_dut_in_external: bool = False) -> Tuple[bool, str]:
     if mode == "external" and skip_dut_in_external:
         return True, "Skipped in external mode (soft-OK)"
 
+    cmd = [
+        "ansible",
+        "-i",
+        str(get_inventory_path()),
+        "all",
+        "-m",
+        "ping",
+    ]
+
+    # Single-host: DUT == LOADGEN (or both are localhost). Ansible defaults to
+    # SSH which fails for root@localhost without a key. Override to local transport.
+    single_host = _is_single_host_mode()
+    if single_host:
+        cmd.extend(["-e", "ansible_connection=local"])
+
     try:
         result = subprocess.run(
-            [
-                "ansible",
-                "-i",
-                str(get_inventory_path()),
-                "all",
-                "-m",
-                "ping",
-            ],
+            cmd,
             capture_output=True,
             text=True,
             timeout=30,
@@ -109,9 +135,9 @@ def ping_hosts(skip_dut_in_external: bool = False) -> Tuple[bool, str]:
         )
 
         if result.returncode == 0:
-            # Count successful pings
             success_count = result.stdout.count('"ping": "pong"')
-            return True, f"{success_count} host(s) reachable"
+            suffix = " (single-host: local connection)" if single_host else ""
+            return True, f"{success_count} host(s) reachable{suffix}"
         else:
             return False, "Some hosts unreachable"
     except subprocess.TimeoutExpired:
@@ -185,5 +211,14 @@ def run_doctor(no_ping: bool = False) -> int:
         console.print("  export HF_TOKEN=<token>  # for gated models")
         console.print("\nFor external mode:")
         console.print("  export VLLM_ENDPOINT_MODE=external")
-        console.print("  export VLLM_ENDPOINT_URL=http://host:8000\n")
+        console.print("  export VLLM_ENDPOINT_URL=http://host:8000")
+        if _is_single_host_mode():
+            console.print(
+                "\n[yellow]Tip:[/yellow] Single-host mode detected "
+                "(DUT_HOSTNAME == LOADGEN_HOSTNAME). If connectivity "
+                "checks fail, the local Ansible transport is used "
+                "automatically. Ensure your inventory does not force SSH "
+                "for localhost, or run with --no-ping to skip the check."
+            )
+        console.print()
         return 1
