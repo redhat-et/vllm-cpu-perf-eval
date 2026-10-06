@@ -21,6 +21,14 @@ def host_env(monkeypatch):
     monkeypatch.delenv("VLLM_ENDPOINT_MODE", raising=False)
 
 
+def _suite_menu_index(name: str) -> str:
+    suites = _sorted_suites(SuiteRegistry())
+    for index, suite in enumerate(suites, start=1):
+        if suite.name == name:
+            return str(index)
+    raise AssertionError(f"Suite not found in menu: {name}")
+
+
 def test_wizard_fields_deduplicate_concurrent_load():
     registry = SuiteRegistry()
     suite = registry.get_suite("concurrent-load")
@@ -32,11 +40,10 @@ def test_wizard_fields_deduplicate_concurrent_load():
     assert "workload" not in fields
 
 
-def test_get_host_env_status_managed_missing():
-    import os
-
-    for key in ("DUT_HOSTNAME", "LOADGEN_HOSTNAME", "VLLM_ENDPOINT_MODE"):
-        os.environ.pop(key, None)
+def test_get_host_env_status_managed_missing(monkeypatch):
+    monkeypatch.delenv("DUT_HOSTNAME", raising=False)
+    monkeypatch.delenv("LOADGEN_HOSTNAME", raising=False)
+    monkeypatch.delenv("VLLM_ENDPOINT_MODE", raising=False)
 
     status = get_host_env_status()
     assert status["mode"] == "managed"
@@ -161,12 +168,23 @@ def test_build_params_cpu_pinning():
 def test_wizard_concurrent_load_tailored_flow(host_env):
     from rich.console import Console
 
-    # suite 4, customize, models, cores, pinning x4, workloads, tag, dry-run, skip-doctor, launch
+    # customize, models, cores, pinning x4, workloads, tag, dry-run, skip-doctor, launch
     result = run_wizard(
         Console(),
         inputs=[
-            "4", "y", "tiny", "32", "64-95", "1", "0-31", "0", "chat",
-            "", "y", "y", "y",
+            _suite_menu_index("concurrent-load"),
+            "y",
+            "tiny",
+            "32",
+            "64-95",
+            "1",
+            "0-31",
+            "0",
+            "chat",
+            "",
+            "y",
+            "y",
+            "y",
         ],
     )
 
@@ -221,6 +239,41 @@ def test_build_params_embedding_cpu_pinning():
     assert result.vllm_bench_numa == 1
     assert result.vllm_cpus is None
     assert result.guidellm_cpus is None
+
+
+def test_wizard_embedding_cpu_pinning_flow(host_env):
+    from rich.console import Console
+
+    # customize, suite fields, skip inference pinning, bench pinning, tag, flags, launch
+    result = run_wizard(
+        Console(),
+        inputs=[
+            _suite_menu_index("embedding"),
+            "y",
+            "quick",
+            "16",
+            "all",
+            "100",
+            "",
+            "",
+            "64-95",
+            "1",
+            "",
+            "y",
+            "y",
+            "y",
+        ],
+    )
+
+    assert result is not None
+    assert result.suite == "embedding"
+    assert result.models == "quick"
+    assert result.cores == "16"
+    assert result.scenario == "all"
+    assert result.num_prompts == 100
+    assert result.vllm_cpus is None
+    assert result.vllm_bench_cpus == "64-95"
+    assert result.vllm_bench_numa == 1
 
 
 def test_embedding_as_execute_kwargs_includes_bench_cpus():
