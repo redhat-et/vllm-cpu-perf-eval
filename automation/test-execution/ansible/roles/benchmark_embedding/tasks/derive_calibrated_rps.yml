@@ -57,4 +57,4 @@
   ansible.builtin.debug:
     msg:
       - "Peak throughput concurrency: {{ cal_peak_concurrency }} (used as operating-point peak probe)"
-      - "Valid sweep results: {{ latency_peak_table | length }}/{{ latency_all_results | length }} ({{ latency_all_results | length - latency_peak_table | length }} skipped — completed=0)"
+      - "Valid sweep results: {{ latency_peak_table | length }}/{{ latency_all_results | length }} ({{ (latency_all_results | length) - (latency_peak_table | length) }} skipped — completed=0)"

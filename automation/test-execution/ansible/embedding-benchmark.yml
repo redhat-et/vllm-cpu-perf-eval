@@ -196,10 +196,7 @@
 
     - name: Initialize bench_config for dut-only mode
       ansible.builtin.set_fact:
-        bench_config:
-          vllm_host: "localhost"
-          vllm_port: "{{ vllm_port | default(8000) }}"
-          results_dir: "{{ lookup('env', 'HOME') ~ '/benchmark-results' if (lookup('env', 'AWX_JOB_ID') | length > 0) else playbook_dir ~ '/../../../results/llm' }}"
+        bench_config: "{{ bench_config | default({}) | combine({'vllm_host': 'localhost', 'vllm_port': vllm_port | default(8000), 'results_dir': lookup('env', 'HOME') ~ '/benchmark-results' if (lookup('env', 'AWX_JOB_ID') | length > 0) else playbook_dir ~ '/../../../results/embedding'}) }}"
 
     - name: Run vLLM health check
       ansible.builtin.include_role:
@@ -296,11 +293,6 @@
         mode: "0755"
         recurse: true
 
-    - name: Set results directories for roles
-      ansible.builtin.set_fact:
-        op_results_dir: "{{ test_run_base_expanded }}/operating_point"
-        latency_results_dir: "{{ test_run_base_expanded }}/latency"
-
   roles:
     - role: benchmark_embedding
       vars:
@@ -381,11 +373,6 @@
         state: directory
         mode: "0755"
         recurse: true
-
-    - name: Set results directories for roles
-      ansible.builtin.set_fact:
-        op_results_dir: "{{ test_run_base_expanded }}/operating_point"
-        latency_results_dir: "{{ test_run_base_expanded }}/latency"
 
   roles:
     - role: benchmark_embedding

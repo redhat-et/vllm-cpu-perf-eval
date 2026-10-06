@@ -115,7 +115,7 @@
   delay: 10
   until: op_embedding_ready.status == 200
   changed_when: false
-  when: scenario == 'operating_point'
+  when: scenario in ['operating_point', 'all']
 
 - name: "Operating-point Test - Run at each concurrency level"
   ansible.builtin.command:
