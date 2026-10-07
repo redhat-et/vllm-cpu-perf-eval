@@ -1,0 +1,174 @@
+---
+# ============================================================================
+# vLLM Scale-Out Configuration (llm-d: EPP + Envoy)
+# ============================================================================
+# Configuration for deploying multiple vLLM instances with intelligent routing
+# via the llm-d Endpoint Picker (EPP) and Envoy proxy — no Kubernetes required.
+#
+# Request flow: Client → Envoy (:8081) → EPP (gRPC ext_proc :9002) → vLLM
+# EPP scoring: prefix-cache hits (3×) + queue depth (2×) + KV utilisation (2×)
+#
+# These settings control the scale-out deployment playbook (start-vllm-scaleout.yml)
+# Override these in your inventory or via command line with -e
+# ============================================================================
+
+# ============================================================================
+# Instance Configuration
+# ============================================================================
+
+# Number of vLLM instances to deploy (1-10)
+scaleout_num_instances: 5
+
+# Cores per instance (8, 16, or 32)
+# Total cores used = num_instances * cores_per_instance
+scaleout_cores_per_instance: 32
+
+# Starting CPU core number (instances allocated sequentially from this core)
+# Example: start_core=32, 3 instances, 32 cores each:
+#   Instance 1: cores 32-63
+#   Instance 2: cores 64-95
+#   Instance 3: cores 96-127
+scaleout_start_core: 32
+
+# Enable SMT/HyperThreading cores (true/false)
+scaleout_enable_smt: false
+
+# Enable prefix caching (true/false)
+# Prefix caching is especially effective when combined with the EPP's
+# prefix-cache-scorer — requests are steered to the instance that already
+# has the matching KV cache blocks.
+scaleout_enable_prefix_caching: true
+
+# ============================================================================
+# Router Configuration (EPP + Envoy)
+# ============================================================================
+
+# Routing policy:
+#   intelligent  — EPP selects backend via prefix-cache + queue + KV-utilisation scoring (default)
+#   round_robin  — Envoy round-robin across all vLLM instances; EPP is not started
+# Run both in separate benchmark runs to measure routing overhead and benefit.
+scaleout_routing_policy: "intelligent"
+
+# EPP scorer weights (only used when scaleout_routing_policy == 'intelligent')
+# Tune to emphasise the scoring dimension most relevant to your workload:
+#   - Raise prefix_cache_weight for workloads with repeated prompts (RAG, chat history)
+#   - Raise queue_weight for high-concurrency, uniform-length requests
+#   - Set all equal (e.g. 1) for load-aware round-robin without strong affinity
+scaleout_epp_prefix_cache_weight: 3
+scaleout_epp_queue_weight: 2
+scaleout_epp_kv_cache_weight: 2
+scaleout_epp_lru_weight: 2
+
+# Dedicated CPU cores for each router component.
+# EPP processes every request for a routing decision — keep it uncontested.
+# Envoy handles all client I/O — needs enough cores to saturate at expected RPS.
+scaleout_envoy_cores: "1-7"    # 7 cores for Envoy  (adjust with scaleout_envoy_concurrency)
+scaleout_epp_cores: "8-15"     # 8 cores for EPP    (dedicated, never shared)
+scaleout_envoy_concurrency: 7  # must match core count in scaleout_envoy_cores
+
+# Base port for vLLM instances — each instance binds base_port + (index-1)
+# Instance 1: 8000, Instance 2: 8001, Instance 3: 8002, ...
+scaleout_vllm_base_port: 8000
+
+# Client-facing Envoy port
+scaleout_envoy_port: 8081
+
+# Envoy admin interface port (/ready, /clusters, /stats)
+scaleout_envoy_admin_port: 19000
+
+# EPP gRPC ext_proc port (Envoy → EPP routing decisions)
+scaleout_epp_grpc_port: 9002
+
+# EPP gRPC health check port
+scaleout_epp_health_port: 9003
+
+# EPP Prometheus metrics port (EPP routing metrics + aggregated vLLM metrics)
+scaleout_epp_metrics_port: 9090
+
+# ============================================================================
+# Container Images
+# ============================================================================
+
+# vLLM container image (CPU-optimised build)
+# Options:
+#   - docker.io/vllm/vllm-openai-cpu:v0.25.1    (official vLLM CPU)
+#   - quay.io/vllm/automation-vllm:cpu-<tag>     (Red Hat AI optimized)
+scaleout_vllm_image: "docker.io/vllm/vllm-openai-cpu:v0.25.1"
+
+# llm-d Endpoint Picker image
+# Pin to a specific release tag in production (e.g. v0.3.1)
+scaleout_epp_image: "ghcr.io/llm-d/llm-d-router-endpoint-picker:latest"
+
+# Envoy proxy image
+scaleout_envoy_image: "docker.io/envoyproxy/envoy:distroless-v1.33.2"
+
+# HF cache volume name
+scaleout_volume_name: "hf-cache"
+
+# ============================================================================
+# Model Configuration
+# ============================================================================
+
+# Model to deploy (HuggingFace model ID or local path)
+# Override at runtime: -e scaleout_model_name="model/name"
+# scaleout_model_name: "RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w8a8"
+
+# vLLM task type — leave unset for auto-detection (covers LLM and embedding models)
+# Set explicitly when required:
+#   embed          : encoder-only embedding models (Nomic, E5-mistral, etc.)
+#   generate       : forced generation mode
+#   transcription  : Whisper/audio ASR models
+# scaleout_vllm_task: ""
+
+# Max model length (tokens). Recommended for embedding to match ISL (e.g. 512).
+# scaleout_vllm_max_model_len: 512
+
+# Optional: Additional vLLM arguments
+# scaleout_vllm_extra_args:
+#   - "--dtype"
+#   - "bfloat16"
+
+# ============================================================================
+# Health Check Settings
+# ============================================================================
+
+scaleout_health_check_retries: 30
+scaleout_health_check_delay: 5
+
+# ============================================================================
+# Directories
+# ============================================================================
+
+scaleout_config_dir: "/tmp/vllm-scaleout"
+
+# SMT core offset (system-specific, adjust based on NUMA topology)
+scaleout_smt_offset: 192
+scaleout_smt_cores_per_instance: 8
+
+# ============================================================================
+# Example Configurations
+# ============================================================================
+#
+# LLM inference — 5 instances, 32 cores each:
+#   scaleout_num_instances: 5
+#   scaleout_cores_per_instance: 32
+#   scaleout_model_name: "RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w8a8"
+#
+# Embedding — 3 instances, 16 cores each, context capped:
+#   scaleout_num_instances: 3
+#   scaleout_cores_per_instance: 16
+#   scaleout_model_name: "RedHatAI/granite-embedding-english-r2"
+#   scaleout_vllm_max_model_len: 512
+#
+# Audio/Whisper — 4 instances, 8 cores each:
+#   scaleout_num_instances: 4
+#   scaleout_cores_per_instance: 8
+#   scaleout_model_name: "openai/whisper-large-v3"
+#   scaleout_vllm_task: "transcription"
+#   scaleout_enable_prefix_caching: false
+#
+# High instance count with SMT:
+#   scaleout_num_instances: 8
+#   scaleout_cores_per_instance: 8
+#   scaleout_enable_smt: true
+# ============================================================================

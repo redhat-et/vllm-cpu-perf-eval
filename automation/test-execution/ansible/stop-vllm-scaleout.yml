@@ -1,0 +1,112 @@
+---
+# Stop vLLM Scale-Out Deployment (llm-d: EPP + Envoy)
+# Stops and removes all containers, then cleans up all generated config files.
+# The HF model cache volume is preserved by default (GBs of weights — expensive
+# to re-download). Pass -e "scaleout_purge_model_cache=true" to remove it too.
+#
+# Usage:
+#   ansible-playbook stop-vllm-scaleout.yml
+#   ansible-playbook stop-vllm-scaleout.yml -e "scaleout_purge_model_cache=true"
+
+- name: "Stop vLLM Scale-Out Deployment (llm-d)"
+  hosts: dut
+  become: true
+  vars:
+    scaleout_config_dir: "/tmp/vllm-scaleout"
+    scaleout_volume_name: "hf-cache"
+    scaleout_num_instances: 5
+    scaleout_purge_model_cache: false  # Removes the HF weights volume when true
+
+  tasks:
+    - name: Check if compose file exists
+      ansible.builtin.stat:
+        path: "{{ scaleout_config_dir }}/docker-compose.yml"
+      register: compose_file
+
+    - name: Stop and remove containers via docker-compose
+      ansible.builtin.shell:
+        cmd: "podman-compose -f {{ scaleout_config_dir }}/docker-compose.yml down"
+        chdir: "{{ scaleout_config_dir }}"
+      when:
+        - compose_file.stat.exists
+        - vllm_server.container_runtime == 'podman'
+      register: compose_down
+      ignore_errors: true
+
+    - name: Display compose down output
+      ansible.builtin.debug:
+        var: compose_down.stdout_lines
+      when: compose_down.stdout_lines is defined
+
+    # Fallback: forcibly remove any containers that podman-compose may have missed
+    # (runs regardless of whether compose_file existed, harmless if already gone)
+    - name: Force-remove Envoy container
+      containers.podman.podman_container:
+        name: vllm-envoy
+        state: absent
+        force: true
+      ignore_errors: true
+      when: vllm_server.container_runtime == 'podman'
+
+    - name: Force-remove EPP container
+      containers.podman.podman_container:
+        name: vllm-epp
+        state: absent
+        force: true
+      ignore_errors: true
+      when: vllm_server.container_runtime == 'podman'
+
+    - name: Force-remove vLLM instance containers
+      containers.podman.podman_container:
+        name: "vllm-instance-{{ item }}"
+        state: absent
+        force: true
+      loop: "{{ range(1, scaleout_num_instances + 1) | list }}"
+      ignore_errors: true
+      when: vllm_server.container_runtime == 'podman'
+
+    # Config dir is always removed — it only contains generated temp files
+    - name: Remove configuration directory
+      ansible.builtin.file:
+        path: "{{ scaleout_config_dir }}"
+        state: absent
+
+    # HF model cache is expensive to re-download — only remove when explicitly requested
+    - name: Remove HF model cache volume
+      containers.podman.podman_volume:
+        name: "{{ scaleout_volume_name }}"
+        state: absent
+      when:
+        - vllm_server.container_runtime == 'podman'
+        - scaleout_purge_model_cache | bool
+      ignore_errors: true
+
+    - name: Verify no llm-d containers remain
+      ansible.builtin.shell:
+        cmd: >
+          podman ps -a --format '{{ '{{' }}.Names{{ '}}' }}'
+          | grep -E '^vllm-(instance|epp|envoy)' || true
+      register: remaining_containers
+      changed_when: false
+      when: vllm_server.container_runtime == 'podman'
+
+    - name: Warn if containers still running
+      ansible.builtin.debug:
+        msg: "WARNING: containers still present: {{ remaining_containers.stdout_lines }}"
+      when:
+        - remaining_containers.stdout_lines is defined
+        - remaining_containers.stdout_lines | length > 0
+
+    - name: Display cleanup summary
+      ansible.builtin.debug:
+        msg:
+          - "╔══════════════════════════════════════════════════════════════════╗"
+          - "║ vLLM Scale-Out Deployment Stopped                                ║"
+          - "╚══════════════════════════════════════════════════════════════════╝"
+          - ""
+          - "Cleanup Status:"
+          - "  • Envoy container: removed"
+          - "  • EPP container: removed"
+          - "  • vLLM instance containers: removed"
+          - "  • Config directory ({{ scaleout_config_dir }}): removed"
+          - "  • HF model cache volume: {{ scaleout_purge_model_cache | ternary('removed', 'preserved (pass -e scaleout_purge_model_cache=true to remove)') }}"

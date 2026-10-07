@@ -1,0 +1,100 @@
+---
+# Start vLLM Scale-Out Deployment with llm-d (EPP + Envoy)
+# Deploys multiple vLLM instances with intelligent routing via the llm-d
+# Endpoint Picker (EPP) and Envoy proxy — no Kubernetes required.
+#
+# Architecture:
+#   Client → Envoy (:{{ scaleout_envoy_port }}) → EPP (gRPC ext_proc :9002) → vLLM instance (:8000+)
+#   EPP scores backends using prefix-cache hits, queue depth, and KV utilisation.
+#
+# Supported deployment modes:
+#   fully local      : DUT = load_generator = localhost (all on one machine)
+#   single test host : DUT = load_generator on remote host; Ansible controller is separate
+#   multi-host       : DUT and load_generator are different remote hosts
+# In all modes the integrated benchmark playbooks (e.g. embedding-benchmark-scaleout.yml)
+# point GuideLLM at http://DUT:8081 and scrape per-instance metrics from DUT:800N.
+#
+# Usage:
+#   ansible-playbook start-vllm-scaleout.yml
+#   ansible-playbook start-vllm-scaleout.yml -e "scaleout_num_instances=3 scaleout_cores_per_instance=16"
+#
+# Configuration options (override with -e or in inventory):
+#   - scaleout_num_instances      : Number of vLLM instances (default: 5)
+#   - scaleout_cores_per_instance : Cores per instance — 8, 16, or 32 (default: 32)
+#   - scaleout_start_core         : Starting CPU core (default: 32)
+#   - scaleout_enable_smt         : Enable SMT/HT cores (default: false)
+#   - scaleout_enable_prefix_caching : Enable prefix caching (default: true)
+#   - scaleout_vllm_base_port     : First vLLM instance port (default: 8000)
+#   - scaleout_envoy_port         : Client-facing Envoy port (default: 8081)
+#   - scaleout_model_name         : Model to deploy (default: from inventory)
+#   - scaleout_vllm_task          : vLLM --task flag; leave unset for auto-detection
+#                                   Use "embed" for encoder-only embedding models,
+#                                   "transcription" for Whisper/audio models
+#   - scaleout_vllm_max_model_len : Cap model context window (recommended for embedding)
+#
+# Examples:
+#   # 3 instances with 16 cores each
+#   ansible-playbook start-vllm-scaleout.yml \
+#     -e "scaleout_num_instances=3 scaleout_cores_per_instance=16"
+#
+#   # Embedding model with context length cap
+#   ansible-playbook start-vllm-scaleout.yml \
+#     -e "scaleout_model_name=RedHatAI/granite-embedding-english-r2 scaleout_vllm_max_model_len=512"
+#
+#   # Audio/Whisper model
+#   ansible-playbook start-vllm-scaleout.yml \
+#     -e "scaleout_model_name=openai/whisper-large-v3 scaleout_vllm_task=transcription"
+
+- name: "Deploy vLLM Scale-Out Environment (llm-d)"
+  hosts: dut
+  become: true
+  vars:
+    # Override these via -e or in inventory
+    # See defaults in roles/vllm_scaleout/defaults/main.yml
+
+  pre_tasks:
+    - name: Check if podman-compose is installed
+      ansible.builtin.command: which podman-compose
+      register: podman_compose_check
+      changed_when: false
+      failed_when: false
+
+    - name: Fail if podman-compose is not installed
+      ansible.builtin.fail:
+        msg: |
+          podman-compose is not installed on the target system.
+          Install it with: pip3 install podman-compose
+      when: podman_compose_check.rc != 0
+
+    - name: Validate configuration
+      ansible.builtin.assert:
+        that:
+          - scaleout_num_instances | int > 0
+          - scaleout_num_instances | int <= 10
+          - scaleout_cores_per_instance | int in [8, 16, 32]
+          - scaleout_routing_policy in ['intelligent', 'round_robin']
+        fail_msg: |
+          Invalid configuration:
+            - scaleout_num_instances must be 1-10
+            - scaleout_cores_per_instance must be 8, 16, or 32
+            - scaleout_routing_policy must be 'intelligent' or 'round_robin'
+
+  roles:
+    - role: vllm_scaleout
+
+  post_tasks:
+    - name: Test inference endpoint
+      ansible.builtin.uri:
+        url: "http://localhost:{{ scaleout_envoy_port }}/v1/models"
+        method: GET
+        return_content: true
+      register: models_api
+      retries: 3
+      delay: 5
+
+    - name: Display available models
+      ansible.builtin.debug:
+        msg:
+          - "Available models at http://{{ ansible_host }}:{{ scaleout_envoy_port }}/v1:"
+          - "{{ models_api.json | to_nice_json }}"
+      when: models_api.json is defined

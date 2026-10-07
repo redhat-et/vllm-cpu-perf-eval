@@ -1,0 +1,78 @@
+---
+# Stop per-instance and EPP metrics collectors started by
+# start-scaleout-metrics-collection.yml.
+# Sends SIGTERM to each PID, waits up to 15 s for clean shutdown, then SIGKILL.
+#
+# Required hostvars (set by start-scaleout-metrics-collection.yml):
+#   hostvars['localhost']['scaleout_collector_pids'] : list of background PIDs
+#
+# Optional vars:
+#   test_run_id : used to clean up the shared collector script
+
+- name: Check if there are collectors to stop
+  ansible.builtin.set_fact:
+    _sc_pids: "{{ hostvars['localhost']['scaleout_collector_pids'] | default([]) }}"
+  delegate_to: localhost
+  become: false
+
+- name: Send SIGTERM to all scaleout metric collectors
+  ansible.builtin.shell: |
+    if ps -p {{ item }} > /dev/null 2>&1; then
+      kill -TERM {{ item }} 2>/dev/null
+      echo "terminated"
+    else
+      echo "not_running"
+    fi
+  loop: "{{ _sc_pids }}"
+  delegate_to: localhost
+  become: false
+  failed_when: false
+  when: _sc_pids | length > 0
+
+- name: Wait for collectors to write final output (up to 15 s)
+  ansible.builtin.shell: |
+    for i in $(seq 1 15); do
+      all_done=true
+      for pid in {{ _sc_pids | join(' ') }}; do
+        if ps -p "$pid" > /dev/null 2>&1; then
+          all_done=false
+          break
+        fi
+      done
+      $all_done && echo "done" && exit 0
+      sleep 1
+    done
+    echo "timeout"
+  delegate_to: localhost
+  become: false
+  failed_when: false
+  register: _sc_wait
+  when:
+    - _sc_pids | length > 0
+
+- name: Force-kill any collectors that did not stop in time
+  ansible.builtin.shell: |
+    if ps -p {{ item }} > /dev/null 2>&1; then
+      kill -9 {{ item }} 2>/dev/null || true
+    fi
+  loop: "{{ _sc_pids }}"
+  delegate_to: localhost
+  become: false
+  failed_when: false
+  when:
+    - _sc_pids | length > 0
+    - _sc_wait.stdout | default('') == 'timeout'
+
+- name: Remove shared collector script
+  ansible.builtin.file:
+    path: "/tmp/vllm_scaleout_collector_{{ test_run_id }}.py"
+    state: absent
+  delegate_to: localhost
+  become: false
+  when: test_run_id is defined
+  failed_when: false
+
+- name: Display stop status
+  ansible.builtin.debug:
+    msg: "Scale-out metrics collectors stopped ({{ _sc_pids | length }} PID(s))"
+  when: _sc_pids | length > 0

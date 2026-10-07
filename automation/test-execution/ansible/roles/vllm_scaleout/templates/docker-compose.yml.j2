@@ -1,0 +1,128 @@
+version: '3.8'
+
+# All services use host networking so:
+# - vLLM instances bind sequential ports on the host (base_port, base_port+1, ...)
+# - EPP reaches vLLM workers via 127.0.0.1:<port> for metrics scraping
+# - Envoy reaches EPP via 127.0.0.1:{{ scaleout_epp_grpc_port }}
+# - Clients connect to Envoy at <host>:{{ scaleout_envoy_port }}
+#
+# CPU allocation:
+# - Envoy : {{ scaleout_envoy_cores }} (I/O proxy)
+# - EPP   : {{ scaleout_epp_cores }} (routing decisions — dedicated, uncontested)
+# - vLLM  : sequential from core {{ scaleout_start_core }}
+#
+# Routing policy: {{ scaleout_routing_policy }}
+#   intelligent  — EPP selects backend via prefix-cache + queue + KV-utilisation scoring
+#   round_robin  — Envoy distributes requests evenly; EPP not started
+
+services:
+{% for i in range(1, scaleout_num_instances + 1) %}
+  # vLLM Instance {{ i }} — port {{ scaleout_vllm_base_port + i - 1 }}
+  vllm-{{ i }}:
+    image: {{ scaleout_vllm_image }}
+    container_name: vllm-instance-{{ i }}
+    network_mode: host
+    cpuset: "{{ scaleout_instance_cpusets[i - 1] }}"
+    cap_add:
+      - SYS_NICE
+    security_opt:
+      - seccomp=unconfined
+    environment:
+      - HF_HUB_OFFLINE=0
+      - HF_HOME=/root/.cache/huggingface
+{% if scaleout_hf_token is defined and scaleout_hf_token != '' %}
+      - HF_TOKEN={{ scaleout_hf_token }}
+{% endif %}
+    volumes:
+      - {{ scaleout_volume_name }}:/root/.cache/huggingface
+    command:
+      - --model
+      - {{ scaleout_model_name }}
+      - --port
+      - "{{ scaleout_vllm_base_port + i - 1 }}"
+      - --host
+      - "0.0.0.0"
+{% if scaleout_vllm_task is defined and scaleout_vllm_task != '' %}
+      - --task
+      - {{ scaleout_vllm_task }}
+{% endif %}
+{% if scaleout_vllm_max_model_len is defined and scaleout_vllm_max_model_len != '' %}
+      - --max-model-len
+      - "{{ scaleout_vllm_max_model_len }}"
+{% endif %}
+{% if scaleout_enable_prefix_caching %}
+      - --enable-prefix-caching
+{% endif %}
+{% for arg in scaleout_vllm_extra_args %}
+      - {{ arg }}
+{% endfor %}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:{{ scaleout_vllm_base_port + i - 1 }}/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+{% endfor %}
+{% if scaleout_routing_policy == 'intelligent' %}
+  # EPP — Endpoint Picker: scores vLLM backends and selects the best one per request.
+  # Scoring weights: prefix-cache={{ scaleout_epp_prefix_cache_weight }} queue={{ scaleout_epp_queue_weight }} kv-cache={{ scaleout_epp_kv_cache_weight }} lru={{ scaleout_epp_lru_weight }}
+  epp:
+    image: {{ scaleout_epp_image }}
+    container_name: vllm-epp
+    network_mode: host
+    cpuset: "{{ scaleout_epp_cores }}"
+    volumes:
+      - {{ scaleout_config_dir }}/epp-config.yaml:/etc/epp/config.yaml:ro
+      - {{ scaleout_config_dir }}/epp-endpoints.yaml:/etc/epp/endpoints.yaml:ro
+    command:
+      - --config-file=/etc/epp/config.yaml
+      - --pool-name=file-discovery
+      - --pool-namespace=default
+      - --grpc-port={{ scaleout_epp_grpc_port }}
+      - --grpc-health-port={{ scaleout_epp_health_port }}
+      - --metrics-port={{ scaleout_epp_metrics_port }}
+      - --secure-serving=false
+      - --v=2
+    depends_on:
+{% for i in range(1, scaleout_num_instances + 1) %}
+      - vllm-{{ i }}
+{% endfor %}
+    restart: unless-stopped
+
+{% endif %}
+  # Envoy — front-facing proxy (port {{ scaleout_envoy_port }})
+  # Policy: {{ scaleout_routing_policy }}
+  envoy:
+    image: {{ scaleout_envoy_image }}
+    container_name: vllm-envoy
+    network_mode: host
+    cpuset: "{{ scaleout_envoy_cores }}"
+    volumes:
+      - {{ scaleout_config_dir }}/envoy.yaml:/etc/envoy/envoy.yaml:ro
+    command:
+      - --service-node
+      - envoy-proxy
+      - --log-level
+      - warn
+      - --concurrency
+      - "{{ scaleout_envoy_concurrency }}"
+      - --drain-strategy
+      - immediate
+      - --drain-time-s
+      - "60"
+      - -c
+      - /etc/envoy/envoy.yaml
+{% if scaleout_routing_policy == 'intelligent' %}
+    depends_on:
+      - epp
+{% else %}
+    depends_on:
+{% for i in range(1, scaleout_num_instances + 1) %}
+      - vllm-{{ i }}
+{% endfor %}
+{% endif %}
+    restart: unless-stopped
+
+volumes:
+  {{ scaleout_volume_name }}:

@@ -1,0 +1,190 @@
+---
+# Embedding benchmark against a vLLM scale-out deployment (llm-d: EPP + Envoy)
+# Full lifecycle: deploy → benchmark → teardown, with per-instance metrics collection.
+#
+# Supported deployment modes (set in inventory):
+#   fully local      : DUT = load_generator = localhost (everything on one machine)
+#   single test host : DUT = load_generator on remote host; controller is separate
+#   multi-host       : DUT and load_generator are different remote hosts
+#
+# All modes use vllm_mode=external pointing at Envoy on port 8081.
+# Per-instance metrics are scraped from the controller → DUT:800N/metrics.
+#
+# Usage:
+#   ansible-playbook embedding-benchmark-scaleout.yml
+#   ansible-playbook embedding-benchmark-scaleout.yml \
+#     -e "scaleout_num_instances=3 scaleout_routing_policy=round_robin"
+#
+# Routing policy comparison:
+#   for policy in round_robin intelligent; do
+#     ansible-playbook embedding-benchmark-scaleout.yml \
+#       -e "scaleout_routing_policy=$policy"
+#   done
+#
+# Key options (override with -e):
+#   scaleout_num_instances          : vLLM instance count (default: 5)
+#   scaleout_cores_per_instance     : Cores per instance (default: 32)
+#   scaleout_routing_policy         : 'intelligent' (EPP) or 'round_robin'
+#   scaleout_model_name             : Embedding model
+#   scaleout_vllm_max_model_len     : Context length cap (default: 512)
+#   scaleout_collect_per_instance_metrics : true (default) / false
+
+# ============================================================================
+# Phase 0: Initialize — generate test_run_id and metrics temp dir
+# ============================================================================
+- name: "Initialize Scale-Out Embedding Benchmark"
+  hosts: localhost
+  gather_facts: false
+  vars:
+    scaleout_routing_policy: "{{ lookup('env', 'SCALEOUT_ROUTING_POLICY') | default(hostvars['localhost']['scaleout_routing_policy'] | default('intelligent'), true) }}"
+    scaleout_num_instances: "{{ lookup('env', 'SCALEOUT_NUM_INSTANCES') | default(5, true) | int }}"
+    _default_model: "RedHatAI/granite-embedding-english-r2"
+
+  tasks:
+    - name: Generate scaleout test run ID (honours a caller-set value)
+      ansible.builtin.set_fact:
+        test_run_id: "scaleout-{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
+      when: test_run_id is not defined
+
+    - name: Set scaleout facts for cross-play access
+      ansible.builtin.set_fact:
+        scaleout_metrics_tmpdir: "/tmp/scaleout-metrics-{{ test_run_id }}"
+        scaleout_collect_per_instance_metrics: "{{ scaleout_collect_per_instance_metrics | default(true) | bool }}"
+        scaleout_num_instances: "{{ scaleout_num_instances | int }}"
+
+    - name: Display scaleout benchmark configuration
+      ansible.builtin.debug:
+        msg:
+          - "╔══ Embedding Scale-Out Benchmark ══════════════════════════════════╗"
+          - "║  Test Run ID  : {{ test_run_id }}"
+          - "║  Model        : {{ lookup('env', 'TEST_MODEL') | default(test_model | default(_default_model)) }}"
+          - "║  Instances    : {{ scaleout_num_instances }}"
+          - "║  Routing      : {{ scaleout_routing_policy }}"
+          - "║  Metrics dir  : {{ scaleout_metrics_tmpdir }}"
+          - "╚═══════════════════════════════════════════════════════════════════╝"
+
+# ============================================================================
+# Phase 1: Deploy scale-out infrastructure (vLLM + EPP + Envoy)
+# ============================================================================
+- ansible.builtin.import_playbook: start-vllm-scaleout.yml
+  vars:
+    scaleout_model_name: "{{ lookup('env', 'TEST_MODEL') | default(test_model | default('RedHatAI/granite-embedding-english-r2'), true) }}"
+    scaleout_vllm_max_model_len: "{{ lookup('env', 'SCALEOUT_MAX_MODEL_LEN') | default(512, true) }}"
+
+# ============================================================================
+# Phase 1.5: Start per-instance metrics collection
+# ============================================================================
+- name: "Start Per-Instance Metrics Collection"
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: Start scaleout metrics collectors
+      ansible.builtin.include_tasks: tasks/start-scaleout-metrics-collection.yml
+      vars:
+        scaleout_metrics_tmpdir: "{{ hostvars['localhost']['scaleout_metrics_tmpdir'] }}"
+        scaleout_num_instances: "{{ hostvars['localhost']['scaleout_num_instances'] | default(scaleout_num_instances | default(5)) }}"
+        scaleout_vllm_base_port: "{{ scaleout_vllm_base_port | default(8000) }}"
+        scaleout_routing_policy: "{{ scaleout_routing_policy | default('intelligent') }}"
+        scaleout_epp_metrics_port: "{{ scaleout_epp_metrics_port | default(9090) }}"
+        metrics_collection_interval: 10
+        metrics_collection_duration: 7200
+        test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
+      when: hostvars['localhost']['scaleout_collect_per_instance_metrics'] | default(true) | bool
+
+# ============================================================================
+# Phase 2: Run embedding benchmark against Envoy (external mode)
+# ============================================================================
+- ansible.builtin.import_playbook: embedding-benchmark.yml
+  vars:
+    vllm_mode: "external"
+    vllm_endpoint_url: "http://{{ groups['dut'][0] }}:{{ scaleout_envoy_port | default(8081) }}/v1"
+    benchmark_label_suffix: "scaleout-{{ scaleout_num_instances | default(5) }}x-{{ scaleout_routing_policy | default('intelligent') }}"
+
+# ============================================================================
+# Phase 2.5: Stop metrics collection, copy files to results, update metadata
+# ============================================================================
+- name: "Finalise Scale-Out Metrics and Results"
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: Stop per-instance metrics collectors
+      ansible.builtin.include_tasks: tasks/stop-scaleout-metrics-collection.yml
+      vars:
+        test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
+      when: hostvars['localhost']['scaleout_collect_per_instance_metrics'] | default(true) | bool
+
+    - name: Find the results directory for this run
+      ansible.builtin.shell: >
+        find {{ playbook_dir }}/../../../results -name "test-metadata.json"
+        -exec grep -l '"test_run_id".*{{ hostvars["localhost"]["test_run_id"] }}' {} \;
+        | head -1 | xargs -r dirname
+      register: _results_dir_lookup
+      changed_when: false
+      failed_when: false
+      when: hostvars['localhost']['scaleout_collect_per_instance_metrics'] | default(true) | bool
+
+    - name: Copy per-instance metrics JSON files to results directory
+      ansible.builtin.shell: >
+        cp {{ hostvars['localhost']['scaleout_metrics_tmpdir'] }}/*.json
+        {{ _results_dir_lookup.stdout }}/
+      when:
+        - hostvars['localhost']['scaleout_collect_per_instance_metrics'] | default(true) | bool
+        - _results_dir_lookup.stdout is defined
+        - _results_dir_lookup.stdout | trim != ''
+      failed_when: false
+
+    - name: Remove metrics temp directory
+      ansible.builtin.file:
+        path: "{{ hostvars['localhost']['scaleout_metrics_tmpdir'] }}"
+        state: absent
+      when:
+        - hostvars['localhost']['scaleout_metrics_tmpdir'] is defined
+        - _results_dir_lookup.stdout is defined
+        - _results_dir_lookup.stdout | trim != ''
+      failed_when: false
+
+    - name: Patch test-metadata.json with scaleout deployment fields
+      ansible.builtin.shell: |
+        meta="{{ _results_dir_lookup.stdout }}/test-metadata.json"
+        [ -f "$meta" ] || exit 0
+        python3 - "$meta" <<'PYEOF'
+        import sys, json
+        path = sys.argv[1]
+        with open(path) as f:
+            data = json.load(f)
+        data.update({
+            "deployment_type": "scaleout",
+            "num_instances": {{ scaleout_num_instances | default(5) | int }},
+            "routing_policy": "{{ scaleout_routing_policy | default('intelligent') }}",
+            "epp_scorer_weights": {
+                "prefix_cache": {{ scaleout_epp_prefix_cache_weight | default(3) | int }},
+                "queue": {{ scaleout_epp_queue_weight | default(2) | int }},
+                "kv_cache": {{ scaleout_epp_kv_cache_weight | default(2) | int }},
+                "lru": {{ scaleout_epp_lru_weight | default(2) | int }},
+            },
+            "scaleout_envoy_port": {{ scaleout_envoy_port | default(8081) | int }},
+            "cores_per_instance": {{ scaleout_cores_per_instance | default(32) | int }},
+        })
+        with open(path, 'w') as f:
+            json.dump(data, f, indent=2)
+        print(f"Updated {path}")
+        PYEOF
+      when:
+        - _results_dir_lookup.stdout is defined
+        - _results_dir_lookup.stdout | trim != ''
+      changed_when: true
+      failed_when: false
+
+    - name: Display finalisation summary
+      ansible.builtin.debug:
+        msg:
+          - "Scale-Out Embedding Benchmark Complete"
+          - "  Results : {{ _results_dir_lookup.stdout | default('unknown') }}"
+          - "  Metrics : {{ 'copied' if (_results_dir_lookup.stdout is defined and _results_dir_lookup.stdout | trim != '') else 'not found' }}"
+
+# ============================================================================
+# Phase 3: Teardown
+# ============================================================================
+- ansible.builtin.import_playbook: stop-vllm-scaleout.yml

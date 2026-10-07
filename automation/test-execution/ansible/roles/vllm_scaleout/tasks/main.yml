@@ -1,0 +1,157 @@
+---
+# vLLM Scale-Out Deployment Tasks (llm-d: EPP + Envoy)
+
+- name: Display scale-out configuration
+  ansible.builtin.debug:
+    msg:
+      - "vLLM Scale-Out Deployment Configuration:"
+      - "  Routing policy: {{ scaleout_routing_policy }}"
+      - "  Instances: {{ scaleout_num_instances }}"
+      - "  Cores per instance: {{ scaleout_cores_per_instance }}"
+      - "  Start core: {{ scaleout_start_core }}"
+      - "  SMT enabled: {{ scaleout_enable_smt }}"
+      - "  Prefix caching: {{ scaleout_enable_prefix_caching }}"
+      - "  vLLM ports: {{ scaleout_vllm_base_port }} - {{ scaleout_vllm_base_port + scaleout_num_instances - 1 }}"
+      - "  Envoy port (client): {{ scaleout_envoy_port }}"
+      - "  EPP gRPC port: {{ scaleout_epp_grpc_port }} ({{ 'enabled' if scaleout_routing_policy == 'intelligent' else 'disabled for round_robin' }})"
+      - "  Model: {{ scaleout_model_name }}"
+
+- name: Calculate CPU sets for each instance
+  ansible.builtin.set_fact:
+    scaleout_instance_cpusets: >-
+      {{
+        scaleout_instance_cpusets | default([]) +
+        [
+          (
+            (scaleout_start_core + (item - 1) * scaleout_cores_per_instance) | string + '-' +
+            (scaleout_start_core + item * scaleout_cores_per_instance - 1) | string +
+            (
+              (',' + (scaleout_smt_offset + (item - 1) * scaleout_smt_cores_per_instance) | string + '-' +
+              (scaleout_smt_offset + item * scaleout_smt_cores_per_instance - 1) | string)
+              if scaleout_enable_smt else ''
+            )
+          )
+        ]
+      }}
+  loop: "{{ range(1, scaleout_num_instances + 1) | list }}"
+
+- name: Display calculated CPU sets
+  ansible.builtin.debug:
+    msg:
+      - "Calculated CPU sets:"
+      - "{{ scaleout_instance_cpusets }}"
+
+- name: Create scale-out configuration directory
+  ansible.builtin.file:
+    path: "{{ scaleout_config_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Generate EPP plugin configuration
+  ansible.builtin.template:
+    src: epp-config.yaml.j2
+    dest: "{{ scaleout_config_dir }}/epp-config.yaml"
+    mode: "0644"
+
+- name: Generate EPP endpoints file
+  ansible.builtin.template:
+    src: epp-endpoints.yaml.j2
+    dest: "{{ scaleout_config_dir }}/epp-endpoints.yaml"
+    mode: "0644"
+
+- name: Generate Envoy configuration
+  ansible.builtin.template:
+    src: envoy.yaml.j2
+    dest: "{{ scaleout_config_dir }}/envoy.yaml"
+    mode: "0644"
+
+- name: Generate docker-compose configuration
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: "{{ scaleout_config_dir }}/docker-compose.yml"
+    mode: "0644"
+
+- name: Display generated configuration paths
+  ansible.builtin.debug:
+    msg:
+      - "Configuration files generated at {{ scaleout_config_dir }}:"
+      - "  docker-compose.yml  — container orchestration"
+      - "  epp-config.yaml     — EPP plugin config (scoring weights)"
+      - "  epp-endpoints.yaml  — vLLM worker inventory (live-reloadable)"
+      - "  envoy.yaml          — Envoy proxy config"
+
+- name: Create volume for HuggingFace cache
+  containers.podman.podman_volume:
+    name: "{{ scaleout_volume_name }}"
+    state: present
+  when: vllm_server.container_runtime == 'podman'
+
+- name: Start vLLM scale-out deployment with docker-compose
+  ansible.builtin.shell:
+    cmd: "podman-compose -f {{ scaleout_config_dir }}/docker-compose.yml up -d"
+    chdir: "{{ scaleout_config_dir }}"
+  when: vllm_server.container_runtime == 'podman'
+  register: compose_up
+
+- name: Display compose output
+  ansible.builtin.debug:
+    var: compose_up.stdout_lines
+  when: compose_up.stdout_lines is defined
+
+- name: Wait for each vLLM instance to become ready
+  ansible.builtin.uri:
+    url: "http://localhost:{{ scaleout_vllm_base_port + item - 1 }}/v1/models"
+    method: GET
+    status_code: 200
+  register: vllm_health
+  retries: "{{ scaleout_health_check_retries }}"
+  delay: "{{ scaleout_health_check_delay }}"
+  until: vllm_health.status == 200
+  loop: "{{ range(1, scaleout_num_instances + 1) | list }}"
+
+- name: Wait for EPP metrics endpoint to be ready
+  ansible.builtin.uri:
+    url: "http://localhost:{{ scaleout_epp_metrics_port }}/metrics"
+    method: GET
+    status_code: 200
+  register: epp_health
+  retries: "{{ scaleout_health_check_retries }}"
+  delay: "{{ scaleout_health_check_delay }}"
+  until: epp_health.status == 200
+  when: scaleout_routing_policy == 'intelligent'
+
+- name: Wait for Envoy admin endpoint to be ready
+  ansible.builtin.uri:
+    url: "http://localhost:{{ scaleout_envoy_admin_port }}/ready"
+    method: GET
+    status_code: 200
+  register: envoy_health
+  retries: "{{ scaleout_health_check_retries }}"
+  delay: "{{ scaleout_health_check_delay }}"
+  until: envoy_health.status == 200
+
+- name: Display deployment summary
+  ansible.builtin.debug:
+    msg:
+      - "╔══════════════════════════════════════════════════════════════════╗"
+      - "║ vLLM Scale-Out Deployment Successful (llm-d)                     ║"
+      - "╚══════════════════════════════════════════════════════════════════╝"
+      - ""
+      - "Deployment Details:"
+      - "  • vLLM instances: {{ scaleout_num_instances }} × {{ scaleout_cores_per_instance }} cores"
+      - "  • Routing policy: {{ scaleout_routing_policy }}"
+      - "  • {{ 'EPP scoring: prefix-cache×' + scaleout_epp_prefix_cache_weight|string + ' queue×' + scaleout_epp_queue_weight|string + ' kv-cache×' + scaleout_epp_kv_cache_weight|string if scaleout_routing_policy == 'intelligent' else 'EPP: not started (round_robin mode)' }}"
+      - "  • Prefix caching: {{ scaleout_enable_prefix_caching | ternary('Enabled', 'Disabled') }}"
+      - ""
+      - "Client Access Points:"
+      - "  • Inference API: http://{{ ansible_host }}:{{ scaleout_envoy_port }}/v1"
+      - "  • Health: http://{{ ansible_host }}:{{ scaleout_envoy_port }}/health"
+      - "  • Models: http://{{ ansible_host }}:{{ scaleout_envoy_port }}/v1/models"
+      - ""
+      - "Observability:"
+      - "  • Envoy admin: http://{{ ansible_host }}:{{ scaleout_envoy_admin_port }}/stats"
+      - "  • EPP metrics: http://{{ ansible_host }}:{{ scaleout_epp_metrics_port }}/metrics{{ ' (routing decisions, per-backend KV/queue stats)' if scaleout_routing_policy == 'intelligent' else ' (not running — round_robin mode)' }}"
+      - ""
+      - "Management:"
+      - "  • Logs: podman-compose -f {{ scaleout_config_dir }}/docker-compose.yml logs -f"
+      - "  • Stop: podman-compose -f {{ scaleout_config_dir }}/docker-compose.yml down"
