@@ -27,9 +27,9 @@
       ansible.builtin.shell:
         cmd: "podman-compose -f {{ scaleout_config_dir }}/docker-compose.yml down"
         chdir: "{{ scaleout_config_dir }}"
-      when:
-        - compose_file.stat.exists
-        - vllm_server.container_runtime == 'podman'
+      environment:
+        PATH: "/usr/local/bin:/usr/bin:/bin:{{ ansible_env.PATH }}"
+      when: compose_file.stat.exists
       register: compose_down
       ignore_errors: true
 
@@ -46,7 +46,6 @@
         state: absent
         force: true
       ignore_errors: true
-      when: vllm_server.container_runtime == 'podman'
 
     - name: Force-remove EPP container
       containers.podman.podman_container:
@@ -54,16 +53,14 @@
         state: absent
         force: true
       ignore_errors: true
-      when: vllm_server.container_runtime == 'podman'
 
     - name: Force-remove vLLM instance containers
       containers.podman.podman_container:
         name: "vllm-instance-{{ item }}"
         state: absent
         force: true
-      loop: "{{ range(1, scaleout_num_instances + 1) | list }}"
+      loop: "{{ range(1, scaleout_num_instances | int + 1) | list }}"
       ignore_errors: true
-      when: vllm_server.container_runtime == 'podman'
 
     # Config dir is always removed — it only contains generated temp files
     - name: Remove configuration directory
@@ -76,9 +73,7 @@
       containers.podman.podman_volume:
         name: "{{ scaleout_volume_name }}"
         state: absent
-      when:
-        - vllm_server.container_runtime == 'podman'
-        - scaleout_purge_model_cache | bool
+      when: scaleout_purge_model_cache | bool
       ignore_errors: true
 
     - name: Verify no llm-d containers remain
@@ -88,14 +83,11 @@
           | grep -E '^vllm-(instance|epp|envoy)' || true
       register: remaining_containers
       changed_when: false
-      when: vllm_server.container_runtime == 'podman'
 
     - name: Warn if containers still running
       ansible.builtin.debug:
         msg: "WARNING: containers still present: {{ remaining_containers.stdout_lines }}"
-      when:
-        - remaining_containers.stdout_lines is defined
-        - remaining_containers.stdout_lines | length > 0
+      when: remaining_containers.stdout_lines | default([]) | length > 0
 
     - name: Display cleanup summary
       ansible.builtin.debug:

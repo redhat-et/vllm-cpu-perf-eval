@@ -51,13 +51,14 @@
         scaleout_metrics_tmpdir: "/tmp/scaleout-metrics-{{ test_run_id }}"
         scaleout_collect_per_instance_metrics: "{{ scaleout_collect_per_instance_metrics | default(true) | bool }}"
         scaleout_num_instances: "{{ scaleout_num_instances | int }}"
+        scaleout_benchmark_start_epoch: "{{ lookup('pipe', 'date +%s') | int }}"
 
     - name: Display scaleout benchmark configuration
       ansible.builtin.debug:
         msg:
           - "╔══ Embedding Scale-Out Benchmark ══════════════════════════════════╗"
           - "║  Test Run ID  : {{ test_run_id }}"
-          - "║  Model        : {{ lookup('env', 'TEST_MODEL') | default(test_model | default(_default_model)) }}"
+          - "║  Model        : {{ lookup('env', 'TEST_MODEL') | default(test_model | default(_default_model), true) }}"
           - "║  Instances    : {{ scaleout_num_instances }}"
           - "║  Routing      : {{ scaleout_routing_policy }}"
           - "║  Metrics dir  : {{ scaleout_metrics_tmpdir }}"
@@ -83,10 +84,7 @@
       ansible.builtin.include_tasks: tasks/start-scaleout-metrics-collection.yml
       vars:
         scaleout_metrics_tmpdir: "{{ hostvars['localhost']['scaleout_metrics_tmpdir'] }}"
-        scaleout_num_instances: "{{ hostvars['localhost']['scaleout_num_instances'] | default(scaleout_num_instances | default(5)) }}"
-        scaleout_vllm_base_port: "{{ scaleout_vllm_base_port | default(8000) }}"
-        scaleout_routing_policy: "{{ scaleout_routing_policy | default('intelligent') }}"
-        scaleout_epp_metrics_port: "{{ scaleout_epp_metrics_port | default(9090) }}"
+        scaleout_num_instances: "{{ hostvars['localhost']['scaleout_num_instances'] | default(5) }}"
         metrics_collection_interval: 10
         metrics_collection_duration: 7200
         test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
@@ -145,37 +143,35 @@
         - _results_dir_lookup.stdout | trim != ''
       failed_when: false
 
-    - name: Patch test-metadata.json with scaleout deployment fields
-      ansible.builtin.shell: |
-        meta="{{ _results_dir_lookup.stdout }}/test-metadata.json"
-        [ -f "$meta" ] || exit 0
-        python3 - "$meta" <<'PYEOF'
-        import sys, json
-        path = sys.argv[1]
-        with open(path) as f:
-            data = json.load(f)
-        data.update({
-            "deployment_type": "scaleout",
-            "num_instances": {{ scaleout_num_instances | default(5) | int }},
-            "routing_policy": "{{ scaleout_routing_policy | default('intelligent') }}",
-            "epp_scorer_weights": {
-                "prefix_cache": {{ scaleout_epp_prefix_cache_weight | default(3) | int }},
-                "queue": {{ scaleout_epp_queue_weight | default(2) | int }},
-                "kv_cache": {{ scaleout_epp_kv_cache_weight | default(2) | int }},
-                "lru": {{ scaleout_epp_lru_weight | default(2) | int }},
-            },
-            "scaleout_envoy_port": {{ scaleout_envoy_port | default(8081) | int }},
-            "cores_per_instance": {{ scaleout_cores_per_instance | default(32) | int }},
-        })
-        with open(path, 'w') as f:
-            json.dump(data, f, indent=2)
-        print(f"Updated {path}")
-        PYEOF
+    - name: Patch test-metadata.json with scaleout fields
+      ansible.builtin.include_tasks: tasks/patch-common-metadata.yml
+      vars:
+        _meta_path: "{{ _results_dir_lookup.stdout }}/test-metadata.json"
+        _meta_extra:
+          deployment_type: "scaleout"
+          platform: "{{ hostvars[groups['dut'][0]]['dut_platform_name'] | default(hostvars['localhost']['dut_platform_name'] | default('unknown')) }}"
+          vllm_container_image: "{{ scaleout_vllm_image | default('unknown') }}"
+          vllm_caching_mode: "{{ 'production' if scaleout_enable_prefix_caching | default(true) | bool else 'baseline' }}"
+          test_duration_seconds: "{{ lookup('pipe', 'date +%s') | int - hostvars['localhost']['scaleout_benchmark_start_epoch'] | int }}"
+          num_instances: "{{ scaleout_num_instances | default(5) | int }}"
+          cores_per_instance: "{{ scaleout_cores_per_instance | default(32) | int }}"
+          scaleout_start_core: "{{ scaleout_start_core | default(0) | int }}"
+          scaleout_enable_smt: "{{ scaleout_enable_smt | default(false) | bool }}"
+          routing_policy: "{{ scaleout_routing_policy | default('intelligent') }}"
+          scaleout_envoy_port: "{{ scaleout_envoy_port | default(8081) | int }}"
+          scaleout_epp_grpc_port: "{{ scaleout_epp_grpc_port | default(9002) | int }}"
+          scaleout_epp_metrics_port: "{{ scaleout_epp_metrics_port | default(9090) | int }}"
+          scaleout_enable_prefix_caching: "{{ scaleout_enable_prefix_caching | default(true) | bool }}"
+          epp_scorer_weights:
+            prefix_cache: "{{ scaleout_epp_prefix_cache_weight | default(3) | int }}"
+            queue: "{{ scaleout_epp_queue_weight | default(2) | int }}"
+            kv_cache: "{{ scaleout_epp_kv_cache_weight | default(2) | int }}"
+            lru: "{{ scaleout_epp_lru_weight | default(2) | int }}"
+          scaleout_epp_image: "{{ scaleout_epp_image | default('unknown') }}"
+          scaleout_envoy_image: "{{ scaleout_envoy_image | default('unknown') }}"
       when:
         - _results_dir_lookup.stdout is defined
         - _results_dir_lookup.stdout | trim != ''
-      changed_when: true
-      failed_when: false
 
     - name: Display finalisation summary
       ansible.builtin.debug:

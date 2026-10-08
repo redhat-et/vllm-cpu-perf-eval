@@ -60,6 +60,7 @@
         results_base: "{{ playbook_dir }}/../../../results/llm"
         test_run_id: "{{ now(utc=true, fmt='%Y%m%d_%H%M%S_%f') }}"
         test_timestamp: "{{ now(utc=true, fmt='%Y%m%d-%H%M%S-%f') }}"
+        benchmark_start_epoch: "{{ lookup('pipe', 'date +%s') | int }}"
 
     - name: Sanitize model name for filesystem
       ansible.builtin.set_fact:
@@ -85,6 +86,13 @@
           - "  Cores: {{ requested_cores }}"
           - "  Container: {{ vllm_container_image }}"
           - "  Results: {{ results_base }}/{{ model_safe }}/offline-batch-{{ test_timestamp }}/{{ config_id }}/"
+
+- name: "Offline Batch Benchmark - Detect Platform"
+  hosts: dut
+  gather_facts: false
+
+  tasks:
+    - ansible.builtin.include_tasks: tasks/detect-dut-platform.yml
 
 - name: "Offline Batch Benchmark - Download Model"
   hosts: dut
@@ -427,9 +435,12 @@
           {
             "test_run_id": "{{ test_run_id }}",
             "timestamp": "{{ lookup('pipe', 'date -u +%Y-%m-%dT%H:%M:%SZ') }}",
+            "deployment_type": "offline-batch",
             "test_type": "offline-batch",
             "model": "{{ test_model }}",
+            "platform": "{{ hostvars['localhost']['dut_platform_name'] | default('unknown') }}",
             "workload": "offline-batch",
+            "test_duration_seconds": {{ lookup('pipe', 'date +%s') | int - benchmark_start_epoch | int }},
             "configuration": {
               "cores": {{ requested_cores }},
               "dataset": "{{ dataset_name }}",

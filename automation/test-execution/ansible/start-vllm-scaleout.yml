@@ -20,7 +20,7 @@
 #
 # Configuration options (override with -e or in inventory):
 #   - scaleout_num_instances      : Number of vLLM instances (default: 5)
-#   - scaleout_cores_per_instance : Cores per instance — 8, 16, or 32 (default: 32)
+#   - scaleout_cores_per_instance : Cores per instance — 8, 16, 24, or 32 (default: 32)
 #   - scaleout_start_core         : Starting CPU core (default: 32)
 #   - scaleout_enable_smt         : Enable SMT/HT cores (default: false)
 #   - scaleout_enable_prefix_caching : Enable prefix caching (default: true)
@@ -59,11 +59,15 @@
       changed_when: false
       failed_when: false
 
-    - name: Fail if podman-compose is not installed
-      ansible.builtin.fail:
-        msg: |
-          podman-compose is not installed on the target system.
-          Install it with: pip3 install podman-compose
+    - name: Ensure python3-pip is installed
+      ansible.builtin.package:
+        name: python3-pip
+        state: present
+      when: podman_compose_check.rc != 0
+
+    - name: Install podman-compose via pip3
+      ansible.builtin.command: pip3 install podman-compose
+      changed_when: true
       when: podman_compose_check.rc != 0
 
     - name: Validate configuration
@@ -71,12 +75,12 @@
         that:
           - scaleout_num_instances | int > 0
           - scaleout_num_instances | int <= 10
-          - scaleout_cores_per_instance | int in [8, 16, 32]
+          - scaleout_cores_per_instance | int in [8, 16, 24, 32]
           - scaleout_routing_policy in ['intelligent', 'round_robin']
         fail_msg: |
           Invalid configuration:
             - scaleout_num_instances must be 1-10
-            - scaleout_cores_per_instance must be 8, 16, or 32
+            - scaleout_cores_per_instance must be 8, 16, 24, or 32
             - scaleout_routing_policy must be 'intelligent' or 'round_robin'
 
   roles:

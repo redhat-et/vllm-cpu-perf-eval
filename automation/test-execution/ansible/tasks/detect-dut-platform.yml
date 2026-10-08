@@ -10,7 +10,7 @@
     lscpu | grep -i '^Model name' | sed 's/^[Mm]odel name:[[:space:]]*//' | head -1
   register: cpu_model_raw
   changed_when: false
-  delegate_to: "{{ platform_detect_delegate_to }}"
+  delegate_to: "{{ platform_detect_delegate_to | default(omit) }}"
   when:
     - platform_detect_when | default(true)
     - platform_detect_delegate_to is defined

@@ -80,6 +80,7 @@
     - name: Generate test run ID
       ansible.builtin.set_fact:
         test_run_id: "{{ (test_name + '-') if test_name is defined and test_name else '' }}{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
+        benchmark_start_epoch: "{{ lookup('pipe', 'date +%s') | int }}"
       when: test_run_id is not defined
 
     - name: Display test run information
@@ -308,9 +309,11 @@
             "test_run_id": "{{ hostvars['localhost']['test_run_id'] }}",
             "scenario": "{{ scenario_name }}",
             "model": "{{ model_name }}",
+            "deployment_type": "single",
             "platform": "{{ hostvars['localhost']['dut_platform_name'] | default('unknown') }}",
             "backend": "openai-embeddings",
             "vllm_version": "{{ hostvars['localhost']['vllm_version'] | default('unknown') }}",
+            "vllm_container_image": "{{ hostvars['localhost']['vllm_container_image'] | default('unknown') }}",
             "vllm_mode": "{{ hostvars['localhost']['vllm_mode'] }}",
             "vllm_endpoint_url": "n/a",
             "vllm_bench_version": "{{ benchmark_tool.vllm_bench.version | default('built-in') }}",
@@ -318,7 +321,8 @@
             "num_prompts": {{ num_prompts | default(benchmark_tool.vllm_bench.num_prompts | default(1000)) | int }},
             "embedding_random_input_len": {{ embedding_random_input_len | default(512) }},
             "requested_cores": {{ requested_cores | default('null') }},
-            "timestamp": "{{ lookup('pipe', 'date -Iseconds') }}"
+            "timestamp": "{{ lookup('pipe', 'date -Iseconds') }}",
+            "test_duration_seconds": {{ lookup('pipe', 'date +%s') | int - hostvars['localhost']['benchmark_start_epoch'] | default(0) | int }}
           }
         dest: "{{ test_run_base_expanded }}/test-metadata.json"
 
@@ -389,9 +393,11 @@
             "test_run_id": "{{ hostvars['localhost']['test_run_id'] }}",
             "scenario": "{{ scenario_name }}",
             "model": "{{ model_name }}",
+            "deployment_type": "single",
             "platform": "{{ hostvars['localhost']['dut_platform_name'] | default('unknown') }}",
             "backend": "openai-embeddings",
             "vllm_version": "{{ hostvars['localhost']['vllm_version'] | default('unknown') }}",
+            "vllm_container_image": "{{ hostvars['localhost']['vllm_container_image'] | default('unknown') }}",
             "vllm_mode": "{{ hostvars['localhost']['vllm_mode'] }}",
             "vllm_endpoint_url": "{{ vllm_endpoint.external.url if hostvars['localhost']['vllm_mode'] == 'external' else 'n/a' }}",
             "vllm_bench_version": "{{ benchmark_tool.vllm_bench.version | default('built-in') }}",
@@ -399,7 +405,8 @@
             "num_prompts": {{ num_prompts | default(benchmark_tool.vllm_bench.num_prompts | default(1000)) | int }},
             "embedding_random_input_len": {{ embedding_random_input_len | default(512) }},
             "requested_cores": {{ requested_cores | default('null') }},
-            "timestamp": "{{ lookup('pipe', 'date -Iseconds') }}"
+            "timestamp": "{{ lookup('pipe', 'date -Iseconds') }}",
+            "test_duration_seconds": {{ lookup('pipe', 'date +%s') | int - hostvars['localhost']['benchmark_start_epoch'] | default(0) | int }}
           }
         dest: "{{ test_run_base_expanded }}/test-metadata.json"
 

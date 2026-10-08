@@ -7,22 +7,22 @@
     name: vllm-envoy
     state: absent
   ignore_errors: true
-  when: vllm_server.container_runtime == 'podman'
+  when: true
 
 - name: Stop EPP container
   containers.podman.podman_container:
     name: vllm-epp
     state: absent
   ignore_errors: true
-  when: vllm_server.container_runtime == 'podman'
+  when: true
 
 - name: Stop all vLLM containers
   containers.podman.podman_container:
     name: "vllm-instance-{{ item }}"
     state: absent
-  loop: "{{ range(1, scaleout_num_instances + 1) | list }}"
+  loop: "{{ range(1, scaleout_num_instances | int + 1) | list }}"
   ignore_errors: true
-  when: vllm_server.container_runtime == 'podman'
+  when: true
 
 - name: Display cleanup completion
   ansible.builtin.debug:

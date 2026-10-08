@@ -1,0 +1,26 @@
+---
+# Merge fields into an existing test-metadata.json.
+# Skips silently if the file does not exist.
+#
+# Required vars:
+#   _meta_path  : absolute path to the test-metadata.json file
+#   _meta_extra : dict of fields to add or overwrite
+
+- name: Patch test-metadata.json
+  ansible.builtin.shell: |
+    python3 - "{{ _meta_path }}" <<'PYEOF'
+    import sys, json, os
+    path = sys.argv[1]
+    if not os.path.exists(path):
+        print(f"SKIP: {path} not found")
+        sys.exit(0)
+    with open(path) as f:
+        data = json.load(f)
+    updates = {{ _meta_extra | to_json }}
+    data.update(updates)
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2)
+    print(f"Patched {path}: {list(updates.keys())}")
+    PYEOF
+  changed_when: true
+  failed_when: false
