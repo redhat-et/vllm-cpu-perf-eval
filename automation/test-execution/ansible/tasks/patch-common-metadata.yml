@@ -1,6 +1,8 @@
 ---
 # Merge fields into an existing test-metadata.json.
-# Skips silently if the file does not exist.
+# Skips silently if the file does not exist. Malformed JSON is reported as a
+# visible warning instead of a silent failure. The write is atomic (tmp +
+# rename) so an interrupted patch cannot leave a truncated file behind.
 #
 # Required vars:
 #   _meta_path  : absolute path to the test-metadata.json file
@@ -14,13 +16,30 @@
     if not os.path.exists(path):
         print(f"SKIP: {path} not found")
         sys.exit(0)
-    with open(path) as f:
-        data = json.load(f)
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except (json.JSONDecodeError, OSError) as exc:
+        print(f"WARNING: could not parse {path}: {exc}")
+        sys.exit(0)
     updates = {{ _meta_extra | to_json }}
     data.update(updates)
-    with open(path, "w") as f:
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
         json.dump(data, f, indent=2)
-    print(f"Patched {path}: {list(updates.keys())}")
+    os.replace(tmp, path)
+    print(f"Patched {path}: {sorted(updates.keys())}")
     PYEOF
-  changed_when: true
+  register: _meta_patch_result
+  changed_when: _meta_patch_result.stdout is defined and 'Patched' in _meta_patch_result.stdout
   failed_when: false
+
+- name: Warn when test-metadata.json could not be patched
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: test-metadata.json could not be patched —
+      {{ (_meta_patch_result.stdout | default('') | trim) or (_meta_patch_result.stderr | default('') | trim) or 'unknown error' }}.
+      Scale-out fields (routing policy, instance count, …) will be missing from this run's metadata.
+  when:
+    - _meta_patch_result.stdout is defined
+    - "'Patched' not in _meta_patch_result.stdout"

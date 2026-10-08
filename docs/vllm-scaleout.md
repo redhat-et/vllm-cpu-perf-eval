@@ -109,9 +109,16 @@ results/
   "routing_policy": "intelligent",
   "epp_scorer_weights": { "prefix_cache": 3, "queue": 2, "kv_cache": 2, "lru": 2 },
   "scaleout_envoy_port": 8081,
-  "cores_per_instance": 32
+  "cores_per_instance": 32,
+  "container_restarts_detected": false,
+  "restarted_containers": []
 }
 ```
+
+`container_restarts_detected` / `restarted_containers` are set by the all-in-one
+benchmark playbooks: containers use `restart: unless-stopped`, so a mid-benchmark
+crash would otherwise restart silently and skew results. Restarts are flagged in the
+playbook output and recorded here for post-hoc filtering of unreliable runs.
 
 The **🖥️ Server Metrics** dashboard page (page 2) detects scale-out runs by the
 `deployment_type` field and shows a summary with a link to page 8 for full analysis.
@@ -141,6 +148,13 @@ ansible-playbook start-vllm-scaleout.yml
 ansible-playbook start-vllm-scaleout.yml \
   -e "scaleout_num_instances=3 scaleout_cores_per_instance=16 scaleout_routing_policy=round_robin"
 ```
+
+Deployment validates itself before reporting success: it fails fast if `podman-compose up`
+errors, verifies all requested CPU cores exist and that container cpuset pinning took
+effect, and sends an end-to-end smoke request through Envoy (and EPP when intelligent
+routing is enabled) so routing misconfigurations surface before benchmarking. A failed
+deploy tears itself down automatically. Smoke requests are skipped for transcription
+(`--task transcription`) models, which need audio input.
 
 ### Benchmark (all-in-one)
 
@@ -191,12 +205,16 @@ ansible-playbook stop-vllm-scaleout.yml -e "scaleout_purge_model_cache=true"
 | Parameter | Default | Options | Description |
 |-----------|---------|---------|-------------|
 | `scaleout_num_instances` | 5 | 1-10 | Number of vLLM instances |
-| `scaleout_cores_per_instance` | 32 | 8, 16, 32 | CPU cores per instance |
+| `scaleout_cores_per_instance` | 32 | 8, 16, 24, 32 | CPU cores per instance |
 | `scaleout_routing_policy` | `intelligent` | `intelligent`, `round_robin` | Routing mode |
 | `scaleout_vllm_base_port` | 8000 | any | First vLLM instance port |
 | `scaleout_envoy_port` | 8081 | any | Client-facing Envoy port |
 | `scaleout_enable_smt` | false | true/false | Enable SMT/HT cores |
 | `scaleout_enable_prefix_caching` | true | true/false | Enable vLLM prefix caching |
+
+Defaults shown are the Ansible playbook defaults (large server, cores pinned from 32).
+The `cpueval` CLI suite (`vllm-scaleout`) uses lighter defaults — 2 instances × 24 cores
+from core 0 — for quicker CLI-driven runs; override either with `-e`/`--extra` as needed.
 
 ### Model / Task Parameters
 

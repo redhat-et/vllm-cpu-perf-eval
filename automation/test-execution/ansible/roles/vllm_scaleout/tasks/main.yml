@@ -41,6 +41,42 @@
       - "Calculated CPU sets:"
       - "{{ scaleout_instance_cpusets }}"
 
+- name: Read available CPU cores on this host
+  ansible.builtin.command: cat /sys/devices/system/cpu/online
+  register: _scaleout_cpu_online
+  changed_when: false
+
+- name: Verify requested CPU cores exist on this host
+  ansible.builtin.shell: |
+    python3 - "{{ _scaleout_cpu_online.stdout | trim }}" "{{ (scaleout_instance_cpusets + [scaleout_envoy_cores] + ([scaleout_epp_cores] if scaleout_routing_policy == 'intelligent' else [])) | join(',') }}" <<'PYEOF'
+    import sys
+
+    def expand(spec):
+        cpus = set()
+        for part in spec.split(','):
+            part = part.strip()
+            if not part:
+                continue
+            if '-' in part:
+                lo, hi = part.split('-', 1)
+                cpus.update(range(int(lo), int(hi) + 1))
+            else:
+                cpus.add(int(part))
+        return cpus
+
+    online = expand(sys.argv[1])
+    requested = expand(sys.argv[2])
+    missing = sorted(requested - online)
+    if missing:
+        print(f"Requested CPU cores not present on this host: {missing}")
+        print(f"Available cores: {sys.argv[1]}")
+        print("Adjust scaleout_start_core, scaleout_cores_per_instance,")
+        print("scaleout_envoy_cores, or scaleout_epp_cores and retry.")
+        sys.exit(1)
+    print(f"OK: all {len(requested)} requested CPU cores are present")
+    PYEOF
+  changed_when: false
+
 - name: Create scale-out configuration directory
   ansible.builtin.file:
     path: "{{ scaleout_config_dir }}"
@@ -86,60 +122,185 @@
     state: present
   when: true
 
-- name: Start vLLM scale-out deployment with docker-compose
-  ansible.builtin.shell:
-    cmd: "podman-compose -f {{ scaleout_config_dir }}/docker-compose.yml up -d"
-    chdir: "{{ scaleout_config_dir }}"
-  environment:
-    PATH: "/usr/local/bin:/usr/bin:/bin:{{ ansible_env.PATH }}"
-  async: 120
-  poll: 0
-  register: compose_up_job
+- name: Deploy and validate the scale-out stack
+  block:
+    - name: Start vLLM scale-out deployment with docker-compose
+      ansible.builtin.shell:
+        cmd: "podman-compose -f {{ scaleout_config_dir }}/docker-compose.yml up -d"
+        chdir: "{{ scaleout_config_dir }}"
+      environment:
+        PATH: "/usr/local/bin:/usr/bin:/bin:{{ ansible_env.PATH }}"
+      async: 120
+      poll: 0
+      register: compose_up_job
 
-- name: Wait for compose to finish launching containers
-  ansible.builtin.async_status:
-    jid: "{{ compose_up_job.ansible_job_id }}"
-  register: compose_up
-  retries: 12
-  delay: 10
-  until: compose_up.finished
+    - name: Wait for compose to finish launching containers
+      ansible.builtin.async_status:
+        jid: "{{ compose_up_job.ansible_job_id }}"
+      register: compose_up
+      retries: 12
+      delay: 10
+      until: compose_up.finished
+      failed_when: compose_up.finished and compose_up.rc | default(1) != 0
 
-- name: Display compose output
-  ansible.builtin.debug:
-    var: compose_up.stdout_lines
-  when: compose_up.stdout_lines is defined
+    - name: Display compose output
+      ansible.builtin.debug:
+        var: compose_up.stdout_lines
+      when: compose_up.stdout_lines is defined
 
-- name: Wait for each vLLM instance to become ready
-  ansible.builtin.uri:
-    url: "http://localhost:{{ scaleout_vllm_base_port | int + item - 1 }}/v1/models"
-    method: GET
-    status_code: 200
-  register: vllm_health
-  retries: "{{ scaleout_health_check_retries }}"
-  delay: "{{ scaleout_health_check_delay }}"
-  until: vllm_health.status == 200
-  loop: "{{ range(1, scaleout_num_instances | int + 1) | list }}"
+    - name: Wait for each vLLM instance to become ready
+      ansible.builtin.uri:
+        url: "http://localhost:{{ scaleout_vllm_base_port | int + item - 1 }}/v1/models"
+        method: GET
+        status_code: 200
+      register: vllm_health
+      retries: "{{ scaleout_health_check_retries }}"
+      delay: "{{ scaleout_health_check_delay }}"
+      until: vllm_health.status == 200
+      loop: "{{ range(1, scaleout_num_instances | int + 1) | list }}"
 
-- name: Wait for EPP metrics endpoint to be ready
-  ansible.builtin.uri:
-    url: "http://localhost:{{ scaleout_epp_metrics_port }}/metrics"
-    method: GET
-    status_code: 200
-  register: epp_health
-  retries: "{{ scaleout_health_check_retries }}"
-  delay: "{{ scaleout_health_check_delay }}"
-  until: epp_health.status == 200
-  when: scaleout_routing_policy == 'intelligent'
+    - name: Wait for EPP metrics endpoint to be ready
+      ansible.builtin.uri:
+        url: "http://localhost:{{ scaleout_epp_metrics_port }}/metrics"
+        method: GET
+        status_code: 200
+      register: epp_health
+      retries: "{{ scaleout_health_check_retries }}"
+      delay: "{{ scaleout_health_check_delay }}"
+      until: epp_health.status == 200
+      when: scaleout_routing_policy == 'intelligent'
 
-- name: Wait for Envoy admin endpoint to be ready
-  ansible.builtin.uri:
-    url: "http://localhost:{{ scaleout_envoy_admin_port }}/ready"
-    method: GET
-    status_code: 200
-  register: envoy_health
-  retries: "{{ scaleout_health_check_retries }}"
-  delay: "{{ scaleout_health_check_delay }}"
-  until: envoy_health.status == 200
+    - name: Wait for Envoy admin endpoint to be ready
+      ansible.builtin.uri:
+        url: "http://localhost:{{ scaleout_envoy_admin_port }}/ready"
+        method: GET
+        status_code: 200
+      register: envoy_health
+      retries: "{{ scaleout_health_check_retries }}"
+      delay: "{{ scaleout_health_check_delay }}"
+      until: envoy_health.status == 200
+
+    - name: Verify container CPU pinning took effect
+      ansible.builtin.shell: |
+        python3 - <<'PYEOF'
+        import subprocess
+
+        def expand(spec):
+            cpus = set()
+            for part in spec.split(','):
+                part = part.strip()
+                if not part:
+                    continue
+                if '-' in part:
+                    lo, hi = part.split('-', 1)
+                    cpus.update(range(int(lo), int(hi) + 1))
+                else:
+                    cpus.add(int(part))
+            return cpus
+
+        checks = [
+            (f"vllm-instance-{i}", cpuset)
+            for i, cpuset in enumerate({{ scaleout_instance_cpusets | to_json }}, start=1)
+        ]
+        checks.append(("vllm-envoy", {{ scaleout_envoy_cores | to_json }}))
+        {% if scaleout_routing_policy == 'intelligent' %}
+        checks.append(("vllm-epp", {{ scaleout_epp_cores | to_json }}))
+        {% endif %}
+
+        problems = []
+        for name, expected in checks:
+            result = subprocess.run(
+                ["podman", "inspect", "--format", "{{ '{{' }}.HostConfig.CpusetCpus{{ '}}' }}", name],
+                capture_output=True, text=True,
+            )
+            if result.returncode != 0:
+                problems.append(f"{name}: podman inspect failed: {result.stderr.strip()}")
+                continue
+            actual = result.stdout.strip()
+            if expand(actual) != expand(expected):
+                problems.append(f"{name}: expected cpuset '{expected}', got '{actual}'")
+        if problems:
+            print("CPU pinning verification FAILED:")
+            for problem in problems:
+                print(f"  - {problem}")
+            raise SystemExit(1)
+        print(f"CPU pinning verified: {len(checks)} container(s) match requested cpusets")
+        PYEOF
+      changed_when: false
+
+    - name: Probe embeddings endpoint through Envoy (smoke test)
+      ansible.builtin.uri:
+        url: "http://localhost:{{ scaleout_envoy_port }}/v1/embeddings"
+        method: POST
+        body_format: json
+        body:
+          model: "{{ scaleout_model_name }}"
+          input: "cpueval scale-out smoke test"
+        status_code: 200
+        timeout: 120
+      register: _smoke_embeddings
+      failed_when: false
+      changed_when: false
+      retries: 2
+      delay: 5
+      until: _smoke_embeddings.status | default(0) == 200
+      when: scaleout_vllm_task | default('') != 'generate'
+
+    - name: Probe completions endpoint through Envoy (smoke test)
+      ansible.builtin.uri:
+        url: "http://localhost:{{ scaleout_envoy_port }}/v1/completions"
+        method: POST
+        body_format: json
+        body:
+          model: "{{ scaleout_model_name }}"
+          prompt: "Smoke test"
+          max_tokens: 1
+        status_code: 200
+        timeout: 120
+      register: _smoke_completions
+      failed_when: false
+      changed_when: false
+      retries: 2
+      delay: 5
+      until: _smoke_completions.status | default(0) == 200
+      when:
+        - scaleout_vllm_task | default('') != 'embed'
+        # Skip when the embeddings probe already proved the routing path —
+        # a 400 from the wrong endpoint is expected, not worth retrying.
+        - (_smoke_embeddings.status | default(0)) != 200
+
+    - name: Verify smoke request succeeded through the full routing path
+      ansible.builtin.assert:
+        that:
+          - (_smoke_embeddings.status | default(0)) == 200 or (_smoke_completions.status | default(0)) == 200
+        success_msg: >-
+          Smoke request succeeded: client → Envoy → {{ 'EPP → ' if scaleout_routing_policy == 'intelligent' else '' }}vLLM
+          returned a valid response
+        fail_msg: >-
+          End-to-end smoke request through the routing path failed
+          (Envoy :{{ scaleout_envoy_port }} never returned a valid inference response).
+          Health endpoints can report ready while ext_proc/EPP routing is misconfigured —
+          check Envoy and EPP container logs for routing errors.
+      when: scaleout_vllm_task | default('') != 'transcription'
+
+  rescue:
+    - name: Display deployment failure details
+      ansible.builtin.debug:
+        msg:
+          - "Scale-out deployment FAILED at task: {{ ansible_failed_task.name }}"
+          - "Error: {{ ansible_failed_result.msg | default('') }}"
+          - "stderr: {{ ansible_failed_result.stderr_lines | default([]) }}"
+
+    - name: Tear down partially deployed stack
+      ansible.builtin.include_tasks: cleanup.yml
+
+    - name: Abort with guidance
+      ansible.builtin.fail:
+        msg: >-
+          Scale-out deployment failed during '{{ ansible_failed_task.name }}' and the stack
+          was torn down. Common causes: image pull failures (registry/auth), invalid model
+          name, CPU core configuration, or port conflicts on {{ scaleout_envoy_port }} /
+          {{ scaleout_vllm_base_port }}+. Inspect the failure details above before retrying.
 
 - name: Display deployment summary
   ansible.builtin.debug:
@@ -153,6 +314,7 @@
       - "  • Routing policy: {{ scaleout_routing_policy }}"
       - "  • {{ 'EPP scoring: prefix-cache×' + scaleout_epp_prefix_cache_weight|string + ' queue×' + scaleout_epp_queue_weight|string + ' kv-cache×' + scaleout_epp_kv_cache_weight|string if scaleout_routing_policy == 'intelligent' else 'EPP: not started (round_robin mode)' }}"
       - "  • Prefix caching: {{ scaleout_enable_prefix_caching | ternary('Enabled', 'Disabled') }}"
+      - "  • End-to-end smoke request through routing path: {{ 'skipped (transcription models)' if scaleout_vllm_task | default('') == 'transcription' else 'passed' }}"
       - ""
       - "Client Access Points:"
       - "  • Inference API: http://{{ ansible_host }}:{{ scaleout_envoy_port }}/v1"

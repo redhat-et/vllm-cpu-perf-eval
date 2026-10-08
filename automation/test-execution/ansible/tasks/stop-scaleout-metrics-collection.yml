@@ -5,6 +5,8 @@
 #
 # Required hostvars (set by start-scaleout-metrics-collection.yml):
 #   hostvars['localhost']['scaleout_collector_pids'] : list of background PIDs
+#   (falls back to <scaleout_metrics_tmpdir>/collector-pids.txt when the
+#   controller lost its in-memory facts, e.g. after a crash)
 #
 # Optional vars:
 #   test_run_id : used to clean up the shared collector script
@@ -14,6 +16,26 @@
     _sc_pids: "{{ hostvars['localhost']['scaleout_collector_pids'] | default([]) }}"
   delegate_to: localhost
   become: false
+
+- name: Locate collector PID bookkeeping file
+  ansible.builtin.stat:
+    path: "{{ hostvars['localhost']['scaleout_metrics_tmpdir'] | default('') }}/collector-pids.txt"
+  register: _sc_pidfile_stat
+  delegate_to: localhost
+  become: false
+  when:
+    - _sc_pids | length == 0
+    - hostvars['localhost']['scaleout_metrics_tmpdir'] is defined
+
+- name: Recover collector PIDs from bookkeeping file
+  ansible.builtin.set_fact:
+    _sc_pids: "{{ lookup('file', _sc_pidfile_stat.stat.path).split('\n') | map('trim') | reject('match', '^$') | list }}"
+  delegate_to: localhost
+  become: false
+  when:
+    - _sc_pids | length == 0
+    - _sc_pidfile_stat.stat is defined
+    - _sc_pidfile_stat.stat.exists | default(false)
 
 - name: Send SIGTERM to all scaleout metric collectors
   ansible.builtin.shell: |
@@ -63,6 +85,26 @@
     - _sc_pids | length > 0
     - _sc_wait.stdout | default('') == 'timeout'
 
+- name: Validate collector output files contain samples
+  ansible.builtin.shell: |
+    for f in "{{ hostvars['localhost']['scaleout_metrics_tmpdir'] }}"/vllm-metrics-instance-*.json \
+             "{{ hostvars['localhost']['scaleout_metrics_tmpdir'] }}"/epp-metrics.json; do
+      [ -f "$f" ] || continue
+      n=$(python3 -c "import json,sys; print(len(json.load(open(sys.argv[1])).get('samples', [])))" "$f" 2>/dev/null || echo -1)
+      if [ "$n" = "-1" ]; then
+        echo "WARNING: $f is unreadable or not valid JSON"
+      elif [ "$n" = "0" ]; then
+        echo "WARNING: $f contains 0 samples — the scrape target may have been unreachable for the whole run"
+      fi
+    done
+    exit 0
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  when:
+    - hostvars['localhost']['scaleout_metrics_tmpdir'] is defined
+    - _sc_pids | length > 0
+
 - name: Remove shared collector script
   ansible.builtin.file:
     path: "/tmp/vllm_scaleout_collector_{{ test_run_id }}.py"
@@ -71,6 +113,15 @@
   become: false
   when: test_run_id is defined
   failed_when: false
+
+- name: Remove collector PID bookkeeping file
+  ansible.builtin.file:
+    path: "{{ hostvars['localhost']['scaleout_metrics_tmpdir'] }}/collector-pids.txt"
+    state: absent
+  delegate_to: localhost
+  become: false
+  failed_when: false
+  when: hostvars['localhost']['scaleout_metrics_tmpdir'] is defined
 
 - name: Display stop status
   ansible.builtin.debug:

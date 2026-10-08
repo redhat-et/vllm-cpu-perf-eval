@@ -100,6 +100,22 @@
         container_stats_interval: 10
       when: hostvars['localhost']['scaleout_collect_per_instance_metrics'] | default(true) | bool
 
+    # Baseline for post-benchmark restart detection: containers use
+    # `restart: unless-stopped`, so a mid-benchmark crash would otherwise
+    # restart silently and skew results.
+    - name: Record container start times (restart-detection baseline)
+      ansible.builtin.shell: >-
+        podman inspect --format '{{ '{{' }}.Name{{ '}}' }} {{ '{{' }}.State.StartedAt{{ '}}' }}'
+        {{ (['vllm-envoy']
+            + (['vllm-epp'] if (hostvars['localhost']['scaleout_routing_policy'] | default('intelligent')) == 'intelligent' else [])
+            + (range(1, (hostvars['localhost']['scaleout_num_instances'] | int) + 1)
+               | map('regex_replace', '^(.*)$', 'vllm-instance-\1') | list)) | join(' ') }}
+      register: scaleout_container_start_baseline
+      delegate_to: "{{ groups['dut'][0] }}"
+      become: true
+      changed_when: false
+      failed_when: false
+
 # ============================================================================
 # Phase 2: Run embedding benchmark against Envoy (external mode)
 # ============================================================================
@@ -129,6 +145,34 @@
         test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
         scaleout_metrics_tmpdir: "{{ hostvars['localhost']['scaleout_metrics_tmpdir'] }}"
       when: hostvars['localhost']['scaleout_collect_per_instance_metrics'] | default(true) | bool
+
+    - name: Check container start times after the benchmark (restart detection)
+      ansible.builtin.shell: >-
+        podman inspect --format '{{ '{{' }}.Name{{ '}}' }} {{ '{{' }}.State.StartedAt{{ '}}' }}'
+        {{ (['vllm-envoy']
+            + (['vllm-epp'] if (hostvars['localhost']['scaleout_routing_policy'] | default('intelligent')) == 'intelligent' else [])
+            + (range(1, (hostvars['localhost']['scaleout_num_instances'] | int) + 1)
+               | map('regex_replace', '^(.*)$', 'vllm-instance-\1') | list)) | join(' ') }}
+      register: _scaleout_container_start_after
+      delegate_to: "{{ groups['dut'][0] }}"
+      become: true
+      changed_when: false
+      failed_when: false
+
+    - name: Compute restarted containers
+      ansible.builtin.set_fact:
+        _scaleout_restarted_containers: >-
+          {{ (_scaleout_container_start_after.stdout_lines | default([]))
+             | difference(scaleout_container_start_baseline.stdout_lines | default([])) }}
+
+    - name: Warn about containers that restarted during the benchmark
+      ansible.builtin.debug:
+        msg:
+          - "WARNING: containers restarted during the benchmark — results may be skewed:"
+          - "{{ _scaleout_restarted_containers }}"
+          - "Check 'podman logs <container>' for the crash cause. This is recorded"
+          - "in test-metadata.json as container_restarts_detected / restarted_containers."
+      when: _scaleout_restarted_containers | length > 0
 
     - name: Find the results directory for this run
       ansible.builtin.shell: >
@@ -188,6 +232,8 @@
             lru: "{{ scaleout_epp_lru_weight | default(2) | int }}"
           scaleout_epp_image: "{{ scaleout_epp_image | default('unknown') }}"
           scaleout_envoy_image: "{{ scaleout_envoy_image | default('unknown') }}"
+          container_restarts_detected: "{{ _scaleout_restarted_containers | default([]) | length > 0 }}"
+          restarted_containers: "{{ _scaleout_restarted_containers | default([]) }}"
       when:
         - _results_dir_lookup.stdout is defined
         - _results_dir_lookup.stdout | trim != ''

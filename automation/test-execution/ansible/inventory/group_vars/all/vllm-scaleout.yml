@@ -96,8 +96,9 @@ scaleout_epp_metrics_port: 9090
 scaleout_vllm_image: "docker.io/vllm/vllm-openai-cpu:v0.25.1"
 
 # llm-d Endpoint Picker image
-# Pin to a specific release tag in production (e.g. v0.3.1)
-scaleout_epp_image: "ghcr.io/llm-d/llm-d-router-endpoint-picker:latest"
+# Pinned to a release tag for reproducible benchmarks — override to upgrade
+# (see available tags: https://github.com/llm-d/llm-d-router/pkgs/container/llm-d-router-endpoint-picker)
+scaleout_epp_image: "ghcr.io/llm-d/llm-d-router-endpoint-picker:v0.11.0"
 
 # Envoy proxy image
 scaleout_envoy_image: "docker.io/envoyproxy/envoy:distroless-v1.33.2"

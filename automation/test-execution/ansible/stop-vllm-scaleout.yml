@@ -53,12 +53,32 @@
         force: true
       ignore_errors: true
 
-    - name: Force-remove vLLM instance containers
+    # Discover the actual instance containers so runs with more instances
+    # than the default (5) are fully cleaned up.
+    - name: Discover scale-out vLLM instance containers
+      ansible.builtin.shell: >
+        podman ps -a --format '{{ '{{' }}.Names{{ '}}' }}' | grep -E '^vllm-instance-' || true
+      register: discovered_instance_containers
+      changed_when: false
+
+    - name: Force-remove discovered vLLM instance containers
+      containers.podman.podman_container:
+        name: "{{ item }}"
+        state: absent
+        force: true
+      loop: "{{ discovered_instance_containers.stdout_lines | default([]) }}"
+      when: discovered_instance_containers.stdout_lines | default([]) | length > 0
+      ignore_errors: true
+
+    # Fallback when discovery found nothing (e.g. podman ps failed) but a
+    # configured instance count is available — harmless if already gone.
+    - name: Force-remove vLLM instance containers by configured count
       containers.podman.podman_container:
         name: "vllm-instance-{{ item }}"
         state: absent
         force: true
       loop: "{{ range(1, (scaleout_num_instances | default(5)) | int + 1) | list }}"
+      when: discovered_instance_containers.stdout_lines | default([]) | length == 0
       ignore_errors: true
 
     # Config dir is always removed — it only contains generated temp files
