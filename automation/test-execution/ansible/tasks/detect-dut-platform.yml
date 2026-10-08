@@ -31,3 +31,13 @@
       | regex_replace('_+', '_')
       | regex_replace('^_|_$', '') }}"
   when: platform_detect_when | default(true)
+
+- name: Save platform name to localhost for metadata
+  ansible.builtin.set_fact:
+    dut_platform_name: "{{ dut_platform_name }}"
+    dut_platform_raw: "{{ cpu_model_raw.stdout | trim }}"
+  delegate_to: localhost
+  delegate_facts: true
+  when:
+    - platform_detect_when | default(true)
+    - platform_save_to_localhost | default(true) | bool
