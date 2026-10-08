@@ -90,6 +90,7 @@ def find_scaleout_runs(base_dir: str) -> List[Dict]:
             "meta": meta,
             "instance_files": instance_files,
             "epp_file": run_dir / "epp-metrics.json",
+            "benchmarks_file": run_dir / "benchmarks.json",
             "label": f"{run_dir.name} ({policy})",
         })
     return runs
@@ -101,6 +102,21 @@ def load_instance_metrics(path: Path) -> Optional[Dict]:
         return json.loads(path.read_text())
     except Exception:
         return None
+
+
+def extract_histogram_mean(data: Dict, metric: str) -> pd.DataFrame:
+    """Compute per-sample mean for a Prometheus histogram (sum / count)."""
+    rows = []
+    for sample in data.get("samples", []):
+        ts = sample.get("elapsed_seconds", 0)
+        metrics = sample.get("metrics", {})
+        s = sum(e["value"] for e in metrics.get(f"{metric}_sum", []))
+        c = sum(e["value"] for e in metrics.get(f"{metric}_count", []))
+        if c > 0:
+            rows.append({"elapsed_s": ts, "value": s / c})
+    if rows:
+        return pd.DataFrame(rows)
+    return pd.DataFrame(columns=["elapsed_s", "value"])
 
 
 def extract_series(data: Dict, metric: str) -> pd.DataFrame:
@@ -216,23 +232,42 @@ for i, idx in enumerate(instance_ids):
         mode="lines",
     ))
 
-fig.update_layout(
-    xaxis_title="Elapsed (s)",
-    yaxis_title=selected_display,
-    legend_title="Backend",
-    height=380,
-    template="plotly_dark",
-    margin=dict(t=20, b=40),
+if fig.data:
+    fig.update_layout(
+        xaxis_title="Elapsed (s)",
+        yaxis_title=selected_display,
+        legend_title="Backend",
+        height=380,
+        template="plotly_dark",
+        margin=dict(t=20, b=40),
+    )
+    st.plotly_chart(fig, use_container_width=True)
+else:
+    st.info(
+        f"No data found for **{selected_display}** "
+        f"(`{selected_metric}`) in this run."
+    )
+
+LATENCY_METRICS = {
+    "vllm:time_to_first_token_seconds",
+    "vllm:time_per_output_token_seconds",
+}
+is_latency = selected_metric in LATENCY_METRICS
+
+# ─── Summary table ────────────────────────────────────────────────────────────
+
+section_title = (
+    "📦 Latency distribution — time-averaged"
+    if is_latency
+    else "📦 Load distribution — time-averaged"
 )
-st.plotly_chart(fig, use_container_width=True)
-
-# ─── Load balance summary ─────────────────────────────────────────────────────
-
-st.subheader("📦 Load distribution — time-averaged")
+st.subheader(section_title)
 
 summary_rows = []
 for idx in instance_ids:
     df = extract_series(instance_data[idx], selected_metric)
+    if df.empty and is_latency:
+        df = extract_histogram_mean(instance_data[idx], selected_metric)
     if df.empty:
         continue
     summary_rows.append({
@@ -245,19 +280,20 @@ for idx in instance_ids:
 
 if summary_rows:
     summary_df = pd.DataFrame(summary_rows).set_index("Backend")
+    fmt = "{:.4f}" if is_latency else "{:.2f}"
     st.dataframe(
-        summary_df.style.format("{:.2f}").background_gradient(
-            cmap="RdYlGn_r", axis=0
-        ),
+        summary_df.style.format(fmt),
         use_container_width=True,
     )
     means = [r["Mean"] for r in summary_rows]
-    if means:
+    if means and not is_latency:
         imbalance = (
             (max(means) - min(means)) / (sum(means) / len(means) + 1e-9) * 100
         )
         if imbalance < 15:
-            st.success(f"✅ Load well-balanced (imbalance: {imbalance:.1f}%)")
+            st.success(
+                f"✅ Load well-balanced (imbalance: {imbalance:.1f}%)"
+            )
         elif imbalance < 40:
             st.warning(f"⚠️ Moderate imbalance ({imbalance:.1f}%)")
         else:
@@ -302,6 +338,157 @@ if hit_fig.data:
     )
 else:
     st.info("Prefix cache hit rate metric not available in this dataset.")
+
+# ─── Generation throughput per backend ───────────────────────────────────────
+
+st.subheader("🚀 Generation Throughput per Backend (tok/s)")
+
+tps_fig = go.Figure()
+for i, idx in enumerate(instance_ids):
+    df = extract_series(
+        instance_data[idx], "vllm:avg_generation_throughput_toks_per_s"
+    )
+    if df.empty:
+        continue
+    df["value"] = df["value"].rolling(3, min_periods=1).mean()
+    tps_fig.add_trace(go.Scatter(
+        x=df["elapsed_s"],
+        y=df["value"],
+        name=f"Backend {idx}",
+        line=dict(color=BACKEND_COLORS[i % len(BACKEND_COLORS)]),
+        mode="lines",
+    ))
+if tps_fig.data:
+    tps_fig.update_layout(
+        xaxis_title="Elapsed (s)",
+        yaxis_title="Generation Throughput (tok/s)",
+        legend_title="Backend",
+        height=300,
+        template="plotly_dark",
+        margin=dict(t=20, b=40),
+    )
+    st.plotly_chart(tps_fig, use_container_width=True)
+else:
+    st.info("Generation throughput metric not available in this dataset.")
+
+# ─── Client-side benchmark results (guidellm) ────────────────────────────────
+
+st.subheader("📈 Client-Side Benchmark Results (guidellm)")
+
+benchmarks_file = run.get("benchmarks_file")
+if benchmarks_file and benchmarks_file.exists():
+    try:
+        bench_data = json.loads(benchmarks_file.read_text())
+        benchmarks = bench_data.get("benchmarks", [])
+
+        client_rows = []
+        for b in benchmarks:
+            cfg = b.get("config", {})
+            m = b.get("metrics", {})
+            strategy = cfg.get("strategy", {})
+            conc = strategy.get("max_concurrency") or strategy.get("worker_count")
+            ttft = m.get("time_to_first_token_ms", {}).get("successful", {})
+            itl = m.get("inter_token_latency_ms", {}).get("successful", {})
+            tps = m.get("output_tokens_per_second", {}).get("successful", {})
+            rps = m.get("requests_per_second", {}).get("successful", {})
+            if not ttft.get("mean"):
+                continue
+            client_rows.append({
+                "Concurrency": conc,
+                "TTFT mean (ms)": ttft.get("mean", 0),
+                "TTFT P95 (ms)": (
+                    ttft.get("percentiles", {}).get("p95", 0)
+                ),
+                "ITL mean (ms)": itl.get("mean", 0),
+                "ITL P95 (ms)": (
+                    itl.get("percentiles", {}).get("p95", 0)
+                ),
+                "Output TPS": tps.get("mean", 0),
+                "RPS": rps.get("mean", 0),
+            })
+
+        if client_rows:
+            client_df = pd.DataFrame(client_rows).sort_values("Concurrency")
+            st.dataframe(
+                client_df.set_index("Concurrency").style.format("{:.2f}"),
+                use_container_width=True,
+            )
+
+            cl1, cl2 = st.columns(2)
+
+            ttft_fig = go.Figure()
+            ttft_fig.add_trace(go.Scatter(
+                x=client_df["Concurrency"],
+                y=client_df["TTFT mean (ms)"],
+                name="TTFT mean",
+                mode="lines+markers",
+                line=dict(color="#4C9BE8"),
+            ))
+            ttft_fig.add_trace(go.Scatter(
+                x=client_df["Concurrency"],
+                y=client_df["TTFT P95 (ms)"],
+                name="TTFT P95",
+                mode="lines+markers",
+                line=dict(color="#F5A623", dash="dash"),
+            ))
+            ttft_fig.update_layout(
+                xaxis_title="Concurrency",
+                yaxis_title="TTFT (ms)",
+                height=300,
+                template="plotly_dark",
+                margin=dict(t=20, b=40),
+            )
+            cl1.plotly_chart(ttft_fig, use_container_width=True)
+
+            itl_fig = go.Figure()
+            itl_fig.add_trace(go.Scatter(
+                x=client_df["Concurrency"],
+                y=client_df["ITL mean (ms)"],
+                name="ITL mean",
+                mode="lines+markers",
+                line=dict(color="#7ED321"),
+            ))
+            itl_fig.add_trace(go.Scatter(
+                x=client_df["Concurrency"],
+                y=client_df["ITL P95 (ms)"],
+                name="ITL P95",
+                mode="lines+markers",
+                line=dict(color="#D0021B", dash="dash"),
+            ))
+            itl_fig.update_layout(
+                xaxis_title="Concurrency",
+                yaxis_title="ITL (ms)",
+                height=300,
+                template="plotly_dark",
+                margin=dict(t=20, b=40),
+            )
+            cl2.plotly_chart(itl_fig, use_container_width=True)
+
+            tps_client_fig = go.Figure()
+            tps_client_fig.add_trace(go.Scatter(
+                x=client_df["Concurrency"],
+                y=client_df["Output TPS"],
+                name="Output TPS",
+                mode="lines+markers",
+                line=dict(color="#9B59B6"),
+            ))
+            tps_client_fig.update_layout(
+                xaxis_title="Concurrency",
+                yaxis_title="Output Tokens/s",
+                height=280,
+                template="plotly_dark",
+                margin=dict(t=20, b=40),
+            )
+            st.plotly_chart(tps_client_fig, use_container_width=True)
+        else:
+            st.info("No valid benchmark entries found in benchmarks.json.")
+    except Exception as e:
+        st.warning(f"Could not parse benchmarks.json: {e}")
+else:
+    st.info(
+        "No `benchmarks.json` found for this run. "
+        "Client-side TTFT, ITL, and TPS metrics require a guidellm result file."
+    )
 
 # ─── EPP routing metrics (if available) ──────────────────────────────────────
 
