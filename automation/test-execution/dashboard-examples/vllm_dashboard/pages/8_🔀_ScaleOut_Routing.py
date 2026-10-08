@@ -492,25 +492,25 @@ else:
 
 # ─── EPP routing metrics (if available) ──────────────────────────────────────
 
-if run["epp_file"].exists():
-    st.subheader("🎯 EPP Routing Metrics")
-    try:
-        epp_data = json.loads(run["epp_file"].read_text())
-        st.json(epp_data.get("collection_info", {}))
-        first_sample = (epp_data.get("samples") or [{}])[0]
-        epp_metric_names = list(first_sample.get("metrics", {}).keys())
-        epp_llmd = [m for m in epp_metric_names if m.startswith("llm_d_epp")]
-        if epp_llmd:
-            st.caption(f"llm_d_epp_* metrics present: {len(epp_llmd)}")
-            st.markdown(", ".join(f"`{m}`" for m in epp_llmd[:12]))
-    except Exception as e:
-        st.warning(f"Could not parse epp-metrics.json: {e}")
-else:
-    st.info(
-        "EPP routing metrics not found (`epp-metrics.json`). "
-        "Add the EPP endpoint (DUT port 9090) to your metrics collector "
-        "configuration to enable EPP-level routing analysis."
-    )
+with st.expander("🎯 EPP Routing Metrics", expanded=False):
+    if run["epp_file"].exists():
+        try:
+            epp_data = json.loads(run["epp_file"].read_text())
+            st.json(epp_data.get("collection_info", {}))
+            first_sample = (epp_data.get("samples") or [{}])[0]
+            epp_metric_names = list(first_sample.get("metrics", {}).keys())
+            epp_llmd = [m for m in epp_metric_names if m.startswith("llm_d_epp")]
+            if epp_llmd:
+                st.caption(f"llm_d_epp_* metrics present: {len(epp_llmd)}")
+                st.markdown(", ".join(f"`{m}`" for m in epp_llmd[:12]))
+        except Exception as e:
+            st.warning(f"Could not parse epp-metrics.json: {e}")
+    else:
+        st.info(
+            "EPP routing metrics not found (`epp-metrics.json`). "
+            "Add the EPP endpoint (DUT port 9090) to your metrics collector "
+            "configuration to enable EPP-level routing analysis."
+        )
 
 # ─── Policy comparison ───────────────────────────────────────────────────────
 

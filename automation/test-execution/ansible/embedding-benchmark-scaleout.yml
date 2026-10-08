@@ -90,6 +90,16 @@
         test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
       when: hostvars['localhost']['scaleout_collect_per_instance_metrics'] | default(true) | bool
 
+    - name: Start container CPU/memory stats collection
+      ansible.builtin.include_tasks: tasks/start-scaleout-container-stats.yml
+      vars:
+        scaleout_num_instances: "{{ hostvars['localhost']['scaleout_num_instances'] | default(5) }}"
+        scaleout_routing_policy: "{{ hostvars['localhost']['scaleout_routing_policy'] | default('intelligent') }}"
+        scaleout_metrics_tmpdir: "{{ hostvars['localhost']['scaleout_metrics_tmpdir'] }}"
+        test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
+        container_stats_interval: 10
+      when: hostvars['localhost']['scaleout_collect_per_instance_metrics'] | default(true) | bool
+
 # ============================================================================
 # Phase 2: Run embedding benchmark against Envoy (external mode)
 # ============================================================================
@@ -113,6 +123,13 @@
         test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
       when: hostvars['localhost']['scaleout_collect_per_instance_metrics'] | default(true) | bool
 
+    - name: Stop container CPU/memory stats collection
+      ansible.builtin.include_tasks: tasks/stop-scaleout-container-stats.yml
+      vars:
+        test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
+        scaleout_metrics_tmpdir: "{{ hostvars['localhost']['scaleout_metrics_tmpdir'] }}"
+      when: hostvars['localhost']['scaleout_collect_per_instance_metrics'] | default(true) | bool
+
     - name: Find the results directory for this run
       ansible.builtin.shell: >
         find {{ playbook_dir }}/../../../results -name "test-metadata.json"
@@ -123,10 +140,12 @@
       failed_when: false
       when: hostvars['localhost']['scaleout_collect_per_instance_metrics'] | default(true) | bool
 
-    - name: Copy per-instance metrics JSON files to results directory
-      ansible.builtin.shell: >
-        cp {{ hostvars['localhost']['scaleout_metrics_tmpdir'] }}/*.json
-        {{ _results_dir_lookup.stdout }}/
+    - name: Copy per-instance metrics and container stats to results directory
+      ansible.builtin.shell: |
+        for f in {{ hostvars['localhost']['scaleout_metrics_tmpdir'] }}/*.json \
+                  {{ hostvars['localhost']['scaleout_metrics_tmpdir'] }}/*.jsonl; do
+          [ -f "$f" ] && cp "$f" {{ _results_dir_lookup.stdout }}/
+        done
       when:
         - hostvars['localhost']['scaleout_collect_per_instance_metrics'] | default(true) | bool
         - _results_dir_lookup.stdout is defined
