@@ -132,8 +132,8 @@ scaleout_volume_name: "hf-cache"
 # Health Check Settings
 # ============================================================================
 
-scaleout_health_check_retries: 30
-scaleout_health_check_delay: 5
+scaleout_health_check_retries: 120
+scaleout_health_check_delay: 10
 
 # ============================================================================
 # Directories

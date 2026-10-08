@@ -16,8 +16,8 @@ version: '3.8'
 #   round_robin  — Envoy distributes requests evenly; EPP not started
 
 services:
-{% for i in range(1, scaleout_num_instances + 1) %}
-  # vLLM Instance {{ i }} — port {{ scaleout_vllm_base_port + i - 1 }}
+{% for i in range(1, scaleout_num_instances | int + 1) %}
+  # vLLM Instance {{ i }} — port {{ scaleout_vllm_base_port | int + i - 1 }}
   vllm-{{ i }}:
     image: {{ scaleout_vllm_image }}
     container_name: vllm-instance-{{ i }}
@@ -39,7 +39,7 @@ services:
       - --model
       - {{ scaleout_model_name }}
       - --port
-      - "{{ scaleout_vllm_base_port + i - 1 }}"
+      - "{{ scaleout_vllm_base_port | int + i - 1 }}"
       - --host
       - "0.0.0.0"
 {% if scaleout_vllm_task is defined and scaleout_vllm_task != '' %}
@@ -57,7 +57,7 @@ services:
       - {{ arg }}
 {% endfor %}
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:{{ scaleout_vllm_base_port + i - 1 }}/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:{{ scaleout_vllm_base_port | int + i - 1 }}/health"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -73,8 +73,8 @@ services:
     network_mode: host
     cpuset: "{{ scaleout_epp_cores }}"
     volumes:
-      - {{ scaleout_config_dir }}/epp-config.yaml:/etc/epp/config.yaml:ro
-      - {{ scaleout_config_dir }}/epp-endpoints.yaml:/etc/epp/endpoints.yaml:ro
+      - {{ scaleout_config_dir }}/epp-config.yaml:/etc/epp/config.yaml:ro,Z
+      - {{ scaleout_config_dir }}/epp-endpoints.yaml:/etc/epp/endpoints.yaml:ro,Z
     command:
       - --config-file=/etc/epp/config.yaml
       - --pool-name=file-discovery
@@ -85,7 +85,7 @@ services:
       - --secure-serving=false
       - --v=2
     depends_on:
-{% for i in range(1, scaleout_num_instances + 1) %}
+{% for i in range(1, scaleout_num_instances | int + 1) %}
       - vllm-{{ i }}
 {% endfor %}
     restart: unless-stopped
@@ -99,7 +99,7 @@ services:
     network_mode: host
     cpuset: "{{ scaleout_envoy_cores }}"
     volumes:
-      - {{ scaleout_config_dir }}/envoy.yaml:/etc/envoy/envoy.yaml:ro
+      - {{ scaleout_config_dir }}/envoy.yaml:/etc/envoy/envoy.yaml:ro,Z
     command:
       - --service-node
       - envoy-proxy
@@ -118,7 +118,7 @@ services:
       - epp
 {% else %}
     depends_on:
-{% for i in range(1, scaleout_num_instances + 1) %}
+{% for i in range(1, scaleout_num_instances | int + 1) %}
       - vllm-{{ i }}
 {% endfor %}
 {% endif %}

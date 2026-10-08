@@ -36,7 +36,15 @@
 
     - name: Set vLLM mode early for validation
       ansible.builtin.set_fact:
-        vllm_mode: "{{ vllm_endpoint.mode | default('managed') }}"
+        vllm_mode: "{{ vllm_mode | default(vllm_endpoint.mode | default('managed')) }}"
+
+    - name: Apply vllm_endpoint_url override if provided
+      ansible.builtin.set_fact:
+        vllm_endpoint: "{{ vllm_endpoint | combine({'external': {'url': vllm_endpoint_url}}, recursive=True) }}"
+      when:
+        - vllm_mode == 'external'
+        - vllm_endpoint_url is defined
+        - vllm_endpoint_url | length > 0
 
     - name: Validate required variables are defined (managed mode)
       ansible.builtin.assert:
@@ -92,12 +100,18 @@
         fail_msg: "requested_cores must be a positive integer, got: {{ requested_cores }}"
       when: vllm_mode == 'managed'
 
+    - name: Validate workload_type is defined
+      ansible.builtin.assert:
+        that:
+          - workload_type is defined
+        fail_msg: "workload_type is not defined. Supported workloads: {{ test_configs.keys() | list | join(', ') }}"
+
     - name: Validate workload_type is supported
       ansible.builtin.assert:
         that:
           - workload_type in test_configs.keys()
         fail_msg: |
-          Unsupported workload_type: {{ workload_type }}
+          Unsupported workload_type: {{ workload_type | default('undefined') }}
           Supported workloads: {{ test_configs.keys() | list | join(', ') }}
 
     - name: Validate guidellm_profile if provided
@@ -277,9 +291,9 @@
           - "Auto-Configured LLM Test"
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           - "Test Run ID: {{ test_run_id }}"
-          - "Model: {{ actual_model }}{{ ' (detected from endpoint)' if vllm_mode == 'external' else '' }}"
+          - "Model: {{ actual_model | default('unknown') }}{{ ' (detected from endpoint)' if vllm_mode == 'external' else '' }}"
           - "Workload: {{ workload_type }}"
-          - "Requested Cores: {{ requested_cores }}"
+          - "Requested Cores: {{ requested_cores | default('n/a') }}"
           - "DUT: {{ groups['dut'][0] }} ({{ hostvars[groups['dut'][0]]['ansible_host'] }})"
           - "Load Generator: {{ groups['load_generator'][0] }} ({{ hostvars[groups['load_generator'][0]]['ansible_host'] }})"
           - "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -411,6 +425,13 @@
   gather_facts: false
 
   tasks:
+    - name: Propagate vllm_endpoint URL override from localhost
+      ansible.builtin.set_fact:
+        vllm_endpoint: "{{ vllm_endpoint | combine({'external': {'url': hostvars['localhost']['vllm_endpoint']['external']['url']}}, recursive=True) }}"
+      when:
+        - hostvars['localhost']['vllm_endpoint']['external']['url'] is defined
+        - hostvars['localhost']['vllm_endpoint']['external']['url'] is not none
+
     - block:
         - name: Validate external endpoint URL
           ansible.builtin.assert:

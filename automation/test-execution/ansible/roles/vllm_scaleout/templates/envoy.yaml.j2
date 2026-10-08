@@ -145,11 +145,11 @@ static_resources:
         cluster_name: vllm_backend
         endpoints:
           - lb_endpoints:
-{% for i in range(1, scaleout_num_instances + 1) %}
+{% for i in range(1, scaleout_num_instances | int + 1) %}
               - endpoint:
                   address:
                     socket_address:
                       address: 127.0.0.1
-                      port_value: {{ scaleout_vllm_base_port + i - 1 }}
+                      port_value: {{ scaleout_vllm_base_port | int + i - 1 }}
 {% endfor %}
 {% endif %}

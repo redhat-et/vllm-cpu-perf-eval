@@ -1,0 +1,25 @@
+name: vllm-scaleout
+description: "vLLM scale-out benchmark via llm-d (EPP + Envoy) - deploy, benchmark, teardown with per-instance metrics"
+runner: ansible
+target: automation/test-execution/ansible/llm-benchmark-scaleout.yml
+matrix: false
+
+defaults:
+  model: "meta-llama/Llama-3.2-1B-Instruct"
+  num_instances: "2"
+  cores_per_instance: "24"
+  routing_policy: "intelligent"
+  start_core: "0"
+
+param_mappings:
+  model: scaleout_model_name
+  num_instances: scaleout_num_instances
+  cores_per_instance: scaleout_cores_per_instance
+  routing_policy: scaleout_routing_policy
+  start_core: scaleout_start_core
+  guidellm_cpus: guidellm_cpus
+  guidellm_numa_node: guidellm_numa_node
+  collect_per_instance_metrics: scaleout_collect_per_instance_metrics
+  vllm_base_port: scaleout_vllm_base_port
+  envoy_port: scaleout_envoy_port
+  epp_metrics_port: scaleout_epp_metrics_port

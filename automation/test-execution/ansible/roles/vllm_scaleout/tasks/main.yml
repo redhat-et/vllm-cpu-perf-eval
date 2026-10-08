@@ -11,7 +11,7 @@
       - "  Start core: {{ scaleout_start_core }}"
       - "  SMT enabled: {{ scaleout_enable_smt }}"
       - "  Prefix caching: {{ scaleout_enable_prefix_caching }}"
-      - "  vLLM ports: {{ scaleout_vllm_base_port }} - {{ scaleout_vllm_base_port + scaleout_num_instances - 1 }}"
+      - "  vLLM ports: {{ scaleout_vllm_base_port }} - {{ scaleout_vllm_base_port | int + scaleout_num_instances | int - 1 }}"
       - "  Envoy port (client): {{ scaleout_envoy_port }}"
       - "  EPP gRPC port: {{ scaleout_epp_grpc_port }} ({{ 'enabled' if scaleout_routing_policy == 'intelligent' else 'disabled for round_robin' }})"
       - "  Model: {{ scaleout_model_name }}"
@@ -23,17 +23,17 @@
         scaleout_instance_cpusets | default([]) +
         [
           (
-            (scaleout_start_core + (item - 1) * scaleout_cores_per_instance) | string + '-' +
-            (scaleout_start_core + item * scaleout_cores_per_instance - 1) | string +
+            (scaleout_start_core | int + (item - 1) * scaleout_cores_per_instance | int) | string + '-' +
+            (scaleout_start_core | int + item * scaleout_cores_per_instance | int - 1) | string +
             (
-              (',' + (scaleout_smt_offset + (item - 1) * scaleout_smt_cores_per_instance) | string + '-' +
-              (scaleout_smt_offset + item * scaleout_smt_cores_per_instance - 1) | string)
+              (',' + (scaleout_smt_offset | int + (item - 1) * scaleout_smt_cores_per_instance | int) | string + '-' +
+              (scaleout_smt_offset | int + item * scaleout_smt_cores_per_instance | int - 1) | string)
               if scaleout_enable_smt else ''
             )
           )
         ]
       }}
-  loop: "{{ range(1, scaleout_num_instances + 1) | list }}"
+  loop: "{{ range(1, scaleout_num_instances | int + 1) | list }}"
 
 - name: Display calculated CPU sets
   ansible.builtin.debug:
@@ -84,14 +84,25 @@
   containers.podman.podman_volume:
     name: "{{ scaleout_volume_name }}"
     state: present
-  when: vllm_server.container_runtime == 'podman'
+  when: true
 
 - name: Start vLLM scale-out deployment with docker-compose
   ansible.builtin.shell:
     cmd: "podman-compose -f {{ scaleout_config_dir }}/docker-compose.yml up -d"
     chdir: "{{ scaleout_config_dir }}"
-  when: vllm_server.container_runtime == 'podman'
+  environment:
+    PATH: "/usr/local/bin:/usr/bin:/bin:{{ ansible_env.PATH }}"
+  async: 120
+  poll: 0
+  register: compose_up_job
+
+- name: Wait for compose to finish launching containers
+  ansible.builtin.async_status:
+    jid: "{{ compose_up_job.ansible_job_id }}"
   register: compose_up
+  retries: 12
+  delay: 10
+  until: compose_up.finished
 
 - name: Display compose output
   ansible.builtin.debug:
@@ -100,14 +111,14 @@
 
 - name: Wait for each vLLM instance to become ready
   ansible.builtin.uri:
-    url: "http://localhost:{{ scaleout_vllm_base_port + item - 1 }}/v1/models"
+    url: "http://localhost:{{ scaleout_vllm_base_port | int + item - 1 }}/v1/models"
     method: GET
     status_code: 200
   register: vllm_health
   retries: "{{ scaleout_health_check_retries }}"
   delay: "{{ scaleout_health_check_delay }}"
   until: vllm_health.status == 200
-  loop: "{{ range(1, scaleout_num_instances + 1) | list }}"
+  loop: "{{ range(1, scaleout_num_instances | int + 1) | list }}"
 
 - name: Wait for EPP metrics endpoint to be ready
   ansible.builtin.uri:
