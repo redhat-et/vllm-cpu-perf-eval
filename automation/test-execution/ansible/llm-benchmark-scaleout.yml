@@ -98,6 +98,7 @@
 - ansible.builtin.import_playbook: llm-benchmark-auto.yml
   vars:
     vllm_mode: "external"
+    workload_type: "{{ workload_type | default(lookup('env', 'WORKLOAD_TYPE') | default('summarization', true), true) }}"
     vllm_endpoint_url: "http://{{ hostvars[groups['dut'][0]]['ansible_host'] }}:{{ scaleout_envoy_port | default(8081) }}"
     benchmark_label_suffix: "scaleout-{{ scaleout_num_instances | default(5) }}x-{{ scaleout_routing_policy | default('intelligent') }}"
 

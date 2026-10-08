@@ -12,7 +12,7 @@
   gather_facts: false
   any_errors_fatal: true
   vars:
-    test_run_id: "{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
+    test_run_id: "{{ test_run_id | default(lookup('pipe', 'date +%Y%m%d-%H%M%S'), true) }}"
 
 - name: Initialize embedding benchmark run metadata
   hosts: localhost
@@ -20,7 +20,7 @@
   tasks:
     - name: Set configuration variables
       ansible.builtin.set_fact:
-        vllm_mode: "{{ lookup('env', 'VLLM_MODE') | default(vllm_endpoint.mode | default('managed'), true) }}"
+        vllm_mode: "{{ vllm_mode | default(lookup('env', 'VLLM_MODE') | default(vllm_endpoint.mode | default('managed'), true), true) }}"
         test_model: "{{ lookup('env', 'TEST_MODEL') | default(test_model | default('RedHatAI/granite-embedding-english-r2'), true) }}"
         requested_cores: "{{ lookup('env', 'REQUESTED_CORES') | default(requested_cores | default(16), true) | int }}"
         vllm_cpus: "{{ vllm_cpus | default(lookup('env', 'VLLM_CPUS') | default('', true), true) }}"
@@ -35,6 +35,14 @@
           vllm_cpus='{{ vllm_cpus }}' is not valid. Expected a range (e.g. '64-95'),
           a single core ('64'), or a comma-separated list ('64,65,66').
       when: vllm_cpus is defined and vllm_cpus | string | trim != ''
+
+    - name: Apply vllm_endpoint_url override if provided
+      ansible.builtin.set_fact:
+        vllm_endpoint: "{{ vllm_endpoint | combine({'external': {'url': vllm_endpoint_url}}, recursive=True) }}"
+      when:
+        - vllm_mode == 'external'
+        - vllm_endpoint_url is defined
+        - vllm_endpoint_url | length > 0
 
     - name: Validate vLLM mode
       ansible.builtin.assert:
@@ -80,8 +88,11 @@
     - name: Generate test run ID
       ansible.builtin.set_fact:
         test_run_id: "{{ (test_name + '-') if test_name is defined and test_name else '' }}{{ lookup('pipe', 'date +%Y%m%d-%H%M%S') }}"
-        benchmark_start_epoch: "{{ lookup('pipe', 'date +%s') | int }}"
       when: test_run_id is not defined
+
+    - name: Record benchmark start time
+      ansible.builtin.set_fact:
+        benchmark_start_epoch: "{{ lookup('pipe', 'date +%s') | int }}"
 
     - name: Display test run information
       ansible.builtin.debug:
@@ -196,9 +207,15 @@
       ansible.builtin.meta: end_play
       when: not is_dut_only
 
+    - name: Get SSH user home for dut-only results path
+      ansible.builtin.shell: "echo ~{{ ansible_user }}"
+      register: dut_ssh_user_home
+      changed_when: false
+      become: false
+
     - name: Initialize bench_config for dut-only mode
       ansible.builtin.set_fact:
-        bench_config: "{{ bench_config | default({}) | combine({'vllm_host': 'localhost', 'vllm_port': vllm_port | default(8000), 'results_dir': lookup('env', 'HOME') ~ '/benchmark-results' if (lookup('env', 'AWX_JOB_ID') | length > 0) else playbook_dir ~ '/../../../results/embedding'}) }}"
+        bench_config: "{{ bench_config | default({}) | combine({'vllm_host': 'localhost', 'vllm_port': vllm_port | default(8000), 'results_dir': lookup('env', 'HOME') ~ '/benchmark-results' if (lookup('env', 'AWX_JOB_ID') | length > 0) else dut_ssh_user_home.stdout ~ '/embedding-benchmark-results'}) }}"
 
     - name: Run vLLM health check
       ansible.builtin.include_role:

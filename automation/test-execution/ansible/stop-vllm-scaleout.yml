@@ -14,7 +14,6 @@
   vars:
     scaleout_config_dir: "/tmp/vllm-scaleout"
     scaleout_volume_name: "hf-cache"
-    scaleout_num_instances: 5
     scaleout_purge_model_cache: false  # Removes the HF weights volume when true
 
   tasks:
@@ -59,7 +58,7 @@
         name: "vllm-instance-{{ item }}"
         state: absent
         force: true
-      loop: "{{ range(1, scaleout_num_instances | int + 1) | list }}"
+      loop: "{{ range(1, (scaleout_num_instances | default(5)) | int + 1) | list }}"
       ignore_errors: true
 
     # Config dir is always removed — it only contains generated temp files
