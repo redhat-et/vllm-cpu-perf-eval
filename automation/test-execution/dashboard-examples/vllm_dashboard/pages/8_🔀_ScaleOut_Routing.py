@@ -139,11 +139,51 @@ BACKEND_COLORS = [
 KEY_METRICS = {
     "Running Requests": "vllm:num_requests_running",
     "Queued Requests": "vllm:num_requests_waiting",
-    "KV Cache Utilisation (%)": "vllm:gpu_cache_usage_perc",
+    "KV Cache Utilisation (%)": "vllm:kv_cache_usage_perc",
     "CPU Cache Utilisation (%)": "vllm:cpu_cache_usage_perc",
     "Generation Throughput (tok/s)": "vllm:avg_generation_throughput_toks_per_s",
     "Completed Requests (cumulative)": "vllm:request_success_total",
 }
+
+# Primary metric name with optional fallbacks (GPU vs CPU vLLM builds differ)
+METRIC_ALIASES = {
+    "vllm:kv_cache_usage_perc": [
+        "vllm:kv_cache_usage_perc",
+        "vllm:gpu_cache_usage_perc",
+    ],
+}
+
+
+def extract_series_with_aliases(data: dict, metric: str) -> pd.DataFrame:
+    """Extract a time series, trying alias names when the primary is absent."""
+    for name in METRIC_ALIASES.get(metric, [metric]):
+        df = extract_series(data, name)
+        if not df.empty:
+            return df
+    return pd.DataFrame(columns=["elapsed_s", "value"])
+
+
+def extract_prefix_cache_hit_rate(data: dict) -> pd.DataFrame:
+    """Prefix cache hit rate from gauges or hits/queries counters."""
+    for gauge in (
+        "vllm:cpu_prefix_cache_hit_rate",
+        "vllm:gpu_prefix_cache_hit_rate",
+    ):
+        df = extract_series(data, gauge)
+        if not df.empty:
+            return df
+
+    rows = []
+    for sample in data.get("samples", []):
+        ts = sample.get("elapsed_seconds", 0)
+        metrics = sample.get("metrics", {})
+        hits = metrics.get("vllm:prefix_cache_hits_total", [{}])[0].get("value", 0)
+        queries = metrics.get("vllm:prefix_cache_queries_total", [{}])[0].get("value", 0)
+        if queries and queries > 0:
+            rows.append({"elapsed_s": ts, "value": hits / queries})
+    if rows:
+        return pd.DataFrame(rows)
+    return pd.DataFrame(columns=["elapsed_s", "value"])
 
 # EPP metric names — collected from EPP :9090/metrics (llm_d_epp_* prefix)
 EPP_POOL_METRICS = {
@@ -183,7 +223,8 @@ col1, col2, col3, col4 = st.columns(4)
 col1.metric("Instances", meta.get("num_instances", len(run["instance_files"])))
 col2.metric("Routing Policy", meta.get("routing_policy", "—"))
 col3.metric("Cores / Instance", meta.get("cores_per_instance", "—"))
-col4.metric("Model", (meta.get("model_name", "—") or "—").split("/")[-1])
+model_display = meta.get("model_name") or meta.get("model") or "—"
+col4.metric("Model", str(model_display).split("/")[-1])
 
 st.divider()
 
@@ -220,7 +261,7 @@ st.subheader(f"📊 {selected_display} — all backends over time")
 
 fig = go.Figure()
 for i, idx in enumerate(instance_ids):
-    df = extract_series(instance_data[idx], selected_metric)
+    df = extract_series_with_aliases(instance_data[idx], selected_metric)
     if df.empty:
         continue
     df["value"] = df["value"].rolling(3, min_periods=1).mean()
@@ -265,7 +306,7 @@ st.subheader(section_title)
 
 summary_rows = []
 for idx in instance_ids:
-    df = extract_series(instance_data[idx], selected_metric)
+    df = extract_series_with_aliases(instance_data[idx], selected_metric)
     if df.empty and is_latency:
         df = extract_histogram_mean(instance_data[idx], selected_metric)
     if df.empty:
@@ -308,9 +349,7 @@ st.subheader("💾 Prefix Cache Hit Rate per Backend")
 
 hit_fig = go.Figure()
 for i, idx in enumerate(instance_ids):
-    df = extract_series(instance_data[idx], "vllm:cpu_prefix_cache_hit_rate")
-    if df.empty:
-        df = extract_series(instance_data[idx], "vllm:gpu_prefix_cache_hit_rate")
+    df = extract_prefix_cache_hit_rate(instance_data[idx])
     if df.empty:
         continue
     hit_fig.add_trace(go.Scatter(
@@ -386,10 +425,16 @@ if benchmarks_file and benchmarks_file.exists():
             cfg = b.get("config", {})
             m = b.get("metrics", {})
             strategy = cfg.get("strategy", {})
-            conc = strategy.get("max_concurrency") or strategy.get("worker_count")
+            conc = (
+                strategy.get("streams")
+                or strategy.get("max_concurrency")
+                or strategy.get("worker_count")
+            )
             ttft = m.get("time_to_first_token_ms", {}).get("successful", {})
             itl = m.get("inter_token_latency_ms", {}).get("successful", {})
-            tps = m.get("output_tokens_per_second", {}).get("successful", {})
+            tps = m.get("tokens_per_second", {}).get("successful", {})
+            if not tps.get("mean"):
+                tps = m.get("output_tokens_per_second", {}).get("successful", {})
             rps = m.get("requests_per_second", {}).get("successful", {})
             if not ttft.get("mean"):
                 continue
