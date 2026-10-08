@@ -734,4 +734,103 @@ CI answers: *"What range should go in the report?"*
 ---
 <!-- _class: divider -->
 
+# Scale-Out: llm-d (EPP + Envoy)
+
+---
+
+## Scale-Out Architecture
+
+Run **N vLLM instances on one host** with intelligent load balancing — no Kubernetes.
+
+```
+  Load Generator (GuideLLM)
+          │ :8081
+  ┌───────▼────────┐
+  │  Envoy proxy   │  front-facing, ext_proc filter
+  └───────┬────────┘
+          │ gRPC ext_proc
+  ┌───────▼────────┐
+  │  EPP            │  Endpoint Picker — scores each backend
+  │  (llm-d)        │  prefix-cache × 3, queue × 2, KV × 2, LRU × 2
+  └──┬───┬────┬────┘
+     │   │    │
+  vLLM1 vLLM2 … vLLMN        host-networked, CPU-pinned per instance
+  :8000 :8001  :800N
+```
+
+**round_robin** mode skips EPP entirely — useful to measure routing overhead.
+
+---
+
+## Routing Modes
+
+| Policy | Stack | Backend selection |
+|--------|-------|-------------------|
+| `intelligent` (default) | EPP + Envoy | Scores each backend: prefix-cache hit ratio, queue depth, KV utilisation, LRU |
+| `round_robin` | Envoy only | Even distribution; EPP not started |
+
+**EPP scorer weights** (tunable):
+
+```bash
+ansible-playbook embedding-benchmark-scaleout.yml \
+  -e "scaleout_epp_prefix_cache_weight=5 \
+      scaleout_epp_queue_weight=3 \
+      scaleout_epp_kv_cache_weight=2"
+```
+
+Run both policies back-to-back; the **🔀 ScaleOut Routing** dashboard overlays
+load distribution and latency for direct comparison.
+
+---
+
+## Scale-Out Metrics Collection
+
+Three parallel collectors run for the duration of the benchmark:
+
+| Collector | Target | Output |
+|-----------|--------|--------|
+| N × vLLM Prometheus scraper | `DUT:800N/metrics` | `vllm-metrics-instance-N.json` |
+| EPP scraper (intelligent only) | `DUT:9090/metrics` | `epp-metrics.json` |
+| Container CPU + memory | `podman stats` on DUT | `container-stats-scaleout.jsonl` |
+
+**Key server metrics collected:**
+- Running / queued requests per backend
+- KV-cache utilisation per backend
+- GPU/CPU prefix-cache hit rate per backend
+- EPP pool: avg queue size, avg running, KV std-dev, prefix indexer hit ratio
+
+**Client metrics** (from GuideLLM `benchmarks.json`):
+- TTFT mean / P95, ITL mean / P95
+- Output TPS, RPS vs concurrency sweep
+
+---
+
+## Scale-Out Observability
+
+| Endpoint | Port | What it shows |
+|----------|------|---------------|
+| Envoy admin | `:19000` | Active connections, upstream health, cluster stats |
+| EPP metrics | `:9090/metrics` | `llm_d_epp_*` — queue, KV cache, prefix indexer, routing latency |
+| vLLM instance N | `:800N/metrics` | Per-backend running/queued requests, cache utilisation, throughput |
+
+**Quick start:**
+
+```bash
+# Deploy 5 instances with intelligent routing
+ansible-playbook embedding-benchmark-scaleout.yml
+
+# Compare with round-robin
+ansible-playbook embedding-benchmark-scaleout.yml \
+  -e scaleout_routing_policy=round_robin
+
+# Tune instance count and core allocation
+ansible-playbook embedding-benchmark-scaleout.yml \
+  -e "scaleout_num_instances=3 scaleout_cores_per_instance=16"
+```
+
+Full reference: `docs/vllm-scaleout.md`
+
+---
+<!-- _class: divider -->
+
 # Thank You

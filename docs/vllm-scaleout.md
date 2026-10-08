@@ -97,6 +97,7 @@ results/
         vllm-metrics-instance-2.json
         …
         epp-metrics.json               ← EPP routing metrics (intelligent routing only)
+        container-stats-scaleout.jsonl ← container CPU + memory (all instances, EPP, Envoy)
 ```
 
 `test-metadata.json` for scale-out runs contains:

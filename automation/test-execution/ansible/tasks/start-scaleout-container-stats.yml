@@ -1,0 +1,112 @@
+---
+# Start container CPU/memory stats collection for all scaleout containers.
+# Runs a podman-stats poller on the DUT, collecting stats for every vLLM
+# instance plus EPP and Envoy into a single JSONL file.
+#
+# Required vars:
+#   scaleout_num_instances  : number of vLLM instances
+#   scaleout_routing_policy : 'intelligent' or 'round_robin'
+#   scaleout_metrics_tmpdir : temp dir on localhost to store output
+#   test_run_id             : run identifier
+#
+# Produces: hostvars['localhost']['scaleout_container_stats_pid'] (on DUT)
+# Output file (on DUT, fetched in finalisation): container-stats-scaleout.jsonl
+
+- name: Resolve DUT host for container stats
+  ansible.builtin.set_fact:
+    _cstats_dut: "{{ groups['dut'][0] }}"
+  delegate_to: localhost
+  become: false
+
+- name: Build list of scaleout container names
+  ansible.builtin.set_fact:
+    _scaleout_container_names: >-
+      {{
+        range(1, scaleout_num_instances | int + 1)
+        | map('regex_replace', '^(.*)$', 'vllm-instance-\1')
+        | list
+        + (['vllm-epp'] if scaleout_routing_policy | default('intelligent') == 'intelligent' else [])
+        + ['vllm-envoy']
+      }}
+  delegate_to: localhost
+  become: false
+
+- name: Write container stats collector script to DUT
+  ansible.builtin.copy:
+    dest: "/tmp/scaleout_container_stats_{{ test_run_id }}.py"
+    mode: "0755"
+    content: |
+      #!/usr/bin/env python3
+      """Poll podman stats for all scaleout containers, write timestamped JSONL."""
+      import json, subprocess, time, sys, signal
+
+      CONTAINERS = sys.argv[1].split(',')
+      OUTPUT = sys.argv[2]
+      INTERVAL = int(sys.argv[3]) if len(sys.argv) > 3 else 10
+
+      should_stop = False
+
+      def _stop(s, f):
+          global should_stop
+          should_stop = True
+
+      signal.signal(signal.SIGTERM, _stop)
+      signal.signal(signal.SIGINT, _stop)
+
+      print(f"Container stats collector started for: {CONTAINERS}", flush=True)
+      sample_count = 0
+
+      with open(OUTPUT, 'w') as fout:
+          while not should_stop:
+              r = subprocess.run(
+                  ['podman', 'stats', '--no-stream', '--format', 'json'] + CONTAINERS,
+                  capture_output=True, text=True,
+              )
+              if r.returncode == 0 and r.stdout.strip():
+                  try:
+                      items = json.loads(r.stdout)
+                      ts = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+                      for item in items:
+                          item['timestamp'] = ts
+                          fout.write(json.dumps(item) + '\n')
+                      fout.flush()
+                      sample_count += 1
+                      if sample_count % 6 == 0:
+                          print(f"  {sample_count} samples written", flush=True)
+                  except (json.JSONDecodeError, ValueError):
+                      pass
+              deadline = time.time() + INTERVAL
+              while time.time() < deadline and not should_stop:
+                  time.sleep(0.5)
+
+      print(f"Stopped. {sample_count} samples → {OUTPUT}", flush=True)
+  delegate_to: "{{ _cstats_dut }}"
+  become: true
+
+- name: Start container stats collector in background on DUT
+  ansible.builtin.shell: |
+    nohup python3 -u /tmp/scaleout_container_stats_{{ test_run_id }}.py \
+      "{{ _scaleout_container_names | join(',') }}" \
+      "/tmp/container-stats-scaleout-{{ test_run_id }}.jsonl" \
+      "{{ container_stats_interval | default(10) }}" \
+      > /tmp/scaleout_container_stats_{{ test_run_id }}.log 2>&1 &
+    echo $!
+  register: _cstats_pid_result
+  delegate_to: "{{ _cstats_dut }}"
+  become: true
+  changed_when: false
+
+- name: Save container stats collector PID
+  ansible.builtin.set_fact:
+    scaleout_container_stats_pid: "{{ _cstats_pid_result.stdout | trim }}"
+  delegate_to: localhost
+  delegate_facts: true
+
+- name: Display container stats collection status
+  ansible.builtin.debug:
+    msg:
+      - "Container stats collection started on {{ _cstats_dut }}"
+      - "  Containers : {{ _scaleout_container_names | join(', ') }}"
+      - "  PID        : {{ _cstats_pid_result.stdout | trim }}"
+      - "  Output     : /tmp/container-stats-scaleout-{{ test_run_id }}.jsonl"
+      - "  Interval   : {{ container_stats_interval | default(10) }}s"

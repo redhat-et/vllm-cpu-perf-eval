@@ -1,0 +1,55 @@
+---
+# Stop the container stats collector started by start-scaleout-container-stats.yml,
+# fetch the JSONL output from the DUT to the local metrics tmpdir, and clean up.
+#
+# Required hostvars:
+#   hostvars['localhost']['scaleout_container_stats_pid'] : PID on the DUT
+#   test_run_id
+#   scaleout_metrics_tmpdir : local dir to copy the JSONL into
+
+- name: Resolve DUT host
+  ansible.builtin.set_fact:
+    _cstats_dut: "{{ groups['dut'][0] }}"
+  delegate_to: localhost
+  become: false
+
+- name: Stop container stats collector on DUT
+  ansible.builtin.shell: |
+    pid="{{ hostvars['localhost']['scaleout_container_stats_pid'] | default('') }}"
+    [ -z "$pid" ] && exit 0
+    kill -TERM "$pid" 2>/dev/null || true
+    for i in $(seq 1 15); do
+      kill -0 "$pid" 2>/dev/null || break
+      sleep 1
+    done
+    kill -9 "$pid" 2>/dev/null || true
+    true
+  delegate_to: "{{ _cstats_dut }}"
+  become: true
+  failed_when: false
+  changed_when: false
+
+- name: Fetch container stats JSONL to local metrics tmpdir
+  ansible.builtin.fetch:
+    src: "/tmp/container-stats-scaleout-{{ test_run_id }}.jsonl"
+    dest: "{{ scaleout_metrics_tmpdir }}/container-stats-scaleout.jsonl"
+    flat: true
+  delegate_to: "{{ _cstats_dut }}"
+  become: true
+  failed_when: false
+
+- name: Remove container stats script and output from DUT
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "/tmp/scaleout_container_stats_{{ test_run_id }}.py"
+    - "/tmp/container-stats-scaleout-{{ test_run_id }}.jsonl"
+    - "/tmp/scaleout_container_stats_{{ test_run_id }}.log"
+  delegate_to: "{{ _cstats_dut }}"
+  become: true
+  failed_when: false
+
+- name: Display container stats stop status
+  ansible.builtin.debug:
+    msg: "Container stats collector stopped (PID {{ hostvars['localhost']['scaleout_container_stats_pid'] | default('unknown') }})"

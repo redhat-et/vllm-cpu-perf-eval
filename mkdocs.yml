@@ -107,6 +107,7 @@ nav:
           - docs/sections/running-tests.md
           - Ansible Automation: docs/ansible/test-execution.md
           - Model Pre-download: docs/ansible/model-predownload.md
+          - Scale-Out (llm-d): docs/vllm-scaleout.md
           - Scripts Reference: docs/scripts-reference.md
           - Environment Variables: docs/environment-variables.md
       - Models:
