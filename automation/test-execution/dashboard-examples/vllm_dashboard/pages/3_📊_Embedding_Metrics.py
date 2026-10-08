@@ -1057,8 +1057,8 @@ def main():
         if selected_input_lengths:
             filtered_df = filtered_df[filtered_df['input_length'].isin(selected_input_lengths)]
 
-        # Apply scenario filter
-        if selected_scenarios:
+        # Apply scenario filter (empty selection => show no rows)
+        if scenarios:
             filtered_df = filtered_df[filtered_df['scenario'].isin(selected_scenarios)]
 
         # Apply vLLM version filter
