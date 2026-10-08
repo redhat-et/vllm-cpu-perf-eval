@@ -37,12 +37,18 @@
     mode: "0755"
     content: |
       #!/usr/bin/env python3
-      """Poll podman stats for all scaleout containers, write timestamped JSONL."""
+      """Poll podman stats for all scaleout containers, write timestamped JSONL.
+
+      Exits after DURATION seconds even if never signalled, so a forgotten
+      collector cannot run forever. Timestamps are UTC.
+      """
       import json, subprocess, time, sys, signal
+      from datetime import datetime, timezone
 
       CONTAINERS = sys.argv[1].split(',')
       OUTPUT = sys.argv[2]
       INTERVAL = int(sys.argv[3]) if len(sys.argv) > 3 else 10
+      DURATION = int(sys.argv[4]) if len(sys.argv) > 4 else 7200
 
       should_stop = False
 
@@ -57,7 +63,8 @@
       sample_count = 0
 
       with open(OUTPUT, 'w') as fout:
-          while not should_stop:
+          start = time.time()
+          while not should_stop and time.time() - start < DURATION:
               r = subprocess.run(
                   ['podman', 'stats', '--no-stream', '--format', 'json'] + CONTAINERS,
                   capture_output=True, text=True,
@@ -65,7 +72,7 @@
               if r.returncode == 0 and r.stdout.strip():
                   try:
                       items = json.loads(r.stdout)
-                      ts = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+                      ts = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
                       for item in items:
                           item['timestamp'] = ts
                           fout.write(json.dumps(item) + '\n')
@@ -89,6 +96,7 @@
       "{{ _scaleout_container_names | join(',') }}" \
       "/tmp/container-stats-scaleout-{{ test_run_id }}.jsonl" \
       "{{ container_stats_interval | default(10) }}" \
+      "{{ container_stats_duration | default(7200) }}" \
       > /tmp/scaleout_container_stats_{{ test_run_id }}.log 2>&1 &
     echo $!
   register: _cstats_pid_result

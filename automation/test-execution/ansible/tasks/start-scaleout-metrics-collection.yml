@@ -42,9 +42,13 @@
     mode: "0755"
     content: |
       #!/usr/bin/env python3
-      """Scrapes a Prometheus /metrics endpoint periodically and saves JSON."""
-      import json, time, sys, re, signal
-      from datetime import datetime
+      """Scrapes a Prometheus /metrics endpoint periodically and saves JSON.
+
+      The output file is rewritten atomically after every sample, so a crash
+      or SIGKILL loses at most one interval of data. All timestamps are UTC.
+      """
+      import json, os, time, sys, re, signal
+      from datetime import datetime, timezone
       try:
           from urllib.request import urlopen, Request
           from urllib.error import URLError
@@ -65,6 +69,9 @@
 
       signal.signal(signal.SIGTERM, _stop)
       signal.signal(signal.SIGINT, _stop)
+
+      def utcnow():
+          return datetime.now(timezone.utc).isoformat()
 
       def parse_prom(text):
           metrics = {}
@@ -97,13 +104,25 @@
           "collection_info": {
               "vllm_url": URL, "interval_seconds": INTERVAL,
               "duration_seconds": DURATION,
-              "start_time": datetime.now().isoformat(),
+              "start_time": utcnow(),
               "test_run_id": RUN_ID,
+              "total_samples": 0,
+              "scrape_errors": 0,
           },
           "samples": [],
       }
+
+      def flush(final=False):
+          """Atomically rewrite the output so partial data survives crashes."""
+          data["collection_info"]["total_samples"] = len(data["samples"])
+          if final:
+              data["collection_info"]["end_time"] = utcnow()
+          tmp = OUTPUT + ".tmp"
+          with open(tmp, 'w') as f:
+              json.dump(data, f, indent=2)
+          os.replace(tmp, OUTPUT)
+
       start = time.time()
-      n = 0
       try:
           while time.time() - start < DURATION and not should_stop:
               t0 = time.time()
@@ -111,24 +130,25 @@
                   resp = urlopen(Request(f"{URL}/metrics"), timeout=5)
                   if resp.code == 200:
                       data["samples"].append({
-                          "timestamp": datetime.now().isoformat(),
+                          "timestamp": utcnow(),
                           "elapsed_seconds": round(time.time() - start, 2),
                           "metrics": parse_prom(resp.read().decode()),
                       })
-                      n += 1
-              except Exception:
-                  pass
+                      flush()
+                  else:
+                      data["collection_info"]["scrape_errors"] += 1
+              except Exception as exc:
+                  data["collection_info"]["scrape_errors"] += 1
+                  print(f"scrape error: {exc}", file=sys.stderr, flush=True)
               rem = INTERVAL - (time.time() - t0)
               while rem > 0 and not should_stop:
                   time.sleep(min(0.5, rem))
                   rem -= 0.5
       except KeyboardInterrupt:
           pass
-      data["collection_info"]["end_time"] = datetime.now().isoformat()
-      data["collection_info"]["total_samples"] = n
-      with open(OUTPUT, 'w') as f:
-          json.dump(data, f, indent=2)
-      print(f"saved {n} samples → {OUTPUT}")
+      flush(final=True)
+      print(f"saved {len(data['samples'])} samples "
+            f"({data['collection_info']['scrape_errors']} scrape errors) -> {OUTPUT}")
   delegate_to: localhost
   become: false
 
@@ -174,6 +194,14 @@
             else []) }}
   delegate_to: localhost
   delegate_facts: true
+
+- name: Write collector PID bookkeeping file (crash-recovery fallback)
+  ansible.builtin.copy:
+    dest: "{{ scaleout_metrics_tmpdir }}/collector-pids.txt"
+    content: "{{ hostvars['localhost']['scaleout_collector_pids'] | join('\n') }}\n"
+    mode: "0644"
+  delegate_to: localhost
+  become: false
 
 - name: Display metrics collection status
   ansible.builtin.debug:

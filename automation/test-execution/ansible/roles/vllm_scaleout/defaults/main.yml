@@ -21,7 +21,8 @@ scaleout_vllm_base_port: 8000
 
 # Container configuration
 scaleout_vllm_image: "docker.io/vllm/vllm-openai-cpu:v0.25.1"
-scaleout_epp_image: "ghcr.io/llm-d/llm-d-router-endpoint-picker:latest"
+# Pinned to a release tag for reproducible benchmarks — override to upgrade.
+scaleout_epp_image: "ghcr.io/llm-d/llm-d-router-endpoint-picker:v0.11.0"
 scaleout_envoy_image: "docker.io/envoyproxy/envoy:distroless-v1.33.2"
 scaleout_volume_name: "hf-cache"
 
