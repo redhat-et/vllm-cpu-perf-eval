@@ -97,6 +97,11 @@ services:
     command:
       - |
         python -c "import lmcache" 2>/dev/null || pip install --quiet lmcache
+        echo "Waiting for lmcache-server on port {{ scaleout_lmcache_server_port }}..."
+        until python3 -c "import socket; s=socket.socket(); s.settimeout(2); s.connect(('localhost',{{ scaleout_lmcache_server_port }})); s.close()" 2>/dev/null; do
+          echo "  lmcache-server not ready, retrying in 5s..."; sleep 5
+        done
+        echo "lmcache-server ready."
         args=(
           --model "{{ scaleout_model_name }}"
           --port "{{ scaleout_vllm_base_port | int + i - 1 }}"
