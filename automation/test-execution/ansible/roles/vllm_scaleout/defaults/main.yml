@@ -77,6 +77,21 @@ scaleout_model_cache_dir: "{{ model_cache_dir | default('/var/lib/vllm-models') 
 # Leave unset to use the model's default context window.
 # scaleout_vllm_max_model_len: 512
 
+# Fraction of system RAM vLLM reserves for the KV cache (0.0–1.0).
+# On the CPU backend this flag controls RAM despite being named gpu-memory-utilization.
+# Default 0.9 matches vLLM's own default and is fine for baseline deployments.
+# When running with LMCache (scaleout_lmcache_backend=remote) the lmcache-server
+# process allocates its L1 pool (scaleout_lmcache_server_l1_size_gb) BEFORE the
+# vLLM instances start.  That memory is already gone, so each vLLM instance must
+# be given a smaller budget.
+#
+# Rule of thumb for LMCache deployments:
+#   utilization ≤ (total_ram_GiB - lmcache_l1_gb - os_overhead_gb)
+#                 / (total_ram_GiB × num_instances)
+# Example (92 GiB host, 10 GB pool, 2 instances, ~4 GB OS):
+#   (92 - 10 - 4) / (92 × 2) ≈ 0.42  → use 0.4
+scaleout_vllm_gpu_memory_utilization: 0.9
+
 # Advanced vLLM options (optional)
 scaleout_vllm_extra_args: []
 # Example:
