@@ -174,7 +174,7 @@ services:
   # EPP — Endpoint Picker: scores vLLM backends and selects the best one per request.
   # Scoring: prefix-cache×{{ scaleout_epp_prefix_cache_weight }} queue×{{ scaleout_epp_queue_weight }} kv-cache×{{ scaleout_epp_kv_cache_weight }} lru×{{ scaleout_epp_lru_weight }}
 {% if scaleout_lmcache_backend == 'remote' %}
-  # LMCache secondary-tier scorer weight: {{ scaleout_lmcache_disk_scorer_weight }}
+  # LMCache secondary-tier scorer weight: {{ scaleout_lmcache_scorer_weight }}
 {% endif %}
   epp:
     image: {{ scaleout_epp_image }}
