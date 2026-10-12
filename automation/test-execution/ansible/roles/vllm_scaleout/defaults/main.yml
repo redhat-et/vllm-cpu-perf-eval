@@ -137,6 +137,12 @@ scaleout_lmcache_lru_capacity_per_server: 10000
 # Weight for the LMCache tier scorer in EPP (secondary tier after in-memory).
 scaleout_lmcache_scorer_weight: 2
 
+# What vLLM does if the LMCache connector fails to initialize.
+#   "fail"   — vLLM exits (default; correct for production)
+#   "ignore" — vLLM starts without LMCache (use for debugging: lets you see the
+#              actual LMCache error in the container log without a crash loop)
+scaleout_lmcache_kv_failure_policy: "fail"
+
 # Hugepages for the lmcache-server shared memory pool
 #
 # Why 1 GB hugepages?

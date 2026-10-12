@@ -118,6 +118,7 @@ services:
           --kv-transfer-config '{
             "kv_connector":"LMCacheMPConnector",
             "kv_role":"kv_both",
+            "kv_load_failure_policy":"{{ scaleout_lmcache_kv_failure_policy }}",
             "kv_connector_module_path":"lmcache.integration.vllm.lmcache_mp_connector",
             "kv_connector_extra_config":{
               "lmcache.mp.host":"tcp://localhost",
