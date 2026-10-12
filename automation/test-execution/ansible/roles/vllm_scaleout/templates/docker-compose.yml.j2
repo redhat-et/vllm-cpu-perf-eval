@@ -121,7 +121,7 @@ services:
           {{ arg }}
 {% endfor %}
         )
-        exec python -m vllm.entrypoints.openai.api_server "${args[@]}"
+        exec python -m vllm.entrypoints.openai.api_server "$${args[@]}"
 {% endif %}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:{{ scaleout_vllm_base_port | int + i - 1 }}/health"]
