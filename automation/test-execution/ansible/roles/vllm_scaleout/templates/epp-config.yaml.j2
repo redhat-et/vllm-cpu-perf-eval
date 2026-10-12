@@ -8,9 +8,36 @@ plugins:
       path: /etc/epp/endpoints.yaml
       watchFile: true
 
+{% if scaleout_lmcache_backend == 'remote' %}
+  # Two-tier prefix scoring: local KV cache (fast, per-instance) and the
+  # shared LMCache pool (slower fetch via shared memory, but cross-instance).
+  # Explicit producers are required when multiple prefix-cache scorers are in use.
+  - type: approx-prefix-cache-producer
+    name: local-prefix-cache-producer
+
+  - type: approx-prefix-cache-producer
+    name: lmcache-prefix-cache-producer
+    parameters:
+      # autoTune=false: vLLM does not export the lmcache pool block count, so
+      # the EPP cannot auto-size the LRU index — set lruCapacityPerServer manually.
+      autoTune: false
+      lruCapacityPerServer: {{ scaleout_lmcache_lru_capacity_per_server }}
+
+  - type: prefix-cache-scorer
+    name: local-prefix-cache-scorer
+    parameters:
+      prefixMatchInfoProducerName: local-prefix-cache-producer
+
+  - type: prefix-cache-scorer
+    name: lmcache-prefix-cache-scorer
+    parameters:
+      prefixMatchInfoProducerName: lmcache-prefix-cache-producer
+
+{% else %}
+  - type: prefix-cache-scorer
+{% endif %}
   - type: queue-scorer
   - type: kv-cache-utilization-scorer
-  - type: prefix-cache-scorer
   - type: no-hit-lru-scorer
 
   - name: metrics-source
@@ -21,9 +48,18 @@ plugins:
 schedulingProfiles:
   - name: default
     plugins:
+{% if scaleout_lmcache_backend == 'remote' %}
+      # Tier 1: local KV cache hit — no IPC, fastest possible
+      - pluginRef: local-prefix-cache-scorer
+        weight: {{ scaleout_epp_prefix_cache_weight }}
+      # Tier 2: LMCache shared pool hit — shared-memory fetch (~RAM bandwidth)
+      - pluginRef: lmcache-prefix-cache-scorer
+        weight: {{ scaleout_lmcache_scorer_weight }}
+{% else %}
       # Prefer backends with matching KV-cache prefix (avoids redundant computation)
       - pluginRef: prefix-cache-scorer
         weight: {{ scaleout_epp_prefix_cache_weight }}
+{% endif %}
       # Prefer backends with shorter request queues
       - pluginRef: queue-scorer
         weight: {{ scaleout_epp_queue_weight }}

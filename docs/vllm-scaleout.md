@@ -237,6 +237,235 @@ Set all weights to 1 for load-aware round-robin (EPP running, but no strong affi
 
 ---
 
+## LMCache: Cross-Instance KV Sharing
+
+### Overview
+
+By default, each vLLM instance holds its own independent KV cache.  The EPP
+routes requests with prefix affinity to maximise per-instance cache hits, but
+any request that lands on the wrong instance still recomputes from scratch.
+
+**LMCache adds a shared pool** — a central in-memory KV block store that every
+instance can read from and write to.  When an instance misses in its local KV
+cache it checks the shared pool before recomputing; when it evicts a block it
+pushes it to the pool for others.
+
+This is implemented via vLLM's V1 KV connector API (`--kv-transfer-config`).
+The vLLM CPU backend uses the V1 engine exclusively and the connector is fully
+supported — there are no CPU-specific restrictions.  `lmcache` is not bundled
+in the vLLM image; the role pip-installs it at container start-up if absent.
+
+### Architecture with LMCache
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Load Generator Host                                        │
+│  • GuideLLM concurrent tests                                │
+└─────────────────────────────────────────────────────────────┘
+              │
+              ▼ :8081
+┌─────────────────────────────────────────────────────────────┐
+│  DUT Host                                                   │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │ Envoy proxy (:8081)                                  │   │
+│  └──────────────────┬──────────────────────────────────┘   │
+│                     │ gRPC ext_proc                         │
+│  ┌──────────────────▼──────────────────────────────────┐   │
+│  │ EPP — two-tier prefix scoring                        │   │
+│  │  Tier 1: local-prefix-cache-scorer  (weight 3)       │   │
+│  │  Tier 2: lmcache-prefix-cache-scorer (weight 2)      │   │
+│  │  + queue-scorer (2) + kv-utilisation (2) + LRU (2)  │   │
+│  └────┬──────────────────────────────────────────────── ┘  │
+│       │ x-gateway-destination-endpoint                      │
+│  ┌────▼────┐ ┌─────────┐ ┌─────────┐                      │
+│  │ vLLM 1  │ │ vLLM 2  │ │ vLLM N  │                      │
+│  │ :8000   │ │ :8001   │ │ :800N   │                      │
+│  │ LMCacheMP│ │ LMCacheMP│ │ LMCacheMP│                     │
+│  │ Connector│ │ Connector│ │ Connector│                     │
+│  └────┬────┘ └────┬────┘ └────┬────┘                      │
+│       │           │           │  lmcache_driven             │
+│       │      POSIX shared memory handles (zero-copy)        │
+│       └───────────┴──────────┬────────────────────────     │
+│                               ▼                             │
+│  ┌────────────────────────────────────────────────────┐    │
+│  │ lmcache-server (:5555)                             │    │
+│  │ Shared in-memory KV pool (L1: 10 GB default)       │    │
+│  │ Backed by 1 GB hugepages (if enabled)              │    │
+│  └────────────────────────────────────────────────────┘    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### How LMCache and llm-d Routing Work Together
+
+The EPP and LMCache operate at different layers and complement each other:
+
+**EPP (routing layer)** decides *which* vLLM instance receives each request
+before inference starts.  It maintains an approximate index of which blocks are
+cached where, using two scorers in LMCache mode:
+
+| Scorer | Tracks | Weight |
+|--------|--------|--------|
+| `local-prefix-cache-scorer` | Blocks in each instance's own vLLM KV cache | 3 (highest) |
+| `lmcache-prefix-cache-scorer` | Blocks in the shared lmcache pool | 2 |
+| `queue-scorer` | Request queue depth per backend | 2 |
+| `kv-cache-utilization-scorer` | KV memory pressure per backend | 2 |
+| `no-hit-lru-scorer` | LRU fallback (cold start) | 2 |
+
+**LMCache (cache layer)** acts *during* inference when vLLM looks up KV blocks.
+After the EPP has selected an instance, that instance resolves the request:
+
+```
+Request lands on vLLM instance N
+  │
+  ├── Local KV cache HIT  →  use it immediately (fastest, no IPC)
+  │
+  ├── Local KV cache MISS → LMCacheMPConnector checks the shared pool
+  │     ├── Pool HIT  →  load block via POSIX shared-memory handle (zero-copy)
+  │     │               (~RAM bandwidth, microsecond IPC overhead)
+  │     └── Pool MISS →  recompute prefix from scratch
+  │                       → store block in local KV cache
+  │                       → push block to shared pool for other instances
+  └── Response returned to client
+```
+
+**Why PYTHONHASHSEED=123 matters:** vLLM uses Python's `hash()` to derive KV
+block addresses from token sequences.  Without a fixed seed each process uses a
+different hash, so instance A and instance B assign different addresses to the
+same prefix — the pool index becomes incoherent and cross-instance hits are
+impossible.  All containers share `PYTHONHASHSEED=123`.
+
+**Why vLLM prefix caching must be disabled:** vLLM's own prefix caching
+(`--enable-prefix-caching`) operates on the same KV block structures that
+LMCacheMPConnector manages.  Running both simultaneously causes double-tracking
+and correctness issues.  `--no-enable-prefix-caching` and
+`--disable-hybrid-kv-cache-manager` are set automatically when
+`scaleout_lmcache_backend=remote`.  `scaleout_enable_prefix_caching` is ignored.
+
+### Hugepages
+
+The lmcache-server allocates a shared memory pool (default 10 GB) that all N
+vLLM instances `mmap` concurrently.  With default 4 KB pages a 10 GB pool
+requires ~2.6 million TLB entries per process — far beyond any modern CPU TLB
+(~1 K–4 K entries).  Every TLB miss triggers a page-table walk, adding latency
+and bus traffic under high-concurrency inference.
+
+| Page size | TLB entries for 10 GB pool | Outcome |
+|-----------|---------------------------|---------|
+| 4 KB (default) | 2,621,440 | Heavy TLB thrashing under load |
+| 2 MB (THP) | 5,120 | Significant improvement, no config needed |
+| **1 GB** | **10** | **TLB pressure eliminated** |
+
+**1 GB hugepages** (`scaleout_lmcache_hugepages_enabled=true`):
+
+1. Requires `pdpe1gb` CPUID flag — present on all modern Intel Xeon and AMD EPYC.
+2. Must be pre-allocated before memory becomes fragmented (early in the OS
+   lifecycle, or at boot via `hugepages=N` in the kernel command line).
+3. The role allocates pages, mounts `hugetlbfs` at `/dev/hugepages1G`, and binds
+   it into the lmcache-server container.
+4. The lmcache server uses them if it calls `mmap(MAP_HUGETLB | MAP_HUGE_1GB)`
+   internally; this is version-dependent.
+5. **Transparent Hugepages (`THP=always`) is always enabled as a baseline** —
+   the kernel promotes eligible 2 MB regions automatically with no app changes,
+   benefiting both the shared pool and each instance's vLLM KV cache space.
+
+For best results, pre-allocate hugepages at boot by adding to the kernel command
+line:
+
+```
+hugepagesz=1G hugepages=<N>
+```
+
+where N ≥ `scaleout_lmcache_server_l1_size_gb`.  Runtime allocation
+(`nr_hugepages`) succeeds only when the system has not yet been fragmented by
+other workloads — reboot if the allocation falls short.
+
+### LMCache Parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `scaleout_lmcache_backend` | `none` | `none` (disabled) or `remote` (lmcache-server) |
+| `scaleout_lmcache_server_port` | 5555 | RPC port vLLM instances connect to |
+| `scaleout_lmcache_server_http_port` | 8088 | HTTP metrics / bench port |
+| `scaleout_lmcache_server_l1_size_gb` | 10 | Shared in-memory pool size (GB) |
+| `scaleout_lmcache_lru_capacity_per_server` | 10000 | EPP LRU index size (blocks) — set manually |
+| `scaleout_lmcache_scorer_weight` | 2 | EPP weight for the lmcache pool tier scorer |
+| `scaleout_lmcache_hugepages_enabled` | false | Pre-allocate 1 GB hugepages + enable THP |
+| `scaleout_lmcache_hugepages_1g_count` | `= l1_size_gb` | Number of 1 GB pages to pre-allocate |
+
+**Sizing `lruCapacityPerServer`:** the EPP tracks pool state via an LRU index
+sized in KV blocks.  A rough formula:
+
+```
+lruCapacityPerServer = (server_l1_size_gb × 1024) / avg_kv_block_size_mb
+```
+
+For most CPU embedding models, `avg_kv_block_size_mb ≈ 0.5–1 MB`, giving
+10,000–20,000 blocks for a 10 GB pool.
+
+### Quick Start
+
+```bash
+# Minimum — LMCache with default 10 GB pool, no hugepages
+ansible-playbook start-vllm-scaleout.yml \
+  -e "scaleout_lmcache_backend=remote"
+
+# Recommended — LMCache + 1 GB hugepages (pre-allocate N pages ≥ pool size)
+ansible-playbook start-vllm-scaleout.yml \
+  -e "scaleout_lmcache_backend=remote \
+      scaleout_lmcache_server_l1_size_gb=20 \
+      scaleout_lmcache_hugepages_enabled=true \
+      scaleout_lmcache_hugepages_1g_count=20"
+
+# Full benchmark — deploy, test, teardown
+ansible-playbook embedding-benchmark-scaleout.yml \
+  -e "scaleout_lmcache_backend=remote \
+      scaleout_lmcache_hugepages_enabled=true"
+```
+
+### LMCache Observability
+
+```bash
+# lmcache-server HTTP metrics
+curl http://DUT_IP:8088/metrics
+
+# LMCache metrics on each vLLM instance (reported via PROMETHEUS_MULTIPROC_DIR)
+curl http://DUT_IP:8000/metrics | grep lmcache
+
+# Hugepages status
+cat /sys/kernel/mm/hugepages/hugepages-1048576kB/nr_hugepages   # allocated
+cat /sys/kernel/mm/hugepages/hugepages-1048576kB/free_hugepages # available
+cat /sys/kernel/mm/transparent_hugepage/enabled                  # THP state
+```
+
+Key LMCache Prometheus metrics:
+
+| Metric | What it shows |
+|--------|---------------|
+| `lmcache:retrieve_hit_rate` | Pool hit rate per vLLM instance |
+| `lmcache:local_storage_usage` | Pool utilisation (pool fill level) |
+| `lmcache:local_cache_usage` | Per-instance local KV cache utilisation |
+
+### Comparing LMCache vs Baseline
+
+Run the same workload with and without LMCache to measure the benefit:
+
+```bash
+# Baseline — per-instance prefix caching, intelligent EPP routing
+ansible-playbook embedding-benchmark-scaleout.yml \
+  -e "scaleout_lmcache_backend=none scaleout_enable_prefix_caching=true"
+
+# LMCache — shared pool, intelligent EPP routing
+ansible-playbook embedding-benchmark-scaleout.yml \
+  -e "scaleout_lmcache_backend=remote scaleout_lmcache_hugepages_enabled=true"
+```
+
+LMCache benefits are largest for workloads with **shared prefixes across
+requests** — RAG system prompts, batch embedding with repeated document prefixes,
+or any scenario where the prefix hit rate is currently limited by requests being
+spread across instances.
+
+---
+
 ## Benchmarking Routing Policies
 
 To directly compare intelligent EPP routing vs round-robin:

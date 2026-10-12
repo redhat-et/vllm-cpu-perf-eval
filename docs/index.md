@@ -68,6 +68,7 @@ Central index for the vLLM CPU Performance Evaluation framework.
 | --- | --- |
 | [platform-setup/x86/intel/deterministic-benchmarking.md](platform-setup/x86/intel/deterministic-benchmarking.md) | Intel platform tuning |
 | [vllm-kv-cache-configuration.md](vllm-kv-cache-configuration.md) | KV cache settings |
+| [vllm-scaleout.md](vllm-scaleout.md) | Multi-instance scale-out with llm-d (EPP + Envoy + LMCache) |
 
 ## By Role
 

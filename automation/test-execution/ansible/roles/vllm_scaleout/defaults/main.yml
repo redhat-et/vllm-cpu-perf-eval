@@ -84,6 +84,70 @@ scaleout_vllm_extra_args: []
 #   - "--dtype"
 #   - "bfloat16"
 
+# LMCache cross-instance KV sharing
+#
+# Uses LMCacheMPConnector with lmcache_driven transfer mode: vLLM instances
+# access shared KV blocks via POSIX shared-memory handles — zero-copy on a
+# single host, ~RAM bandwidth rather than a TCP memcpy.
+#
+# Requires the external `lmcache` PyPI package.  If it is absent from the
+# vLLM image the role installs it at container start-up via pip.
+#
+# scaleout_lmcache_backend:
+#   "none"   — disabled (default); per-instance vLLM prefix caching used
+#              when scaleout_enable_prefix_caching=true
+#   "remote" — lmcache-server container added to the stack; all vLLM
+#              instances connect via LMCacheMPConnector (lmcache_driven).
+#              vLLM's own prefix caching is disabled — LMCache is the
+#              caching layer.  scaleout_enable_prefix_caching is ignored.
+scaleout_lmcache_backend: "none"
+
+# lmcache-server — runs in the same vLLM image (pip-installs lmcache if needed)
+scaleout_lmcache_server_port: 5555          # RPC port vLLM instances connect to
+scaleout_lmcache_server_http_port: 8088     # HTTP metrics / bench endpoint
+# L1 (in-memory) pool size for the lmcache server (GB).
+# Size this to comfortably hold the shared-prefix working set across all
+# instances.  Each instance's own vLLM KV cache is separate and additional.
+scaleout_lmcache_server_l1_size_gb: 10
+
+# EPP secondary-tier scorer (used when scaleout_lmcache_backend == "remote").
+# lruCapacityPerServer must be set manually — vLLM does not export
+# secondary-tier block counts.
+# Rough sizing: (server_l1_size_gb × 1024) / avg_kv_block_size_mb
+# where avg_kv_block_size_mb ≈ 0.5–2 MB depending on model + sequence length.
+scaleout_lmcache_lru_capacity_per_server: 10000
+# Weight for the LMCache tier scorer in EPP (secondary tier after in-memory).
+scaleout_lmcache_scorer_weight: 2
+
+# Hugepages for the lmcache-server shared memory pool
+#
+# Why 1 GB hugepages?
+#   The lmcache server maps a large shared-memory pool that every vLLM instance
+#   mmap-maps concurrently.  With default 4 KB pages a 10 GB pool requires
+#   2,621,440 TLB entries per process — far beyond any CPU's TLB capacity
+#   (~1 K–4 K entries).  Each TLB miss causes a page-table walk, adding latency
+#   and bus traffic during high-concurrency inference.
+#
+#   With 1 GB pages the same pool needs only 10 TLB entries — TLB pressure
+#   essentially disappears.  2 MB pages are the next best option (5,120 entries)
+#   and are promoted automatically by Transparent Hugepages (THP).
+#
+# Transparent Hugepages (THP=always) is always enabled as a baseline when
+# scaleout_lmcache_hugepages_enabled=true; the kernel promotes eligible 2 MB
+# regions without application changes.
+#
+# Explicit 1 GB hugepages require:
+#   1. CPU support: pdpe1gb CPUID flag (all modern Intel Xeon / AMD EPYC)
+#   2. Pre-allocation at or near boot (before memory fragmentation)
+#   3. The lmcache server must call mmap(MAP_HUGETLB | MAP_HUGE_1GB) internally
+#
+# The role pre-allocates 1 GB hugepages and mounts /dev/hugepages1G into the
+# lmcache-server container so the pages are available if lmcache supports them.
+scaleout_lmcache_hugepages_enabled: false
+# Number of 1 GB hugepages to pre-allocate.
+# Set to at least scaleout_lmcache_server_l1_size_gb (round up).
+scaleout_lmcache_hugepages_1g_count: "{{ scaleout_lmcache_server_l1_size_gb | int }}"
+
 # SMT core offset (system-specific, adjust based on topology)
 scaleout_smt_offset: 192
 scaleout_smt_cores_per_instance: 8
