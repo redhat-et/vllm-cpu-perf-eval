@@ -14,6 +14,25 @@ version: '3.8'
 # Routing policy: {{ scaleout_routing_policy }}
 #   intelligent  — EPP selects backend via prefix-cache + queue + KV-utilisation scoring
 #   round_robin  — Envoy distributes requests evenly; EPP not started
+#
+# LMCache backend: {{ scaleout_lmcache_backend }}
+#   none   — disabled; per-instance vLLM prefix caching used if scaleout_enable_prefix_caching=true
+#   remote — lmcache-server holds a shared in-memory KV pool; every vLLM instance connects
+#            via LMCacheMPConnector using lmcache_driven mode (POSIX shared-memory handles,
+#            effectively zero-copy on a single host).
+#            NOTE: vLLM prefix caching is disabled when remote LMCache is active — LMCache
+#            is the caching layer.  scaleout_enable_prefix_caching is ignored.
+{% if scaleout_lmcache_backend == 'remote' %}
+#
+# Hugepages: {{ 'enabled — 1 GB pages pre-allocated; THP set to always' if scaleout_lmcache_hugepages_enabled else 'disabled' }}
+#   1 GB hugepages eliminate TLB pressure when N processes all map the same large shared-
+#   memory pool.  A {{ scaleout_lmcache_server_l1_size_gb }} GB L1 pool needs only
+#   {{ scaleout_lmcache_server_l1_size_gb }} TLB entries with 1 GB pages vs
+#   {{ (scaleout_lmcache_server_l1_size_gb | int * 1024 * 1024 / 2) | int }} with 4 KB pages.
+#   Transparent Hugepages (THP=always) is the baseline — the kernel promotes pages
+#   automatically.  Explicit 1 GB pages require pdpe1gb CPU support and are mounted at
+#   /dev/hugepages1G inside the lmcache-server container.
+{% endif %}
 
 services:
 {% for i in range(1, scaleout_num_instances | int + 1) %}
@@ -33,8 +52,20 @@ services:
 {% if scaleout_hf_token is defined and scaleout_hf_token != '' %}
       - HF_TOKEN={{ scaleout_hf_token }}
 {% endif %}
+{% if scaleout_lmcache_backend == 'remote' %}
+      # Deterministic KV block keys — required so all instances hash the same
+      # token sequence to the same address, enabling cross-instance cache hits.
+      - PYTHONHASHSEED=123
+      # Expose LMCache Prometheus metrics through vLLM's /metrics endpoint.
+      - PROMETHEUS_MULTIPROC_DIR=/tmp/lmcache_prometheus
+{% endif %}
     volumes:
       - {{ scaleout_volume_name }}:/root/.cache/huggingface
+{% if scaleout_lmcache_backend == 'remote' %}
+      # Per-instance tmpfs for LMCache prometheus multiproc metrics.
+      - /tmp/lmcache_prometheus_{{ i }}:/tmp/lmcache_prometheus
+{% endif %}
+{% if scaleout_lmcache_backend == 'none' %}
     command:
       - --model
       - {{ scaleout_model_name }}
@@ -56,6 +87,42 @@ services:
 {% for arg in scaleout_vllm_extra_args %}
       - {{ arg }}
 {% endfor %}
+{% else %}
+    # LMCache mode: pip-install lmcache if absent, then start vLLM.
+    # --no-enable-prefix-caching and --disable-hybrid-kv-cache-manager are
+    # required for CPU + LMCache — LMCache owns the caching layer entirely.
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        python -c "import lmcache" 2>/dev/null || pip install --quiet lmcache
+        args=(
+          --model "{{ scaleout_model_name }}"
+          --port "{{ scaleout_vllm_base_port | int + i - 1 }}"
+          --host "0.0.0.0"
+{% if scaleout_vllm_task is defined and scaleout_vllm_task != '' %}
+          --task "{{ scaleout_vllm_task }}"
+{% endif %}
+{% if scaleout_vllm_max_model_len is defined and scaleout_vllm_max_model_len != '' %}
+          --max-model-len "{{ scaleout_vllm_max_model_len }}"
+{% endif %}
+          --no-enable-prefix-caching
+          --disable-hybrid-kv-cache-manager
+          --kv-transfer-config '{
+            "kv_connector":"LMCacheMPConnector",
+            "kv_role":"kv_both",
+            "kv_connector_module_path":"lmcache.integration.vllm.lmcache_mp_connector",
+            "kv_connector_extra_config":{
+              "lmcache.mp.host":"tcp://localhost",
+              "lmcache.mp.port":{{ scaleout_lmcache_server_port }},
+              "lmcache.mp.mp_transfer_mode":"lmcache_driven"
+            }
+          }'
+{% for arg in scaleout_vllm_extra_args %}
+          {{ arg }}
+{% endfor %}
+        )
+        exec python -m vllm.entrypoints.openai.api_server "${args[@]}"
+{% endif %}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:{{ scaleout_vllm_base_port | int + i - 1 }}/health"]
       interval: 10s
@@ -64,9 +131,51 @@ services:
     restart: unless-stopped
 
 {% endfor %}
+{% if scaleout_lmcache_backend == 'remote' %}
+  # LMCache server — shared in-memory KV pool for all vLLM instances.
+  #
+  # lmcache_driven transfer mode: instances access KV blocks via POSIX shared-memory
+  # handles — effectively zero-copy on a single host (~RAM bandwidth, not TCP copy).
+  #
+  # 1 GB hugepages (when scaleout_lmcache_hugepages_enabled=true) eliminate TLB
+  # pressure on the shared pool.  A {{ scaleout_lmcache_server_l1_size_gb }} GB pool
+  # needs {{ scaleout_lmcache_server_l1_size_gb }} TLB entries (1 GB pages) vs
+  # {{ (scaleout_lmcache_server_l1_size_gb | int * 512) | int }}k entries (4 KB pages).
+  lmcache-server:
+    image: {{ scaleout_vllm_image }}
+    container_name: vllm-lmcache-server
+    network_mode: host
+{% if scaleout_lmcache_hugepages_enabled %}
+    volumes:
+      # Expose 1 GB hugepages to the server so it can back the L1 pool with them.
+      # Pre-allocation is done by the vllm_scaleout Ansible role before compose up.
+      - /dev/hugepages1G:/dev/hugepages1G
+    # SYS_RESOURCE allows the process to raise memlock limits for hugepage mlock.
+    cap_add:
+      - SYS_RESOURCE
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+{% endif %}
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        python -c "import lmcache" 2>/dev/null || pip install --quiet lmcache
+        exec lmcache server \
+          --port {{ scaleout_lmcache_server_port }} \
+          --http-port {{ scaleout_lmcache_server_http_port }} \
+          --l1-size-gb {{ scaleout_lmcache_server_l1_size_gb }} \
+          --eviction-policy LRU
+    restart: unless-stopped
+
+{% endif %}
 {% if scaleout_routing_policy == 'intelligent' %}
   # EPP — Endpoint Picker: scores vLLM backends and selects the best one per request.
-  # Scoring weights: prefix-cache={{ scaleout_epp_prefix_cache_weight }} queue={{ scaleout_epp_queue_weight }} kv-cache={{ scaleout_epp_kv_cache_weight }} lru={{ scaleout_epp_lru_weight }}
+  # Scoring: prefix-cache×{{ scaleout_epp_prefix_cache_weight }} queue×{{ scaleout_epp_queue_weight }} kv-cache×{{ scaleout_epp_kv_cache_weight }} lru×{{ scaleout_epp_lru_weight }}
+{% if scaleout_lmcache_backend == 'remote' %}
+  # LMCache secondary-tier scorer weight: {{ scaleout_lmcache_disk_scorer_weight }}
+{% endif %}
   epp:
     image: {{ scaleout_epp_image }}
     container_name: vllm-epp

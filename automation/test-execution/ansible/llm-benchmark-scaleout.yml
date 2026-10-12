@@ -100,7 +100,7 @@
     vllm_mode: "external"
     workload_type: "{{ workload_type | default(lookup('env', 'WORKLOAD_TYPE') | default('summarization', true), true) }}"
     vllm_endpoint_url: "http://{{ hostvars[groups['dut'][0]]['ansible_host'] }}:{{ scaleout_envoy_port | default(8081) }}"
-    benchmark_label_suffix: "scaleout-{{ scaleout_num_instances | default(5) }}x-{{ scaleout_routing_policy | default('intelligent') }}"
+    benchmark_label_suffix: "scaleout-{{ scaleout_num_instances | default(5) }}x-{{ scaleout_routing_policy | default('intelligent') }}{{ '-lmcache' if scaleout_lmcache_backend | default('none') == 'remote' else '' }}"
 
 # ============================================================================
 # Phase 2.5: Stop metrics collection, copy files, update metadata
@@ -155,7 +155,7 @@
           deployment_type: "scaleout"
           platform: "{{ hostvars[groups['dut'][0]]['dut_platform_name'] | default(hostvars['localhost']['dut_platform_name'] | default('unknown')) }}"
           vllm_container_image: "{{ scaleout_vllm_image | default('unknown') }}"
-          vllm_caching_mode: "{{ 'production' if scaleout_enable_prefix_caching | default(true) | bool else 'baseline' }}"
+          vllm_caching_mode: "{{ 'lmcache' if scaleout_lmcache_backend | default('none') == 'remote' else ('production' if scaleout_enable_prefix_caching | default(true) | bool else 'baseline') }}"
           test_duration_seconds: "{{ lookup('pipe', 'date +%s') | int - hostvars['localhost']['scaleout_benchmark_start_epoch'] | int }}"
           # Scaleout topology
           num_instances: "{{ scaleout_num_instances | default(5) | int }}"
@@ -176,6 +176,12 @@
             queue: "{{ scaleout_epp_queue_weight | default(2) | int }}"
             kv_cache: "{{ scaleout_epp_kv_cache_weight | default(2) | int }}"
             lru: "{{ scaleout_epp_lru_weight | default(2) | int }}"
+          # LMCache fields (present regardless of backend so runs are always comparable)
+          lmcache_backend: "{{ scaleout_lmcache_backend | default('none') }}"
+          lmcache_server_l1_size_gb: "{{ scaleout_lmcache_server_l1_size_gb | default(10) | int if scaleout_lmcache_backend | default('none') == 'remote' else none }}"
+          lmcache_hugepages_enabled: "{{ scaleout_lmcache_hugepages_enabled | default(false) | bool if scaleout_lmcache_backend | default('none') == 'remote' else false }}"
+          lmcache_hugepages_1g_count: "{{ scaleout_lmcache_hugepages_1g_count | default(0) | int if (scaleout_lmcache_backend | default('none') == 'remote' and scaleout_lmcache_hugepages_enabled | default(false) | bool) else 0 }}"
+          lmcache_scorer_weight: "{{ scaleout_lmcache_scorer_weight | default(2) | int if scaleout_lmcache_backend | default('none') == 'remote' else none }}"
           # Container images
           scaleout_epp_image: "{{ scaleout_epp_image | default('unknown') }}"
           scaleout_envoy_image: "{{ scaleout_envoy_image | default('unknown') }}"
