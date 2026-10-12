@@ -73,6 +73,8 @@ services:
       - "{{ scaleout_vllm_base_port | int + i - 1 }}"
       - --host
       - "0.0.0.0"
+      - --gpu-memory-utilization
+      - "{{ scaleout_vllm_gpu_memory_utilization }}"
 {% if scaleout_vllm_task is defined and scaleout_vllm_task != '' %}
       - --task
       - {{ scaleout_vllm_task }}
@@ -99,6 +101,7 @@ services:
           --model "{{ scaleout_model_name }}"
           --port "{{ scaleout_vllm_base_port | int + i - 1 }}"
           --host "0.0.0.0"
+          --gpu-memory-utilization "{{ scaleout_vllm_gpu_memory_utilization }}"
 {% if scaleout_vllm_task is defined and scaleout_vllm_task != '' %}
           --task "{{ scaleout_vllm_task }}"
 {% endif %}
