@@ -59,7 +59,10 @@ scaleout_model_name: "{{ test_model | default('RedHatAI/Meta-Llama-3.1-8B-Instru
 scaleout_hf_token: "{{ hf_token | default(lookup('env', 'HF_TOKEN'), true) }}"
 
 # Health check settings
-scaleout_health_check_retries: 120
+# First-run LMCache deployments need extra time: pip install lmcache (~3 min) +
+# inductor model compilation (~20-40 min for large LLMs on CPU, first run only).
+# Subsequent runs are much faster once the pip cache and inductor cache are warm.
+scaleout_health_check_retries: 240
 scaleout_health_check_delay: 10
 
 # Directories
