@@ -138,9 +138,10 @@ scaleout_lmcache_lru_capacity_per_server: 10000
 scaleout_lmcache_scorer_weight: 2
 
 # What vLLM does if the LMCache connector fails to initialize.
-#   "fail"   — vLLM exits (default; correct for production)
-#   "ignore" — vLLM starts without LMCache (use for debugging: lets you see the
-#              actual LMCache error in the container log without a crash loop)
+#   "fail"     — vLLM exits (default; correct for production)
+#   "recompute"— vLLM logs the LMCache error and falls back to recomputing KV
+#                (use for debugging: lets you see the actual error and confirm
+#                the rest of the stack works, then fix LMCache)
 scaleout_lmcache_kv_failure_policy: "fail"
 
 # Hugepages for the lmcache-server shared memory pool
