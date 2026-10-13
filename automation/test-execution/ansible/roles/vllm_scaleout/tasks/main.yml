@@ -98,7 +98,7 @@
     - name: Build vllm-cpu-lmcache image (lmcache {{ scaleout_lmcache_version }} pre-installed)
       ansible.builtin.shell: |
         podman build \
-          --build-arg VLLM_CPU_IMAGE={{ scaleout_vllm_image }} \
+          --build-arg VLLM_CPU_IMAGE={{ scaleout_vllm_base_image }} \
           --build-arg LMCACHE_VERSION={{ scaleout_lmcache_version }} \
           -t {{ scaleout_lmcache_image_tag }} \
           -f /tmp/vllm-cpu-lmcache.Containerfile \
