@@ -211,6 +211,13 @@ ansible-playbook stop-vllm-scaleout.yml -e "scaleout_purge_model_cache=true"
 | `scaleout_envoy_port` | 8081 | any | Client-facing Envoy port |
 | `scaleout_enable_smt` | false | true/false | Enable SMT/HT cores |
 | `scaleout_enable_prefix_caching` | true | true/false | Enable vLLM prefix caching |
+| `scaleout_vllm_gpu_memory_utilization` | 0.9 | 0.0–1.0 | Fraction of system RAM vLLM reserves for KV cache |
+
+`scaleout_vllm_gpu_memory_utilization` mirrors vLLM's `--gpu-memory-utilization` flag.
+On the CPU backend it controls RAM, not GPU memory.  The default 0.9 is fine for
+baseline deployments but **must be reduced when LMCache is active** — the lmcache-server
+pre-allocates its L1 pool before vLLM starts, reducing available RAM.  See
+[Memory Sizing for LMCache](#memory-sizing-for-lmcache) below.
 
 Defaults shown are the Ansible playbook defaults (large server, cores pinned from 32).
 The `cpueval` CLI suite (`vllm-scaleout`) uses lighter defaults — 2 instances × 24 cores
@@ -252,8 +259,12 @@ pushes it to the pool for others.
 
 This is implemented via vLLM's V1 KV connector API (`--kv-transfer-config`).
 The vLLM CPU backend uses the V1 engine exclusively and the connector is fully
-supported — there are no CPU-specific restrictions.  `lmcache` is not bundled
-in the vLLM image; the role pip-installs it at container start-up if absent.
+supported — there are no CPU-specific restrictions.
+
+`lmcache` is not bundled in the vLLM CPU image.  When `scaleout_lmcache_backend=remote`
+the role **automatically builds a custom image** (`vllm-cpu-lmcache:<tag>`) with lmcache
+pre-installed before bringing up the compose stack.  The build is skipped on subsequent
+runs if the image already exists locally.  See [LMCache Image Build](#lmcache-image-build).
 
 ### Architecture with LMCache
 
@@ -379,6 +390,83 @@ where N ≥ `scaleout_lmcache_server_l1_size_gb`.  Runtime allocation
 (`nr_hugepages`) succeeds only when the system has not yet been fragmented by
 other workloads — reboot if the allocation falls short.
 
+### LMCache Image Build
+
+When `scaleout_lmcache_backend=remote`, the role:
+
+1. Copies `automation/test-execution/containers/vllm-cpu-lmcache/Containerfile` to the DUT.
+2. Checks whether `vllm-cpu-lmcache:<base-tag>` already exists locally.
+3. Builds it if absent — `FROM docker.io/vllm/vllm-openai-cpu:<tag>` + `pip install lmcache` — and smoke-tests the import.
+4. Overrides `scaleout_vllm_image` to the built image for the compose deployment.
+
+**Build variables:**
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `scaleout_vllm_base_image` | `docker.io/vllm/vllm-openai-cpu:v0.25.1` | Upstream registry image (never overwritten by role tasks) |
+| `scaleout_vllm_image` | `= scaleout_vllm_base_image` | Runtime image in the compose stack; overridden to `scaleout_lmcache_image_tag` when building |
+| `scaleout_lmcache_build_image` | `true` | Set `false` to skip the build and use `scaleout_vllm_image` as-is |
+| `scaleout_lmcache_image_tag` | `vllm-cpu-lmcache:<base-tag>` | Tag for the built image |
+| `scaleout_lmcache_version` | `0.3.9` | lmcache PyPI version to bake in |
+
+The build runs **once** and is then cached.  If you upgrade the base vLLM image or pin
+a different lmcache version, delete the old image (`podman rmi vllm-cpu-lmcache:<tag>`)
+before the next run so the role rebuilds.
+
+If the smoke-test inside the Containerfile fails (`import lmcache` or the
+`LMCacheMPConnector` import raises), the lmcache version is incompatible with
+this vLLM release — try a newer `scaleout_lmcache_version`.
+
+### Memory Sizing for LMCache
+
+The lmcache-server allocates its L1 pool **before** the vLLM instances start.
+That memory is already claimed when vLLM checks available RAM against its
+`--gpu-memory-utilization` limit (which controls CPU RAM on the CPU backend,
+despite the GPU-sounding name).  With the default 0.9 utilization each instance
+requests 0.9 × total_RAM — typically more than what's left after the pool.
+
+**Rule of thumb:**
+
+```
+gpu_memory_utilization ≤ (total_ram_GB - lmcache_l1_gb - os_overhead_GB)
+                         / (total_ram_GB × num_instances)
+```
+
+Example — 92 GB host, 10 GB pool, 4 GB OS overhead, 2 instances:
+
+```
+(92 - 10 - 4) / (92 × 2) ≈ 0.42  →  use 0.4
+```
+
+Set `scaleout_vllm_gpu_memory_utilization` accordingly.  The vLLM startup log
+confirms the actual KV cache reservation:
+
+```
+Auto set (24.67/92.37) GiB for KV cache on node 0, with 36.95 GiB requested
+```
+
+If vLLM exits immediately after KV cache allocation with
+`Available memory … is less than desired CPU memory utilization`, the value is
+still too high — reduce it further.
+
+### lmcache-server Readiness
+
+The vLLM instances wait for the lmcache-server's TCP RPC port to be accepting
+connections before starting.  This prevents the `LMCacheMPConnector` from trying
+to register with a server that is still running `pip install lmcache` or
+initialising its pool:
+
+```
+Waiting for lmcache-server on port 5555...
+  lmcache-server not ready, retrying in 5s...
+lmcache-server ready.
+```
+
+The wait loop is embedded in the container entrypoint and retries every 5 seconds
+indefinitely.  The Ansible health-check timeout is 40 minutes to accommodate
+first-run model compilation on CPU (inductor traces the model once, caches the
+result, then subsequent starts are fast).
+
 ### LMCache Parameters
 
 | Parameter | Default | Description |
@@ -391,6 +479,8 @@ other workloads — reboot if the allocation falls short.
 | `scaleout_lmcache_scorer_weight` | 2 | EPP weight for the lmcache pool tier scorer |
 | `scaleout_lmcache_hugepages_enabled` | false | Pre-allocate 1 GB hugepages + enable THP |
 | `scaleout_lmcache_hugepages_1g_count` | `= l1_size_gb` | Number of 1 GB pages to pre-allocate |
+| `scaleout_lmcache_kv_failure_policy` | `fail` | `fail` (exit on connector error) or `recompute` (log error, fall back) |
+| `scaleout_vllm_gpu_memory_utilization` | 0.9 | Fraction of system RAM reserved per vLLM instance — **reduce for multi-instance + LMCache** |
 
 **Sizing `lruCapacityPerServer`:** the EPP tracks pool state via an LRU index
 sized in KV blocks.  A rough formula:
@@ -402,24 +492,39 @@ lruCapacityPerServer = (server_l1_size_gb × 1024) / avg_kv_block_size_mb
 For most CPU embedding models, `avg_kv_block_size_mb ≈ 0.5–1 MB`, giving
 10,000–20,000 blocks for a 10 GB pool.
 
+**`scaleout_lmcache_kv_failure_policy`:** use `recompute` when debugging connector
+issues — vLLM logs the actual LMCache error and continues serving requests
+(without cross-instance caching) instead of entering a crash/restart loop.  Set
+back to `fail` for production runs so a silent connector failure is not masked.
+
 ### Quick Start
 
 ```bash
 # Minimum — LMCache with default 10 GB pool, no hugepages
+# (image is built automatically on first run)
 ansible-playbook start-vllm-scaleout.yml \
-  -e "scaleout_lmcache_backend=remote"
+  -e "scaleout_lmcache_backend=remote \
+      scaleout_vllm_gpu_memory_utilization=0.4"
 
-# Recommended — LMCache + 1 GB hugepages (pre-allocate N pages ≥ pool size)
+# Recommended — LMCache + 1 GB hugepages
 ansible-playbook start-vllm-scaleout.yml \
   -e "scaleout_lmcache_backend=remote \
       scaleout_lmcache_server_l1_size_gb=20 \
       scaleout_lmcache_hugepages_enabled=true \
-      scaleout_lmcache_hugepages_1g_count=20"
+      scaleout_lmcache_hugepages_1g_count=20 \
+      scaleout_vllm_gpu_memory_utilization=0.4"
 
 # Full benchmark — deploy, test, teardown
 ansible-playbook embedding-benchmark-scaleout.yml \
   -e "scaleout_lmcache_backend=remote \
-      scaleout_lmcache_hugepages_enabled=true"
+      scaleout_lmcache_hugepages_enabled=true \
+      scaleout_vllm_gpu_memory_utilization=0.4"
+
+# Debug connector failures — vLLM starts, logs error, falls back to recompute
+ansible-playbook start-vllm-scaleout.yml \
+  -e "scaleout_lmcache_backend=remote \
+      scaleout_lmcache_kv_failure_policy=recompute \
+      scaleout_vllm_gpu_memory_utilization=0.4"
 ```
 
 ### LMCache Observability
@@ -645,6 +750,114 @@ firewall-cmd --reload
 curl http://localhost:8081/health
 ```
 
+### vLLM Crashes After KV Cache Allocation (LMCache)
+
+Symptom: vLLM loads the model and allocates the KV cache, then the worker process
+dies silently — no Python traceback, just:
+
+```
+LMCache INFO: Wrapping 32 KV cache tensors for IPC (kv_wrap.py:62)
+Worker proc VllmWorker-0 died unexpectedly, shutting down executor.
+RuntimeError: cancelled
+```
+
+**Root cause:** `lmcache_driven` transfer mode works by exposing each vLLM
+instance's KV cache tensors as POSIX shared-memory handles that the lmcache-server
+reads zero-copy.  POSIX shm objects (`/dev/shm/psm_*`) are scoped to the
+**IPC namespace** of the process that creates them.  By default each container
+has a private IPC namespace, so the handles the vLLM worker creates are invisible
+to the lmcache-server container — `shm_open()` returns `ENOENT` and the worker
+dies with SIGBUS.
+
+**Fix:** ensure `ipc: host` is set on both the vLLM instance services and the
+lmcache-server service in the compose stack.  With `ipc: host` all containers
+share the **host** IPC namespace and can see each other's `/dev/shm` objects.
+
+The role sets `ipc: host` automatically when `scaleout_lmcache_backend=remote`.
+The host `/dev/shm` must be large enough to hold all per-instance KV caches
+simultaneously:
+
+```
+/dev/shm required ≥ num_instances × (gpu_memory_utilization × total_ram_GB)
+```
+
+Example (2 instances × 0.4 × 92 GB ≈ 74 GB):
+
+```bash
+# Check current host /dev/shm size
+df -h /dev/shm
+
+# Resize if needed (does not persist across reboot)
+sudo mount -t tmpfs -o remount,size=80G /dev/shm
+
+# To persist, add to /etc/fstab:
+# tmpfs /dev/shm tmpfs defaults,size=80G 0 0
+```
+
+### OOM: "Available memory less than desired CPU memory utilization"
+
+The lmcache-server pre-allocates its L1 pool (`scaleout_lmcache_server_l1_size_gb`)
+**before** vLLM starts.  That memory is already gone when vLLM calculates how much
+RAM it can use.  With the default `gpu_memory_utilization=0.9` each instance
+requests ≈ 83 GB on a 92 GB host — which is already over-committed once the pool
+is in use.
+
+Reduce `scaleout_vllm_gpu_memory_utilization` to leave room for the pool:
+
+```
+utilization ≤ (total_ram_GB - lmcache_l1_gb - os_overhead_GB) / (total_ram_GB × num_instances)
+```
+
+```bash
+# Example: 92 GB host, 10 GB pool, 2 instances → (92-10-4)/(92×2) ≈ 0.42
+ansible-playbook start-vllm-scaleout.yml \
+  -e "scaleout_lmcache_backend=remote scaleout_vllm_gpu_memory_utilization=0.4"
+```
+
+### LMCache Connector Fails on Startup — Silent Crash Loop
+
+If the vLLM engine crashes during connector initialisation and the container
+restarts silently, use `scaleout_lmcache_kv_failure_policy=recompute` to surface
+the actual error.  With this policy vLLM logs the LMCache error, falls back to
+recomputing KV blocks without cross-instance caching, and stays up so you can
+inspect `podman logs`:
+
+```bash
+ansible-playbook start-vllm-scaleout.yml \
+  -e "scaleout_lmcache_backend=remote \
+      scaleout_lmcache_kv_failure_policy=recompute \
+      scaleout_vllm_gpu_memory_utilization=0.4"
+
+# Then tail the logs to see the LMCache error
+podman logs -f vllm-instance-1 2>&1 | grep -i -E "lmcache|error|fail"
+```
+
+Common errors surfaced this way:
+
+| Error | Cause | Fix |
+|-------|-------|-----|
+| `shm_open ENOENT` | Containers in separate IPC namespaces | Ensure `ipc: host` on all LMCache services |
+| `Input should be 'recompute' or 'fail'` | Invalid `kv_load_failure_policy` value | Only `recompute` or `fail` are valid — not `ignore` |
+| `Import error: LMCacheMPConnector` | lmcache not installed in image | Run with `scaleout_lmcache_build_image=true` (default) |
+| Worker killed with no traceback | `/dev/shm` too small for KV cache wrapping | Resize host `/dev/shm` (see above) |
+
+### Health Check Timeout on First Run (LMCache)
+
+The first time vLLM starts with a new model on CPU it runs `torch.compile` /
+inductor tracing, which can take **20–40 minutes** before the `/health` endpoint
+responds.  The role extends the health-check timeout to 40 minutes
+(`scaleout_health_check_retries=240`, 10 s delay) to accommodate this.
+
+If the Ansible task still times out, confirm the container is alive and actively
+compiling (not in a restart loop):
+
+```bash
+podman ps                          # check restart count
+podman logs -f vllm-instance-1    # watch for "Warming up done"
+```
+
+Subsequent runs hit the inductor cache and start in 1–3 minutes.
+
 ---
 
 ## Files & Directories
@@ -673,12 +886,20 @@ curl http://localhost:8081/health
 | Path | Purpose |
 |---|---|
 | `defaults/main.yml` | All configurable variables |
-| `tasks/main.yml` | Deployment tasks |
-| `tasks/cleanup.yml` | Cleanup tasks (imported by stop playbook) |
-| `templates/docker-compose.yml.j2` | Container orchestration |
+| `tasks/main.yml` | Deployment tasks (image build, hugepages, compose up, health checks) |
+| `tasks/cleanup.yml` | Cleanup tasks (imported by stop playbook; removes all containers including lmcache-server) |
+| `templates/docker-compose.yml.j2` | Container orchestration (vLLM instances, lmcache-server, EPP, Envoy) |
 | `templates/envoy.yaml.j2` | Envoy config (routing policy conditional) |
 | `templates/epp-config.yaml.j2` | EPP plugin config (scorer weights) |
 | `templates/epp-endpoints.yaml.j2` | EPP worker inventory (live-reloadable) |
+
+### Container Images
+
+`containers/`
+
+| Path | Purpose |
+|---|---|
+| `vllm-cpu-lmcache/Containerfile` | Builds `vllm-cpu-lmcache:<tag>` — the vLLM CPU base image with lmcache pre-installed and smoke-tested. Used automatically when `scaleout_lmcache_backend=remote`. |
 
 ### Observability Files
 
