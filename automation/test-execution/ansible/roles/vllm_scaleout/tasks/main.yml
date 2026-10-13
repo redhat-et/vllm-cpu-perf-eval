@@ -80,6 +80,42 @@
     PYEOF
   changed_when: false
 
+- name: Build vLLM+LMCache image on DUT
+  when: scaleout_lmcache_backend == 'remote' and scaleout_lmcache_build_image | bool
+  block:
+    - name: Copy Containerfile to DUT
+      ansible.builtin.copy:
+        src: "{{ role_path }}/../../../containers/vllm-cpu-lmcache/Containerfile"
+        dest: "/tmp/vllm-cpu-lmcache.Containerfile"
+        mode: "0644"
+
+    - name: Check if vllm-cpu-lmcache image already exists
+      ansible.builtin.command: podman image exists {{ scaleout_lmcache_image_tag }}
+      register: _lmcache_image_exists
+      changed_when: false
+      failed_when: false
+
+    - name: Build vllm-cpu-lmcache image (lmcache {{ scaleout_lmcache_version }} pre-installed)
+      ansible.builtin.shell: |
+        podman build \
+          --build-arg VLLM_CPU_IMAGE={{ scaleout_vllm_image }} \
+          --build-arg LMCACHE_VERSION={{ scaleout_lmcache_version }} \
+          -t {{ scaleout_lmcache_image_tag }} \
+          -f /tmp/vllm-cpu-lmcache.Containerfile \
+          /tmp/
+      when: _lmcache_image_exists.rc != 0
+      changed_when: true
+      register: _lmcache_build
+
+    - name: Display build output
+      ansible.builtin.debug:
+        msg: "{{ _lmcache_build.stdout_lines | default([]) + _lmcache_build.stderr_lines | default([]) }}"
+      when: _lmcache_build is changed
+
+    - name: Use built image for this deployment
+      ansible.builtin.set_fact:
+        scaleout_vllm_image: "{{ scaleout_lmcache_image_tag }}"
+
 - name: Prepare LMCache hugepages and Transparent Hugepages
   when: scaleout_lmcache_backend == 'remote' and scaleout_lmcache_hugepages_enabled | bool
   block:
