@@ -1,0 +1,24 @@
+# vLLM CPU image with LMCache pre-installed
+#
+# Bakes lmcache into the base vLLM CPU image so that:
+#   - No pip install happens at container start (faster, deterministic)
+#   - The lmcache version is pinned and tested against this vLLM version
+#   - No risk of pip install failing or racing with vLLM startup
+#
+# Build:
+#   podman build -t vllm-cpu-lmcache:v0.25.1 \
+#     automation/test-execution/containers/vllm-cpu-lmcache/
+#
+# Override in scaleout deployments:
+#   -e "scaleout_vllm_image=vllm-cpu-lmcache:v0.25.1"
+
+ARG VLLM_CPU_IMAGE=docker.io/vllm/vllm-openai-cpu:v0.25.1
+FROM ${VLLM_CPU_IMAGE}
+
+# Pin lmcache to a version known to work with this vLLM release.
+# LMCacheMPConnector (lmcache_driven mode) requires lmcache >= 0.3.9.
+ARG LMCACHE_VERSION=0.3.9
+RUN pip install --no-cache-dir "lmcache>=${LMCACHE_VERSION}"
+
+# Smoke-test: import must succeed
+RUN python -c "import lmcache; from lmcache.integration.vllm.lmcache_mp_connector import LMCacheMPConnector; print('lmcache OK:', lmcache.__version__)"
