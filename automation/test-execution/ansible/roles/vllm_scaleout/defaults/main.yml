@@ -20,15 +20,14 @@ scaleout_epp_cores: "8-15"
 scaleout_vllm_base_port: 8000
 
 # Container configuration
-scaleout_vllm_image: "docker.io/vllm/vllm-openai-cpu:v0.25.1"
-# Pinned to a release tag for reproducible benchmarks — override to upgrade.
-#
-# For LMCache deployments (scaleout_lmcache_backend=remote), use a pre-built
-# image that has lmcache baked in to avoid pip install at startup:
-#   scaleout_vllm_image: "vllm-cpu-lmcache:v0.25.1"
-# Build it once with:
-#   podman build -t vllm-cpu-lmcache:v0.25.1 \
-#     automation/test-execution/containers/vllm-cpu-lmcache/
+# scaleout_vllm_base_image — upstream image pulled from the registry.  This
+# variable is NEVER overwritten by role tasks; it is always the upstream source.
+# Override to upgrade the vLLM version.
+scaleout_vllm_base_image: "docker.io/vllm/vllm-openai-cpu:v0.25.1"
+# scaleout_vllm_image — the image actually used in the compose stack.  Starts
+# equal to scaleout_vllm_base_image but the LMCache build task overrides it to
+# the pre-built lmcache image (scaleout_lmcache_image_tag) when building.
+scaleout_vllm_image: "{{ scaleout_vllm_base_image }}"
 scaleout_epp_image: "ghcr.io/llm-d/llm-d-router-endpoint-picker:v0.11.0"
 scaleout_envoy_image: "docker.io/envoyproxy/envoy:distroless-v1.33.2"
 scaleout_volume_name: "hf-cache"
@@ -115,7 +114,7 @@ scaleout_vllm_extra_args: []
 # This avoids the pip-install startup delay and pins the lmcache version.
 scaleout_lmcache_build_image: true
 # Tag for the built image.  Defaults to vllm-cpu-lmcache:<base-image-tag>.
-scaleout_lmcache_image_tag: "vllm-cpu-lmcache:{{ scaleout_vllm_image | regex_replace('^.*:', '') }}"
+scaleout_lmcache_image_tag: "vllm-cpu-lmcache:{{ scaleout_vllm_base_image | regex_replace('^.*:', '') }}"
 # lmcache PyPI version to bake into the image.
 scaleout_lmcache_version: "0.3.9"
 
