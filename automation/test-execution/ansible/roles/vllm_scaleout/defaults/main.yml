@@ -22,6 +22,13 @@ scaleout_vllm_base_port: 8000
 # Container configuration
 scaleout_vllm_image: "docker.io/vllm/vllm-openai-cpu:v0.25.1"
 # Pinned to a release tag for reproducible benchmarks — override to upgrade.
+#
+# For LMCache deployments (scaleout_lmcache_backend=remote), use a pre-built
+# image that has lmcache baked in to avoid pip install at startup:
+#   scaleout_vllm_image: "vllm-cpu-lmcache:v0.25.1"
+# Build it once with:
+#   podman build -t vllm-cpu-lmcache:v0.25.1 \
+#     automation/test-execution/containers/vllm-cpu-lmcache/
 scaleout_epp_image: "ghcr.io/llm-d/llm-d-router-endpoint-picker:v0.11.0"
 scaleout_envoy_image: "docker.io/envoyproxy/envoy:distroless-v1.33.2"
 scaleout_volume_name: "hf-cache"
