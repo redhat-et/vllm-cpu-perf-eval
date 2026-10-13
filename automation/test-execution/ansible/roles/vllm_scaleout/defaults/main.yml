@@ -109,6 +109,16 @@ scaleout_vllm_extra_args: []
 #   - "--dtype"
 #   - "bfloat16"
 
+# LMCache image build
+# When scaleout_lmcache_backend=remote the role automatically builds a custom
+# vLLM image with lmcache pre-installed (skipped if the image already exists).
+# This avoids the pip-install startup delay and pins the lmcache version.
+scaleout_lmcache_build_image: true
+# Tag for the built image.  Defaults to vllm-cpu-lmcache:<base-image-tag>.
+scaleout_lmcache_image_tag: "vllm-cpu-lmcache:{{ scaleout_vllm_image | regex_replace('^.*:', '') }}"
+# lmcache PyPI version to bake into the image.
+scaleout_lmcache_version: "0.3.9"
+
 # LMCache cross-instance KV sharing
 #
 # Uses LMCacheMPConnector with lmcache_driven transfer mode: vLLM instances
