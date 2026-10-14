@@ -877,7 +877,7 @@ Common errors surfaced this way:
 | Error | Cause | Fix |
 |-------|-------|-----|
 | `shm_open ENOENT` | Containers in separate IPC namespaces | Ensure `ipc: host` on all LMCache services |
-| `FileExistsError: File exists: '/lmcache_kv_N_0'` | Stale SHM from prior crash; container PID reuse | `rm -f /dev/shm/lmcache_kv_* /dev/shm/__KMP_REGISTERED_LIB_*` before restarting |
+| `FileExistsError: File exists: '/lmcache_kv_N_0'` | (1) Stale SHM from prior crash — run the stop/cleanup playbook to wipe `/dev/shm/lmcache_kv_*`; (2) concurrent PID namespace collision — two containers recycled the same PID simultaneously (see [PID Namespace Collision](#pid-namespace-collision-between-concurrent-instances-lmcache)) | Handled automatically by the role (`pid: host`); for manual restarts see linked section |
 | `Input should be 'recompute' or 'fail'` | Invalid `kv_load_failure_policy` value | Only `recompute` or `fail` are valid — not `ignore` |
 | `Import error: LMCacheMPConnector` | lmcache not installed in image | Run with `scaleout_lmcache_build_image=true` (default) |
 | Worker killed with no traceback | `/dev/shm` too small for KV cache wrapping | Resize host `/dev/shm` (see above) |
@@ -931,6 +931,83 @@ ls /dev/shm/
 The `restart: "no"` policy set by the role (when `scaleout_lmcache_backend=remote`)
 prevents containers from auto-restarting after a crash and accumulating stale SHM
 objects that cause every subsequent start to fail immediately.
+
+### PID Namespace Collision Between Concurrent Instances (LMCache)
+
+**Symptom**: `FileExistsError: [Errno 17] File exists: '/lmcache_kv_265_0'` at startup
+even though `/dev/shm/` was clean before the run.
+
+**Root cause**: LMCache names each KV-cache SHM segment after the vLLM *worker process*
+PID — `/dev/shm/lmcache_kv_<pid>_<index>`.  PID is only unique within a single PID
+namespace.  Each container gets its own isolated PID namespace by default, and all
+namespaces independently recycle low PIDs starting from 1.
+
+When two vLLM instance containers start at the same time and lmcache is already
+installed (so the entrypoint's `pip check` exits in milliseconds rather than spawning
+the many subprocesses that `pip install` would), both workers follow an almost identical
+startup path and land on the same PID — typically 265.  Both then call:
+
+```c
+shm_open("/lmcache_kv_265_0", O_CREAT | O_EXCL, ...)
+```
+
+One wins; the other gets `EEXIST` and the worker crashes.
+
+The **first run often succeeds by luck**: when lmcache is not yet cached, `pip install`
+spawns enough subprocesses to push each container's workers to different PIDs.  Once
+lmcache is installed the entrypoint completes in milliseconds and both workers get
+identical PID sequences — the collision becomes deterministic.
+
+**Current workaround — `pid: host`**: sharing the host PID namespace gives every
+process a unique host-level PID across all containers, making the SHM names unique by
+construction.  The role sets `pid: host` automatically when
+`scaleout_lmcache_backend=remote`.
+
+**Kubernetes limitation**: `hostPID: true` is blocked by Pod Security Admission
+(`restricted` and `baseline` policies) in most clusters.  `shareProcessNamespace: true`
+within a single pod avoids `hostPID` but forces all instances into one pod — this
+defeats independent pod scheduling and multi-node scale-out.  Using separate nodes
+works (each node has its own `/dev/shm`) but prevents the zero-copy SHM transfer that
+makes `lmcache_driven` mode fast.
+
+**Upstream fix (proposed — [lmcache/v1/platform/devices/cpu/shm.py](https://github.com/LMCache/LMCache))**:
+Replace `os.getpid()` with a process-stable unique identifier that is independent of
+the PID namespace:
+
+```python
+# Added module-level constant (replaces the os.getpid() call in migrate_to_shm_and_wrap)
+_LMCACHE_INSTANCE_ID: str = (
+    os.environ.get("LMCACHE_INSTANCE_ID") or uuid.uuid4().hex[:16]
+)
+
+# SHM name construction changes from:
+#   shm_name = "%s%d_%d" % (SHM_NAME_PREFIX, os.getpid(), next(_CPU_SHM_COUNTER))
+# To:
+    shm_name = "%s%s_%d" % (SHM_NAME_PREFIX, _LMCACHE_INSTANCE_ID, next(_CPU_SHM_COUNTER))
+```
+
+In Kubernetes, inject the pod UID via the Downward API so each pod gets a guaranteed
+unique token without any code changes:
+
+```yaml
+env:
+- name: LMCACHE_INSTANCE_ID
+  valueFrom:
+    fieldRef:
+      fieldPath: metadata.uid   # guaranteed unique cluster-wide
+```
+
+This makes `lmcache_driven` mode work correctly with any PID namespace configuration,
+any container runtime, and any number of pods on the same node — with or without
+`hostPID: true`.  Until the fix is merged upstream, `pid: host` (set automatically
+by this role) is the workaround for bare-metal / Podman deployments.
+
+| Deployment | Workaround | Notes |
+|---|---|---|
+| Bare metal / Podman | `pid: host` (current) | Role sets this automatically |
+| k8s `restricted`/`baseline` PSA | `LMCACHE_INSTANCE_ID` via Downward API | Requires the upstream fix |
+| k8s `privileged` PSA | `hostPID: true` | Works but broad privilege; avoid if possible |
+| Multi-node (pods on different nodes) | None needed | Each node has its own `/dev/shm` |
 
 ### Health Check Timeout on First Run (LMCache)
 
