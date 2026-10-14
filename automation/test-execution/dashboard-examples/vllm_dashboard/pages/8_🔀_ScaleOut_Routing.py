@@ -88,6 +88,14 @@ def find_scaleout_runs(base_dir: str) -> List[Dict]:
         except Exception:
             meta_ok = False
         policy = meta.get("routing_policy", "unknown")
+        model_raw = meta.get("model_name") or meta.get("model") or ""
+        model_short = model_raw.split("/")[-1] if model_raw else ""
+        n_inst = meta.get("num_instances", len(instance_files))
+        lmcache = "lmcache" if meta.get("lmcache_backend", "none") not in ("none", "", None) else "no-lmcache"
+        run_id = meta.get("test_run_id") or run_dir.parent.name or run_dir.name
+        label_parts = [run_id, f"{n_inst}inst", policy, lmcache]
+        if model_short:
+            label_parts.append(model_short)
         runs.append({
             "path": run_dir,
             "meta": meta,
@@ -95,7 +103,7 @@ def find_scaleout_runs(base_dir: str) -> List[Dict]:
             "instance_files": instance_files,
             "epp_file": run_dir / "epp-metrics.json",
             "benchmarks_file": run_dir / "benchmarks.json",
-            "label": f"{run_dir.name} ({policy})",
+            "label": " | ".join(label_parts),
         })
     return runs
 
@@ -133,6 +141,31 @@ def extract_series(data: Dict, metric: str) -> pd.DataFrame:
     if rows:
         return pd.DataFrame(rows)
     return pd.DataFrame(columns=["elapsed_s", "value"])
+
+
+def extract_generation_throughput(data: dict) -> pd.DataFrame:
+    """tok/s from gauge if present, else derived from generation_tokens_total."""
+    df = extract_series(data, "vllm:avg_generation_throughput_toks_per_s")
+    if not df.empty:
+        return df
+    rows = []
+    prev_ts = prev_tokens = None
+    for sample in data.get("samples", []):
+        ts = sample.get("elapsed_seconds", 0)
+        metrics = sample.get("metrics", {})
+        entry = (metrics.get("vllm:generation_tokens_total") or [{}])[0]
+        tokens = entry.get("value")
+        if tokens is None:
+            continue
+        if prev_ts is not None and ts > prev_ts:
+            rows.append({
+                "elapsed_s": ts,
+                "value": (tokens - prev_tokens) / (ts - prev_ts),
+            })
+        prev_ts, prev_tokens = ts, tokens
+    return pd.DataFrame(rows) if rows else pd.DataFrame(
+        columns=["elapsed_s", "value"]
+    )
 
 
 BACKEND_COLORS = [
@@ -224,7 +257,7 @@ def run_model_name(run: Dict) -> str:
 
 
 def extract_prefix_cache_hit_rate(data: dict) -> pd.DataFrame:
-    """Prefix cache hit rate from gauges or hits/queries counters."""
+    """Prefix cache hit rate: gauges → local counters (delta) → external counters (delta)."""
     for gauge in (
         "vllm:cpu_prefix_cache_hit_rate",
         "vllm:gpu_prefix_cache_hit_rate",
@@ -233,18 +266,41 @@ def extract_prefix_cache_hit_rate(data: dict) -> pd.DataFrame:
         if not df.empty:
             return df
 
-    rows = []
-    for sample in data.get("samples", []):
-        ts = sample.get("elapsed_seconds", 0)
-        metrics = sample.get("metrics", {})
-        hits_list = metrics.get("vllm:prefix_cache_hits_total") or []
-        queries_list = metrics.get("vllm:prefix_cache_queries_total") or []
-        hits = hits_list[0].get("value", 0) if hits_list else 0
-        queries = queries_list[0].get("value", 0) if queries_list else 0
-        if queries and queries > 0:
-            rows.append({"elapsed_s": ts, "value": hits / queries})
+    def _delta_hit_rate(samples, hits_key, queries_key):
+        rows = []
+        prev_hits = prev_queries = None
+        for sample in samples:
+            ts = sample.get("elapsed_seconds", 0)
+            metrics = sample.get("metrics", {})
+            hits_list = metrics.get(hits_key) or []
+            queries_list = metrics.get(queries_key) or []
+            hits = hits_list[0].get("value", 0) if hits_list else 0
+            queries = queries_list[0].get("value", 0) if queries_list else 0
+            if prev_hits is not None and prev_queries is not None:
+                dq = queries - prev_queries
+                dh = hits - prev_hits
+                if dq > 0:
+                    rows.append({"elapsed_s": ts, "value": dh / dq})
+            prev_hits, prev_queries = hits, queries
+        return rows
+
+    samples = data.get("samples", [])
+    rows = _delta_hit_rate(
+        samples,
+        "vllm:prefix_cache_hits_total",
+        "vllm:prefix_cache_queries_total",
+    )
     if rows:
         return pd.DataFrame(rows)
+
+    rows = _delta_hit_rate(
+        samples,
+        "vllm:external_prefix_cache_hits_total",
+        "vllm:external_prefix_cache_queries_total",
+    )
+    if rows:
+        return pd.DataFrame(rows)
+
     return pd.DataFrame(columns=["elapsed_s", "value"])
 
 # EPP metric names — collected from EPP :9090/metrics (llm_d_epp_* prefix)
@@ -286,12 +342,15 @@ if not run.get("meta_ok", True):
         "Could not parse test-metadata.json for this run — "
         "metadata-derived fields (instances, policy, model) may be missing."
     )
-col1, col2, col3, col4 = st.columns(4)
+col1, col2, col3, col4, col5 = st.columns(5)
 col1.metric("Instances", meta.get("num_instances", len(run["instance_files"])))
 col2.metric("Routing Policy", meta.get("routing_policy", "—"))
 col3.metric("Cores / Instance", meta.get("cores_per_instance", "—"))
 model_display = meta.get("model_name") or meta.get("model") or "—"
 col4.metric("Model", str(model_display).split("/")[-1])
+lmcache_backend = meta.get("lmcache_backend", "none")
+lmcache_active = lmcache_backend not in ("none", "", None)
+col5.metric("LMCache", lmcache_backend if lmcache_active else "Disabled")
 
 st.divider()
 
@@ -428,20 +487,33 @@ for i, idx in enumerate(instance_ids):
     ))
 
 if hit_fig.data:
+    all_zero = all(
+        (t.y is None or max(t.y, default=0) == 0)
+        for t in hit_fig.data
+    )
+    _yaxis_cfg = dict(rangemode="tozero")
+    if not all_zero:
+        _yaxis_cfg["range"] = [0, 100]
     hit_fig.update_layout(
         xaxis_title="Elapsed (s)",
         yaxis_title="Cache Hit Rate (%)",
-        yaxis_range=[0, 100],
+        yaxis=_yaxis_cfg,
         legend_title="Backend",
         height=300,
         template="plotly_dark",
         margin=dict(t=20, b=40),
     )
     st.plotly_chart(hit_fig, use_container_width=True)
-    st.caption(
-        "Higher hit rates on specific backends indicates EPP is steering "
-        "requests with matching KV-cache prefixes to the same backend."
-    )
+    if all_zero:
+        st.caption(
+            "Cache hit rate is 0% for all backends — the KV cache has not "
+            "served any hits yet (cold cache or cache misses throughout the run)."
+        )
+    else:
+        st.caption(
+            "Higher hit rates on specific backends indicates EPP is steering "
+            "requests with matching KV-cache prefixes to the same backend."
+        )
 else:
     st.info("Prefix cache hit rate metric not available in this dataset.")
 
@@ -451,9 +523,7 @@ st.subheader("🚀 Generation Throughput per Backend (tok/s)")
 
 tps_fig = go.Figure()
 for i, idx in enumerate(instance_ids):
-    df = extract_series(
-        instance_data[idx], "vllm:avg_generation_throughput_toks_per_s"
-    )
+    df = extract_generation_throughput(instance_data[idx])
     if df.empty:
         continue
     df["value"] = df["value"].rolling(3, min_periods=1).mean()
@@ -719,6 +789,222 @@ else:
         f"No paired {paired_policy} run found with the same model and instance count. "
         f"Run: `-e scaleout_routing_policy={paired_policy}` to enable "
         "the comparison view."
+    )
+
+
+# ─── LMCache comparison ──────────────────────────────────────────────────────
+
+st.subheader("💾 LMCache On/Off Comparison")
+
+current_lmcache = meta.get("lmcache_backend", "none")
+current_has_lmcache = current_lmcache not in ("none", "", None)
+lmcache_pair_runs = [
+    r for r in runs
+    if r["path"] != run["path"]
+    and r["meta"].get("routing_policy") == meta.get("routing_policy")
+    and r["meta"].get("num_instances") == meta.get("num_instances")
+    and run_model_name(r) == run_model_name(run)
+    and (r["meta"].get("lmcache_backend", "none") in ("none", "", None)) != current_has_lmcache
+]
+
+if lmcache_pair_runs:
+    lmcache_pair_label = st.selectbox(
+        "Compare with run (LMCache toggled)",
+        [r["label"] for r in lmcache_pair_runs],
+        key="lmcache_pair_select",
+    )
+    lmcache_paired = next(
+        r for r in lmcache_pair_runs if r["label"] == lmcache_pair_label
+    )
+    lmcache_paired_data = {}
+    for f in lmcache_paired["instance_files"]:
+        try:
+            idx = int(f.stem.rsplit("-", 1)[-1])
+        except ValueError:
+            idx = f.stem
+        d = load_instance_metrics(f)
+        if d:
+            lmcache_paired_data[idx] = d
+
+    lmc_label_cur = f"LMCache={current_lmcache}"
+    lmc_label_pair = (
+        f"LMCache={lmcache_paired['meta'].get('lmcache_backend', 'none')}"
+    )
+
+    lmc_fig = make_subplots(
+        rows=1, cols=2,
+        subplot_titles=[
+            f"{lmc_label_cur} — Running Requests",
+            f"{lmc_label_pair} — Running Requests",
+        ],
+    )
+    for col_idx, data_dict in enumerate(
+        [instance_data, lmcache_paired_data], start=1
+    ):
+        for i, idx in enumerate(sorted(data_dict.keys())):
+            df = extract_series(data_dict[idx], "vllm:num_requests_running")
+            if df.empty:
+                continue
+            lmc_fig.add_trace(
+                go.Scatter(
+                    x=df["elapsed_s"],
+                    y=df["value"].rolling(3, min_periods=1).mean(),
+                    name=f"Backend {idx}",
+                    line=dict(color=BACKEND_COLORS[i % len(BACKEND_COLORS)]),
+                    showlegend=(col_idx == 1),
+                ),
+                row=1, col=col_idx,
+            )
+    lmc_fig.update_layout(
+        height=380,
+        template="plotly_dark",
+        legend_title="Backend",
+        margin=dict(t=40, b=40),
+    )
+    st.plotly_chart(lmc_fig, use_container_width=True)
+
+    lmc_hit_fig = make_subplots(
+        rows=1, cols=2,
+        subplot_titles=[
+            f"{lmc_label_cur} — Cache Hit Rate (%)",
+            f"{lmc_label_pair} — Cache Hit Rate (%)",
+        ],
+    )
+    any_hit_data = False
+    for col_idx, data_dict in enumerate(
+        [instance_data, lmcache_paired_data], start=1
+    ):
+        for i, idx in enumerate(sorted(data_dict.keys())):
+            df = extract_prefix_cache_hit_rate(data_dict[idx])
+            if df.empty:
+                continue
+            any_hit_data = True
+            lmc_hit_fig.add_trace(
+                go.Scatter(
+                    x=df["elapsed_s"],
+                    y=df["value"] * 100,
+                    name=f"Backend {idx}",
+                    line=dict(color=BACKEND_COLORS[i % len(BACKEND_COLORS)]),
+                    showlegend=(col_idx == 1),
+                ),
+                row=1, col=col_idx,
+            )
+    if any_hit_data:
+        lmc_hit_fig.update_layout(
+            height=380,
+            template="plotly_dark",
+            legend_title="Backend",
+            margin=dict(t=40, b=40),
+        )
+        st.plotly_chart(lmc_hit_fig, use_container_width=True)
+    else:
+        st.info("Cache hit rate metric not available in either run.")
+
+    lmc_client_df = load_client_results(lmcache_paired)
+    if client_df is not None and lmc_client_df is not None:
+        _guidellm_charts = [
+            ("TTFT mean (ms)", "TTFT P95 (ms)", "⏱ Time to First Token (ms)", False),
+            ("ITL mean (ms)", "ITL P95 (ms)", "⚡ Inter-Token Latency / TPOT (ms)", False),
+            ("Output TPS", None, "🚀 Output Throughput (tok/s)", True),
+            ("RPS", None, "📨 Requests per Second", True),
+        ]
+        for mean_col, p95_col, chart_title, higher_is_better in _guidellm_charts:
+            if mean_col not in client_df.columns:
+                continue
+            gc_fig = go.Figure()
+            for df_data, label, dash in [
+                (client_df, lmc_label_cur, "solid"),
+                (lmc_client_df, lmc_label_pair, "dash"),
+            ]:
+                if mean_col in df_data.columns:
+                    gc_fig.add_trace(go.Scatter(
+                        x=df_data["Concurrency"],
+                        y=df_data[mean_col],
+                        name=f"{label} (mean)",
+                        mode="lines+markers",
+                        line=dict(dash=dash),
+                    ))
+                if p95_col and p95_col in df_data.columns:
+                    gc_fig.add_trace(go.Scatter(
+                        x=df_data["Concurrency"],
+                        y=df_data[p95_col],
+                        name=f"{label} (P95)",
+                        mode="lines+markers",
+                        line=dict(dash=dash, width=1),
+                        opacity=0.6,
+                    ))
+            gc_fig.update_layout(
+                title=chart_title,
+                xaxis_title="Concurrency",
+                yaxis_title=mean_col,
+                height=320,
+                template="plotly_dark",
+                margin=dict(t=40, b=40),
+            )
+            st.plotly_chart(gc_fig, use_container_width=True)
+        st.caption(
+            "Data source: guidellm benchmarks.json — "
+            "solid lines = current run, dashed = paired run."
+        )
+
+        merged = client_df.merge(
+            lmc_client_df, on="Concurrency",
+            suffixes=("_cur", "_pair"),
+        )
+        delta_rows = []
+        for _, row in merged.iterrows():
+            for metric, higher_is_better in (
+                ("TTFT mean (ms)", False),
+                ("TTFT P95 (ms)", False),
+                ("ITL mean (ms)", False),
+                ("ITL P95 (ms)", False),
+                ("Output TPS", True),
+                ("RPS", True),
+            ):
+                cur_v = row.get(f"{metric}_cur")
+                pair_v = row.get(f"{metric}_pair")
+                if not cur_v or not pair_v:
+                    continue
+                delta_pct = (cur_v - pair_v) / pair_v * 100
+                delta_rows.append({
+                    "Concurrency": row["Concurrency"],
+                    "Metric": metric,
+                    lmc_label_cur: cur_v,
+                    lmc_label_pair: pair_v,
+                    "Delta (%)": delta_pct,
+                    "Better?": (
+                        "✓" if (delta_pct > 0) == higher_is_better else "✗"
+                    ),
+                })
+        if delta_rows:
+            st.markdown(
+                "**Client-side deltas** "
+                f"(positive Delta = {lmc_label_cur} is higher)"
+            )
+            st.dataframe(
+                pd.DataFrame(delta_rows).style.format(
+                    {"Delta (%)": "{:+.1f}"}, precision=2
+                ),
+                use_container_width=True,
+                hide_index=True,
+            )
+        else:
+            st.info(
+                "No matching concurrency levels between the two runs' "
+                "benchmarks.json files — cannot compute LMCache deltas."
+            )
+    else:
+        st.info(
+            "Client-side results (benchmarks.json) are required in both "
+            "runs for quantitative LMCache deltas."
+        )
+else:
+    opposite = "without" if current_has_lmcache else "with"
+    st.info(
+        f"No paired run found {opposite} LMCache (same model, policy, "
+        "and instance count). Run the benchmark with "
+        f"`-e scaleout_lmcache_backend={'remote' if not current_has_lmcache else 'none'}` "
+        "to enable the comparison view."
     )
 
 
