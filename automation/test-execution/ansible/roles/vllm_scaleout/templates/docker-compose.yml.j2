@@ -114,11 +114,6 @@ services:
     entrypoint: ["/bin/bash", "-c"]
     command:
       - |
-        # Remove stale LMCache SHM objects from previous runs. Each vLLM worker names
-        # its KV-cache SHM after its own PID (lmcache_kv_<pid>_<n>). Both containers
-        # share the host /dev/shm via bind-mount so PIDs from different container
-        # namespaces can collide, causing shm_open(O_CREAT|O_EXCL) EEXIST on restart.
-        rm -f /dev/shm/lmcache_kv_* 2>/dev/null || true
         python -c "import lmcache; assert lmcache.__version__ == '{{ scaleout_lmcache_version }}'" 2>/dev/null || NO_GPU_EXT=1 pip install --quiet --no-binary lmcache "lmcache=={{ scaleout_lmcache_version }}"
         echo "Waiting for lmcache-server on port {{ scaleout_lmcache_server_port }}..."
         until python3 -c "import socket; s=socket.socket(); s.settimeout(2); s.connect(('localhost',{{ scaleout_lmcache_server_port }})); s.close()" 2>/dev/null; do
