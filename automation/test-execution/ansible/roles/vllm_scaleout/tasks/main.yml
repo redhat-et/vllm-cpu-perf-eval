@@ -309,23 +309,33 @@
   changed_when: false
   when: scaleout_lmcache_backend == 'remote'
 
-- name: Kill any stale podman-compose processes from previous runs
-  # Run pkill in a nohup background so the SIGTERM it sends cannot reach
-  # the current SSH session's process group (which caused rc=-15 previously).
-  # Also stop and remove any leftover vllm-* containers from failed runs.
-  # MUST run BEFORE the SHM cleanup: with ipc: host the lmcache-server also
-  # holds POSIX SHM fds open; cleaning SHM while it is still running can
-  # race — the server detects the unlinked name and recreates it before the
-  # new container starts, causing shm_open(O_CREAT|O_EXCL) EEXIST failures.
+- name: Stop stale vLLM scale-out containers
+  # Use podman stop/rm as separate tasks so a pkill signal cannot kill both in
+  # one shot.  The previous combined task used pkill with a pattern that matched
+  # its own bash -c argument string, causing SIGTERM to reach the Ansible shell
+  # (rc=-15) before podman stop/rm ran — leaving containers alive and their SHM
+  # fds open so the subsequent rm -f /dev/shm/lmcache* had no effect.
   ansible.builtin.shell: |
-    nohup bash -c '
-      sleep 1
-      pkill -f "podman-compose.*docker-compose.yml.*up" 2>/dev/null || true
-    ' >/dev/null 2>&1 &
-    disown
-    podman stop $(podman ps -q --filter name=vllm-) 2>/dev/null || true
-    podman rm   $(podman ps -aq --filter name=vllm-) 2>/dev/null || true
-    sleep 3
+    ids=$(podman ps -q --filter name=vllm-)
+    [ -n "$ids" ] && podman stop $ids 2>/dev/null || true
+  become: true
+  changed_when: false
+  ignore_errors: true
+
+- name: Remove stale vLLM scale-out containers
+  ansible.builtin.shell: |
+    ids=$(podman ps -aq --filter name=vllm-)
+    [ -n "$ids" ] && podman rm -f $ids 2>/dev/null || true
+  become: true
+  changed_when: false
+  ignore_errors: true
+
+- name: Kill any lingering podman-compose orchestrator processes
+  # Kill by exact binary name only — avoids matching the bash -c argument that
+  # contained the old broad pattern and caused self-termination (rc=-15).
+  ansible.builtin.shell: |
+    pkill -x podman-compose 2>/dev/null || true
+    sleep 1
   become: true
   changed_when: false
   ignore_errors: true
