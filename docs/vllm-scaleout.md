@@ -63,6 +63,46 @@ The scale-out deployment runs N vLLM instances on a single DUT with configurable
 
 Use both in separate runs to measure the overhead and benefit of intelligent routing.
 
+### Why combine EPP with LMCache?
+
+EPP and LMCache address different halves of the same problem.
+
+**EPP alone** routes each request to the instance most likely to have a local KV-cache
+hit, which is efficient — but creates a tension: strong prefix affinity can overload
+one instance while others sit idle, and rerouting to a less-loaded instance pays a
+full recompute cost because the target has a cold cache.
+
+**LMCache alone** gives every instance access to a shared KV pool, eliminating
+redundant recomputation — but without EPP, routing is still blind to local cache
+state, so every request checks the shared pool even when a local hit would be faster.
+
+**Together** they eliminate the affinity-vs-load trade-off: EPP scores each backend
+across three tiers in order of cost —
+
+| Tier | Source | Cost | EPP weight |
+|---|---|---|---|
+| **Local hit** | Instance's own KV cache | ~0 (in-process memory) | 3 |
+| **Shared hit** | lmcache-server L1 pool (POSIX SHM, zero-copy) | ~RAM bandwidth | 2 |
+| **Miss** | Full KV recompute | CPU prefill time | 0 |
+
+Concretely:
+- **Popular prefixes scale freely.** Once any instance computes a KV block (e.g., a
+  shared system prompt), it lands in the lmcache-server pool.  EPP can spread the next
+  N identical requests across all instances — each gets a shared-pool hit with no
+  recompute and no hot-spotting.
+- **Rerouting is cheap.** When instance 1 is queued, EPP routes to instance 2 knowing
+  it gets a pool hit instead of a cold miss.  Without LMCache, that reroute paid full
+  prefill cost.
+- **Cold-start instances warm up instantly.** A newly started instance has an empty
+  local cache but can immediately serve warm traffic from the shared pool while it
+  builds local state.
+- **No redundant compute across instances.** In a 5-instance deployment, the same
+  prefix could otherwise be computed 5 times.  With LMCache, compute it once — all 5
+  instances benefit.
+
+Set `scaleout_lmcache_backend=remote` to enable; see [LMCache](#lmcache) for sizing
+and configuration details.
+
 ---
 
 ## Deployment Modes
