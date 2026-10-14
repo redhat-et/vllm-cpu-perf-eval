@@ -18,8 +18,10 @@ version: '3.8'
 # LMCache backend: {{ scaleout_lmcache_backend }}
 #   none   — disabled; per-instance vLLM prefix caching used if scaleout_enable_prefix_caching=true
 #   remote — lmcache-server holds a shared in-memory KV pool; every vLLM instance connects
-#            via LMCacheMPConnector using lmcache_driven mode (POSIX shared-memory handles,
-#            effectively zero-copy on a single host).
+#            via LMCacheMPConnector using lmcache_driven mode.  The server mmap-maps the
+#            worker's KV cache tensors via POSIX SHM (e.g. /lmcache_kv_<pid>_<idx>), so
+#            all vLLM instance containers and the lmcache-server container share the host
+#            IPC namespace (ipc: host).
 #            NOTE: vLLM prefix caching is disabled when remote LMCache is active — LMCache
 #            is the caching layer.  scaleout_enable_prefix_caching is ignored.
 {% if scaleout_lmcache_backend == 'remote' %}
@@ -38,7 +40,7 @@ services:
 {% for i in range(1, scaleout_num_instances | int + 1) %}
   # vLLM Instance {{ i }} — port {{ scaleout_vllm_base_port | int + i - 1 }}
   vllm-{{ i }}:
-    image: {{ scaleout_vllm_image }}
+    image: {{ scaleout_lmcache_image_tag if scaleout_lmcache_backend == 'remote' else scaleout_vllm_image }}
     container_name: vllm-instance-{{ i }}
     network_mode: host
     cpuset: "{{ scaleout_instance_cpusets[i - 1] }}"
@@ -46,6 +48,11 @@ services:
       - SYS_NICE
     security_opt:
       - seccomp=unconfined
+{% if scaleout_lmcache_backend == 'remote' %}
+    # Share the host IPC namespace so POSIX SHM objects created by the vLLM worker
+    # (/lmcache_kv_<pid>_<idx>) are visible to the lmcache-server container.
+    ipc: host
+{% endif %}
     environment:
       - HF_HUB_OFFLINE=0
       - HF_HOME=/root/.cache/huggingface
@@ -58,6 +65,13 @@ services:
       - PYTHONHASHSEED=123
       # Expose LMCache Prometheus metrics through vLLM's /metrics endpoint.
       - PROMETHEUS_MULTIPROC_DIR=/tmp/lmcache_prometheus
+      # ipc: host + cpuset causes os.sched_getaffinity() to return empty inside
+      # Podman containers, which makes vLLM set OMP_NUM_THREADS=0.  Bypass the
+      # auto-detection by pinning threads directly to the assigned cpuset range.
+      - VLLM_CPU_OMP_THREADS_BIND={{ scaleout_instance_cpusets[i - 1] }}
+      # Print a C-level stack trace if the Worker process crashes with a segfault
+      # or abort.  Remove once the LMCache kv_wrap crash is resolved.
+      - PYTHONFAULTHANDLER=1
 {% endif %}
     volumes:
       - {{ scaleout_volume_name }}:/root/.cache/huggingface
@@ -96,7 +110,7 @@ services:
     entrypoint: ["/bin/bash", "-c"]
     command:
       - |
-        python -c "import lmcache" 2>/dev/null || pip install --quiet lmcache
+        python -c "import lmcache; assert lmcache.__version__ == '{{ scaleout_lmcache_version }}'" 2>/dev/null || NO_GPU_EXT=1 pip install --quiet --no-binary lmcache "lmcache=={{ scaleout_lmcache_version }}"
         echo "Waiting for lmcache-server on port {{ scaleout_lmcache_server_port }}..."
         until python3 -c "import socket; s=socket.socket(); s.settimeout(2); s.connect(('localhost',{{ scaleout_lmcache_server_port }})); s.close()" 2>/dev/null; do
           echo "  lmcache-server not ready, retrying in 5s..."; sleep 5
@@ -137,7 +151,16 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+{% if scaleout_lmcache_backend == 'remote' %}
+    depends_on:
+      - lmcache-server
+    # Do not auto-restart in LMCache mode: a crashed vLLM worker may leave stale
+    # POSIX SHM objects or ZMQ state that cause the next startup to fail immediately.
+    # Tear down and redeploy via the Ansible cleanup + deploy sequence to flush state.
+    restart: "no"
+{% else %}
     restart: unless-stopped
+{% endif %}
 
 {% endfor %}
 {% if scaleout_lmcache_backend == 'remote' %}
@@ -151,9 +174,10 @@ services:
   # needs {{ scaleout_lmcache_server_l1_size_gb }} TLB entries (1 GB pages) vs
   # {{ (scaleout_lmcache_server_l1_size_gb | int * 512) | int }}k entries (4 KB pages).
   lmcache-server:
-    image: {{ scaleout_vllm_image }}
+    image: {{ scaleout_lmcache_image_tag }}
     container_name: vllm-lmcache-server
     network_mode: host
+    ipc: host
 {% if scaleout_lmcache_hugepages_enabled %}
     volumes:
       # Expose 1 GB hugepages to the server so it can back the L1 pool with them.
@@ -170,7 +194,7 @@ services:
     entrypoint: ["/bin/bash", "-c"]
     command:
       - |
-        python -c "import lmcache" 2>/dev/null || pip install --quiet lmcache
+        python -c "import lmcache; assert lmcache.__version__ == '{{ scaleout_lmcache_version }}'" 2>/dev/null || NO_GPU_EXT=1 pip install --quiet --no-binary lmcache "lmcache=={{ scaleout_lmcache_version }}"
         exec lmcache server \
           --port {{ scaleout_lmcache_server_port }} \
           --http-port {{ scaleout_lmcache_server_http_port }} \

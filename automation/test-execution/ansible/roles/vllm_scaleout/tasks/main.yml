@@ -203,6 +203,15 @@
     dest: "{{ scaleout_config_dir }}/envoy.yaml"
     mode: "0644"
 
+- name: Debug resolved image variables before generating compose
+  ansible.builtin.debug:
+    msg:
+      - "scaleout_vllm_base_image  = {{ scaleout_vllm_base_image }}"
+      - "scaleout_vllm_image       = {{ scaleout_vllm_image }}"
+      - "scaleout_lmcache_image_tag= {{ scaleout_lmcache_image_tag }}"
+      - "scaleout_lmcache_version  = {{ scaleout_lmcache_version }}"
+      - "scaleout_lmcache_backend  = {{ scaleout_lmcache_backend }}"
+
 - name: Generate docker-compose configuration
   ansible.builtin.template:
     src: docker-compose.yml.j2
@@ -224,31 +233,162 @@
     state: present
   when: true
 
+- name: Ensure /dev/shm is large enough for LMCache POSIX SHM KV objects
+  # lmcache_driven mode wraps each vLLM instance's KV cache tensors as POSIX SHM
+  # objects so the lmcache-server can mmap them directly (ipc: host shares /dev/shm).
+  #
+  # /dev/shm must hold three things:
+  #   1. KV SHM objects  : total_ram × gpu_memory_utilization × num_instances
+  #   2. lmcache L1 pool : scaleout_lmcache_server_l1_size_gb (separate from KV SHM)
+  #   3. vLLM ring buffers: ~160 MiB per instance (multiproc broadcast queue)
+  #
+  # vLLM's shm_broadcast check uses statvfs(f_bavail) which reports
+  # min(size_limit − allocated, free_ram + swap).  Resizing the tmpfs size limit
+  # is necessary but not sufficient — the host must also have enough free physical
+  # RAM to back the allocations; otherwise statvfs still reports a low number even
+  # after remount.
+  ansible.builtin.shell: |
+    set -e
+    python3 -c "
+    import math, subprocess, sys
+
+    total_gb   = {{ ansible_facts['memtotal_mb'] | default(65536) }} / 1024
+    instances  = {{ scaleout_num_instances | int }}
+    util       = {{ scaleout_vllm_gpu_memory_utilization | float }}
+    lmcache_l1 = {{ scaleout_lmcache_server_l1_size_gb | int }}
+
+    # KV SHM objects + lmcache L1 + 0.5 GiB per-instance ring-buffer headroom
+    kv_shm     = total_gb * util * instances
+    vllm_rings = instances * 0.5
+    needed     = math.ceil((kv_shm + lmcache_l1 + vllm_rings) * 1.1)
+
+    # Validate host has enough free RAM for lmcache L1 + ring buffers before we
+    # start containers.  statvfs reports min(size_limit-allocated, free_ram+swap)
+    # so insufficient physical RAM causes the ring-buffer check to fail even when
+    # /dev/shm is sized correctly.
+    r = subprocess.run(['free', '-m'], capture_output=True, text=True, check=True)
+    free_mb = 0
+    for line in r.stdout.splitlines():
+        if line.startswith('Mem:'):
+            free_mb = int(line.split()[6])  # 'available' column
+    ring_min_mb = instances * 200           # 200 MiB per instance minimum
+    post_l1_free_mb = free_mb - lmcache_l1 * 1024
+    if post_l1_free_mb < ring_min_mb:
+        print(f'ERROR: Insufficient free RAM for LMCache+vLLM ring buffers.')
+        print(f'  Available RAM : {free_mb} MiB')
+        print(f'  After L1 pool ({lmcache_l1} GiB): {post_l1_free_mb} MiB free')
+        print(f'  vLLM ring buffers need: {ring_min_mb} MiB ({instances} × 200 MiB)')
+        print(f'  Fix: reduce scaleout_lmcache_server_l1_size_gb or use a larger host.')
+        sys.exit(1)
+
+    print(f'RAM pre-flight OK: {free_mb} MiB available, {post_l1_free_mb} MiB post-L1, need {ring_min_mb} MiB for rings')
+    print(f'/dev/shm required: {needed} GiB  (kv_shm={kv_shm:.1f} + l1={lmcache_l1} + rings={vllm_rings:.1f}) × 1.1')
+    print(needed, flush=True)
+    " > /tmp/_shm_needed_gb.txt
+    required_gb=$(tail -1 /tmp/_shm_needed_gb.txt)
+    head -n -1 /tmp/_shm_needed_gb.txt
+    rm -f /tmp/_shm_needed_gb.txt
+
+    current_kb=$(df --output=size -k /dev/shm | tail -1)
+    current_gb=$(( current_kb / 1024 / 1024 ))
+    echo "Current /dev/shm: ${current_gb} GiB  →  required: ${required_gb} GiB"
+    if [ "${current_gb}" -lt "${required_gb}" ]; then
+      echo "Resizing /dev/shm to ${required_gb}g"
+      mount -o remount,size=${required_gb}g /dev/shm
+      new_kb=$(df --output=size -k /dev/shm | tail -1)
+      new_gb=$(( new_kb / 1024 / 1024 ))
+      echo "After remount: ${new_gb} GiB"
+      if [ "${new_gb}" -lt "${required_gb}" ]; then
+        echo "ERROR: /dev/shm remount did not reach ${required_gb} GiB (got ${new_gb} GiB)."
+        echo "  The host may lack sufficient RAM+swap to back the tmpfs."
+        echo "  Reduce scaleout_lmcache_server_l1_size_gb or scaleout_vllm_gpu_memory_utilization."
+        exit 1
+      fi
+    fi
+  become: true
+  changed_when: false
+  when: scaleout_lmcache_backend == 'remote'
+
+- name: Kill any stale podman-compose processes from previous runs
+  # Run pkill in a nohup background so the SIGTERM it sends cannot reach
+  # the current SSH session's process group (which caused rc=-15 previously).
+  # Also stop and remove any leftover vllm-* containers from failed runs.
+  # MUST run BEFORE the SHM cleanup: with ipc: host the lmcache-server also
+  # holds POSIX SHM fds open; cleaning SHM while it is still running can
+  # race — the server detects the unlinked name and recreates it before the
+  # new container starts, causing shm_open(O_CREAT|O_EXCL) EEXIST failures.
+  ansible.builtin.shell: |
+    nohup bash -c '
+      sleep 1
+      pkill -f "podman-compose.*docker-compose.yml.*up" 2>/dev/null || true
+    ' >/dev/null 2>&1 &
+    disown
+    podman stop $(podman ps -q --filter name=vllm-) 2>/dev/null || true
+    podman rm   $(podman ps -aq --filter name=vllm-) 2>/dev/null || true
+    sleep 3
+  become: true
+  changed_when: false
+  ignore_errors: true
+
+- name: Clean stale shared-memory objects from previous runs
+  # All containers share the host IPC namespace (ipc: host).
+  # Crashed runs can leave stale POSIX SHM objects (/lmcache_kv_<pid>_<idx>)
+  # that cause shm_open(O_CREAT|O_EXCL) EEXIST on the next startup.
+  # Run AFTER containers are stopped so no running process can recreate the
+  # files between unlink and the new container's shm_open.
+  ansible.builtin.shell: |
+    rm -f /dev/shm/lmcache* \
+          /dev/shm/vllm* \
+          /dev/shm/__KMP_REGISTERED_LIB_* \
+          /dev/shm/sem.mp-* \
+          /dev/shm/psm_* \
+          2>/dev/null || true
+  become: true
+  changed_when: false
+  when: scaleout_lmcache_backend == 'remote'
+
+- name: Compute expected container count for readiness polling
+  ansible.builtin.set_fact:
+    scaleout_expected_container_count: "{{ scaleout_num_instances | int + (1 if scaleout_lmcache_backend == 'remote' else 0) + (1 if scaleout_routing_policy == 'intelligent' else 0) + 1 }}"
+
 - name: Deploy and validate the scale-out stack
   block:
     - name: Start vLLM scale-out deployment with docker-compose
+      # podman-compose up -d can block in some versions waiting for containers
+      # to reach "running" state before returning.  Run async/poll:0 so Ansible
+      # never waits on it; the next task polls for actual container presence.
       ansible.builtin.shell:
-        cmd: "podman-compose -f {{ scaleout_config_dir }}/docker-compose.yml up -d"
+        cmd: >-
+          podman-compose --podman-run-args=--pull=never
+          -f {{ scaleout_config_dir }}/docker-compose.yml up -d
+          > /tmp/vllm-compose-up.log 2>&1
         chdir: "{{ scaleout_config_dir }}"
       environment:
-        PATH: "/usr/local/bin:/usr/bin:/bin:{{ ansible_env.PATH }}"
-      async: 120
+        PATH: "/usr/local/bin:/usr/bin:/bin:{{ ansible_facts['env']['PATH'] }}"
+      async: "{{ scaleout_compose_up_timeout }}"
       poll: 0
       register: compose_up_job
 
-    - name: Wait for compose to finish launching containers
-      ansible.builtin.async_status:
-        jid: "{{ compose_up_job.ansible_job_id }}"
-      register: compose_up
-      retries: 12
+    - name: Wait for all expected containers to appear
+      # Count containers whose name starts with "vllm-" — this covers
+      # vllm-instance-N, vllm-lmcache-server, vllm-epp, and vllm-envoy.
+      ansible.builtin.shell: |
+        podman ps --filter "name=vllm-" --format "{{ '{{' }}.Names{{ '}}' }}" | wc -l
+      register: running_containers
+      retries: 30
       delay: 10
-      until: compose_up.finished
-      failed_when: compose_up.finished and compose_up.rc | default(1) != 0
+      changed_when: false
+      until: running_containers.stdout | int >= scaleout_expected_container_count | int
 
-    - name: Display compose output
+    - name: Display running containers
+      ansible.builtin.shell: |
+        podman ps --filter "name=vllm-" --format "table {{ '{{' }}.Names{{ '}}' }}\t{{ '{{' }}.Status{{ '}}' }}"
+      register: container_list
+      changed_when: false
+
+    - name: Show container status
       ansible.builtin.debug:
-        var: compose_up.stdout_lines
-      when: compose_up.stdout_lines is defined
+        var: container_list.stdout_lines
 
     - name: Wait for each vLLM instance to become ready
       ansible.builtin.uri:
@@ -393,6 +533,21 @@
           - "Error: {{ ansible_failed_result.msg | default('') }}"
           - "stderr: {{ ansible_failed_result.stderr_lines | default([]) }}"
 
+    - name: Show podman-compose startup log
+      ansible.builtin.shell: |
+        echo "=== /tmp/vllm-compose-up.log ==="
+        cat /tmp/vllm-compose-up.log 2>/dev/null || echo "(log not found)"
+        echo ""
+        echo "=== podman ps -a (all containers) ==="
+        podman ps -a --filter "name=vllm-" 2>/dev/null || true
+      register: _compose_log
+      changed_when: false
+      failed_when: false
+
+    - name: Display compose log
+      ansible.builtin.debug:
+        var: _compose_log.stdout_lines
+
     - name: Tear down partially deployed stack
       ansible.builtin.include_tasks: cleanup.yml
 
@@ -415,7 +570,7 @@
       - "  • vLLM instances: {{ scaleout_num_instances }} × {{ scaleout_cores_per_instance }} cores"
       - "  • Routing policy: {{ scaleout_routing_policy }}"
       - "  • {{ 'EPP scoring: prefix-cache×' + scaleout_epp_prefix_cache_weight|string + ' queue×' + scaleout_epp_queue_weight|string + ' kv-cache×' + scaleout_epp_kv_cache_weight|string if scaleout_routing_policy == 'intelligent' else 'EPP: not started (round_robin mode)' }}"
-      - "  • Prefix caching: {{ 'Disabled (LMCache owns caching — LMCacheMPConnector + lmcache_driven)' if scaleout_lmcache_backend == 'remote' else scaleout_enable_prefix_caching | ternary('Enabled', 'Disabled') }}"
+      - "  • Prefix caching: {{ 'Disabled (LMCache owns caching — LMCacheMPConnector + engine_driven)' if scaleout_lmcache_backend == 'remote' else scaleout_enable_prefix_caching | ternary('Enabled', 'Disabled') }}"
       - "  • LMCache: {{ 'remote — L1 pool ' + scaleout_lmcache_server_l1_size_gb | string + ' GB on :' + scaleout_lmcache_server_port | string + (' + 1 GB hugepages × ' + scaleout_lmcache_hugepages_1g_count | string + ' + THP=always' if scaleout_lmcache_hugepages_enabled else '') if scaleout_lmcache_backend == 'remote' else 'disabled' }}"
       - "  • End-to-end smoke request through routing path: {{ 'skipped (transcription models)' if scaleout_vllm_task | default('') == 'transcription' else 'passed' }}"
       - ""

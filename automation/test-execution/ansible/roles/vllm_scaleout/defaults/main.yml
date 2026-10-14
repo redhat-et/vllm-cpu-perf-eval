@@ -23,7 +23,7 @@ scaleout_vllm_base_port: 8000
 # scaleout_vllm_base_image — upstream image pulled from the registry.  This
 # variable is NEVER overwritten by role tasks; it is always the upstream source.
 # Override to upgrade the vLLM version.
-scaleout_vllm_base_image: "docker.io/vllm/vllm-openai-cpu:v0.25.1"
+scaleout_vllm_base_image: "docker.io/vllm/vllm-openai-cpu:v0.31.0"
 # scaleout_vllm_image — the image actually used in the compose stack.  Starts
 # equal to scaleout_vllm_base_image but the LMCache build task overrides it to
 # the pre-built lmcache image (scaleout_lmcache_image_tag) when building.
@@ -71,6 +71,11 @@ scaleout_hf_token: "{{ hf_token | default(lookup('env', 'HF_TOKEN'), true) }}"
 scaleout_health_check_retries: 240
 scaleout_health_check_delay: 10
 
+# Timeout (seconds) for `podman-compose up -d` to return.
+# Starting N containers sequentially can take well over 2 minutes on a loaded host.
+# Increase if you see "Timed out after 120 second(s)" from the compose-up task.
+scaleout_compose_up_timeout: 600
+
 # Directories
 scaleout_config_dir: "/tmp/vllm-scaleout"
 scaleout_model_cache_dir: "{{ model_cache_dir | default('/var/lib/vllm-models') }}"
@@ -114,15 +119,16 @@ scaleout_vllm_extra_args: []
 # This avoids the pip-install startup delay and pins the lmcache version.
 scaleout_lmcache_build_image: true
 # Tag for the built image.  Defaults to vllm-cpu-lmcache:<base-image-tag>.
-scaleout_lmcache_image_tag: "vllm-cpu-lmcache:{{ scaleout_vllm_base_image | regex_replace('^.*:', '') }}"
+scaleout_lmcache_image_tag: "localhost/vllm-cpu-lmcache:{{ scaleout_vllm_base_image | regex_replace('^.*:', '') }}-lmcache{{ scaleout_lmcache_version }}"
 # lmcache PyPI version to bake into the image.
-scaleout_lmcache_version: "0.3.9"
+scaleout_lmcache_version: "0.5.5"
 
 # LMCache cross-instance KV sharing
 #
-# Uses LMCacheMPConnector with lmcache_driven transfer mode: vLLM instances
-# access shared KV blocks via POSIX shared-memory handles — zero-copy on a
-# single host, ~RAM bandwidth rather than a TCP memcpy.
+# Uses LMCacheMPConnector in lmcache_driven mode: the lmcache-server mmap-maps the
+# worker's KV cache tensors via POSIX SHM (/lmcache_kv_<pid>_<idx>), so all vLLM
+# instance containers and the lmcache-server container must share the host IPC
+# namespace (ipc: host in the compose stack).
 #
 # Requires the external `lmcache` PyPI package.  If it is absent from the
 # vLLM image the role installs it at container start-up via pip.

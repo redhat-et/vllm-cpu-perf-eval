@@ -837,9 +837,60 @@ Common errors surfaced this way:
 | Error | Cause | Fix |
 |-------|-------|-----|
 | `shm_open ENOENT` | Containers in separate IPC namespaces | Ensure `ipc: host` on all LMCache services |
+| `FileExistsError: File exists: '/lmcache_kv_N_0'` | Stale SHM from prior crash; container PID reuse | `rm -f /dev/shm/lmcache_kv_* /dev/shm/__KMP_REGISTERED_LIB_*` before restarting |
 | `Input should be 'recompute' or 'fail'` | Invalid `kv_load_failure_policy` value | Only `recompute` or `fail` are valid — not `ignore` |
 | `Import error: LMCacheMPConnector` | lmcache not installed in image | Run with `scaleout_lmcache_build_image=true` (default) |
 | Worker killed with no traceback | `/dev/shm` too small for KV cache wrapping | Resize host `/dev/shm` (see above) |
+
+### Stale POSIX SHM Objects Between Test Runs
+
+LMCache names each KV-cache SHM object after the vLLM worker PID:
+`/dev/shm/lmcache_kv_<pid>_<index>`.  With `ipc: host` these objects live in the
+**host's** `/dev/shm` and **persist after a container crash**.  On the next start,
+if the container reuses the same PID (common in isolated PID namespaces), `shm_open`
+fails with:
+
+```
+FileExistsError: [Errno 17] File exists: '/lmcache_kv_189_0'
+```
+
+In addition to `lmcache_kv_*` objects, crashed vLLM workers leave behind:
+
+| SHM pattern | Left by |
+|---|---|
+| `/dev/shm/lmcache_kv_*` | LMCache KV backing store (one per instance) |
+| `/dev/shm/__KMP_REGISTERED_LIB_*` | OpenMP runtime registration (one per worker PID) |
+| `/dev/shm/sem.mp-*` | Python multiprocessing semaphores (ring buffer, ZMQ) |
+| `/dev/shm/psm_*` | PSM/InfiniBand shared state |
+
+**The Ansible playbook handles this automatically**: `tasks/main.yml` stops and
+removes all running containers first, then cleans the SHM namespace.  The order
+matters — stopping containers before unlinking SHM prevents a subtle race where
+the lmcache-server (still alive, still holding an mmap fd to the SHM) detects the
+unlinked name and recreates the file before the new container starts, which causes
+the same EEXIST failure.
+
+If you manually restart containers without going through the playbook, follow the
+same order:
+
+```bash
+# 1. Stop containers FIRST (so no running process can recreate SHM files)
+sudo podman stop $(sudo podman ps -q --filter name=vllm-) 2>/dev/null || true
+sudo podman rm   $(sudo podman ps -aq --filter name=vllm-) 2>/dev/null || true
+
+# 2. Then wipe all stale SHM objects
+sudo rm -f /dev/shm/lmcache_kv_* \
+           /dev/shm/__KMP_REGISTERED_LIB_* \
+           /dev/shm/sem.mp-* \
+           /dev/shm/psm_*
+
+# Confirm only system objects remain (libpod_lock, envoy_shared_memory_0)
+ls /dev/shm/
+```
+
+The `restart: "no"` policy set by the role (when `scaleout_lmcache_backend=remote`)
+prevents containers from auto-restarting after a crash and accumulating stale SHM
+objects that cause every subsequent start to fail immediately.
 
 ### Health Check Timeout on First Run (LMCache)
 
