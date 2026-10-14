@@ -2,34 +2,32 @@
 # Cleanup tasks for vLLM scale-out deployment (llm-d: EPP + Envoy)
 # This can be imported by other playbooks
 
-- name: Stop Envoy container
-  containers.podman.podman_container:
-    name: vllm-envoy
-    state: absent
-  ignore_errors: true
-  when: true
+- name: Stop and remove all scale-out containers
+  ansible.builtin.shell: |
+    for name in \
+      vllm-lmcache-server \
+      vllm-epp \
+      vllm-envoy \
+      {% for i in range(1, scaleout_num_instances | int + 1) %}vllm-instance-{{ i }} {% endfor %}; do
+      podman rm -f "$name" 2>/dev/null || true
+    done
+  become: true
+  changed_when: true
 
-- name: Stop EPP container
-  containers.podman.podman_container:
-    name: vllm-epp
-    state: absent
-  ignore_errors: true
-  when: true
-
-- name: Stop all vLLM containers
-  containers.podman.podman_container:
-    name: "vllm-instance-{{ item }}"
-    state: absent
-  loop: "{{ range(1, scaleout_num_instances | int + 1) | list }}"
-  ignore_errors: true
-  when: true
-
-- name: Stop LMCache server container
-  containers.podman.podman_container:
-    name: vllm-lmcache-server
-    state: absent
-  ignore_errors: true
-  when: true
+- name: Clean stale shared-memory objects left by containers
+  ansible.builtin.shell: |
+    # lmcache_kv_<pid>_<idx>  — LMCache POSIX SHM KV backing (ipc: host, survives crashes)
+    # __KMP_REGISTERED_LIB_*  — OpenMP runtime registration files (one per vLLM worker PID)
+    # sem.mp-*                — Python multiprocessing semaphores (ring-buffer, zmq, etc.)
+    # psm_*                   — PSM/InfiniBand shared state (created even on non-IB hosts)
+    rm -f /dev/shm/lmcache* \
+          /dev/shm/vllm* \
+          /dev/shm/__KMP_REGISTERED_LIB_* \
+          /dev/shm/sem.mp-* \
+          /dev/shm/psm_* \
+          2>/dev/null || true
+  become: true
+  changed_when: false
 
 - name: Display cleanup completion
   ansible.builtin.debug:

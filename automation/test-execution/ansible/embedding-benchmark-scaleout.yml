@@ -213,7 +213,7 @@
         _meta_extra:
           deployment_type: "scaleout"
           platform: "{{ hostvars[groups['dut'][0]]['dut_platform_name'] | default(hostvars['localhost']['dut_platform_name'] | default('unknown')) }}"
-          vllm_container_image: "{{ scaleout_vllm_image | default('unknown') }}"
+          vllm_container_image: "{{ scaleout_lmcache_image_tag if scaleout_lmcache_backend | default('none') == 'remote' else scaleout_vllm_image | default('unknown') }}"
           vllm_caching_mode: "{{ 'lmcache' if scaleout_lmcache_backend | default('none') == 'remote' else ('production' if scaleout_enable_prefix_caching | default(true) | bool else 'baseline') }}"
           test_duration_seconds: "{{ lookup('pipe', 'date +%s') | int - hostvars['localhost']['scaleout_benchmark_start_epoch'] | int }}"
           num_instances: "{{ scaleout_num_instances | default(5) | int }}"

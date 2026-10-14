@@ -17,8 +17,11 @@ FROM ${VLLM_CPU_IMAGE}
 
 # Pin lmcache to a version known to work with this vLLM release.
 # LMCacheMPConnector (lmcache_driven mode) requires lmcache >= 0.3.9.
-ARG LMCACHE_VERSION=0.3.9
-RUN pip install --no-cache-dir "lmcache>=${LMCACHE_VERSION}"
+ARG LMCACHE_VERSION=0.5.5
+# NO_GPU_EXT=1 skips CUDA/GPU vendor extensions (cupy, nixl, CUDA IPC handles).
+# --no-binary forces a source build so the env var is respected; pre-built wheels
+# already contain compiled GPU extensions that NO_GPU_EXT cannot strip out.
+RUN NO_GPU_EXT=1 pip install --no-cache-dir --no-binary lmcache "lmcache==${LMCACHE_VERSION}"
 
 # Smoke-test: import must succeed
 RUN python -c "import lmcache; from lmcache.integration.vllm.lmcache_mp_connector import LMCacheMPConnector; print('lmcache OK:', lmcache.__version__)"

@@ -53,22 +53,16 @@
     # See defaults in roles/vllm_scaleout/defaults/main.yml
 
   pre_tasks:
-    - name: Check if podman-compose is installed
-      ansible.builtin.command: which podman-compose
-      register: podman_compose_check
-      changed_when: false
-      failed_when: false
-
     - name: Ensure python3-pip is installed
       ansible.builtin.package:
         name: python3-pip
         state: present
-      when: podman_compose_check.rc != 0
 
-    - name: Install podman-compose via pip3
-      ansible.builtin.command: pip3 install podman-compose
-      changed_when: true
-      when: podman_compose_check.rc != 0
+    - name: Install or upgrade podman-compose to >= 1.2.0 (required for pull_policy support)
+      # pull_policy: never was added in podman-compose 1.0.4.  Older versions ignore it
+      # and attempt to pull every image on `up`, which hangs on restricted networks.
+      ansible.builtin.command: pip3 install "podman-compose>=1.2.0"
+      changed_when: false
 
     - name: Validate configuration
       ansible.builtin.assert:

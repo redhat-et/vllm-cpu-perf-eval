@@ -89,11 +89,20 @@ scaleout_epp_metrics_port: 9090
 # Container Images
 # ============================================================================
 
-# vLLM container image (CPU-optimised build)
+# vLLM base container image (CPU-optimised build).
+# This is the upstream image used for non-LMCache deployments and as the base
+# for building the vllm-cpu-lmcache image.  When scaleout_lmcache_backend=remote
+# the role overrides this automatically with the built lmcache image — do NOT
+# set scaleout_vllm_image directly in that case.
 # Options:
-#   - docker.io/vllm/vllm-openai-cpu:v0.25.1    (official vLLM CPU)
+#   - docker.io/vllm/vllm-openai-cpu:v0.31.0    (official vLLM CPU)
 #   - quay.io/vllm/automation-vllm:cpu-<tag>     (Red Hat AI optimized)
-scaleout_vllm_image: "docker.io/vllm/vllm-openai-cpu:v0.25.1"
+scaleout_vllm_base_image: "docker.io/vllm/vllm-openai-cpu:v0.31.0"
+
+# LMCache version baked into the vllm-cpu-lmcache image (must match what was built).
+# Also fixes the image tag formula so it always has the localhost/ registry prefix.
+scaleout_lmcache_version: "0.5.5"
+scaleout_lmcache_image_tag: "localhost/vllm-cpu-lmcache:{{ scaleout_vllm_base_image | regex_replace('^.*:', '') }}-lmcache{{ scaleout_lmcache_version }}"
 
 # llm-d Endpoint Picker image
 # Pinned to a release tag for reproducible benchmarks — override to upgrade

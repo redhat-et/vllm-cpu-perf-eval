@@ -27,7 +27,7 @@
         cmd: "podman-compose -f {{ scaleout_config_dir }}/docker-compose.yml down"
         chdir: "{{ scaleout_config_dir }}"
       environment:
-        PATH: "/usr/local/bin:/usr/bin:/bin:{{ ansible_env.PATH }}"
+        PATH: "/usr/local/bin:/usr/bin:/bin:{{ ansible_facts['env']['PATH'] }}"
       when: compose_file.stat.exists
       register: compose_down
       ignore_errors: true
@@ -39,18 +39,25 @@
 
     # Fallback: forcibly remove any containers that podman-compose may have missed
     # (runs regardless of whether compose_file existed, harmless if already gone)
+    - name: Force-remove LMCache server container
+      containers.podman.podman_container:
+        name: vllm-lmcache-server
+        state: absent
+        force_delete: true
+      ignore_errors: true
+
     - name: Force-remove Envoy container
       containers.podman.podman_container:
         name: vllm-envoy
         state: absent
-        force: true
+        force_delete: true
       ignore_errors: true
 
     - name: Force-remove EPP container
       containers.podman.podman_container:
         name: vllm-epp
         state: absent
-        force: true
+        force_delete: true
       ignore_errors: true
 
     # Discover the actual instance containers so runs with more instances
@@ -65,7 +72,7 @@
       containers.podman.podman_container:
         name: "{{ item }}"
         state: absent
-        force: true
+        force_delete: true
       loop: "{{ discovered_instance_containers.stdout_lines | default([]) }}"
       when: discovered_instance_containers.stdout_lines | default([]) | length > 0
       ignore_errors: true
@@ -76,7 +83,7 @@
       containers.podman.podman_container:
         name: "vllm-instance-{{ item }}"
         state: absent
-        force: true
+        force_delete: true
       loop: "{{ range(1, (scaleout_num_instances | default(5)) | int + 1) | list }}"
       when: discovered_instance_containers.stdout_lines | default([]) | length == 0
       ignore_errors: true
@@ -99,7 +106,7 @@
       ansible.builtin.shell:
         cmd: >
           podman ps -a --format '{{ '{{' }}.Names{{ '}}' }}'
-          | grep -E '^vllm-(instance|epp|envoy)' || true
+          | grep -E '^vllm-(instance|epp|envoy|lmcache)' || true
       register: remaining_containers
       changed_when: false
 
