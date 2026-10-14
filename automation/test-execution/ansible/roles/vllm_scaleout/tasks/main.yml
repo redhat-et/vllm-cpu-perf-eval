@@ -336,6 +336,8 @@
   # that cause shm_open(O_CREAT|O_EXCL) EEXIST on the next startup.
   # Run AFTER containers are stopped so no running process can recreate the
   # files between unlink and the new container's shm_open.
+  # Always run unconditionally: a previous LMCache run may have left stale
+  # objects even if the current deployment mode is 'none'.
   ansible.builtin.shell: |
     rm -f /dev/shm/lmcache* \
           /dev/shm/vllm* \
@@ -345,7 +347,6 @@
           2>/dev/null || true
   become: true
   changed_when: false
-  when: scaleout_lmcache_backend == 'remote'
 
 - name: Compute expected container count for readiness polling
   ansible.builtin.set_fact:
