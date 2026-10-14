@@ -49,9 +49,18 @@ services:
     security_opt:
       - seccomp=unconfined
 {% if scaleout_lmcache_backend == 'remote' %}
-    # Share the host IPC namespace so POSIX SHM objects created by the vLLM worker
-    # (/lmcache_kv_<pid>_<idx>) are visible to the lmcache-server container.
+    # ipc: host — share the host IPC namespace so POSIX SHM objects are visible
+    # across all containers (required for lmcache_driven zero-copy KV transfer).
+    # pid: host — share the host PID namespace so every process across all
+    # containers gets a unique host-level PID.  Without this, each container's
+    # independent PID namespace recycles the same low PIDs, so two vLLM workers
+    # in different containers both land on PID 265 and collide on
+    # shm_open("/lmcache_kv_265_0", O_CREAT|O_EXCL) — the second one gets EEXIST.
+    # The first run appeared to work because pip install spawned enough extra
+    # processes to push the two workers to different PIDs; once lmcache is cached
+    # the pip check exits instantly and both workers get identical PID sequences.
     ipc: host
+    pid: host
 {% endif %}
     environment:
       - HF_HUB_OFFLINE=0
@@ -182,6 +191,7 @@ services:
     container_name: vllm-lmcache-server
     network_mode: host
     ipc: host
+    pid: host
     volumes:
       - /dev/shm:/dev/shm
 {% if scaleout_lmcache_hugepages_enabled %}
