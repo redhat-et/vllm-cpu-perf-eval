@@ -195,9 +195,9 @@ follows:
 | IETF Test | Phase | Profile | Workload |
 |-----------|-------|---------|----------|
 | Baseline Latency | Phase 1 | `synchronous` | Any fixed-token workload |
-| Fixed-Concurrency Scaling | Phase 1 | `concurrent` | chat, rag, code, summarization |
+| Fixed-Concurrency Scaling | Phase 1 | `concurrent` | chat, summarization, reasoning, batch\_generation |
 | Throughput Saturation | Phase 1 | `throughput` or `sweep` | Any fixed-token workload |
-| Variable Token Distribution | Phase 2 | `concurrent` | chat\_var, code\_var, summarization\_var |
+| Variable Token Distribution | Phase 2 | `concurrent` | chat\_var, summarization\_var |
 | Open-Loop Poisson | Phase 1/2 | `poisson` | Any workload |
 | Constant-Rate | Phase 1/2 | `constant` | Any workload |
 | Prefix Caching Impact | Phase 3 | `concurrent` | Variable workloads with caching |

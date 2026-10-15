@@ -67,7 +67,7 @@ The `sut_boundary` field in `test-metadata.json` records this as
 | Open-Loop Poisson | Implemented | `poisson` profile (added to validation allowlist) |
 | Constant-Rate | Implemented | `constant` profile (added to validation allowlist) |
 | Long Context Scaling | Implemented | `context_scaling_1k/4k/8k` workloads |
-| Variable Token Distribution | Implemented | Phase 2 realistic tests (`chat_var`, `code_var`, `summarization_var`) |
+| Variable Token Distribution | Implemented | Phase 2 realistic tests (`chat_var`, `summarization_var`) |
 | Prefix Caching Impact | Implemented | Phase 3 production tests with `--enable-prefix-caching` |
 | Scheduling Fairness | Not implemented | Requires per-request scheduling delay instrumentation |
 | Memory Pressure | Not implemented | Requires memory-limited test configurations |

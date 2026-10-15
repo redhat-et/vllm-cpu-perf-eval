@@ -118,7 +118,7 @@ Files uploaded with each run:
 For filtering and organization:
 - `model_family`: e.g., "meta-llama", "Qwen"
 - `model_name`: e.g., "Llama-3.1-8B-Instruct"
-- `workload_type`: chat, summarization, code, rag
+- `workload_type`: chat, summarization, reasoning, batch_generation
 - `vllm_mode`: managed or external
 - `platform`: CPU platform name
 - `test_name`: Custom test identifier
@@ -486,8 +486,8 @@ Experiments are automatically organized hierarchically:
 
 | Experiment | Workloads |
 | --- | --- |
-| `meta-llama_Llama-3.1-8B-Instruct` | `chat`, `summarization`, `code` |
-| `Qwen_Qwen2.5-7B-Instruct` | `chat`, `chat_lite` |
+| `meta-llama_Llama-3.1-8B-Instruct` | `chat`, `summarization`, `reasoning` |
+| `Qwen_Qwen2.5-7B-Instruct` | `chat`, `summarization` |
 | `RedHatAI_Meta-Llama-3.1-8B-Instruct-quantized.w8a8` | `chat`, `summarization` |
 
 Path pattern: `LLM-Benchmarks/<model>/<workload>/`

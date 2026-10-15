@@ -240,7 +240,7 @@ Tensor parallelism splits model layers across multiple NUMA nodes to improve per
 # Test with TP=2 on 32 cores (auto-distributes across 2 NUMA nodes)
 ansible-playbook llm-benchmark-auto.yml \
   -e "test_model=meta-llama/Llama-3.2-3B-Instruct" \
-  -e "workload_type=rag" \
+  -e "workload_type=summarization" \
   -e "requested_cores=32" \
   -e "requested_tensor_parallel=2"
 
@@ -254,7 +254,7 @@ ansible-playbook llm-benchmark-concurrent-load.yml \
 # TP=4 for very large models on 4-socket systems
 ansible-playbook llm-benchmark-auto.yml \
   -e "test_model=meta-llama/Llama-3.2-3B-Instruct" \
-  -e "workload_type=rag" \
+  -e "workload_type=reasoning" \
   -e "requested_cores=64" \
   -e "requested_tensor_parallel=4"
 ```
@@ -402,20 +402,19 @@ Example path: `results/llm/meta-llama__Llama-3.2-1B-Instruct/20240428-120000/`
 
 ### Baseline Workloads (Fixed Tokens)
 
-| Workload | Input Tokens | Output Tokens | Use Case |
-|----------|--------------|---------------|----------|
-| `chat` | 1024 | 256 | Conversational AI |
-| `code` | 1024 | 512 | Code generation |
-| `summarization` | 2048 | 256 | Document summarization |
-| `rag` | 2048 | 512 | RAG applications |
+| Workload | ISL | OSL | Use Case |
+|----------|-----|-----|----------|
+| `chat` | 512 | 512 | Balanced conversational |
+| `summarization` | 2048 | 256 | Prefill-heavy (document summarization) |
+| `reasoning` | 256 | 2048 | Decode-heavy (chain-of-thought) |
+| `batch_generation` | 512 | 4096 | Sustained bulk decode |
 
 ### Variable Workloads (Realistic Traffic)
 
-| Workload | Token Range | Use Case |
-|----------|-------------|----------|
-| `chat_var` | ISL: 256-2048, OSL: 64-512 | Production chat |
-| `code_var` | ISL: 512-2048, OSL: 128-1024 | Production code gen |
-| `summarization_var` | ISL: 1024-4096, OSL: 64-512 | Production summarization |
+| Workload | ISL range | OSL range | Use Case |
+|----------|-----------|-----------|----------|
+| `chat_var` | 128–1024 | 256–1024 | Realistic chat traffic |
+| `summarization_var` | 512–2048 | 128–512 | Realistic summarization traffic |
 
 ## Troubleshooting
 

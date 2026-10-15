@@ -166,7 +166,7 @@ pydantic_core._pydantic_core.ValidationError: 1 validation error for VllmConfig
 
 **Impact:**
 - ❌ Model fails during initialization before any workload can run
-- ❌ Affects all workloads (chat, code, summarization, rag)
+- ❌ Affects all workloads (chat, summarization, reasoning, batch_generation)
 - ❌ Cannot be worked around with configuration changes
 
 **Workaround:**
@@ -321,8 +321,8 @@ On **2-socket systems**, vLLM and GuideLLM will share the same NUMA node by defa
 ### Test Specific Workloads
 
 ```bash
-# Chat and RAG only
-./run-rhaiis-concurrent-load.sh --workloads chat,rag --cores 16
+# Chat and summarization only
+./run-rhaiis-concurrent-load.sh --workloads chat,summarization --cores 16
 
 # Single model, single workload
 ./run-rhaiis-concurrent-load.sh \
@@ -417,11 +417,11 @@ ansible-playbook -i inventory/hosts.yml \
   -e "skip_phase_2=true" \
   -e "skip_phase_3=true"
 
-# Run with RAG workload (uses max-model-len=8192)
+# Run with batch_generation workload (uses max-model-len=8192)
 ansible-playbook -i inventory/hosts.yml \
   llm-benchmark-concurrent-load.yml \
   -e "test_model=RedHatAI/Qwen3-8B-quantized.w4a16" \
-  -e "base_workload=rag" \
+  -e "base_workload=batch_generation" \
   -e "requested_cores=32" \
   -e "vllm_cpu_start=64" \
   -e "vllm_numa_node=1" \
@@ -502,7 +502,7 @@ cd ../../automation/test-execution/scripts/bash
 ./run-rhaiis-concurrent-load.sh \
   --models all \
   --cores 8,16,32 \
-  --workloads chat,code,summarization,rag \
+  --workloads chat,summarization,reasoning,batch_generation \
   --phase 1 \
   --continue-on-error
 ```
@@ -620,7 +620,7 @@ This will continue testing remaining models even if one fails.
 |--------|-------------|---------|
 | `--models` | Comma-separated models or preset (all\|llama\|qwen\|tiny) | all |
 | `--cores` | Comma-separated core counts | 8,16,32 |
-| `--workloads` | Comma-separated workloads | chat,code,summarization,rag |
+| `--workloads` | Comma-separated workloads | chat,summarization,reasoning,batch_generation |
 | `--phase` | Test phase (1\|2\|3\|all) | 1 |
 | `--skip-models` | Models to skip | - |
 | `--continue-on-error` | Continue if a test fails | false |

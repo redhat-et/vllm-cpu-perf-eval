@@ -520,11 +520,10 @@ ansible-playbook -i inventory/hosts.yml embedding-benchmark.yml \
 
 | Workload | Input:Output | Use Case | Example |
 |----------|--------------|----------|---------|
-| `chat` | 512:512 | Interactive chat | Customer support bot |
-| `rag` | 8192:512 | Long context RAG | Document Q&A |
-| `code` | 1024:1024 | Code generation | GitHub Copilot-style |
-| `summarization` | 2048:256 | Summarization | Article summaries |
-| `reasoning` | 256:2048 | Long reasoning | Complex analysis |
+| `chat` | 512:512 | Balanced conversational | Customer support bot |
+| `summarization` | 2048:256 | Prefill-heavy (document summarization) | Article summaries |
+| `reasoning` | 256:2048 | Decode-heavy (chain-of-thought) | Complex analysis |
+| `batch_generation` | 512:4096 | Sustained bulk decode | Synthetic data generation |
 
 See [Model Catalog](../models/models) for all supported models.
 
@@ -535,7 +534,7 @@ See [Model Catalog](../models/models) for all supported models.
 | Parameter | Description | Example |
 |-----------|-------------|---------|
 | `test_model` | Model to test | `meta-llama/Llama-3.2-1B-Instruct` |
-| `workload_type` | Workload pattern | `chat`, `rag`, `code`, `summarization` |
+| `workload_type` | Workload pattern | `chat`, `summarization`, `reasoning`, `batch_generation` |
 | `requested_cores` | CPU cores to use | `16`, `32`, `64` |
 | `vllm_caching_mode` | Caching mode | `baseline` (off), `production` (on) |
 
