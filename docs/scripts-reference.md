@@ -258,7 +258,7 @@ cd automation/test-execution/scripts
 # Test specific models with specific workloads
 ./bash/run-rhaiis-concurrent-load.sh \
   --models "RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w4a16" \
-  --workloads "chat,rag" \
+  --workloads "chat,summarization" \
   --cores "16,32"
 
 # Quick test on 8 cores
@@ -278,7 +278,7 @@ cd automation/test-execution/scripts
 ./bash/run-rhaiis-concurrent-load.sh \
   --models qwen \
   --cores 32 \
-  --workloads "rag,summarization" \
+  --workloads "summarization,reasoning" \
   --tensor-parallel 2
 ```
 
@@ -289,15 +289,15 @@ cd automation/test-execution/scripts
 - `tiny` - TinyLlama pruned model
 
 **Supported Workloads:**
-- `chat` - 512:512 tokens (interactive conversations)
-- `code` - 1024:1024 tokens (code generation)
-- `summarization` - 2048:256 tokens (document summarization)
-- `rag` - 8192:512 tokens (retrieval-augmented generation)
+- `chat` - 512:512 tokens (balanced conversational)
+- `summarization` - 2048:256 tokens (prefill-heavy, document summarization)
+- `reasoning` - 256:2048 tokens (decode-heavy, chain-of-thought)
+- `batch_generation` - 512:4096 tokens (sustained bulk decode)
 
 **Key Options:**
 - `--models LIST` - Comma-separated models or preset (all|llama|qwen|tiny)
 - `--cores LIST` - Comma-separated core counts (default: 8,16,32)
-- `--workloads LIST` - Comma-separated workloads (default: chat,code,summarization,rag)
+- `--workloads LIST` - Comma-separated workloads (default: chat,summarization,reasoning,batch_generation)
 - `--phase PHASE` - Test phase (1|2|3|all, default: 1)
 - `--tensor-parallel NUM` - Tensor parallelism (1|2|4|8, auto-calculated by default)
 - `--vllm-cpu-start NUM` - Starting CPU for vLLM (socket separation)

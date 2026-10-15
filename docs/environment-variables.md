@@ -11,7 +11,7 @@ Complete reference for environment variables used in vLLM CPU Performance Evalua
 | `TEST_MODEL` | Override test model | None | `meta-llama/Llama-3.2-1B-Instruct` |
 | `REQUESTED_CORES` | Override core count | Varies by script | `16` |
 | `VLLM_MODE` | vLLM operational mode | `managed` | `managed`, `external` |
-| `WORKLOAD_TYPE` | Test workload type | Varies | `chat`, `rag`, `code` |
+| `WORKLOAD_TYPE` | Test workload type | Varies | `chat`, `summarization`, `reasoning`, `batch_generation` |
 
 ### MTEB Quality Testing
 
@@ -96,7 +96,7 @@ the vLLM server image (e.g. RHAIIS).
 |----------|-------------|---------|
 | `MODELS_INPUT` | Model preset or list | `all`, `llama`, `qwen`, `tiny` |
 | `CORES_INPUT` | Core counts | `8,16,32` |
-| `WORKLOADS_INPUT` | Workload types | `chat,rag` |
+| `WORKLOADS_INPUT` | Workload types | `chat,summarization` |
 | `TENSOR_PARALLEL` | Tensor parallelism value | `2`, `4`, `8` |
 | `SKIP_MODELS_INPUT` | Models to skip | `RedHatAI/TinyLlama-1.1B-Chat-v1.0-pruned2.4` |
 

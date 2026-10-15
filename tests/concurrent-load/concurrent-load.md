@@ -470,7 +470,7 @@ cd ../../automation/test-execution/ansible
 export HF_TOKEN=hf_xxxxx
 
 # Llama-3.2-1B - All workloads
-for workload in chat rag code summarization; do
+for workload in chat summarization reasoning batch_generation; do
   ansible-playbook -i inventory/hosts.yml \
     llm-benchmark-concurrent-load.yml \
     -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
@@ -478,8 +478,8 @@ for workload in chat rag code summarization; do
     -e "core_sweep_counts=[16,32,64]"
 done
 
-# Qwen3-0.6B - Chat and Code workloads
-for workload in chat code; do
+# Qwen3-0.6B - Chat and Summarization workloads
+for workload in chat summarization; do
   ansible-playbook -i inventory/hosts.yml \
     llm-benchmark-concurrent-load.yml \
     -e "test_model=Qwen/Qwen3-0.6B" \
@@ -487,8 +487,8 @@ for workload in chat code; do
     -e "core_sweep_counts=[16,32,64]"
 done
 
-# granite-3.2-2b - All workloads
-for workload in chat rag code; do
+# granite-3.2-2b - Supported workloads (context_length=4096: no batch_generation)
+for workload in chat summarization reasoning; do
   ansible-playbook -i inventory/hosts.yml \
     llm-benchmark-concurrent-load.yml \
     -e "test_model=ibm-granite/granite-3.2-2b-instruct" \
@@ -497,7 +497,7 @@ for workload in chat rag code; do
 done
 
 # gpt-oss-20b (MoE) - All workloads
-for workload in chat rag code; do
+for workload in chat summarization reasoning batch_generation; do
   ansible-playbook -i inventory/hosts.yml \
     llm-benchmark-concurrent-load.yml \
     -e "test_model=gpt-oss-20b" \

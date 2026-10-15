@@ -237,12 +237,12 @@ workloads:
       - "--no-enable-prefix-caching"    # For baseline testing
     kv_cache_space: "16GiB"
 
-  rag:
+  batch_generation:
     vllm_args:
       - "--dtype=bfloat16"
       - "--max-model-len=8192"
       - "--no-enable-prefix-caching"
-    kv_cache_space: "32GiB"
+    kv_cache_space: "40GiB"
 ```
 
 ---
