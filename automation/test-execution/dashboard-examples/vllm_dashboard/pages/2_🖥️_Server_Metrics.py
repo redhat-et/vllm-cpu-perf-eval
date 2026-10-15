@@ -103,33 +103,26 @@ with st.sidebar.expander("📋 Workload Reference", expanded=False):
 
 @st.cache_data(ttl=30)
 def load_scaleout_runs(base_dir: str) -> List[Dict]:
-    """Find scale-out run directories that have per-instance metrics files."""
+    """Find scale-out run directories (see scaleout_data.find_scaleout_runs)."""
+    from scaleout_data import find_scaleout_runs
+
     runs: List[Dict] = []
-    base = Path(base_dir)
-    if not base.exists():
-        return runs
-    for meta_file in base.rglob("test-metadata.json"):
-        run_dir = meta_file.parent
-        instance_files = sorted(run_dir.glob("vllm-metrics-instance-*.json"))
-        if not instance_files:
-            continue
-        try:
-            meta = json.loads(meta_file.read_text())
-        except Exception:
-            meta = {}
-        if meta.get("deployment_type") != "scaleout":
-            continue
+    for r in find_scaleout_runs(base_dir):
+        run_dir = Path(r["path"])
+        meta = r.get("meta") or {}
+        instance_files = r.get("instance_files") or []
         runs.append({
             "path": str(run_dir),
             "meta": meta,
             "instance_files": [str(f) for f in instance_files],
             "has_epp": (run_dir / "epp-metrics.json").exists(),
-            "label": (
+            "has_container_stats": (run_dir / "container-stats-scaleout.jsonl").exists(),
+            "label": r.get("label")
+            or (
                 f"{run_dir.name} "
                 f"({meta.get('num_instances', '?')}× "
                 f"{meta.get('routing_policy', '?')})"
             ),
-            # fields mirroring the single-instance result dict for filter reuse
             "test_run_id": meta.get("test_run_id", run_dir.name),
             "model": meta.get("model", "unknown"),
             "platform": meta.get("platform", "unknown"),
@@ -285,6 +278,10 @@ if test_mode == 'scaleout':
     )
     st.markdown(
         f"**EPP metrics:** {'✅ present' if run['has_epp'] else '❌ not collected'}"
+    )
+    st.markdown(
+        f"**Container stats:** "
+        f"{'✅ present' if run.get('has_container_stats') else '❌ not collected'}"
     )
 
     if meta.get("epp_scorer_weights"):

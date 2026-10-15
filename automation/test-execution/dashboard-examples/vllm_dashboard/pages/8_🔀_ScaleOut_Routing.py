@@ -8,6 +8,8 @@ Expected layout (one directory per benchmark run):
     vllm-metrics-instance-N.json
     epp-metrics.json                 — EPP routing metrics (optional)
     benchmarks.json                  — guidellm client-side results (optional)
+    container-stats-scaleout.jsonl   — podman CPU/memory per container (optional)
+    latency/ / operating_point/      — embedding bench JSON (optional)
 
 Compares per-backend load, prefix-cache hit rates, supports side-by-side
 comparison of intelligent (EPP) vs round_robin routing runs with quantitative
@@ -24,6 +26,12 @@ from pathlib import Path
 from typing import Dict, List, Optional
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from config_manager import DashboardConfig  # noqa: E402
+from scaleout_data import (  # noqa: E402
+    find_scaleout_runs,
+    load_client_results_for_run,
+    load_scaleout_container_stats,
+    aggregate_container_stats_for_run,
+)
 
 st.title("🔀 Scale-Out Routing Analysis")
 st.caption(
@@ -69,43 +77,8 @@ ssh -L 9091:localhost:9090 user@DUT
 
 
 @st.cache_data(ttl=30)
-def find_scaleout_runs(base_dir: str) -> List[Dict]:
-    """Find all scale-out run directories containing per-instance metrics."""
-    runs = []
-    base = Path(base_dir)
-    if not base.exists():
-        return runs
-
-    for meta_file in base.rglob("test-metadata.json"):
-        run_dir = meta_file.parent
-        instance_files = sorted(run_dir.glob("vllm-metrics-instance-*.json"))
-        if not instance_files:
-            continue
-        meta = {}
-        meta_ok = True
-        try:
-            meta = json.loads(meta_file.read_text())
-        except Exception:
-            meta_ok = False
-        policy = meta.get("routing_policy", "unknown")
-        model_raw = meta.get("model_name") or meta.get("model") or ""
-        model_short = model_raw.split("/")[-1] if model_raw else ""
-        n_inst = meta.get("num_instances", len(instance_files))
-        lmcache = "lmcache" if meta.get("lmcache_backend", "none") not in ("none", "", None) else "no-lmcache"
-        run_id = meta.get("test_run_id") or run_dir.parent.name or run_dir.name
-        label_parts = [run_id, f"{n_inst}inst", policy, lmcache]
-        if model_short:
-            label_parts.append(model_short)
-        runs.append({
-            "path": run_dir,
-            "meta": meta,
-            "meta_ok": meta_ok,
-            "instance_files": instance_files,
-            "epp_file": run_dir / "epp-metrics.json",
-            "benchmarks_file": run_dir / "benchmarks.json",
-            "label": " | ".join(label_parts),
-        })
-    return runs
+def _cached_find_scaleout_runs(base_dir: str) -> List[Dict]:
+    return find_scaleout_runs(base_dir)
 
 
 def load_instance_metrics(path: Path) -> Optional[Dict]:
@@ -173,12 +146,19 @@ BACKEND_COLORS = [
     "#1ABC9C", "#E67E22", "#2ECC71", "#E74C3C", "#3498DB",
 ]
 
+LATENCY_HISTOGRAM_METRICS = {
+    "vllm:time_to_first_token_seconds",
+    "vllm:time_per_output_token_seconds",
+}
+
 KEY_METRICS = {
     "Running Requests": "vllm:num_requests_running",
     "Queued Requests": "vllm:num_requests_waiting",
     "KV Cache Utilisation (%)": "vllm:kv_cache_usage_perc",
     "CPU Cache Utilisation (%)": "vllm:cpu_cache_usage_perc",
     "Generation Throughput (tok/s)": "vllm:avg_generation_throughput_toks_per_s",
+    "Server TTFT (histogram mean, s)": "vllm:time_to_first_token_seconds",
+    "Server TPOT (histogram mean, s)": "vllm:time_per_output_token_seconds",
     "Completed Requests (cumulative)": "vllm:request_success_total",
 }
 
@@ -201,53 +181,8 @@ def extract_series_with_aliases(data: dict, metric: str) -> pd.DataFrame:
 
 
 def load_client_results(run: Dict) -> Optional[pd.DataFrame]:
-    """Parse a run's benchmarks.json into a client-side results DataFrame.
-
-    Returns None when the file is absent, unreadable, or has no valid entries.
-    """
-    benchmarks_file = run.get("benchmarks_file")
-    if not benchmarks_file or not benchmarks_file.exists():
-        return None
-    try:
-        bench_data = json.loads(benchmarks_file.read_text())
-    except Exception:
-        return None
-
-    client_rows = []
-    for b in bench_data.get("benchmarks", []):
-        cfg = b.get("config", {})
-        m = b.get("metrics", {})
-        strategy = cfg.get("strategy", {})
-        conc = (
-            strategy.get("streams")
-            or strategy.get("max_concurrency")
-            or strategy.get("worker_count")
-        )
-        ttft = m.get("time_to_first_token_ms", {}).get("successful", {})
-        itl = m.get("inter_token_latency_ms", {}).get("successful", {})
-        tps = m.get("tokens_per_second", {}).get("successful", {})
-        if not tps.get("mean"):
-            tps = m.get("output_tokens_per_second", {}).get("successful", {})
-        rps = m.get("requests_per_second", {}).get("successful", {})
-        if not ttft.get("mean"):
-            continue
-        client_rows.append({
-            "Concurrency": conc,
-            "TTFT mean (ms)": ttft.get("mean", 0),
-            "TTFT P95 (ms)": (
-                ttft.get("percentiles", {}).get("p95", 0)
-            ),
-            "ITL mean (ms)": itl.get("mean", 0),
-            "ITL P95 (ms)": (
-                itl.get("percentiles", {}).get("p95", 0)
-            ),
-            "Output TPS": tps.get("mean", 0),
-            "RPS": rps.get("mean", 0),
-        })
-
-    if not client_rows:
-        return None
-    return pd.DataFrame(client_rows).sort_values("Concurrency")
+    df, _source = load_client_results_for_run(run)
+    return df
 
 
 def run_model_name(run: Dict) -> str:
@@ -319,14 +254,14 @@ EPP_POOL_METRICS = {
 
 # ─── Main ────────────────────────────────────────────────────────────────────
 
-runs = find_scaleout_runs(results_dir)
+runs = _cached_find_scaleout_runs(results_dir)
 
 if not runs:
     st.info(
         "No scale-out run data found. "
-        "Run `start-vllm-scaleout.yml` with per-instance metrics collection, "
-        "or point the results directory at a folder containing "
-        "`vllm-metrics-instance-*.json` files alongside `test-metadata.json`."
+        "Point the results directory at folders containing `test-metadata.json` "
+        "with `deployment_type: scaleout` (or `vllm-metrics-instance-*.json`, "
+        "`benchmarks.json`, or `container-stats-scaleout.jsonl`)."
     )
     st.stop()
 
@@ -354,7 +289,191 @@ col5.metric("LMCache", lmcache_backend if lmcache_active else "Disabled")
 
 st.divider()
 
-# ─── Load per-instance data ───────────────────────────────────────────────────
+# ─── Client-side performance (GuideLLM or embedding bench) ───────────────────
+
+st.subheader("📈 Client performance (through Envoy)")
+
+client_df, client_source = load_client_results_for_run(run)
+
+if client_df is not None:
+    st.caption(
+        f"Data source: **{client_source}** "
+        + (
+            "(TTFT / TPOT / ITL from GuideLLM)"
+            if client_source == "guidellm"
+            else "(request throughput & E2E latency from vllm-bench)"
+        )
+    )
+    display_cols = [c for c in client_df.columns if client_df[c].notna().any()]
+    st.dataframe(
+        client_df[display_cols].set_index("Concurrency").style.format("{:.2f}"),
+        use_container_width=True,
+    )
+
+    if client_source == "guidellm":
+        cl1, cl2, cl3 = st.columns(3)
+        for col, mean_c, p95_c, p99_c, title, ylab in [
+            (cl1, "TTFT mean (ms)", "TTFT P95 (ms)", "TTFT P99 (ms)", "TTFT", "ms"),
+            (cl2, "TPOT mean (ms)", "TPOT P95 (ms)", "TPOT P99 (ms)", "TPOT / ITL", "ms"),
+            (cl3, None, None, None, "Throughput", ""),
+        ]:
+            fig = go.Figure()
+            if mean_c and mean_c in client_df.columns:
+                fig.add_trace(go.Scatter(
+                    x=client_df["Concurrency"],
+                    y=client_df[mean_c],
+                    name="mean",
+                    mode="lines+markers",
+                ))
+            if p95_c and p95_c in client_df.columns:
+                fig.add_trace(go.Scatter(
+                    x=client_df["Concurrency"],
+                    y=client_df[p95_c],
+                    name="P95",
+                    mode="lines+markers",
+                    line=dict(dash="dash"),
+                ))
+            if p99_c and p99_c in client_df.columns:
+                fig.add_trace(go.Scatter(
+                    x=client_df["Concurrency"],
+                    y=client_df[p99_c],
+                    name="P99",
+                    mode="lines+markers",
+                    line=dict(dash="dot"),
+                ))
+            if title == "Throughput":
+                if "Output TPS" in client_df.columns:
+                    fig.add_trace(go.Scatter(
+                        x=client_df["Concurrency"],
+                        y=client_df["Output TPS"],
+                        name="Output TPS",
+                        mode="lines+markers",
+                    ))
+                if "RPS" in client_df.columns:
+                    fig.add_trace(go.Scatter(
+                        x=client_df["Concurrency"],
+                        y=client_df["RPS"],
+                        name="RPS",
+                        mode="lines+markers",
+                        line=dict(dash="dash"),
+                    ))
+                ylab = "tok/s or req/s"
+            fig.update_layout(
+                title=title,
+                xaxis_title="Concurrency",
+                yaxis_title=ylab,
+                height=300,
+                template="plotly_dark",
+                margin=dict(t=40, b=40),
+            )
+            col.plotly_chart(fig, use_container_width=True)
+    else:
+        ec1, ec2 = st.columns(2)
+        thr_fig = go.Figure()
+        thr_fig.add_trace(go.Scatter(
+            x=client_df["Concurrency"],
+            y=client_df["RPS"],
+            name="Request throughput (RPS)",
+            mode="lines+markers",
+        ))
+        thr_fig.update_layout(
+            xaxis_title="Concurrency",
+            yaxis_title="req/s",
+            height=300,
+            template="plotly_dark",
+        )
+        ec1.plotly_chart(thr_fig, use_container_width=True)
+        lat_fig = go.Figure()
+        if "E2E mean (ms)" in client_df.columns:
+            lat_fig.add_trace(go.Scatter(
+                x=client_df["Concurrency"],
+                y=client_df["E2E mean (ms)"],
+                name="E2E mean",
+                mode="lines+markers",
+            ))
+        if "E2E P99 (ms)" in client_df.columns:
+            lat_fig.add_trace(go.Scatter(
+                x=client_df["Concurrency"],
+                y=client_df["E2E P99 (ms)"],
+                name="E2E P99",
+                mode="lines+markers",
+                line=dict(dash="dash"),
+            ))
+        lat_fig.update_layout(
+            xaxis_title="Concurrency",
+            yaxis_title="ms",
+            height=300,
+            template="plotly_dark",
+        )
+        ec2.plotly_chart(lat_fig, use_container_width=True)
+else:
+    st.info(
+        "No client results in this directory. "
+        "For LLM scale-out, ensure `benchmarks.json` (GuideLLM) is copied next to "
+        "`test-metadata.json`. For embedding scale-out, run results should be under "
+        "`latency/` or `operating_point/`."
+    )
+
+# ─── Container CPU / memory (podman stats) ───────────────────────────────────
+
+st.subheader("🖥️ Container CPU & memory")
+
+container_dfs = load_scaleout_container_stats(Path(run["path"]))
+if container_dfs:
+    vllm_only = {
+        k: v for k, v in container_dfs.items() if "vllm-instance" in k
+    }
+    agg_vllm = aggregate_container_stats_for_run(vllm_only or container_dfs)
+    cc1, cc2 = st.columns(2)
+    cpu_fig = go.Figure()
+    mem_fig = go.Figure()
+    for name, cdf in sorted(container_dfs.items()):
+        cpu_fig.add_trace(go.Scatter(
+            x=cdf["elapsed_min"],
+            y=cdf["cpu_pct"],
+            name=name,
+            mode="lines",
+        ))
+        mem_fig.add_trace(go.Scatter(
+            x=cdf["elapsed_min"],
+            y=cdf["mem_usage_gb"],
+            name=name,
+            mode="lines",
+        ))
+    if not agg_vllm.empty:
+        cpu_fig.add_trace(go.Scatter(
+            x=agg_vllm["elapsed_min"],
+            y=agg_vllm["cpu_pct"],
+            name="Σ vLLM instances",
+            mode="lines",
+            line=dict(width=3, dash="dot"),
+        ))
+    cpu_fig.update_layout(
+        xaxis_title="Elapsed (min)",
+        yaxis_title="CPU %",
+        height=320,
+        template="plotly_dark",
+        legend_title="Container",
+    )
+    mem_fig.update_layout(
+        xaxis_title="Elapsed (min)",
+        yaxis_title="Memory (GB)",
+        height=320,
+        template="plotly_dark",
+        legend_title="Container",
+    )
+    cc1.plotly_chart(cpu_fig, use_container_width=True)
+    cc2.plotly_chart(mem_fig, use_container_width=True)
+    st.caption("Source: `container-stats-scaleout.jsonl` (podman stats, ~10s interval).")
+else:
+    st.info(
+        "`container-stats-scaleout.jsonl` not found. Enable scale-out metrics collection "
+        "in the benchmark playbook (default: on)."
+    )
+
+st.divider()
+
+# ─── Load per-instance Prometheus scrapes ─────────────────────────────────────
 
 instance_data = {}
 for f in run["instance_files"]:
@@ -367,12 +486,61 @@ for f in run["instance_files"]:
         instance_data[idx] = data
 
 if not instance_data:
-    st.error("Could not load any per-instance metrics files.")
-    st.stop()
+    st.warning(
+        "No per-instance `vllm-metrics-instance-*.json` files — "
+        "server-side KV / routing charts are unavailable for this run."
+    )
+    instance_ids: List = []
+else:
+    instance_ids = sorted(instance_data.keys())
 
-instance_ids = sorted(instance_data.keys())
+    # Cluster aggregate generation throughput vs client output TPS
+    st.subheader("🚀 Cluster vs client throughput")
+    cluster_rows = []
+    all_ts = set()
+    per_backend_tps: Dict = {}
+    for idx in instance_ids:
+        df = extract_generation_throughput(instance_data[idx])
+        if df.empty:
+            continue
+        per_backend_tps[idx] = df.set_index("elapsed_s")["value"]
+        all_ts.update(df["elapsed_s"].tolist())
+    if all_ts and per_backend_tps:
+        cluster_df = pd.DataFrame(index=sorted(all_ts))
+        for idx, series in per_backend_tps.items():
+            cluster_df[f"b{idx}"] = series
+        cluster_df["cluster_tok_s"] = cluster_df.sum(axis=1, min_count=1)
+        cluster_df = cluster_df.reset_index(names="elapsed_s")
+        cl_fig = go.Figure()
+        cl_fig.add_trace(go.Scatter(
+            x=cluster_df["elapsed_s"],
+            y=cluster_df["cluster_tok_s"],
+            name="Σ server generation tok/s",
+            mode="lines",
+            line=dict(width=2, color="#9B59B6"),
+        ))
+        if client_df is not None and "Output TPS" in client_df.columns:
+            peak_tps = client_df["Output TPS"].max()
+            cl_fig.add_hline(
+                y=peak_tps,
+                line_dash="dash",
+                line_color="#F5A623",
+                annotation_text=f"Client peak output TPS ({peak_tps:.1f})",
+            )
+        cl_fig.update_layout(
+            xaxis_title="Elapsed (s)",
+            yaxis_title="tok/s",
+            height=300,
+            template="plotly_dark",
+        )
+        st.plotly_chart(cl_fig, use_container_width=True)
+
+    st.divider()
 
 # ─── Metric selector ─────────────────────────────────────────────────────────
+
+if not instance_ids:
+    st.stop()
 
 selected_display = st.selectbox(
     "Metric to compare across backends",
@@ -387,7 +555,12 @@ st.subheader(f"📊 {selected_display} — all backends over time")
 
 fig = go.Figure()
 for i, idx in enumerate(instance_ids):
-    df = extract_series_with_aliases(instance_data[idx], selected_metric)
+    if selected_metric in LATENCY_HISTOGRAM_METRICS:
+        df = extract_histogram_mean(instance_data[idx], selected_metric)
+    elif selected_metric == "vllm:avg_generation_throughput_toks_per_s":
+        df = extract_generation_throughput(instance_data[idx])
+    else:
+        df = extract_series_with_aliases(instance_data[idx], selected_metric)
     if df.empty:
         continue
     df["value"] = df["value"].rolling(3, min_periods=1).mean()
@@ -415,11 +588,7 @@ else:
         f"(`{selected_metric}`) in this run."
     )
 
-LATENCY_METRICS = {
-    "vllm:time_to_first_token_seconds",
-    "vllm:time_per_output_token_seconds",
-}
-is_latency = selected_metric in LATENCY_METRICS
+is_latency = selected_metric in LATENCY_HISTOGRAM_METRICS
 
 # ─── Summary table ────────────────────────────────────────────────────────────
 
@@ -547,116 +716,68 @@ if tps_fig.data:
 else:
     st.info("Generation throughput metric not available in this dataset.")
 
-# ─── Client-side benchmark results (guidellm) ────────────────────────────────
-
-st.subheader("📈 Client-Side Benchmark Results (guidellm)")
-
-client_df = load_client_results(run)
-
-if client_df is not None:
-    st.dataframe(
-        client_df.set_index("Concurrency").style.format("{:.2f}"),
-        use_container_width=True,
-    )
-
-    cl1, cl2 = st.columns(2)
-
-    ttft_fig = go.Figure()
-    ttft_fig.add_trace(go.Scatter(
-        x=client_df["Concurrency"],
-        y=client_df["TTFT mean (ms)"],
-        name="TTFT mean",
-        mode="lines+markers",
-        line=dict(color="#4C9BE8"),
-    ))
-    ttft_fig.add_trace(go.Scatter(
-        x=client_df["Concurrency"],
-        y=client_df["TTFT P95 (ms)"],
-        name="TTFT P95",
-        mode="lines+markers",
-        line=dict(color="#F5A623", dash="dash"),
-    ))
-    ttft_fig.update_layout(
-        xaxis_title="Concurrency",
-        yaxis_title="TTFT (ms)",
-        height=300,
-        template="plotly_dark",
-        margin=dict(t=20, b=40),
-    )
-    cl1.plotly_chart(ttft_fig, use_container_width=True)
-
-    itl_fig = go.Figure()
-    itl_fig.add_trace(go.Scatter(
-        x=client_df["Concurrency"],
-        y=client_df["ITL mean (ms)"],
-        name="ITL mean",
-        mode="lines+markers",
-        line=dict(color="#7ED321"),
-    ))
-    itl_fig.add_trace(go.Scatter(
-        x=client_df["Concurrency"],
-        y=client_df["ITL P95 (ms)"],
-        name="ITL P95",
-        mode="lines+markers",
-        line=dict(color="#D0021B", dash="dash"),
-    ))
-    itl_fig.update_layout(
-        xaxis_title="Concurrency",
-        yaxis_title="ITL (ms)",
-        height=300,
-        template="plotly_dark",
-        margin=dict(t=20, b=40),
-    )
-    cl2.plotly_chart(itl_fig, use_container_width=True)
-
-    tps_client_fig = go.Figure()
-    tps_client_fig.add_trace(go.Scatter(
-        x=client_df["Concurrency"],
-        y=client_df["Output TPS"],
-        name="Output TPS",
-        mode="lines+markers",
-        line=dict(color="#9B59B6"),
-    ))
-    tps_client_fig.update_layout(
-        xaxis_title="Concurrency",
-        yaxis_title="Output Tokens/s",
-        height=280,
-        template="plotly_dark",
-        margin=dict(t=20, b=40),
-    )
-    st.plotly_chart(tps_client_fig, use_container_width=True)
-elif run.get("benchmarks_file") and run["benchmarks_file"].exists():
-    st.info(
-        "No valid benchmark entries found in benchmarks.json "
-        "(or the file is unreadable)."
-    )
-else:
-    st.info(
-        "No `benchmarks.json` found for this run. "
-        "Client-side TTFT, ITL, and TPS metrics require a guidellm result file."
-    )
-
 # ─── EPP routing metrics (if available) ──────────────────────────────────────
 
-with st.expander("🎯 EPP Routing Metrics", expanded=False):
-    if run["epp_file"].exists():
-        try:
-            epp_data = json.loads(run["epp_file"].read_text())
-            st.json(epp_data.get("collection_info", {}))
-            first_sample = (epp_data.get("samples") or [{}])[0]
-            epp_metric_names = list(first_sample.get("metrics", {}).keys())
-            epp_llmd = [m for m in epp_metric_names if m.startswith("llm_d_epp")]
-            if epp_llmd:
-                st.caption(f"llm_d_epp_* metrics present: {len(epp_llmd)}")
-                st.markdown(", ".join(f"`{m}`" for m in epp_llmd[:12]))
-        except Exception as e:
-            st.warning(f"Could not parse epp-metrics.json: {e}")
-    else:
-        st.info(
-            "EPP routing metrics not found (`epp-metrics.json`). "
-            "Add the EPP endpoint (DUT port 9090) to your metrics collector "
-            "configuration to enable EPP-level routing analysis."
+st.subheader("🎯 EPP routing metrics")
+
+if run["epp_file"].exists():
+    try:
+        epp_data = json.loads(run["epp_file"].read_text())
+        epp_chart_metrics = [
+            ("llm_d_epp_prefix_indexer_hit_ratio", "Prefix hit ratio"),
+            ("llm_d_epp_average_kv_cache_utilization", "Avg KV cache util"),
+            ("llm_d_epp_average_queue_size", "Avg queue size"),
+            ("llm_d_epp_std_dev_queue_size", "Queue size std dev"),
+            ("llm_d_epp_average_running_requests", "Avg running requests"),
+        ]
+        epp_fig = make_subplots(
+            rows=len(epp_chart_metrics),
+            cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.06,
+            subplot_titles=[t[1] for t in epp_chart_metrics],
         )
+        any_epp = False
+        for row_i, (metric, _label) in enumerate(epp_chart_metrics, start=1):
+            rows = []
+            for sample in epp_data.get("samples", []):
+                ts = sample.get("elapsed_seconds", 0)
+                for entry in sample.get("metrics", {}).get(metric, []):
+                    rows.append({"elapsed_s": ts, "value": entry["value"]})
+            if not rows:
+                continue
+            any_epp = True
+            edf = pd.DataFrame(rows)
+            epp_fig.add_trace(
+                go.Scatter(
+                    x=edf["elapsed_s"],
+                    y=edf["value"],
+                    mode="lines",
+                    name=_label,
+                    showlegend=False,
+                ),
+                row=row_i,
+                col=1,
+            )
+        if any_epp:
+            epp_fig.update_layout(
+                height=180 * len(epp_chart_metrics),
+                template="plotly_dark",
+                margin=dict(t=40, b=40),
+            )
+            epp_fig.update_xaxes(title_text="Elapsed (s)", row=len(epp_chart_metrics), col=1)
+            st.plotly_chart(epp_fig, use_container_width=True)
+        else:
+            st.info("EPP metrics file present but no known `llm_d_epp_*` series found.")
+        with st.expander("Collection metadata", expanded=False):
+            st.json(epp_data.get("collection_info", {}))
+    except Exception as e:
+        st.warning(f"Could not parse epp-metrics.json: {e}")
+else:
+    st.info(
+        "EPP metrics not collected (`epp-metrics.json` missing). "
+        "Intelligent routing runs scrape EPP :9090 during benchmarks."
+    )
 
 # ─── Policy comparison ───────────────────────────────────────────────────────
 
@@ -745,6 +866,8 @@ if paired_runs:
             for metric, higher_is_better in (
                 ("TTFT mean (ms)", False),
                 ("TTFT P95 (ms)", False),
+                ("TPOT mean (ms)", False),
+                ("TPOT P95 (ms)", False),
                 ("ITL mean (ms)", False),
                 ("ITL P95 (ms)", False),
                 ("Output TPS", True),
@@ -904,7 +1027,8 @@ if lmcache_pair_runs:
     if client_df is not None and lmc_client_df is not None:
         _guidellm_charts = [
             ("TTFT mean (ms)", "TTFT P95 (ms)", "⏱ Time to First Token (ms)", False),
-            ("ITL mean (ms)", "ITL P95 (ms)", "⚡ Inter-Token Latency / TPOT (ms)", False),
+            ("TPOT mean (ms)", "TPOT P95 (ms)", "⚡ TPOT (ms)", False),
+            ("ITL mean (ms)", "ITL P95 (ms)", "Inter-token latency (ms)", False),
             ("Output TPS", None, "🚀 Output Throughput (tok/s)", True),
             ("RPS", None, "📨 Requests per Second", True),
         ]
@@ -956,6 +1080,8 @@ if lmcache_pair_runs:
             for metric, higher_is_better in (
                 ("TTFT mean (ms)", False),
                 ("TTFT P95 (ms)", False),
+                ("TPOT mean (ms)", False),
+                ("TPOT P95 (ms)", False),
                 ("ITL mean (ms)", False),
                 ("ITL P95 (ms)", False),
                 ("Output TPS", True),
