@@ -31,6 +31,9 @@ from scaleout_data import (  # noqa: E402
     load_client_results_for_run,
     load_scaleout_container_stats,
     aggregate_container_stats_for_run,
+    resolve_rps_column,
+    resolve_throughput_column,
+    throughput_sweep_summary,
 )
 
 st.title("🔀 Scale-Out Routing Analysis")
@@ -327,15 +330,26 @@ def client_latency_column(prefix: str, stat: str) -> Optional[str]:
     return f"{prefix}{suffix[stat]}"
 
 
-def delta_metrics_for_stat(stat: str) -> List[tuple]:
+def delta_metrics_for_stat(
+    latency_stat: str,
+    throughput_stat: str,
+    df_a: pd.DataFrame,
+    df_b: pd.DataFrame,
+) -> List[tuple]:
     metrics: List[tuple] = []
     for prefix, higher in (("TTFT", False), ("TPOT", False), ("ITL", False)):
-        col = client_latency_column(prefix, stat)
+        col = client_latency_column(prefix, latency_stat)
         if col:
             metrics.append((col, higher))
-    metrics.append(("Output TPS", True))
-    metrics.append(("RPS", True))
-    e2e = client_latency_column("E2E", stat)
+    tps_col = resolve_throughput_column(df_a, throughput_stat)
+    if tps_col not in df_a.columns and tps_col in df_b.columns:
+        pass
+    elif tps_col in df_a.columns or tps_col in df_b.columns:
+        metrics.append((tps_col, True))
+    rps_col = resolve_rps_column(df_a, throughput_stat)
+    if rps_col in df_a.columns or rps_col in df_b.columns:
+        metrics.append((rps_col, True))
+    e2e = client_latency_column("E2E", latency_stat)
     if e2e:
         metrics.append((e2e, False))
     return metrics
@@ -346,12 +360,15 @@ def _client_delta_table(
     df_b: pd.DataFrame,
     label_a: str,
     label_b: str,
-    stat: str = "mean",
+    latency_stat: str = "mean",
+    throughput_stat: str = "p95",
 ) -> None:
     merged = df_a.merge(df_b, on="Concurrency", suffixes=("_a", "_b"))
     delta_rows = []
     for _, row in merged.iterrows():
-        for metric, higher_is_better in delta_metrics_for_stat(stat):
+        for metric, higher_is_better in delta_metrics_for_stat(
+            latency_stat, throughput_stat, df_a, df_b
+        ):
             va = row.get(f"{metric}_a")
             vb = row.get(f"{metric}_b")
             if va is None or vb is None or (pd.isna(va) or pd.isna(vb)):
@@ -390,16 +407,24 @@ def _client_overlay_charts(
     df_b: pd.DataFrame,
     label_a: str,
     label_b: str,
-    stat: str = "mean",
+    latency_stat: str = "mean",
+    throughput_stat: str = "p95",
 ) -> None:
-    stat_label = stat.upper() if stat != "mean" else "Mean"
+    stat_label = (
+        latency_stat.upper() if latency_stat != "mean" else "Mean"
+    )
+    tp_label = (
+        throughput_stat.upper()
+        if throughput_stat != "mean"
+        else "Mean"
+    )
     for prefix, chart_title, _higher in (
         ("TTFT", "⏱ Time to First Token (ms)", False),
         ("TPOT", "⚡ TPOT (ms)", False),
         ("ITL", "Inter-token latency (ms)", False),
         ("E2E", "End-to-end latency (embedding)", False),
     ):
-        col = client_latency_column(prefix, stat)
+        col = client_latency_column(prefix, latency_stat)
         if not col or (col not in df_a.columns and col not in df_b.columns):
             continue
         gc_fig = go.Figure()
@@ -430,25 +455,27 @@ def _client_overlay_charts(
         (df_a, label_a, "solid"),
         (df_b, label_b, "dash"),
     ]:
-        if "Output TPS" in df_data.columns and df_data["Output TPS"].notna().any():
+        tps_c = resolve_throughput_column(df_data, throughput_stat)
+        if tps_c in df_data.columns and df_data[tps_c].notna().any():
             thr_fig.add_trace(go.Scatter(
                 x=df_data["Concurrency"],
-                y=df_data["Output TPS"],
-                name=f"{label} — Output TPS",
+                y=df_data[tps_c],
+                name=f"{label} — {tps_c}",
                 mode="lines+markers",
                 line=dict(dash=dash),
             ))
-        if "RPS" in df_data.columns and df_data["RPS"].notna().any():
+        rps_c = resolve_rps_column(df_data, throughput_stat)
+        if rps_c in df_data.columns and df_data[rps_c].notna().any():
             thr_fig.add_trace(go.Scatter(
                 x=df_data["Concurrency"],
-                y=df_data["RPS"],
-                name=f"{label} — RPS",
+                y=df_data[rps_c],
+                name=f"{label} — {rps_c}",
                 mode="lines+markers",
                 line=dict(dash="dot" if dash == "solid" else "dashdot"),
             ))
     if thr_fig.data:
         thr_fig.update_layout(
-            title="🚀 Throughput (not percentile-specific)",
+            title=f"🚀 Throughput — {tp_label} (per load point)",
             xaxis_title="Concurrency",
             yaxis_title="tok/s or req/s",
             height=300,
@@ -803,22 +830,19 @@ with tab_instances:
 | | **Purple (time series)** | **Orange (horizontal)** |
 |---|---|---|
 | Source | Sum of each backend’s vLLM metric per scrape | GuideLLM `benchmarks.json` |
-| Metric | `vllm:avg_generation_throughput_toks_per_s` (or token-counter delta) | **Best** Output TPS over the concurrency sweep |
+| Metric | `vllm:avg_generation_throughput_toks_per_s` (or token-counter delta) | **Robust client throughput** (P95/P99/median across load — not peak) |
 | View | Server-side decode rate, summed across instances | Client-side, end-to-end **through Envoy** |
 
-The purple line is **not** a second measurement of the same thing at the same
-times: the orange line is a **single peak** from the benchmark table; the purple
-line is whatever the scraper saw every ~10s for the whole collection window.
+The orange line is a **summary** from `benchmarks.json` (default **P95**
+throughput across load levels, or per-point P95 tok/s on the Compare tab).
+It is **not** peak TPS. The purple line is whatever the scraper saw every ~10s.
 
 **Purple below orange — does that make sense?**
 
 **Yes, often.** Typical reasons:
 
-1. **Peak vs moment** — Orange is the **maximum** Output TPS at one concurrency
-   level. Purple is the server rate **at each scrape instant**, including ramp-up,
-   lower concurrency steps, pauses between sweep steps, and tail of the run when
-   load drops. The purple **peak** (see caption under the chart) is the fair
-   comparison to orange; the line itself will usually sit lower most of the time.
+1. **Summary vs moment** — Orange is a **stable client summary**; purple is
+   instantaneous server sum during scrapes (ramps, idle gaps, timing).
 
 2. **Metric definition** — vLLM’s “avg generation throughput” gauge is a
    **backend-local rolling average**, not a Prometheus-perfect “cluster output
@@ -832,10 +856,9 @@ line is whatever the scraper saw every ~10s for the whole collection window.
 (routing, concurrency below peak) or when server gauges spike briefly above what
 GuideLLM averaged for that sweep step.
 
-**How to use it** — Compare **max purple** to **orange** during a plateau where
-the benchmark is at high concurrency; they should be in the same ballpark. A large
-gap with purple always low may mean scrape timing missed the busy phase, or
-instance metrics and `benchmarks.json` are from different phases of the run.
+**How to use it** — Compare the **dotted purple** (best server sum during scrapes)
+to **orange** during steady load; they should be loosely aligned. Use Compare tab
+**Throughput: P95/P99** for apples-to-apples client metrics, not peak TPS.
                 """
             )
         all_ts = set()
@@ -866,14 +889,17 @@ instance metrics and `benchmarks.json` are from different phases of the run.
             ))
             client_ref_note = ""
             if client_df is not None and "Output TPS" in client_df.columns:
-                peak_row = client_df.loc[client_df["Output TPS"].idxmax()]
-                peak_tps = float(peak_row["Output TPS"])
-                peak_conc = peak_row.get("Concurrency", "?")
+                tp_key = st.session_state.get(
+                    "compare_throughput_stat", "P95"
+                ).lower()
+                ref_tps, tps_col, anchor_conc, tps_desc = (
+                    throughput_sweep_summary(client_df, tp_key)
+                )
                 cl_fig.add_hline(
-                    y=peak_tps,
+                    y=ref_tps,
                     line_dash="dash",
                     line_color="#F5A623",
-                    annotation_text=f"Client best Output TPS ({peak_tps:.1f})",
+                    annotation_text=f"Client {tps_col} ({ref_tps:.1f})",
                 )
                 cl_fig.add_hline(
                     y=peak_server_sum,
@@ -882,14 +908,18 @@ instance metrics and `benchmarks.json` are from different phases of the run.
                     annotation_text=f"Peak server sum ({peak_server_sum:.1f})",
                 )
                 ratio = (
-                    peak_server_sum / peak_tps * 100 if peak_tps > 0 else 0
+                    peak_server_sum / ref_tps * 100 if ref_tps > 0 else 0
+                )
+                conc_note = (
+                    f" @ concurrency **{anchor_conc}**"
+                    if anchor_conc is not None
+                    else ""
                 )
                 client_ref_note = (
-                    f"**Client best:** {peak_tps:.1f} tok/s at concurrency "
-                    f"**{peak_conc}** · **Peak server sum (scrapes):** "
-                    f"{peak_server_sum:.1f} tok/s ({ratio:.0f}% of client best). "
-                    "Orange = client peak; dotted purple = highest summed server "
-                    "instant during metrics collection."
+                    f"**Client ({tps_desc}):** {ref_tps:.1f} tok/s "
+                    f"({tps_col}{conc_note}) · **Peak server sum (scrapes):** "
+                    f"{peak_server_sum:.1f} tok/s ({ratio:.0f}% of client ref). "
+                    "Change throughput statistic on the Compare tab."
                 )
             elif client_df is not None and "RPS" in client_df.columns:
                 st.caption(
@@ -1255,22 +1285,42 @@ with tab_comparisons:
             st.caption(caching_config_summary(run_b["meta"]))
 
         st.markdown("### Client (through Envoy)")
-        compare_stat = st.radio(
-            "Chart statistic",
-            options=["Mean", "P95", "P99"],
-            horizontal=True,
-            key="compare_client_stat",
-        )
-        stat_key = compare_stat.lower()
+        lat_col, tp_col = st.columns(2)
+        with lat_col:
+            compare_lat = st.radio(
+                "Latency statistic",
+                options=["Mean", "P95", "P99"],
+                horizontal=True,
+                key="compare_client_stat",
+            )
+        with tp_col:
+            compare_tp = st.radio(
+                "Throughput statistic",
+                options=["P95", "P99", "Mean"],
+                horizontal=True,
+                key="compare_throughput_stat",
+                help=(
+                    "Per concurrency: GuideLLM P95/P99 of tok/s when available. "
+                    "Deltas use the same columns; summaries avoid peak TPS."
+                ),
+            )
+        lat_key = compare_lat.lower()
+        tp_key = compare_tp.lower()
         df_a, src_a = load_client_results_for_run(run_a)
         df_b, src_b = load_client_results_for_run(run_b)
         if df_a is not None and df_b is not None:
             st.caption(
-                f"Sources: A={src_a}, B={src_b} — solid = run A, dashed = run B "
-                f"({compare_stat} for latency charts)"
+                f"Sources: A={src_a}, B={src_b} — solid = run A, dashed = run B. "
+                f"Latency: **{compare_lat}** · Throughput: **{compare_tp}** per load point."
             )
-            _client_overlay_charts(df_a, df_b, short_a, short_b, stat=stat_key)
-            _client_delta_table(df_a, df_b, short_a, short_b, stat=stat_key)
+            _client_overlay_charts(
+                df_a, df_b, short_a, short_b,
+                latency_stat=lat_key, throughput_stat=tp_key,
+            )
+            _client_delta_table(
+                df_a, df_b, short_a, short_b,
+                latency_stat=lat_key, throughput_stat=tp_key,
+            )
         else:
             missing = []
             if df_a is None:
@@ -1313,16 +1363,26 @@ with tab_comparisons:
         st.session_state.get("scaleout_run_label", run_labels[0]),
     )
     scaling_meta = scaling_ref["meta"]
-    scaling_stat = st.radio(
-        "Latency at peak load (TTFT)",
-        options=["Mean", "P95", "P99"],
-        horizontal=True,
-        key="scaling_ttft_stat",
-    )
+    sc_lat_col, sc_tp_col = st.columns(2)
+    with sc_lat_col:
+        scaling_stat = st.radio(
+            "TTFT statistic",
+            options=["Mean", "P95", "P99"],
+            horizontal=True,
+            key="scaling_ttft_stat",
+        )
+    with sc_tp_col:
+        scaling_tp_stat = st.radio(
+            "Throughput summary (not peak)",
+            options=["P95", "P99", "Mean"],
+            horizontal=True,
+            key="scaling_tp_stat",
+        )
     scaling_ttft_col = client_latency_column("TTFT", scaling_stat.lower())
     scaling_ttft_label = (
         scaling_ttft_col or f"TTFT {scaling_stat}"
     )
+    scaling_tp_key = scaling_tp_stat.lower()
 
     # Compare runs with the same model, routing policy, and cores per instance,
     # but different instance counts — the headline question for scale-out.
@@ -1343,21 +1403,22 @@ with tab_comparisons:
         df = load_client_results(r)
         if df is None or df.empty:
             continue
-        # Peak client throughput for the run (best concurrency level by RPS,
-        # falling back to output TPS when RPS is not reported).
-        throughput_col = "RPS" if df["RPS"].max() > 0 else "Output TPS"
-        peak = df.loc[df[throughput_col].idxmax()]
-        ttft_at_peak = 0.0
-        if scaling_ttft_col and scaling_ttft_col in peak.index:
-            ttft_at_peak = peak.get(scaling_ttft_col, 0) or 0
+        thr_ref, thr_col, anchor_conc, _thr_desc = throughput_sweep_summary(
+            df, scaling_tp_key
+        )
+        ttft_at_anchor = 0.0
+        if scaling_ttft_col and anchor_conc is not None:
+            match = df[df["Concurrency"] == anchor_conc]
+            if not match.empty and scaling_ttft_col in match.columns:
+                ttft_at_anchor = match.iloc[0].get(scaling_ttft_col, 0) or 0
         scaling_rows.append({
             "run": r,
             "label": r["label"],
             "instances": int(n_instances),
-            "peak_rps": peak.get("RPS", 0) or 0,
-            "peak_tps": peak.get("Output TPS", 0) or 0,
-            "ttft_at_peak": ttft_at_peak,
-            "throughput_col": throughput_col,
+            "throughput_ref": thr_ref,
+            "throughput_col": thr_col,
+            "anchor_concurrency": anchor_conc,
+            "ttft_at_anchor": ttft_at_anchor,
         })
 
     scaling_rows.sort(key=lambda row: row["instances"])
@@ -1376,14 +1437,14 @@ with tab_comparisons:
         scale_fig = go.Figure()
         scale_fig.add_trace(go.Scatter(
             x=[row["instances"] for row in scaling_rows],
-            y=[row["peak_rps"] or row["peak_tps"] for row in scaling_rows],
-            name="Peak throughput",
+            y=[row["throughput_ref"] for row in scaling_rows],
+            name=f"Throughput ({scaling_tp_stat})",
             mode="lines+markers",
             line=dict(color="#4C9BE8"),
         ))
         scale_fig.update_layout(
             xaxis_title="vLLM instances",
-            yaxis_title="Peak RPS (or Output TPS)",
+            yaxis_title=f"Client {scaling_rows[0]['throughput_col']} summary",
             height=320,
             template="plotly_dark",
             margin=dict(t=20, b=40),
@@ -1393,8 +1454,8 @@ with tab_comparisons:
         ttft_scale_fig = go.Figure()
         ttft_scale_fig.add_trace(go.Scatter(
             x=[row["instances"] for row in scaling_rows],
-            y=[row["ttft_at_peak"] for row in scaling_rows],
-            name=f"{scaling_ttft_label} at peak load",
+            y=[row["ttft_at_anchor"] for row in scaling_rows],
+            name=f"{scaling_ttft_label} @ throughput anchor",
             mode="lines+markers",
             line=dict(color="#F5A623"),
         ))
@@ -1409,19 +1470,20 @@ with tab_comparisons:
 
         # Scaling efficiency vs the smallest instance count in the group.
         base = scaling_rows[0]
-        base_throughput = base["peak_rps"] or base["peak_tps"]
+        base_throughput = base["throughput_ref"]
         eff_rows = []
         for row in scaling_rows:
-            throughput = row["peak_rps"] or row["peak_tps"]
+            throughput = row["throughput_ref"]
             speedup = throughput / base_throughput if base_throughput else 0
             instances_ratio = row["instances"] / base["instances"]
             efficiency = (speedup / instances_ratio * 100) if instances_ratio else 0
             eff_rows.append({
                 "Instances": row["instances"],
                 "Run": row["label"],
-                "Peak RPS": row["peak_rps"],
-                "Peak Output TPS": row["peak_tps"],
-                scaling_ttft_label: row["ttft_at_peak"],
+                "Throughput summary": round(throughput, 2),
+                "Column": row["throughput_col"],
+                "Anchor concurrency": row["anchor_concurrency"],
+                scaling_ttft_label: row["ttft_at_anchor"],
                 "Speedup vs base": round(speedup, 2),
                 "Scaling efficiency (%)": round(efficiency, 1),
             })

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import pandas as pd
 
@@ -144,6 +144,74 @@ def _percentile(stats: Dict[str, Any], p: str) -> Optional[float]:
     return pcts.get(p)
 
 
+def throughput_column(stat: str) -> str:
+    """GuideLLM output throughput column for mean / p95 / p99."""
+    s = stat.lower()
+    if s == "p95":
+        return "Output TPS P95"
+    if s == "p99":
+        return "Output TPS P99"
+    return "Output TPS"
+
+
+def rps_column(stat: str) -> str:
+    s = stat.lower()
+    if s == "p95":
+        return "RPS P95"
+    if s == "p99":
+        return "RPS P99"
+    return "RPS"
+
+
+def resolve_throughput_column(df: pd.DataFrame, stat: str) -> str:
+    """Prefer percentile column when populated; fall back to mean Output TPS."""
+    col = throughput_column(stat)
+    if col in df.columns and df[col].notna().any():
+        return col
+    return "Output TPS"
+
+
+def resolve_rps_column(df: pd.DataFrame, stat: str) -> str:
+    col = rps_column(stat)
+    if col in df.columns and df[col].notna().any():
+        return col
+    return "RPS"
+
+
+def throughput_sweep_summary(
+    df: pd.DataFrame,
+    stat: str,
+) -> Tuple[float, str, Optional[Union[int, float]], str]:
+    """
+    Summarize throughput for comparisons without using peak (max).
+
+    Returns (reference_value, column_used, anchor_concurrency, description).
+    - mean: median of per-load-point mean TPS across the sweep
+    - p95/p99: percentile across load levels of the chosen throughput column
+      (GuideLLM per-point P95/P99 when available, else mean TPS column)
+    """
+    col = resolve_throughput_column(df, stat)
+    subset = df[["Concurrency", col]].dropna(subset=[col])
+    if subset.empty:
+        return 0.0, col, None, "no data"
+
+    series = subset[col]
+    s = stat.lower()
+    if s == "mean":
+        ref = float(series.median())
+        desc = "median of mean TPS across load levels"
+    elif s == "p99":
+        ref = float(series.quantile(0.99))
+        desc = "P99 of throughput across load levels"
+    else:
+        ref = float(series.quantile(0.95))
+        desc = "P95 of throughput across load levels"
+
+    idx = (subset[col] - ref).abs().idxmin()
+    conc = subset.loc[idx, "Concurrency"]
+    return ref, col, conc, desc
+
+
 def load_guidellm_client_df(benchmarks_path: Path) -> Optional[pd.DataFrame]:
     """Parse GuideLLM benchmarks.json into a concurrency-indexed DataFrame."""
     try:
@@ -184,7 +252,11 @@ def load_guidellm_client_df(benchmarks_path: Path) -> Optional[pd.DataFrame]:
         client_rows.append({
             "Concurrency": conc,
             "RPS": rps.get("mean", 0) or 0,
+            "RPS P95": _percentile(rps, "p95"),
+            "RPS P99": _percentile(rps, "p99"),
             "Output TPS": tps.get("mean", 0) or 0,
+            "Output TPS P95": _percentile(tps, "p95"),
+            "Output TPS P99": _percentile(tps, "p99"),
             "TTFT mean (ms)": ttft.get("mean"),
             "TTFT P50 (ms)": _percentile(ttft, "p50"),
             "TTFT P95 (ms)": _percentile(ttft, "p95"),
