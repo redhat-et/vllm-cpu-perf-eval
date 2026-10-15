@@ -302,6 +302,22 @@ def resolve_scaleout_run(runs: List[Dict], label: str) -> Dict:
     return next(r for r in runs if r["label"] == label)
 
 
+def server_cluster_throughput_ref(
+    cluster_tok_s: pd.Series,
+    stat: str,
+) -> Tuple[float, str]:
+    """Robust server-side cluster tok/s from scrape time series (not max)."""
+    s = cluster_tok_s.dropna()
+    if s.empty:
+        return 0.0, "server sum (no data)"
+    key = stat.lower()
+    if key == "mean":
+        return float(s.median()), "median server sum (scrapes)"
+    if key == "p99":
+        return float(s.quantile(0.99)), "P99 server sum (scrapes)"
+    return float(s.quantile(0.95)), "P95 server sum (scrapes)"
+
+
 def scaleout_run_caption(meta: Dict, run: Dict) -> str:
     """One-line run context (replaces top-of-page metric cards)."""
     model_short = str(
@@ -856,9 +872,8 @@ It is **not** peak TPS. The purple line is whatever the scraper saw every ~10s.
 (routing, concurrency below peak) or when server gauges spike briefly above what
 GuideLLM averaged for that sweep step.
 
-**How to use it** — Compare the **dotted purple** (best server sum during scrapes)
-to **orange** during steady load; they should be loosely aligned. Use Compare tab
-**Throughput: P95/P99** for apples-to-apples client metrics, not peak TPS.
+**How to use it** — Compare the **dotted purple** (P95/P99/median server sum over
+scrapes, same statistic as Compare → Throughput) to **orange** during steady load.
                 """
             )
         all_ts = set()
@@ -878,7 +893,12 @@ to **orange** during steady load; they should be loosely aligned. Use Compare ta
             cluster_series = cluster_df["cluster_tok_s"].rolling(
                 3, min_periods=1
             ).mean()
-            peak_server_sum = float(cluster_df["cluster_tok_s"].max())
+            tp_key = st.session_state.get(
+                "compare_throughput_stat", "P95"
+            ).lower()
+            server_ref, server_ref_label = server_cluster_throughput_ref(
+                cluster_df["cluster_tok_s"], tp_key
+            )
             cl_fig = go.Figure()
             cl_fig.add_trace(go.Scatter(
                 x=cluster_df["elapsed_s"],
@@ -887,11 +907,17 @@ to **orange** during steady load; they should be loosely aligned. Use Compare ta
                 mode="lines",
                 line=dict(width=2, color="#9B59B6"),
             ))
-            client_ref_note = ""
+            cl_fig.add_hline(
+                y=server_ref,
+                line_dash="dot",
+                line_color="#9B59B6",
+                annotation_text=f"{server_ref_label} ({server_ref:.1f})",
+            )
+            client_ref_note = (
+                f"**{server_ref_label}:** {server_ref:.1f} tok/s "
+                f"(matches Compare → Throughput statistic)."
+            )
             if client_df is not None and "Output TPS" in client_df.columns:
-                tp_key = st.session_state.get(
-                    "compare_throughput_stat", "P95"
-                ).lower()
                 ref_tps, tps_col, anchor_conc, tps_desc = (
                     throughput_sweep_summary(client_df, tp_key)
                 )
@@ -901,14 +927,8 @@ to **orange** during steady load; they should be loosely aligned. Use Compare ta
                     line_color="#F5A623",
                     annotation_text=f"Client {tps_col} ({ref_tps:.1f})",
                 )
-                cl_fig.add_hline(
-                    y=peak_server_sum,
-                    line_dash="dot",
-                    line_color="#9B59B6",
-                    annotation_text=f"Peak server sum ({peak_server_sum:.1f})",
-                )
                 ratio = (
-                    peak_server_sum / ref_tps * 100 if ref_tps > 0 else 0
+                    server_ref / ref_tps * 100 if ref_tps > 0 else 0
                 )
                 conc_note = (
                     f" @ concurrency **{anchor_conc}**"
@@ -917,9 +937,9 @@ to **orange** during steady load; they should be loosely aligned. Use Compare ta
                 )
                 client_ref_note = (
                     f"**Client ({tps_desc}):** {ref_tps:.1f} tok/s "
-                    f"({tps_col}{conc_note}) · **Peak server sum (scrapes):** "
-                    f"{peak_server_sum:.1f} tok/s ({ratio:.0f}% of client ref). "
-                    "Change throughput statistic on the Compare tab."
+                    f"({tps_col}{conc_note}) · **{server_ref_label}:** "
+                    f"{server_ref:.1f} tok/s ({ratio:.0f}% of client ref). "
+                    "Statistic: Compare tab → Throughput (default P95)."
                 )
             elif client_df is not None and "RPS" in client_df.columns:
                 st.caption(
