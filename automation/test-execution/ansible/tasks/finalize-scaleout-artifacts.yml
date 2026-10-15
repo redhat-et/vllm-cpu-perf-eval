@@ -1,0 +1,39 @@
+---
+# Post-benchmark helpers for scale-out runs (LLM + embedding).
+#
+# Required vars:
+#   scaleout_results_dir : directory containing test-metadata.json + copied metrics
+#
+# Optional:
+#   scaleout_model_name  : written into test-metadata.json when model_name/model absent
+
+- name: Co-locate benchmarks.json with scale-out metric artifacts (LLM)
+  ansible.builtin.shell: |
+    set -euo pipefail
+    dest="{{ scaleout_results_dir }}"
+    [ -d "$dest" ] || exit 0
+    if [ -f "$dest/benchmarks.json" ]; then
+      echo "benchmarks.json already in $dest"
+      exit 0
+    fi
+    # Search run tree (parent dirs) for GuideLLM output from llm-benchmark-auto.
+    search_root="$(dirname "$dest")"
+    found=""
+    while [ -n "$search_root" ] && [ "$search_root" != "/" ]; do
+      candidate=$(find "$search_root" -maxdepth 4 -name benchmarks.json -type f 2>/dev/null | head -1)
+      if [ -n "$candidate" ]; then
+        found="$candidate"
+        break
+      fi
+      search_root="$(dirname "$search_root")"
+    done
+    if [ -n "$found" ]; then
+      cp "$found" "$dest/benchmarks.json"
+      echo "Copied $found -> $dest/benchmarks.json"
+    else
+      echo "No benchmarks.json found near $dest (embedding runs use latency/ instead)"
+    fi
+  args:
+    executable: /bin/bash
+  changed_when: false
+  failed_when: false

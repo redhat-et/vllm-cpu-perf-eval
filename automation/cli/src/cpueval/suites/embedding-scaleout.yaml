@@ -1,0 +1,26 @@
+name: embedding-scaleout
+description: >
+  Embedding model scale-out via llm-d (EPP + Envoy) — deploy, benchmark, teardown
+  with per-instance Prometheus metrics and container CPU/memory stats.
+runner: ansible
+target: automation/test-execution/ansible/embedding-benchmark-scaleout.yml
+matrix: false
+
+defaults:
+  model: "RedHatAI/granite-embedding-english-r2"
+  num_instances: "2"
+  cores_per_instance: "16"
+  routing_policy: "intelligent"
+  start_core: "0"
+
+param_mappings:
+  model: scaleout_model_name
+  num_instances: scaleout_num_instances
+  cores_per_instance: scaleout_cores_per_instance
+  routing_policy: scaleout_routing_policy
+  start_core: scaleout_start_core
+  max_model_len: scaleout_vllm_max_model_len
+  collect_per_instance_metrics: scaleout_collect_per_instance_metrics
+  vllm_base_port: scaleout_vllm_base_port
+  envoy_port: scaleout_envoy_port
+  epp_metrics_port: scaleout_epp_metrics_port

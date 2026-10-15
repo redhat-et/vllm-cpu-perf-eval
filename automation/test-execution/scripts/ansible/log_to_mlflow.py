@@ -30,6 +30,53 @@ except ImportError:
     sys.exit(1)
 
 
+def is_scaleout_metadata(metadata: Dict[str, Any]) -> bool:
+    """True when test-metadata.json describes a scale-out (llm-d) run."""
+    if metadata.get("deployment_type") == "scaleout":
+        return True
+    test_run_id = str(metadata.get("test_run_id") or "")
+    return test_run_id.startswith("scaleout-")
+
+
+def extract_scaleout_parameters(metadata: Dict[str, Any]) -> Dict[str, Any]:
+    """Scale-out topology / routing fields for MLflow params."""
+    if not is_scaleout_metadata(metadata):
+        return {}
+
+    params: Dict[str, Any] = {
+        "deployment_type": "scaleout",
+        "num_instances": metadata.get("num_instances", 0),
+        "cores_per_instance": metadata.get("cores_per_instance", 0),
+        "routing_policy": metadata.get("routing_policy", "unknown"),
+        "lmcache_backend": metadata.get("lmcache_backend", "none"),
+        "vllm_caching_mode": metadata.get("vllm_caching_mode", "unknown"),
+        "scaleout_enable_prefix_caching": metadata.get(
+            "scaleout_enable_prefix_caching"
+        ),
+        "scaleout_envoy_port": metadata.get("scaleout_envoy_port"),
+        "container_restarts_detected": metadata.get(
+            "container_restarts_detected", False
+        ),
+    }
+    weights = metadata.get("epp_scorer_weights")
+    if isinstance(weights, dict):
+        for name, value in weights.items():
+            params[f"epp_weight_{name}"] = value
+    for optional in (
+        "scaleout_start_core",
+        "scaleout_enable_smt",
+        "scaleout_envoy_concurrency",
+        "lmcache_server_l1_size_gb",
+        "lmcache_scorer_weight",
+        "vllm_container_image",
+        "scaleout_epp_image",
+        "scaleout_envoy_image",
+    ):
+        if metadata.get(optional) is not None:
+            params[optional] = metadata[optional]
+    return params
+
+
 def extract_parameters(
     metadata: Dict[str, Any], benchmarks: Dict[str, Any]
 ) -> Dict[str, Any]:
@@ -92,6 +139,8 @@ def extract_parameters(
     if benchmarks.get('args', {}).get('rate'):
         rates_str = ','.join(map(str, benchmarks['args']['rate']))
         params['load_sweep_rates'] = rates_str
+
+    params.update(extract_scaleout_parameters(metadata))
 
     return params
 
@@ -449,6 +498,13 @@ def create_tags(metadata: Dict[str, Any]) -> Dict[str, str]:
     # Add platform tag for managed mode
     if metadata.get('platform'):
         tags['platform'] = metadata['platform']
+
+    if is_scaleout_metadata(metadata):
+        tags['deployment_type'] = 'scaleout'
+        if metadata.get('routing_policy'):
+            tags['routing_policy'] = str(metadata['routing_policy'])
+        if metadata.get('lmcache_backend'):
+            tags['lmcache_backend'] = str(metadata['lmcache_backend'])
 
     return tags
 
