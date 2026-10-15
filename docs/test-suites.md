@@ -18,6 +18,8 @@ run, how to run it, and where to read the detailed methodology.
 | Embedding | Matrix | Validated | `cpueval --suite embedding` | [Embedding Models](../tests/embedding-models/embedding-models.md) |
 | Audio | Matrix | Validated | `cpueval --suite audio` | [Audio Models](../tests/audio-models/) |
 | Chat Smoke | Single-shot | Validated | `cpueval --suite chat-smoke --model <model>` | [cpueval CLI](cpueval-cli.md) |
+| vLLM Scale-out (llm-d) | Single-shot | WIP | `cpueval wizard` → **vllm-scaleout** or `--suite vllm-scaleout` | [vLLM scale-out](vllm-scaleout.md) |
+| Embedding Scale-out | Single-shot | WIP | `cpueval wizard` → **embedding-scaleout** or `--suite embedding-scaleout` | [vLLM scale-out](vllm-scaleout.md) |
 | Resource Contention | Planned | Planned | — | [Resource Contention](../tests/resource-contention/resource-contention.md) |
 
 **Status legend:** Validated = production-ready, WIP = in progress, Planned = not yet implemented.
@@ -32,6 +34,8 @@ run, how to run it, and where to read the detailed methodology.
 | Bulk/offline document processing | `offline-batch` | `./cpueval --suite offline-batch` |
 | Embedding quality (MTEB tasks) | `mteb` | `./cpueval --suite mteb` |
 | Embedding throughput and latency | `embedding` | `./cpueval --suite embedding` |
+| Multi-instance LLM via Envoy/EPP | `vllm-scaleout` | `./cpueval --suite vllm-scaleout --model … --num-instances 2` |
+| Multi-instance embedding via Envoy/EPP | `embedding-scaleout` | `./cpueval --suite embedding-scaleout --model … --num-instances 2` |
 | Audio transcription (Whisper) | `audio` | `./cpueval --suite audio --scenario quick-test` |
 | Maximum throughput curves | `scalability` | Ansible playbooks (see [Scalability](../tests/scalability/scalability.md)) |
 | Quick sanity check | `chat-smoke` or `health` | `./cpueval --suite chat-smoke --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --cores 8` |

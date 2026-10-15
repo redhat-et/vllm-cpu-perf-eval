@@ -29,6 +29,19 @@ from pathlib import Path
 from typing import Dict, List, Optional
 import csv
 
+# Merged from test-metadata.json when present (scale-out and single-instance).
+METADATA_COLUMNS = (
+    "deployment_type",
+    "num_instances",
+    "cores_per_instance",
+    "routing_policy",
+    "lmcache_backend",
+    "vllm_caching_mode",
+    "platform",
+)
+
+RESULT_SUBDIRS = ("baseline", "latency", "operating_point")
+
 
 def load_json_result(filepath: Path) -> Optional[Dict]:
     """Load and parse a JSON result file."""
@@ -79,13 +92,27 @@ def extract_core_count(test_run_id: str) -> Optional[int]:
     return None
 
 
+def load_test_metadata(test_run_dir: Path) -> Dict:
+    """Load test-metadata.json for a run directory if it exists."""
+    meta_path = test_run_dir / "test-metadata.json"
+    if not meta_path.is_file():
+        return {}
+    try:
+        with open(meta_path, "r") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"Warning: Failed to load {meta_path}: {e}", file=sys.stderr)
+        return {}
+
+
 def flatten_result(
     result: Dict,
     model_name: str,
     test_run_id: str,
     test_type: str,
     parameter: str,
-    core_count: Optional[int]
+    core_count: Optional[int],
+    metadata: Optional[Dict] = None,
 ) -> Dict:
     """Flatten JSON result into a single row for CSV."""
     row = {
@@ -109,6 +136,12 @@ def flatten_result(
         'std_latency_ms': result.get('std_e2el_ms'),
         'p99_latency_ms': result.get('p99_e2el_ms'),
     }
+    meta = metadata or {}
+    for key in METADATA_COLUMNS:
+        if key in meta and meta[key] is not None:
+            row[key] = meta[key]
+    if meta.get("cores_per_instance") and not row.get("core_count"):
+        row["core_count"] = meta["cores_per_instance"]
     return row
 
 
@@ -127,9 +160,9 @@ def scan_results_directory(results_dir: Path, model_filter: Optional[str] = None
         │       │   └── sweep-75pct.json
         │       ├── latency/
         │       │   ├── concurrent-16.json
-        │       │   ├── concurrent-32.json
-        │       │   └── ...
+        │       ├── operating_point/   (alias of baseline in some playbooks)
         │       └── test-metadata.json
+        Scale-out runs may also include vllm-metrics-instance-*.json at run root.
     """
     rows = []
 
@@ -156,9 +189,14 @@ def scan_results_directory(results_dir: Path, model_filter: Optional[str] = None
 
             test_run_id = test_run_dir.name
             core_count = extract_core_count(test_run_id)
+            metadata = load_test_metadata(test_run_dir)
+            if metadata.get("test_run_id"):
+                test_run_id = str(metadata["test_run_id"])
+            if metadata.get("cores_per_instance") and not core_count:
+                core_count = int(metadata["cores_per_instance"])
 
-            # Process JSON files in baseline/ and latency/ subdirectories
-            for subdir_name in ['baseline', 'latency']:
+            # Process JSON files in baseline / latency / operating_point subdirs
+            for subdir_name in RESULT_SUBDIRS:
                 subdir = test_run_dir / subdir_name
                 if not subdir.exists():
                     continue
@@ -177,7 +215,8 @@ def scan_results_directory(results_dir: Path, model_filter: Optional[str] = None
                         test_run_id=test_run_id,
                         test_type=test_type,
                         parameter=parameter,
-                        core_count=core_count
+                        core_count=core_count,
+                        metadata=metadata,
                     )
                     rows.append(row)
 
@@ -210,6 +249,7 @@ def write_csv(rows: List[Dict], output_path: Path):
         'median_latency_ms',
         'std_latency_ms',
         'p99_latency_ms',
+        *METADATA_COLUMNS,
     ]
 
     with open(output_path, 'w', newline='') as f:

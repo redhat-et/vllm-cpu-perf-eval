@@ -79,6 +79,7 @@
       vars:
         scaleout_metrics_tmpdir: "{{ hostvars['localhost']['scaleout_metrics_tmpdir'] }}"
         scaleout_num_instances: "{{ hostvars['localhost']['scaleout_num_instances'] | default(5) }}"
+        scaleout_routing_policy: "{{ hostvars['localhost']['scaleout_routing_policy'] | default('intelligent') }}"
         metrics_collection_interval: 10
         metrics_collection_duration: 7200
         test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
@@ -195,6 +196,14 @@
         - _results_dir_lookup.stdout | trim != ''
       failed_when: false
 
+    - name: Finalize scale-out artifacts (benchmarks.json co-location)
+      ansible.builtin.include_tasks: tasks/finalize-scaleout-artifacts.yml
+      vars:
+        scaleout_results_dir: "{{ _results_dir_lookup.stdout }}"
+      when:
+        - _results_dir_lookup.stdout is defined
+        - _results_dir_lookup.stdout | trim != ''
+
     - name: Remove metrics temp directory
       ansible.builtin.file:
         path: "{{ hostvars['localhost']['scaleout_metrics_tmpdir'] }}"
@@ -212,6 +221,10 @@
         _meta_extra:
           # Common fields — fix up values set to n/a or wrong defaults by external mode
           deployment_type: "scaleout"
+          model_name: >-
+            {{ scaleout_model_name
+               | default(lookup('env', 'TEST_MODEL')
+               | default(test_model | default('', true), true), true) }}
           platform: "{{ hostvars[groups['dut'][0]]['dut_platform_name'] | default(hostvars['localhost']['dut_platform_name'] | default('unknown')) }}"
           vllm_container_image: "{{ scaleout_lmcache_image_tag if scaleout_lmcache_backend | default('none') == 'remote' else scaleout_vllm_image | default('unknown') }}"
           vllm_caching_mode: "{{ 'lmcache' if scaleout_lmcache_backend | default('none') == 'remote' else ('production' if scaleout_enable_prefix_caching | default(true) | bool else 'baseline') }}"

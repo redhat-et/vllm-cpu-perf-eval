@@ -192,6 +192,16 @@ def run_model_name(run: Dict) -> str:
     return str(meta.get("model_name") or meta.get("model") or "")
 
 
+def _prefix_hit_rate_to_percent(df: pd.DataFrame) -> pd.DataFrame:
+    """Normalize vLLM hit-rate gauges (0–1 or 0–100) to percent."""
+    if df.empty:
+        return df
+    out = df.copy()
+    vmax = float(out["value"].max()) if out["value"].notna().any() else 0.0
+    out["value"] = out["value"] * (100.0 if vmax <= 1.0 else 1.0)
+    return out
+
+
 def extract_prefix_cache_hit_rate(data: dict) -> pd.DataFrame:
     """Prefix cache hit rate: gauges → local counters (delta) → external counters (delta)."""
     for gauge in (
@@ -560,11 +570,9 @@ def _server_side_by_side(
 
     def _series(data_dict: Dict, idx) -> pd.DataFrame:
         if series_kind == "prefix_cache_hit_rate":
-            df = extract_prefix_cache_hit_rate(data_dict[idx])
-            if not df.empty:
-                df = df.copy()
-                df["value"] = df["value"] * 100
-            return df
+            return _prefix_hit_rate_to_percent(
+                extract_prefix_cache_hit_rate(data_dict[idx])
+            )
         if series_kind == "generation_tps":
             return extract_generation_throughput(data_dict[idx])
         return extract_series(data_dict[idx], series_kind)
@@ -1015,25 +1023,30 @@ instance metrics and `benchmarks.json` are from different phases of the run.
         st.subheader("💾 Prefix Cache Hit Rate per Backend")
 
         hit_fig = go.Figure()
+        hit_y_max = 0.0
         for i, idx in enumerate(instance_ids):
-            df = extract_prefix_cache_hit_rate(instance_data[idx])
+            df = _prefix_hit_rate_to_percent(
+                extract_prefix_cache_hit_rate(instance_data[idx])
+            )
             if df.empty:
                 continue
+            hit_y_max = max(hit_y_max, float(df["value"].max()))
             hit_fig.add_trace(go.Scatter(
                 x=df["elapsed_s"],
-                y=df["value"] * 100,
+                y=df["value"],
                 name=f"Backend {idx}",
                 line=dict(color=BACKEND_COLORS[i % len(BACKEND_COLORS)]),
                 mode="lines",
             ))
 
         if hit_fig.data:
-            all_zero = all(
-                (t.y is None or max(t.y, default=0) == 0)
-                for t in hit_fig.data
-            )
+            all_zero = hit_y_max <= 0.0
             _yaxis_cfg = dict(rangemode="tozero")
-            if not all_zero:
+            if all_zero:
+                _yaxis_cfg["range"] = [0, 5]
+            elif hit_y_max < 100:
+                _yaxis_cfg["range"] = [0, max(1.0, hit_y_max * 1.2)]
+            else:
                 _yaxis_cfg["range"] = [0, 100]
             hit_fig.update_layout(
                 xaxis_title="Elapsed (s)",
