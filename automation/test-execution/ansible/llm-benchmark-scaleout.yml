@@ -47,6 +47,8 @@
         scaleout_collect_per_instance_metrics: "{{ scaleout_collect_per_instance_metrics | default(true) | bool }}"
         scaleout_num_instances: "{{ scaleout_num_instances | int }}"
         scaleout_benchmark_start_epoch: "{{ lookup('pipe', 'date +%s') | int }}"
+        scaleout_routing_policy: "{{ scaleout_routing_policy | default('intelligent') }}"
+        scaleout_lmcache_backend: "{{ scaleout_lmcache_backend | default('none') }}"
 
     - name: Display scaleout benchmark configuration
       ansible.builtin.debug:
@@ -82,6 +84,29 @@
         test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
       when: hostvars['localhost']['scaleout_collect_per_instance_metrics'] | default(true) | bool
 
+    - name: Start container CPU/memory stats collection
+      ansible.builtin.include_tasks: tasks/start-scaleout-container-stats.yml
+      vars:
+        scaleout_num_instances: "{{ hostvars['localhost']['scaleout_num_instances'] | default(5) }}"
+        scaleout_routing_policy: "{{ hostvars['localhost']['scaleout_routing_policy'] | default('intelligent') }}"
+        scaleout_metrics_tmpdir: "{{ hostvars['localhost']['scaleout_metrics_tmpdir'] }}"
+        test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
+        container_stats_interval: 10
+      when: hostvars['localhost']['scaleout_collect_per_instance_metrics'] | default(true) | bool
+
+    - name: Record container start times (restart-detection baseline)
+      ansible.builtin.shell: >-
+        podman inspect --format '{{ '{{' }}.Name{{ '}}' }} {{ '{{' }}.State.StartedAt{{ '}}' }}'
+        {{ (['vllm-envoy']
+            + (['vllm-epp'] if (hostvars['localhost']['scaleout_routing_policy'] | default('intelligent')) == 'intelligent' else [])
+            + (range(1, (hostvars['localhost']['scaleout_num_instances'] | int) + 1)
+               | map('regex_replace', '^(.*)$', 'vllm-instance-\1') | list)) | join(' ') }}
+      register: scaleout_container_start_baseline
+      delegate_to: "{{ groups['dut'][0] }}"
+      become: true
+      changed_when: false
+      failed_when: false
+
 # ============================================================================
 # Phase 1.7: Collect DUT platform info for metadata
 # ============================================================================
@@ -116,6 +141,39 @@
         test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
       when: hostvars['localhost']['scaleout_collect_per_instance_metrics'] | default(true) | bool
 
+    - name: Stop container CPU/memory stats collection
+      ansible.builtin.include_tasks: tasks/stop-scaleout-container-stats.yml
+      vars:
+        test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
+        scaleout_metrics_tmpdir: "{{ hostvars['localhost']['scaleout_metrics_tmpdir'] }}"
+      when: hostvars['localhost']['scaleout_collect_per_instance_metrics'] | default(true) | bool
+
+    - name: Check container start times after the benchmark (restart detection)
+      ansible.builtin.shell: >-
+        podman inspect --format '{{ '{{' }}.Name{{ '}}' }} {{ '{{' }}.State.StartedAt{{ '}}' }}'
+        {{ (['vllm-envoy']
+            + (['vllm-epp'] if (hostvars['localhost']['scaleout_routing_policy'] | default('intelligent')) == 'intelligent' else [])
+            + (range(1, (hostvars['localhost']['scaleout_num_instances'] | int) + 1)
+               | map('regex_replace', '^(.*)$', 'vllm-instance-\1') | list)) | join(' ') }}
+      register: _scaleout_container_start_after
+      delegate_to: "{{ groups['dut'][0] }}"
+      become: true
+      changed_when: false
+      failed_when: false
+
+    - name: Compute restarted containers
+      ansible.builtin.set_fact:
+        _scaleout_restarted_containers: >-
+          {{ (_scaleout_container_start_after.stdout_lines | default([]))
+             | difference(scaleout_container_start_baseline.stdout_lines | default([])) }}
+
+    - name: Warn about containers that restarted during the benchmark
+      ansible.builtin.debug:
+        msg:
+          - "WARNING: containers restarted during the benchmark — results may be skewed:"
+          - "{{ _scaleout_restarted_containers }}"
+      when: _scaleout_restarted_containers | length > 0
+
     - name: Find the results directory for this run
       ansible.builtin.shell: >
         find {{ playbook_dir }}/../../../results -name "test-metadata.json"
@@ -124,12 +182,13 @@
       register: _results_dir_lookup
       changed_when: false
       failed_when: false
-      when: hostvars['localhost']['scaleout_collect_per_instance_metrics'] | default(true) | bool
 
-    - name: Copy per-instance metrics JSON files to results directory
-      ansible.builtin.shell: >
-        cp {{ hostvars['localhost']['scaleout_metrics_tmpdir'] }}/*.json
-        {{ _results_dir_lookup.stdout }}/
+    - name: Copy per-instance metrics and container stats to results directory
+      ansible.builtin.shell: |
+        for f in {{ hostvars['localhost']['scaleout_metrics_tmpdir'] }}/*.json \
+                  {{ hostvars['localhost']['scaleout_metrics_tmpdir'] }}/*.jsonl; do
+          [ -f "$f" ] && cp "$f" {{ _results_dir_lookup.stdout }}/
+        done
       when:
         - hostvars['localhost']['scaleout_collect_per_instance_metrics'] | default(true) | bool
         - _results_dir_lookup.stdout is defined
@@ -185,6 +244,8 @@
           # Container images
           scaleout_epp_image: "{{ scaleout_epp_image | default('unknown') }}"
           scaleout_envoy_image: "{{ scaleout_envoy_image | default('unknown') }}"
+          container_restarts_detected: "{{ _scaleout_restarted_containers | default([]) | length > 0 }}"
+          restarted_containers: "{{ _scaleout_restarted_containers | default([]) }}"
       when:
         - _results_dir_lookup.stdout is defined
         - _results_dir_lookup.stdout | trim != ''

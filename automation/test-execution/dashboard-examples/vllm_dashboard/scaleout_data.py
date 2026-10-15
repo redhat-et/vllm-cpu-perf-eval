@@ -60,6 +60,15 @@ def _run_label(meta: Dict[str, Any], run_dir: Path, n_instance_files: int) -> st
     return " | ".join(parts)
 
 
+def is_scaleout_metadata(
+    meta: Dict[str, Any], run_dir: Optional[Path] = None
+) -> bool:
+    """True when a test-metadata.json record is from a scale-out benchmark run."""
+    if run_dir is None:
+        run_dir = Path(".")
+    return _is_scaleout_run(meta, run_dir)
+
+
 def _is_scaleout_run(meta: Dict[str, Any], run_dir: Path) -> bool:
     if meta.get("deployment_type") == "scaleout":
         return True
