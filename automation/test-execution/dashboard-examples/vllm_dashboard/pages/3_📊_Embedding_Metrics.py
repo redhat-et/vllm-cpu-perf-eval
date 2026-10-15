@@ -89,6 +89,23 @@ def load_container_stats(results_dir: str) -> dict[str, pd.DataFrame]:
     results_path = Path(results_dir)
     run_stats: dict[str, pd.DataFrame] = {}
 
+    def _append_stats_rows(rows: list, item: dict) -> None:
+        cpu_str = item.get('CPUPerc') or item.get('cpu_percent', '0%')
+        mem_str = item.get('MemUsage') or item.get('mem_usage', '0B / 0B')
+        pids = item.get('PIDs') or item.get('pids', 0)
+        ts = item.get('timestamp', '')
+        mem_parts = str(mem_str).split('/')
+        mem_used_bytes = _parse_podman_bytes(mem_parts[0].strip()) if mem_parts else 0.0
+        mem_limit_bytes = _parse_podman_bytes(mem_parts[1].strip()) if len(mem_parts) > 1 else 0.0
+        rows.append({
+            'timestamp': pd.to_datetime(ts, utc=True, errors='coerce'),
+            'cpu_pct': _parse_podman_pct(str(cpu_str)),
+            'mem_usage_gb': mem_used_bytes / 1e9,
+            'mem_limit_gb': mem_limit_bytes / 1e9,
+            'mem_pct': _parse_podman_pct(str(item.get('MemPerc') or item.get('mem_percent', '0%'))),
+            'pids': int(str(pids)) if str(pids).isdigit() else 0,
+        })
+
     for stats_file in results_path.rglob("container-stats.jsonl"):
         test_run_id = stats_file.parent.name
         rows = []
@@ -102,31 +119,67 @@ def load_container_stats(results_dir: str) -> dict[str, pd.DataFrame]:
                         item = json.loads(line)
                     except json.JSONDecodeError:
                         continue
-
-                    # podman stats --format json field names vary by version;
-                    # handle both CamelCase (podman 4.x) and lower_snake (some builds).
-                    cpu_str = item.get('CPUPerc') or item.get('cpu_percent', '0%')
-                    mem_str = item.get('MemUsage') or item.get('mem_usage', '0B / 0B')
-                    pids = item.get('PIDs') or item.get('pids', 0)
-                    ts = item.get('timestamp', '')
-
-                    # MemUsage is "used / limit"
-                    mem_parts = str(mem_str).split('/')
-                    mem_used_bytes = _parse_podman_bytes(mem_parts[0].strip()) if mem_parts else 0.0
-                    mem_limit_bytes = _parse_podman_bytes(mem_parts[1].strip()) if len(mem_parts) > 1 else 0.0
-
-                    rows.append({
-                        'timestamp': pd.to_datetime(ts, utc=True, errors='coerce'),
-                        'cpu_pct': _parse_podman_pct(str(cpu_str)),
-                        'mem_usage_gb': mem_used_bytes / 1e9,
-                        'mem_limit_gb': mem_limit_bytes / 1e9,
-                        'mem_pct': _parse_podman_pct(str(item.get('MemPerc') or item.get('mem_percent', '0%'))),
-                        'pids': int(str(pids)) if str(pids).isdigit() else 0,
-                    })
+                    _append_stats_rows(rows, item)
         except OSError:
             continue
 
         if rows:
+            df = (pd.DataFrame(rows)
+                  .dropna(subset=['timestamp'])
+                  .sort_values('timestamp')
+                  .reset_index(drop=True))
+            run_stats[test_run_id] = df
+
+    # Scale-out: one JSONL with multiple containers per timestamp — aggregate vLLM instances.
+    for stats_file in results_path.rglob("container-stats-scaleout.jsonl"):
+        meta_file = stats_file.parent / "test-metadata.json"
+        if meta_file.exists():
+            try:
+                meta = json.loads(meta_file.read_text())
+                test_run_id = meta.get("test_run_id") or stats_file.parent.name
+            except json.JSONDecodeError:
+                test_run_id = stats_file.parent.name
+        else:
+            test_run_id = stats_file.parent.name
+
+        by_ts: dict = {}
+        try:
+            with open(stats_file) as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        item = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    name = str(
+                        item.get("Name") or item.get("name") or ""
+                    ).lstrip("/")
+                    if "vllm-instance" not in name:
+                        continue
+                    cpu_str = item.get('CPUPerc') or item.get('cpu_percent', '0%')
+                    mem_str = item.get('MemUsage') or item.get('mem_usage', '0B / 0B')
+                    ts = item.get('timestamp', '')
+                    mem_parts = str(mem_str).split('/')
+                    mem_used = _parse_podman_bytes(mem_parts[0].strip()) if mem_parts else 0.0
+                    key = ts
+                    bucket = by_ts.setdefault(key, {
+                        'timestamp': pd.to_datetime(ts, utc=True, errors='coerce'),
+                        'cpu_pct': 0.0,
+                        'mem_usage_gb': 0.0,
+                        'mem_limit_gb': 0.0,
+                        'mem_pct': 0.0,
+                        'pids': 0,
+                    })
+                    bucket['cpu_pct'] += _parse_podman_pct(str(cpu_str))
+                    bucket['mem_usage_gb'] += mem_used / 1e9
+                    bucket['pids'] += int(str(item.get('PIDs') or 0)) if str(item.get('PIDs') or '').isdigit() else 0
+        except OSError:
+            continue
+
+        if by_ts:
+            rows = list(by_ts.values())
             df = (pd.DataFrame(rows)
                   .dropna(subset=['timestamp'])
                   .sort_values('timestamp')
