@@ -46,9 +46,9 @@ def cmd_get_loadgen(args: argparse.Namespace) -> None:
         "output_format": loadgen.get_output_format(),
         "supported_workloads": {
             "chat": loadgen.supports_workload("chat"),
-            "rag": loadgen.supports_workload("rag"),
-            "code": loadgen.supports_workload("code"),
             "summarization": loadgen.supports_workload("summarization"),
+            "reasoning": loadgen.supports_workload("reasoning"),
+            "batch_generation": loadgen.supports_workload("batch_generation"),
             "embedding": loadgen.supports_workload("embedding"),
         }
     }

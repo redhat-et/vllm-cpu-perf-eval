@@ -28,13 +28,12 @@ matrix:
         decode_performance: "medium"
         balance: "prefill-heavy"
       kv_cache_sizes:
-        chat: "2GiB"          # 1024 tokens, 32 concurrent
-        rag: "11GiB"          # 8192 tokens (7680+512), 32 concurrent
-        code: "3GiB"          # 2048 tokens, 32 concurrent
-        summarization: "3GiB" # 2304 tokens, 32 concurrent
-        reasoning: "3GiB"     # 2304 tokens, 32 concurrent
-        chat_var: "3GiB"      # 2048 max tokens, 32 concurrent, 1.5x safety
-        code_var: "6GiB"      # 4096 max tokens, 32 concurrent, 1.5x safety
+        chat: "2GiB"               # 1024 tokens, 32 concurrent
+        summarization: "3GiB"      # 2304 tokens, 32 concurrent
+        reasoning: "3GiB"          # 2304 tokens, 32 concurrent
+        batch_generation: "6GiB"   # 4608 tokens (512+4096), 32 concurrent, max_model_len=8192
+        chat_var: "3GiB"           # 2048 max tokens, 32 concurrent, 1.5x safety
+        summarization_var: "4GiB"  # 2560 max tokens, 32 concurrent, 1.5x safety
       default_workloads:
         - chat
       test_suites:
@@ -59,13 +58,12 @@ matrix:
         decode_performance: "medium"
         balance: "prefill-heavy"
       kv_cache_sizes:
-        chat: "5GiB"          # 1024 tokens, 32 concurrent
-        rag: "36GiB"          # 8192 tokens (7680+512), 32 concurrent
-        code: "9GiB"          # 2048 tokens, 32 concurrent
-        summarization: "9GiB" # 2304 tokens, 32 concurrent
-        reasoning: "10GiB"    # 2304 tokens, 32 concurrent
-        chat_var: "11GiB"     # 2048 max tokens, 32 concurrent, 1.5x safety
-        code_var: "21GiB"     # 4096 max tokens, 32 concurrent, 1.5x safety
+        chat: "5GiB"               # 1024 tokens, 32 concurrent
+        summarization: "9GiB"      # 2304 tokens, 32 concurrent
+        reasoning: "10GiB"         # 2304 tokens, 32 concurrent
+        batch_generation: "20GiB"  # 4608 tokens (512+4096), 32 concurrent, max_model_len=8192
+        chat_var: "11GiB"          # 2048 max tokens, 32 concurrent, 1.5x safety
+        summarization_var: "13GiB" # 2560 max tokens, 32 concurrent, 1.5x safety
       default_workloads:
         - chat
       test_suites:
@@ -91,13 +89,12 @@ matrix:
         decode_performance: "medium"
         balance: "balanced"
       kv_cache_sizes:
-        chat: "1GiB"          # 1024 tokens, 32 concurrent
-        # rag workload removed: context_length 2048 < 8704 required
-        code: "2GiB"          # 2048 tokens, 32 concurrent
-        summarization: "2GiB" # 2304 tokens, 32 concurrent
-        reasoning: "2GiB"     # 2304 tokens, 32 concurrent
-        chat_var: "3GiB"      # 2048 max tokens, 32 concurrent, 1.5x safety
-        code_var: "5GiB"      # 4096 max tokens, 32 concurrent, 1.5x safety
+        chat: "1GiB"               # 1024 tokens, 32 concurrent
+        summarization: "2GiB"      # 2304 tokens, 32 concurrent
+        reasoning: "2GiB"          # 2304 tokens, 32 concurrent
+        # batch_generation skipped: context_length 2048 < max_model_len 8192 required
+        chat_var: "3GiB"           # 2048 max tokens, 32 concurrent, 1.5x safety
+        summarization_var: "3GiB"  # 2560 max tokens, 32 concurrent, 1.5x safety
       default_workloads:
         - chat
       test_suites:
@@ -123,13 +120,12 @@ matrix:
         decode_performance: "medium"
         balance: "balanced"
       kv_cache_sizes:
-        chat: "3GiB"          # 1024 tokens, 32 concurrent
-        # rag workload skipped: context_length 4096 < 8192 required
-        code: "5GiB"          # 2048 tokens, 32 concurrent
-        summarization: "4GiB" # 2304 tokens, 32 concurrent
-        reasoning: "5GiB"     # 2304 tokens, 32 concurrent
-        chat_var: "8GiB"      # 2048 max tokens, 32 concurrent, 1.5x safety
-        code_var: "15GiB"     # 4096 max tokens, 32 concurrent, 1.5x safety
+        chat: "3GiB"               # 1024 tokens, 32 concurrent
+        summarization: "4GiB"      # 2304 tokens, 32 concurrent
+        reasoning: "5GiB"          # 2304 tokens, 32 concurrent
+        # batch_generation skipped: context_length 4096 < max_model_len 8192 required
+        chat_var: "8GiB"           # 2048 max tokens, 32 concurrent, 1.5x safety
+        summarization_var: "9GiB"  # 2560 max tokens, 32 concurrent, 1.5x safety
       default_workloads:
         - chat
       test_suites:
@@ -155,16 +151,15 @@ matrix:
         decode_performance: "high"
         balance: "balanced"
       kv_cache_sizes:
-        chat: "2GiB"          # 1024 tokens, 32 concurrent
-        rag: "12GiB"          # 8192 tokens (7680+512), 32 concurrent
-        code: "3GiB"          # 2048 tokens, 32 concurrent
-        summarization: "3GiB" # 2304 tokens, 32 concurrent
-        reasoning: "4GiB"     # 2304 tokens, 32 concurrent
-        chat_var: "6GiB"      # 2048 max tokens, 32 concurrent, 1.5x safety
-        code_var: "11GiB"     # 4096 max tokens, 32 concurrent, 1.5x safety
+        chat: "2GiB"               # 1024 tokens, 32 concurrent
+        summarization: "3GiB"      # 2304 tokens, 32 concurrent
+        reasoning: "4GiB"          # 2304 tokens, 32 concurrent
+        batch_generation: "10GiB"  # 4608 tokens (512+4096), 32 concurrent, max_model_len=8192
+        chat_var: "6GiB"           # 2048 max tokens, 32 concurrent, 1.5x safety
+        summarization_var: "7GiB"  # 2560 max tokens, 32 concurrent, 1.5x safety
       default_workloads:
         - chat
-        - code
+        - summarization
       test_suites:
         - concurrent-load
         - scalability
@@ -187,16 +182,15 @@ matrix:
         decode_performance: "high"
         balance: "balanced"
       kv_cache_sizes:
-        chat: "1GiB"          # 1024 tokens, 32 concurrent
-        rag: "7GiB"           # 8192 tokens (7680+512), 32 concurrent
-        code: "2GiB"          # 2048 tokens, 32 concurrent
-        summarization: "2GiB" # 2304 tokens, 32 concurrent
-        reasoning: "2GiB"     # 2304 tokens, 32 concurrent
-        chat_var: "4GiB"      # 2048 max tokens, 32 concurrent, 1.5x safety
-        code_var: "7GiB"      # 4096 max tokens, 32 concurrent, 1.5x safety
+        chat: "1GiB"               # 1024 tokens, 32 concurrent
+        summarization: "2GiB"      # 2304 tokens, 32 concurrent
+        reasoning: "2GiB"          # 2304 tokens, 32 concurrent
+        batch_generation: "7GiB"   # 4608 tokens (512+4096), 32 concurrent, max_model_len=8192
+        chat_var: "4GiB"           # 2048 max tokens, 32 concurrent, 1.5x safety
+        summarization_var: "5GiB"  # 2560 max tokens, 32 concurrent, 1.5x safety
       default_workloads:
         - chat
-        - code
+        - summarization
       test_suites:
         - scalability
 
@@ -231,17 +225,16 @@ matrix:
         quantization: "MXFP4 (MoE weights)"
       memory_footprint: "~16GB (MXFP4 quantization)"
       kv_cache_sizes:
-        chat: "2GiB"          # 1024 tokens, 32 concurrent
-        rag: "14GiB"          # 8192 tokens (7680+512), 32 concurrent
-        code: "4GiB"          # 2048 tokens, 32 concurrent
-        summarization: "3GiB" # 2304 tokens, 32 concurrent
-        reasoning: "4GiB"     # 2304 tokens, 32 concurrent
-        chat_var: "4GiB"      # 2048 max tokens, 32 concurrent, 1.5x safety
-        code_var: "7GiB"      # 4096 max tokens, 32 concurrent, 1.5x safety
+        chat: "2GiB"               # 1024 tokens, 32 concurrent
+        summarization: "3GiB"      # 2304 tokens, 32 concurrent
+        reasoning: "4GiB"          # 2304 tokens, 32 concurrent
+        batch_generation: "8GiB"   # 4608 tokens (512+4096), 32 concurrent, max_model_len=8192
+        chat_var: "4GiB"           # 2048 max tokens, 32 concurrent, 1.5x safety
+        summarization_var: "5GiB"  # 2560 max tokens, 32 concurrent, 1.5x safety
       default_workloads:
-        - rag       # Primary - leverages large context
-        - chat      # Baseline conversational
-        - code      # Code generation baseline
+        - chat
+        - summarization
+        - reasoning
       test_suites:
         - concurrent-load
         - scalability
@@ -256,46 +249,54 @@ matrix:
   # Workload definitions
   # NOTE: Each workload is optimized for BEST PERFORMANCE by limiting max-model-len
   # to the minimum required. This minimizes KV cache allocation and maximizes throughput.
+  #
+  # Shapes are aligned with kubernetes-sigs/inference-perf workload catalog:
+  #   chat          → interactive-chat (balanced, primary working point)
+  #   summarization → batch-summarization-rag (prefill-heavy)
+  #   reasoning     → reasoning / deep-research (decode-heavy, OSL capped at 2048 for CPU)
+  #   batch_generation → batch-synthetic-data-generation (sustained bulk decode)
+  #
+  # Three stress axes drive the matrix:
+  #   ISL-heavy (prefill stress): summarization 2048/256
+  #   Balanced:                  chat 512/512
+  #   OSL-heavy (decode stress): reasoning 256/2048, batch_generation 512/4096
   workloads:
     chat:
       name: "Chat"
       input_tokens: 512
       output_tokens: 512
       max_model_len: 2048
-      description: "Primary working point for conversational AI"
+      description: "Balanced ISL/OSL — primary working point for conversational AI"
       use_case: "General chat applications"
-
-    rag:
-      name: "RAG (Retrieval-Augmented Generation)"
-      input_tokens: 7680
-      output_tokens: 512
-      max_model_len: 16384
-      description: "ISL-heavy is fine, keep OSL short (7680+512=8192 total to fit 8K context models)"
-      use_case: "Document Q&A, knowledge retrieval"
-
-    code:
-      name: "Code Generation"
-      input_tokens: 1024
-      output_tokens: 1024
-      max_model_len: 4096
-      description: "1024 OSL is near practical ceiling on CPU"
-      use_case: "Code completion, generation"
+      inference_perf_analog: "interactive-chat"
 
     summarization:
       name: "Summarization"
       input_tokens: 2048
       output_tokens: 256
       max_model_len: 4096
-      description: "Short output is realistic and achievable"
-      use_case: "Document summarization"
+      description: "Prefill-heavy — stresses prefill throughput with long context and short output"
+      use_case: "Document summarization, RAG responses"
+      inference_perf_analog: "batch-summarization-rag"
 
     reasoning:
       name: "Reasoning"
       input_tokens: 256
       output_tokens: 2048
       max_model_len: 4096
-      description: "New workload for reasoning tasks with longer outputs"
+      description: "Decode-heavy — OSL capped at 2048 (inference-perf uses 8000 which is impractical on CPU at ~20 tok/s)"
       use_case: "Chain-of-thought reasoning, problem solving"
+      inference_perf_analog: "reasoning / deep-research"
+
+    batch_generation:
+      name: "Batch Generation"
+      input_tokens: 512
+      output_tokens: 4096
+      max_model_len: 8192
+      description: "Sustained bulk decode — stresses decode throughput ceiling under high concurrency"
+      use_case: "Synthetic data generation, offline document generation"
+      inference_perf_analog: "batch-synthetic-data-generation"
+      notes: "Requires context_length >= 8192; not supported on TinyLlama (2K) or Granite-3.2-2B (4K)"
 
     # Variable Workloads (Realistic Traffic Simulation)
     chat_var:
@@ -307,20 +308,20 @@ matrix:
       input_range: "128-1024"
       output_range: "256-1024"
       variability: true
-      description: "Variable chat workload with realistic token distribution"
+      description: "Variable chat — realistic token distribution around the balanced working point"
       use_case: "Realistic conversational AI with variable message lengths"
 
-    code_var:
-      name: "Code Generation (Variable)"
+    summarization_var:
+      name: "Summarization (Variable)"
       input_tokens_mean: 1024
       input_tokens_stdev: 256
-      output_tokens_mean: 1024
-      output_tokens_stdev: 256
+      output_tokens_mean: 256
+      output_tokens_stdev: 64
       input_range: "512-2048"
-      output_range: "512-2048"
+      output_range: "128-512"
       variability: true
-      description: "Variable code generation with realistic output variance"
-      use_case: "Realistic code generation with varying complexity"
+      description: "Variable summarization — realistic prefill-heavy traffic with token variance"
+      use_case: "Realistic document summarization with varying document lengths"
 
   # Common test parameters
   common_parameters:
@@ -344,17 +345,17 @@ matrix:
         phase1_baseline:
           name: "Phase 1: Baseline Tests"
           description: "Fixed tokens, no caching"
-          workloads: ["chat", "rag", "code", "summarization", "reasoning"]
+          workloads: ["chat", "summarization", "reasoning", "batch_generation"]
           caching_mode: "baseline"
         phase2_realistic:
           name: "Phase 2: Realistic Tests"
           description: "Variable tokens, no caching"
-          workloads: ["chat_var", "code_var"]
+          workloads: ["chat_var", "summarization_var"]
           caching_mode: "baseline"
         phase3_production:
           name: "Phase 3: Production Tests"
           description: "Realistic datasets, with caching"
-          workloads: ["chat", "rag"]
+          workloads: ["chat", "summarization"]
           caching_mode: "production"
           models: ["llama-3.2-1b-instruct", "granite-3.2-2b-instruct", "gpt-oss-20b"]
           status: "not_yet_implemented"
@@ -386,7 +387,7 @@ matrix:
     │   ├── llama-3.2-1b-instruct/
     │   │   ├── chat-concurrent-8.json
     │   │   ├── chat-concurrent-16.json
-    │   │   ├── rag-concurrent-8.json
+    │   │   ├── summarization-concurrent-8.json
     │   │   └── ...
     │   └── granite-3.2-2b-instruct/
     │       └── ...
@@ -394,6 +395,6 @@ matrix:
         ├── llama-3.2-1b-instruct/
         │   ├── chat-sweep.json
         │   ├── chat-synchronous.json
-        │   ├── rag-sweep.json
+        │   ├── summarization-sweep.json
         │   └── ...
         └── ...

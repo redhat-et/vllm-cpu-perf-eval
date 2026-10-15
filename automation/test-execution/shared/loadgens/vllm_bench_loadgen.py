@@ -213,7 +213,7 @@ class VLLMBenchLoadGen(LoadGenerator):
     def supports_workload(self, workload_type: str) -> bool:
         """vLLM bench supports generative and embedding workloads."""
         supported = [
-            'chat', 'rag', 'code', 'summarization', 'reasoning', 'embedding'
+            'chat', 'summarization', 'reasoning', 'batch_generation', 'embedding'
         ]
         return workload_type in supported
 

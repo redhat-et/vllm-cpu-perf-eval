@@ -25,7 +25,7 @@
         fail_msg: |
           Missing required variables. Please provide:
           -e "test_model=<model>"
-          -e "workload_type=<summarization|chat|code|rag>"
+          -e "workload_type=<chat|summarization|reasoning|batch_generation>"
           -e "core_config_name=<config_name>"
 
     - name: Get core configuration by name

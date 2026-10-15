@@ -251,7 +251,7 @@ Type: Matrix suite (runs full test matrix by default)
 Default Parameters:
   models: all
   cores: 8,16,32
-  workloads: chat,code,summarization,rag
+  workloads: chat,summarization,reasoning,batch_generation
   phase: 1
 
 Parameter Mappings:

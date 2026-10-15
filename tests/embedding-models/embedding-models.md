@@ -10,7 +10,9 @@ using `vllm bench serve` (`openai-embeddings` backend).
 
 ## Overview
 
-The embedding suite characterises:
+The embedding suite characterises serving across three workload shapes — semantic
+search queries (64 tokens), RAG document chunks (512 tokens), and long-form
+corpus ingestion (1536 tokens) — using two test modes:
 
 - **Throughput and latency** across a concurrency sweep (`scenario=latency`)
 - **Fixed operating-point probes** at conc=1, 8, and peak (`scenario=operating_point`)
@@ -58,7 +60,10 @@ See [cpueval CLI](../../docs/cpueval-cli.md) and
 - [Legacy load-fraction sweep](baseline-sweep.md) (older result trees only)
 
 Default concurrency levels for `latency`:
-**16, 24, 32, 48, 64, 96, 128, 192, 256, 384**.
+**16, 24, 32, 48, 64, 96, 128, 192, 256, 384** (run for each shape).
+
+Default workload shapes: **query** (64 tokens), **chunk** (512 tokens), **document** (1536 tokens).
+Override with `-e "embedding_workload_shapes=[{'name':'chunk','input_len':512}]"` to run a single shape.
 
 Operating-point peak concurrency comes from the latency sweep when
 `scenario=all`; otherwise defaults to **32** (`op_peak_concurrency` override).
@@ -104,25 +109,35 @@ See [model-matrix.yaml](../../models/embedding-models/model-matrix.yaml) and the
 ```text
 results/embedding/<model-name>/<timestamp>/
 ├── operating_point/
-│   ├── conc-1.json
-│   ├── conc-8.json
-│   └── conc-{N}.json          # peak probe
+│   ├── query/
+│   │   ├── conc-1.json
+│   │   ├── conc-8.json
+│   │   └── conc-{N}.json      # peak probe
+│   ├── chunk/
+│   │   └── conc-{N}.json
+│   └── document/
+│       └── conc-{N}.json
 ├── latency/
-│   └── concurrent-{N}.json    # sweep levels
+│   ├── query/
+│   │   └── concurrent-{N}.json
+│   ├── chunk/
+│   │   └── concurrent-{N}.json   # used for peak detection
+│   └── document/
+│       └── concurrent-{N}.json
 ├── container-stats.jsonl        # optional CPU/memory time series
 ├── test-metadata.json
 └── vllm-server.log              # managed / dut-only
 ```
 
-Legacy runs may still have `baseline/sweep-*.json`; dashboards and
-`view_results.py` continue to read them.
+Legacy runs may still have `baseline/sweep-*.json` or flat `latency/concurrent-*.json`
+(pre-shape layout); dashboards and `view_results.py` continue to read them.
 
 ## Test case IDs (matrix)
 
 | Test ID | Scenario | Focus |
 | --- | --- | --- |
-| `EMB-OP-GRANITE-EN-R2-EMB512` | operating_point | English encoder throughput/latency probes |
-| `EMB-LATENCY-GRANITE-ML-EMB512` | latency | Multilingual concurrency envelope |
+| `EMB-OP-GRANITE-EN-R2` | operating_point | English encoder — query/chunk/document probes |
+| `EMB-LATENCY-GRANITE-ML` | latency | Multilingual concurrency envelope across shapes |
 | `EMB-ALL-*` | all | Full latency + operating-point workflow |
 
 See [model-matrix.yaml](../../models/embedding-models/model-matrix.yaml) for the

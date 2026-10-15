@@ -25,9 +25,29 @@
 #   scaleout_num_instances          : vLLM instance count (default: 5)
 #   scaleout_cores_per_instance     : Cores per instance (default: 32)
 #   scaleout_routing_policy         : 'intelligent' (EPP) or 'round_robin'
-#   scaleout_model_name             : Embedding model
+#   scaleout_model_name / test_model: Embedding model (not LLM chat models)
 #   scaleout_vllm_max_model_len     : Context length cap (default: 512)
+#   scaleout_vllm_runner / convert  : pooling + embed (vLLM 0.31+; do not use --task embed)
 #   scaleout_collect_per_instance_metrics : true (default) / false
+#   scaleout_enable_prefix_caching      : false (forced default for embedding — vLLM 0.31+
+#                                         pooling models crash with prefix cache enabled)
+#   scaleout_vllm_runner              : pooling (default)
+#   scaleout_vllm_convert             : embed (default)
+#
+# Client benchmark (vllm-bench on load_generator — not GuideLLM):
+#   scenario                        : operating_point (default), latency, or all
+#   num_prompts                     : prompts per probe (default 1000; use 64 for smoke)
+#   op_peak_concurrency             : peak OP probe (default 32; use 8 for smoke → conc 1+8 only)
+#   vllm_bench_cpus / vllm_bench_numa_node : pin bench container (like guidellm_cpus for LLM)
+#
+# Functional smoke example (see docs/vllm-scaleout.md § Embedding):
+#   Core layout: core 0 = OS, 1-7 = Envoy, 8-15 = EPP, 16-23 = vLLM (2 × 4 cores).
+#   ansible-playbook -i inventory/hosts.yml embedding-benchmark-scaleout.yml \
+#     -e "test_model=RedHatAI/granite-embedding-english-r2 scaleout_num_instances=2 \
+#         scaleout_cores_per_instance=4 scaleout_start_core=16 \
+#         scaleout_routing_policy=intelligent \
+#         scenario=operating_point num_prompts=64 op_peak_concurrency=8 \
+#         vllm_bench_cpus=48-71 vllm_bench_numa_node=0 hf_token=\$HF_TOKEN"
 
 # ============================================================================
 # Phase 0: Initialize — generate test_run_id and metrics temp dir
@@ -53,6 +73,14 @@
         scaleout_num_instances: "{{ scaleout_num_instances | int }}"
         scaleout_benchmark_start_epoch: "{{ lookup('pipe', 'date +%s') | int }}"
 
+    # Resolve deploy settings here (not in import_playbook vars) to avoid Ansible
+    # recursive template loops when a var references itself in import vars.
+    - name: Resolve embedding scale-out vLLM deploy settings
+      ansible.builtin.set_fact:
+        scaleout_embedding_vllm_runner: "{{ scaleout_vllm_runner | default('pooling', true) }}"
+        scaleout_embedding_vllm_convert: "{{ scaleout_vllm_convert | default('embed', true) }}"
+        scaleout_embedding_prefix_caching: false
+
     - name: Display scaleout benchmark configuration
       ansible.builtin.debug:
         msg:
@@ -71,6 +99,10 @@
   vars:
     scaleout_model_name: "{{ lookup('env', 'TEST_MODEL') | default(test_model | default('RedHatAI/granite-embedding-english-r2'), true) }}"
     scaleout_vllm_max_model_len: "{{ lookup('env', 'SCALEOUT_MAX_MODEL_LEN') | default(512, true) }}"
+    scaleout_vllm_task: ""
+    scaleout_vllm_runner: pooling
+    scaleout_vllm_convert: embed
+    scaleout_enable_prefix_caching: false
 
 # ============================================================================
 # Phase 1.5: Start per-instance metrics collection
@@ -123,7 +155,7 @@
 - ansible.builtin.import_playbook: embedding-benchmark.yml
   vars:
     vllm_mode: "external"
-    vllm_endpoint_url: "http://{{ groups['dut'][0] }}:{{ scaleout_envoy_port | default(8081) }}/v1"
+    vllm_endpoint_url: "http://{{ hostvars[groups['dut'][0]]['ansible_host'] }}:{{ scaleout_envoy_port | default(8081) }}/v1"
     benchmark_label_suffix: "scaleout-{{ scaleout_num_instances | default(5) }}x-{{ scaleout_routing_policy | default('intelligent') }}{{ '-lmcache' if scaleout_lmcache_backend | default('none') == 'remote' else '' }}"
 
 # ============================================================================
@@ -237,7 +269,7 @@
           scaleout_envoy_port: "{{ scaleout_envoy_port | default(8081) | int }}"
           scaleout_epp_grpc_port: "{{ scaleout_epp_grpc_port | default(9002) | int }}"
           scaleout_epp_metrics_port: "{{ scaleout_epp_metrics_port | default(9090) | int }}"
-          scaleout_enable_prefix_caching: "{{ scaleout_enable_prefix_caching | default(true) | bool }}"
+          scaleout_enable_prefix_caching: "{{ hostvars['localhost']['scaleout_embedding_prefix_caching'] | default(false) | bool }}"
           epp_scorer_weights:
             prefix_cache: "{{ scaleout_epp_prefix_cache_weight | default(3) | int }}"
             queue: "{{ scaleout_epp_queue_weight | default(2) | int }}"

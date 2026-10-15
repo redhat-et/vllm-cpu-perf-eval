@@ -9,6 +9,10 @@ scaleout_start_core: 32
 scaleout_enable_smt: false
 scaleout_enable_prefix_caching: true
 
+# Pooling / embedding (--runner pooling). Set with --convert embed for encoder models.
+scaleout_vllm_runner: ""
+scaleout_vllm_convert: ""
+
 # CPU cores for Envoy proxy (handles all client I/O — dedicate enough for concurrency)
 scaleout_envoy_cores: "1-7"
 
@@ -80,11 +84,12 @@ scaleout_compose_up_timeout: 600
 scaleout_config_dir: "/tmp/vllm-scaleout"
 scaleout_model_cache_dir: "{{ model_cache_dir | default('/var/lib/vllm-models') }}"
 
-# Task type for vLLM serving (leave empty for auto-detection, which covers most LLM and embedding models)
-# Set explicitly when vLLM cannot auto-detect:
-#   - "embed"       : encoder-only embedding models (e.g. Nomic, E5-mistral)
-#   - "generate"    : forced generation mode
-#   - "transcription": audio/Whisper models for ASR
+# vLLM 0.31+ serving mode (see `vllm serve --help`):
+#   LLM (default)     — leave runner/convert/task unset; auto-detection usually suffices
+#   Embedding         — scaleout_vllm_runner=pooling, scaleout_vllm_convert=embed (no --task)
+#   Whisper / ASR     — scaleout_vllm_task=transcription (when supported by your vLLM build)
+# scaleout_vllm_runner: ""
+# scaleout_vllm_convert: ""
 # scaleout_vllm_task: ""
 
 # Max model length (tokens). Recommended for embedding benchmarks to match ISL (e.g. 512).

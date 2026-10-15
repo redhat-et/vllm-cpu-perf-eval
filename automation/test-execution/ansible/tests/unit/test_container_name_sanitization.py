@@ -59,7 +59,7 @@ def build_container_name(workload_type, core_name, vllm_mems, loadgen_mems):
     Mimics the Ansible task at roles/benchmark_guidellm/tasks/main.yml:178
 
     Args:
-        workload_type: Benchmark workload type (e.g., 'chat_lite')
+        workload_type: Benchmark workload type (e.g., 'chat')
         core_name: Core configuration name (e.g., 'external-endpoint')
         vllm_mems: vLLM NUMA memory configuration (e.g., 'n/a', '0', '0,1')
         loadgen_mems: Load generator NUMA memory config (e.g., '0')
@@ -167,12 +167,12 @@ class TestContainerNameGeneration:
     def test_multi_numa_name(self):
         """Test container name for multi-NUMA configuration."""
         name = build_container_name(
-            workload_type='rag',
+            workload_type='reasoning',
             core_name='96cores-dual-socket-tp3',
             vllm_mems='0,1',
             loadgen_mems='0,1'
         )
-        assert name == 'guidellm-rag-96cores-dual-socket-tp3-vllm-numa0-1-loadgen-numa0-1'
+        assert name == 'guidellm-reasoning-96cores-dual-socket-tp3-vllm-numa0-1-loadgen-numa0-1'
         assert is_valid_container_name(name)
 
     def test_workload_with_underscore(self):
@@ -200,7 +200,7 @@ class TestContainerNameGeneration:
     def test_no_commas(self):
         """Test that generated names never contain commas."""
         name = build_container_name(
-            workload_type='code',
+            workload_type='batch_generation',
             core_name='test',
             vllm_mems='0,1,2',  # Contains commas
             loadgen_mems='0,1'
@@ -217,8 +217,8 @@ class TestContainerNameValidation:
         """Test that valid names pass validation."""
         valid_names = [
             'guidellm-chat-test-vllm-numa0-loadgen-numa0',
-            'guidellm-chat_lite-external-endpoint-vllm-numana-loadgen-numa0',
-            'guidellm-rag-96cores-dual-socket-tp3-vllm-numa0-1-loadgen-numa0-1',
+            'guidellm-summarization-external-endpoint-vllm-numana-loadgen-numa0',
+            'guidellm-reasoning-96cores-dual-socket-tp3-vllm-numa0-1-loadgen-numa0-1',
             'test-container_name.123',
         ]
         for name in valid_names:
@@ -309,7 +309,7 @@ class TestRealWorldScenarios:
 
     def test_variable_workload_types(self):
         """Test various workload type patterns."""
-        workload_types = ['chat', 'chat_lite', 'chat_var', 'code', 'rag', 'summarization']
+        workload_types = ['chat', 'chat_var', 'summarization', 'summarization_var', 'reasoning', 'batch_generation']
 
         for workload in workload_types:
             name = build_container_name(

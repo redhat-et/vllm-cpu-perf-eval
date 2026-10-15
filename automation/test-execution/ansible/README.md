@@ -220,19 +220,17 @@ Pre-configured in [inventory/group_vars/all/test-workloads.yml](inventory/group_
 
 | Workload | ISL:OSL | Use Case | Baseline vLLM Args |
 |----------|---------|----------|-----------|
-| `embedding` | 512:1 | Embedding models | `--dtype=bfloat16 --max-model-len=512` |
-| `chat` | 512:256 | Chatbots | `--dtype=bfloat16 --no-enable-prefix-caching` |
-| `rag` | 4096:512 | RAG applications | `--dtype=bfloat16 --no-enable-prefix-caching` |
-| `code` | 512:4096 | Code generation | `--dtype=bfloat16 --no-enable-prefix-caching` |
-| `short_codegen` | 256:2048 | Short code generation | `--dtype=bfloat16 --no-enable-prefix-caching` |
-| `summarization` | 1024:256 | Text summarization | `--dtype=bfloat16 --no-enable-prefix-caching` |
+| `chat` | 512:512 | Balanced conversational | `--dtype=bfloat16 --no-enable-prefix-caching` |
+| `summarization` | 2048:256 | Prefill-heavy (document summarization) | `--dtype=bfloat16 --no-enable-prefix-caching` |
+| `reasoning` | 256:2048 | Decode-heavy (chain-of-thought) | `--dtype=bfloat16 --no-enable-prefix-caching` |
+| `batch_generation` | 512:4096 | Sustained bulk decode (data generation) | `--dtype=bfloat16 --no-enable-prefix-caching` |
 
 ### Variable Workloads (Realistic Traffic)
 
 | Workload | ISL±σ:OSL±σ (max) | Use Case | Baseline vLLM Args |
 |----------|---------|----------|-----------|
 | `chat_var` | 512±128:512±128 (1024:1024) | Realistic chat traffic | `--dtype=bfloat16 --no-enable-prefix-caching` |
-| `code_var` | 1024±256:1024±256 (2048:2048) | Realistic code generation | `--dtype=bfloat16 --no-enable-prefix-caching` |
+| `summarization_var` | 1024±256:256±64 (2048:512) | Realistic summarization traffic | `--dtype=bfloat16 --no-enable-prefix-caching` |
 
 **Note:** Baseline mode disables both prefix caching and radix cache for true baseline measurements. Production mode enables caching optimizations.
 
@@ -243,21 +241,21 @@ The recommended testing methodology for CPU inference performance evaluation fol
 ### Phase 1: Baseline (Fixed Tokens, No Caching)
 Establish pure baseline performance without any caching optimizations.
 - **Configuration:** `vllm_caching_mode=baseline`
-- **Workload:** Fixed token counts (e.g., `chat`, `rag`, `code`)
+- **Workload:** Fixed token counts (e.g., `chat`, `summarization`, `reasoning`, `batch_generation`)
 - **vLLM flags:** `--no-enable-prefix-caching`
 - **Concurrency levels:** `[1, 2, 4, 8, 16, 32]`
 
 ### Phase 2: Realistic (Variable Tokens, No Caching)
 Measure performance under realistic traffic variability.
 - **Configuration:** `vllm_caching_mode=baseline`
-- **Workload:** Variable token counts (e.g., `chat_var`, `code_var`)
+- **Workload:** Variable token counts (e.g., `chat_var`, `summarization_var`)
 - **vLLM flags:** `--no-enable-prefix-caching`
 - **Concurrency levels:** `[1, 2, 4, 8, 16, 32]`
 
 ### Phase 3: Production (Variable Tokens, With Caching)
 Simulate true production conditions with realistic load and optimizations.
 - **Configuration:** `vllm_caching_mode=production`
-- **Workload:** Variable token counts (e.g., `chat_var`, `code_var`)
+- **Workload:** Variable token counts (e.g., `chat_var`, `summarization_var`)
 - **vLLM flags:** Default (caching enabled)
 - **Concurrency levels:** `[1, 2, 4, 8, 16, 32]`
 
@@ -302,7 +300,7 @@ ansible-playbook -i inventory/hosts.yml \
 ansible-playbook -i inventory/hosts.yml \
   llm-benchmark-concurrent-load.yml \
   -e "test_model=meta-llama/Llama-3.2-1B-Instruct" \
-  -e "base_workload=rag" \
+  -e "base_workload=summarization" \
   -e "core_sweep_counts=[16,32]" \
   -e "skip_phase_1=true" \
   -e "skip_phase_2=true"

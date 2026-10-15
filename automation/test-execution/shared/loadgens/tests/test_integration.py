@@ -184,10 +184,10 @@ class TestGuideLLMLoadGen:
     def test_supports_workload_generative(self, loadgen):
         """Test workload support for generative workloads."""
         assert loadgen.supports_workload("chat") is True
-        assert loadgen.supports_workload("chat_lite") is True
-        assert loadgen.supports_workload("rag") is True
-        assert loadgen.supports_workload("code") is True
         assert loadgen.supports_workload("summarization") is True
+        assert loadgen.supports_workload("reasoning") is True
+        assert loadgen.supports_workload("batch_generation") is True
+        assert loadgen.supports_workload("chat_var") is True
 
     def test_supports_workload_embedding(self, loadgen):
         """Test workload support for embedding."""
@@ -368,7 +368,7 @@ class TestVLLMBenchLoadGen:
         """Test workload support."""
         assert loadgen.supports_workload("chat") is True
         assert loadgen.supports_workload("embedding") is True
-        assert loadgen.supports_workload("rag") is True
+        assert loadgen.supports_workload("reasoning") is True
         assert loadgen.supports_workload("invalid") is False
 
     def test_validate_config_valid(self, loadgen, config):
@@ -523,8 +523,8 @@ class TestMTEBLoadGen:
         """Test MTEB only supports embedding workloads."""
         assert loadgen.supports_workload("embedding") is True
         assert loadgen.supports_workload("chat") is False
-        assert loadgen.supports_workload("rag") is False
-        assert loadgen.supports_workload("code") is False
+        assert loadgen.supports_workload("summarization") is False
+        assert loadgen.supports_workload("reasoning") is False
 
     def test_validate_config_valid(self, loadgen, config):
         """Test configuration validation with valid config."""

@@ -238,7 +238,9 @@
 
     - name: Parse external endpoint URL using urlsplit
       ansible.builtin.set_fact:
-        external_endpoint_parsed: "{{ vllm_endpoint.external.url | urlsplit }}"
+        external_endpoint_parsed:
+          hostname: "{{ vllm_endpoint.external.url | urlsplit('hostname') }}"
+          port: "{{ vllm_endpoint.external.url | urlsplit('port') }}"
       when: hostvars['localhost']['vllm_mode'] == 'external'
 
     - name: Override bench_config for external mode
@@ -336,7 +338,7 @@
             "vllm_bench_version": "{{ benchmark_tool.vllm_bench.version | default('built-in') }}",
             "vllm_bench_container": "{{ benchmark_tool.vllm_bench.use_container | default(true) }}",
             "num_prompts": {{ num_prompts | default(benchmark_tool.vllm_bench.num_prompts | default(1000)) | int }},
-            "embedding_random_input_len": {{ embedding_random_input_len | default(512) }},
+            "embedding_workload_shapes": {{ embedding_workload_shapes | to_json }},
             "requested_cores": {{ requested_cores | default('null') }},
             "timestamp": "{{ lookup('pipe', 'date -Iseconds') }}",
             "test_duration_seconds": {{ lookup('pipe', 'date +%s') | int - hostvars['localhost']['benchmark_start_epoch'] | default(0) | int }}
@@ -381,7 +383,9 @@
 
     - name: Parse external endpoint URL using urlsplit
       ansible.builtin.set_fact:
-        external_endpoint_parsed: "{{ vllm_endpoint.external.url | urlsplit }}"
+        external_endpoint_parsed:
+          hostname: "{{ vllm_endpoint.external.url | urlsplit('hostname') }}"
+          port: "{{ vllm_endpoint.external.url | urlsplit('port') }}"
       when: hostvars['localhost']['vllm_mode'] == 'external'
 
     - name: Override bench_config for external mode
@@ -420,7 +424,7 @@
             "vllm_bench_version": "{{ benchmark_tool.vllm_bench.version | default('built-in') }}",
             "vllm_bench_container": "{{ benchmark_tool.vllm_bench.use_container | default(true) }}",
             "num_prompts": {{ num_prompts | default(benchmark_tool.vllm_bench.num_prompts | default(1000)) | int }},
-            "embedding_random_input_len": {{ embedding_random_input_len | default(512) }},
+            "embedding_workload_shapes": {{ embedding_workload_shapes | to_json }},
             "requested_cores": {{ requested_cores | default('null') }},
             "timestamp": "{{ lookup('pipe', 'date -Iseconds') }}",
             "test_duration_seconds": {{ lookup('pipe', 'date +%s') | int - hostvars['localhost']['benchmark_start_epoch'] | default(0) | int }}

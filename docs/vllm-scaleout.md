@@ -245,7 +245,7 @@ ansible-playbook stop-vllm-scaleout.yml -e "scaleout_purge_model_cache=true"
 | Parameter | Default | Options | Description |
 |-----------|---------|---------|-------------|
 | `scaleout_num_instances` | 5 | 1-10 | Number of vLLM instances |
-| `scaleout_cores_per_instance` | 32 | 8, 16, 24, 32 | CPU cores per instance |
+| `scaleout_cores_per_instance` | 32 | 4, 8, 16, 24, 32 | CPU cores per instance (embedding often uses **4**) |
 | `scaleout_routing_policy` | `intelligent` | `intelligent`, `round_robin` | Routing mode |
 | `scaleout_vllm_base_port` | 8000 | any | First vLLM instance port |
 | `scaleout_envoy_port` | 8081 | any | Client-facing Envoy port |
@@ -268,7 +268,8 @@ from core 0 — for quicker CLI-driven runs; override either with `-e`/`--extra`
 | Parameter | Default | Description |
 |-----------|---------|-------------|
 | `scaleout_model_name` | from `test_model` | HuggingFace model ID or local path |
-| `scaleout_vllm_task` | (auto) | vLLM `--task` flag; set `embed` for encoder-only or `transcription` for Whisper |
+| `scaleout_vllm_runner` / `scaleout_vllm_convert` | (auto) | vLLM 0.31+: `pooling` + `embed` for embedding models (not `--task embed`) |
+| `scaleout_vllm_task` | (auto) | Legacy/explicit task (e.g. `transcription` for Whisper where supported) |
 | `scaleout_vllm_max_model_len` | (model default) | Cap context window; 512 recommended for embedding |
 
 ### EPP Scorer Weights (intelligent routing only)
@@ -654,11 +655,135 @@ ansible-playbook llm-benchmark-scaleout.yml \
 
 ### Embedding
 
+Use **`embedding-benchmark-scaleout.yml`** (not `llm-benchmark-scaleout.yml`). The
+playbook deploys Envoy/EPP/vLLM, runs **vllm-bench** against
+`http://<DUT>:8081/v1`, copies per-instance metrics into the repo
+`results/embedding/…` tree, then tears down.
+
+| LLM scale-out | Embedding scale-out |
+|---------------|-------------------|
+| `llm-benchmark-scaleout.yml` | `embedding-benchmark-scaleout.yml` |
+| GuideLLM (`benchmarks.json`) | vllm-bench (`operating_point/`, `latency/`) |
+| `guidellm_cpus`, `guidellm_numa_node` | `vllm_bench_cpus`, `vllm_bench_numa_node` |
+| `workload_type=chat` (etc.) | Not used |
+| Generative model IDs | Embedding model IDs (e.g. `RedHatAI/granite-embedding-english-r2`) |
+
+Set **`scaleout_vllm_max_model_len`** for embedding models (default in playbook:
+512). The embedding scale-out playbook sets **`scaleout_vllm_runner=pooling`**,
+**`scaleout_vllm_convert=embed`**, and **`scaleout_enable_prefix_caching=false`**
+(vLLM 0.31 removed `--task embed`; prefix caching must stay off for pooling
+models or the engine fails with `HybridKVCacheCoordinator requires at least one
+cacheable group`).
+
+#### Functional / smoke testing
+
+For pipeline validation (deploy → health check → short bench → metrics → metadata →
+teardown), keep the default **`scenario=operating_point`** (no full latency sweep),
+reduce prompts, and cap peak concurrency so probes run only at **conc=1** and
+**conc=8** (`op_peak_concurrency=8`).
+
+Run from the repo root (adjust inventory path if needed):
+
 ```bash
-ansible-playbook embedding-benchmark-scaleout.yml \
-  -e "scaleout_model_name=RedHatAI/granite-embedding-english-r2 \
-      scaleout_vllm_max_model_len=512"
+# Baseline — intelligent EPP routing (functional)
+ansible-playbook \
+  -i automation/test-execution/ansible/inventory/hosts.yml \
+  automation/test-execution/ansible/embedding-benchmark-scaleout.yml \
+  -e "test_model=RedHatAI/granite-embedding-english-r2" \
+  -e "scaleout_num_instances=2" \
+  -e "scaleout_cores_per_instance=4" \
+  -e "scaleout_start_core=0" \
+  -e "scaleout_routing_policy=intelligent" \
+  -e "scaleout_vllm_max_model_len=512" \
+  -e "vllm_bench_cpus=48-71" \
+  -e "vllm_bench_numa_node=0" \
+  -e "scenario=operating_point" \
+  -e "num_prompts=64" \
+  -e "op_peak_concurrency=8" \
+  -e "hf_token=${HF_TOKEN}"
 ```
+
+With `scaleout_start_core=0` and two instances × 4 cores, vLLM uses **0–7**;
+pin vllm-bench on a disjoint range (e.g. **48–71**) so load-gen does not share
+instance CPUs.
+
+```bash
+# LMCache — round_robin (compare to baseline after both complete)
+ansible-playbook \
+  -i automation/test-execution/ansible/inventory/hosts.yml \
+  automation/test-execution/ansible/embedding-benchmark-scaleout.yml \
+  -e "test_model=RedHatAI/granite-embedding-english-r2" \
+  -e "scaleout_num_instances=2" \
+  -e "scaleout_cores_per_instance=4" \
+  -e "scaleout_start_core=0" \
+  -e "scaleout_routing_policy=round_robin" \
+  -e "scaleout_vllm_max_model_len=512" \
+  -e "vllm_bench_cpus=48-71" \
+  -e "vllm_bench_numa_node=0" \
+  -e "scenario=operating_point" \
+  -e "num_prompts=64" \
+  -e "op_peak_concurrency=8" \
+  -e "hf_token=${HF_TOKEN}" \
+  -e "scaleout_lmcache_backend=remote" \
+  -e "scaleout_lmcache_server_l1_size_gb=10" \
+  -e "scaleout_lmcache_hugepages_enabled=true" \
+  -e "scaleout_vllm_gpu_memory_utilization=0.4" \
+  -e "scaleout_lmcache_kv_failure_policy=recompute"
+```
+
+**Benchmark scenario** (`scenario` or env `SCENARIO`):
+
+| Value | Use |
+|-------|-----|
+| `operating_point` | Default; probes at conc 1, 8, and peak — best for smoke |
+| `latency` | Concurrency sweep only |
+| `all` | Full latency sweep then operating-point probes — performance runs |
+
+For production-style embedding scale-out benchmarks, use `scenario=all` and
+restore default `num_prompts` / `op_peak_concurrency` (see
+[Operating-point probes](../tests/embedding-models/operating-point.md)).
+
+**Deploy-only smoke** (no vllm-bench, manual curl):
+
+```bash
+cd automation/test-execution/ansible
+ansible-playbook start-vllm-scaleout.yml \
+  -e "scaleout_model_name=RedHatAI/granite-embedding-english-r2 \
+      scaleout_vllm_max_model_len=512 scaleout_num_instances=2"
+curl -s "http://<DUT>:8081/v1/models" | jq .
+# … single /v1/embeddings request …
+ansible-playbook stop-vllm-scaleout.yml
+```
+
+#### What to verify after a functional run
+
+| Area | Expected |
+|------|----------|
+| **Playbook** | Succeeds through finalize; no **container restart** warning at end |
+| **Results** | `results/embedding/<model>__…>/<test_run_id>/` matches `test-metadata.json` |
+| **`test-metadata.json`** | `deployment_type: scaleout`, `model_name`, `num_instances`, `routing_policy`, `lmcache_backend`, shared `test_run_id` |
+| **Client bench** | `operating_point/conc-1.json`, `conc-8.json` (with `op_peak_concurrency=8`) |
+| **Server metrics** | `vllm-metrics-instance-*.json`; `container-stats-*.jsonl` when collectors enabled |
+| **EPP** | `epp-metrics.json` for **intelligent** runs; absent for **round_robin** (no EPP) |
+| **LMCache run** | Pool up; optional `curl http://<DUT>:8088/metrics`; vLLM logs clean or explicit `recompute` fallback |
+| **Dashboard** | Streamlit **Scale-Out Routing** → **Compare embedding runs** (not LLM compare) |
+
+Quick endpoint checks (on DUT or via SSH tunnel):
+
+```bash
+curl -s "http://<DUT>:8081/v1/models" | jq .
+curl -s "http://<DUT>:8000/metrics" | grep -E 'num_requests_running|prefix_cache' | head
+# intelligent routing only:
+curl -s "http://<DUT>:9090/metrics" | head
+```
+
+Inventory must define **`dut`** and **`load_generator`** the same way as LLM
+scale-out (all-in-one or split host). External mode always targets Envoy on the
+DUT host (`scaleout_envoy_port`, default 8081).
+
+**cpueval:** `./cpueval --suite embedding-scaleout --model … --num-instances 2`
+runs the same Ansible playbook; pass extra Ansible vars with repeated `-e` /
+suite overrides as documented in [cpueval CLI](cpueval-cli.md).
 
 ### Audio / ASR (Whisper)
 
@@ -692,6 +817,7 @@ Open the **🔀 Scale-Out Routing** page in the Streamlit dashboard
 - Prefix-cache hit rates per backend (EPP steering effectiveness)
 - Routing balance score
 - Side-by-side comparison of intelligent vs round-robin runs
+- **Compare embedding runs** tab (vllm-bench E2E/RPS; separate from LLM GuideLLM metrics)
 
 ### Key Endpoints
 

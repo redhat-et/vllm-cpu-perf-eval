@@ -5,9 +5,9 @@
 # Output (host fact consumed by operating_point.yml):
 #   cal_peak_concurrency — concurrency level that achieved peak throughput in the sweep
 
-- name: Read latency sweep result files
+- name: Read latency sweep result files (chunk shape — canonical peak reference)
   ansible.builtin.slurp:
-    src: "{{ results_base_dir }}/latency/concurrent-{{ item }}.json"
+    src: "{{ results_base_dir }}/latency/{{ embedding_peak_shape | default('chunk') }}/concurrent-{{ item }}.json"
   loop: "{{ concurrency_levels }}"
   register: latency_slurp
   ignore_errors: true
@@ -26,7 +26,7 @@
   ansible.builtin.assert:
     that:
       - latency_all_results | length > 0
-    fail_msg: "No readable latency results found in {{ results_base_dir }}/latency/"
+    fail_msg: "No readable latency results found in {{ results_base_dir }}/latency/{{ embedding_peak_shape | default('chunk') }}/"
 
 - name: Build peak table from results with completed requests
   ansible.builtin.set_fact:

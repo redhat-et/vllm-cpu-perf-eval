@@ -53,7 +53,7 @@ def _run_label(meta: Dict[str, Any], run_dir: Path, n_instance_files: int) -> st
         if meta.get("lmcache_backend", "none") not in ("none", "", None)
         else "no-lmcache"
     )
-    run_id = meta.get("test_run_id") or run_dir.name
+    run_id = meta.get("test_run_id") or run_dir.parent.name or run_dir.name
     parts = [str(run_id), f"{n_inst}inst", str(policy), lmcache]
     if model_short:
         parts.append(model_short)
@@ -317,6 +317,20 @@ def load_embedding_client_df(run_dir: Path) -> Optional[pd.DataFrame]:
     if not rows:
         return None
     return pd.DataFrame(rows).sort_values("Concurrency", na_position="last")
+
+
+def client_workload_from_source(source: str) -> str:
+    """`llm` (GuideLLM) vs `embedding` (vllm-bench latency/OP)."""
+    if source == "guidellm":
+        return "llm"
+    if source == "embedding":
+        return "embedding"
+    return "unknown"
+
+
+def run_has_client_workload(run: Dict[str, Any], workload: str) -> bool:
+    _df, source = load_client_results_for_run(run)
+    return client_workload_from_source(source) == workload
 
 
 def load_client_results_for_run(run: Dict[str, Any]) -> Tuple[Optional[pd.DataFrame], str]:

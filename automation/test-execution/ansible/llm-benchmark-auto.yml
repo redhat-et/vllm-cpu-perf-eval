@@ -57,7 +57,7 @@
         fail_msg: |
           Missing required variables. Please provide:
           -e "test_model=<model>"
-          -e "workload_type=<summarization|chat|code|rag>"
+          -e "workload_type=<chat|summarization|reasoning|batch_generation>"
           -e "requested_cores=<8|16|32|64|...>"
 
           Note: For core sweeps, use llm-core-sweep-auto.yml instead with:
@@ -72,7 +72,7 @@
           - workload_type is defined
         fail_msg: |
           Missing required variables. Please provide:
-          -e "workload_type=<summarization|chat|code|rag>"
+          -e "workload_type=<chat|summarization|reasoning|batch_generation>"
           Note: test_model is optional in external mode (will be queried from endpoint)
       when: vllm_mode == 'external'
 

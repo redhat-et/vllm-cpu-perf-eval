@@ -36,6 +36,7 @@ run, how to run it, and where to read the detailed methodology.
 | Embedding throughput and latency | `embedding` | `./cpueval --suite embedding` |
 | Multi-instance LLM via Envoy/EPP | `vllm-scaleout` | `./cpueval --suite vllm-scaleout --model … --num-instances 2` |
 | Multi-instance embedding via Envoy/EPP | `embedding-scaleout` | `./cpueval --suite embedding-scaleout --model … --num-instances 2` |
+| Embedding scale-out smoke (Ansible) | `embedding-scaleout` | See [vLLM scale-out — Embedding functional testing](vllm-scaleout.md#embedding) |
 | Audio transcription (Whisper) | `audio` | `./cpueval --suite audio --scenario quick-test` |
 | Maximum throughput curves | `scalability` | Ansible playbooks (see [Scalability](../tests/scalability/scalability.md)) |
 | Quick sanity check | `chat-smoke` or `health` | `./cpueval --suite chat-smoke --model TinyLlama/TinyLlama-1.1B-Chat-v1.0 --cores 8` |
@@ -107,7 +108,7 @@ Type: Matrix suite (runs full test matrix by default)
 Default Parameters:
   models: all
   cores: 8,16,32
-  workloads: chat,code,summarization,rag
+  workloads: chat,summarization,reasoning,batch_generation
   phase: 1
 
 This suite runs the full matrix by default.

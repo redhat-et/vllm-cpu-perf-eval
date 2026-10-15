@@ -1300,11 +1300,11 @@ def render_dashboard():
     with st.sidebar.expander("📋 Workload Reference", expanded=False):
         st.markdown("**Token Configuration by Workload**")
         workload_data = {
-            "Workload": ["chat", "chat_lite", "rag", "code", "summarization", "reasoning"],
-            "ISL": [512, 128, 7680, 1024, 2048, 256],
-            "OSL": [512, 128, 512, 1024, 256, 2048],
-            "Total": [1024, 256, 8192, 2048, 2304, 2304],
-            "max_model_len": [2048, 2048, 8320, 4096, 4096, 4096],
+            "Workload": ["chat", "summarization", "reasoning", "batch_generation"],
+            "ISL": [512, 2048, 256, 512],
+            "OSL": [512, 256, 2048, 4096],
+            "Total": [1024, 2304, 2304, 4608],
+            "max_model_len": [2048, 4096, 4096, 8192],
         }
         workload_df = pd.DataFrame(workload_data)
         st.dataframe(
@@ -1492,11 +1492,9 @@ def render_dashboard():
             export_df = filtered_df.copy()
             workload_params = {
                 'chat': {'isl': 512, 'osl': 512},
-                'chat_lite': {'isl': 128, 'osl': 128},
-                'rag': {'isl': 7680, 'osl': 512},
-                'code': {'isl': 1024, 'osl': 1024},
                 'summarization': {'isl': 2048, 'osl': 256},
                 'reasoning': {'isl': 256, 'osl': 2048},
+                'batch_generation': {'isl': 512, 'osl': 4096},
             }
             export_df['isl'] = export_df['workload'].map(lambda w: workload_params.get(w, {}).get('isl', 'N/A'))
             export_df['osl'] = export_df['workload'].map(lambda w: workload_params.get(w, {}).get('osl', 'N/A'))
