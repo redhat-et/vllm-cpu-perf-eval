@@ -236,13 +236,6 @@
       ansible.builtin.meta: end_play
       when: not is_managed_or_external
 
-    - name: Parse external endpoint URL using urlsplit
-      ansible.builtin.set_fact:
-        external_endpoint_parsed:
-          hostname: "{{ vllm_endpoint.external.url | urlsplit('hostname') }}"
-          port: "{{ vllm_endpoint.external.url | urlsplit('port') }}"
-      when: hostvars['localhost']['vllm_mode'] == 'external'
-
     - name: Initialize bench_config for managed mode (connect to DUT)
       ansible.builtin.set_fact:
         bench_config: "{{ bench_config | default({}) | combine({'vllm_host': hostvars[groups['dut'][0]]['ansible_host'] | default(groups['dut'][0]), 'vllm_port': hostvars['localhost']['vllm_port'] | default(8000) | int}) }}"
@@ -250,7 +243,7 @@
 
     - name: Override bench_config for external mode
       ansible.builtin.set_fact:
-        bench_config: "{{ bench_config | default({}) | combine({'vllm_host': external_endpoint_parsed.hostname, 'vllm_port': external_endpoint_parsed.port | default(8000) | int}) }}"
+        bench_config: "{{ bench_config | default({}) | combine({'vllm_host': hostvars['localhost']['vllm_endpoint'].external.url | urlsplit('hostname'), 'vllm_port': hostvars['localhost']['vllm_endpoint'].external.url | urlsplit('port') | default(8000) | int}) }}"
       when: hostvars['localhost']['vllm_mode'] == 'external'
 
     - name: Run vLLM health check
@@ -386,16 +379,9 @@
       ansible.builtin.set_fact:
         test_run_base_expanded: "{{ test_run_base | regex_replace('^~', ssh_user_home.stdout) }}"
 
-    - name: Parse external endpoint URL using urlsplit
-      ansible.builtin.set_fact:
-        external_endpoint_parsed:
-          hostname: "{{ vllm_endpoint.external.url | urlsplit('hostname') }}"
-          port: "{{ vllm_endpoint.external.url | urlsplit('port') }}"
-      when: hostvars['localhost']['vllm_mode'] == 'external'
-
     - name: Override bench_config for external mode
       ansible.builtin.set_fact:
-        bench_config: "{{ bench_config | combine({'vllm_host': external_endpoint_parsed.hostname, 'vllm_port': external_endpoint_parsed.port | default(8000) | int}) }}"
+        bench_config: "{{ bench_config | combine({'vllm_host': hostvars['localhost']['vllm_endpoint'].external.url | urlsplit('hostname'), 'vllm_port': hostvars['localhost']['vllm_endpoint'].external.url | urlsplit('port') | default(8000) | int}) }}"
       when: hostvars['localhost']['vllm_mode'] == 'external'
 
     - name: Create test run base directory
