@@ -51,13 +51,32 @@
 # op_peak_concurrency: 32
 
 # ==============================================================================
-# Input Configuration
+# Workload Shape Configuration
 # ==============================================================================
-# Controls the input length for random embeddings during tests.
+# Defines the named input-length shapes to benchmark. Each shape is a dict
+# with a 'name' (used as the result subdirectory) and 'input_len' (tokens).
 #
-# Default: 512 tokens
+# Three shapes cover the embedding operating envelope:
+#   query    (64)   — semantic search queries, classifiers; latency-sensitive
+#   chunk   (512)   — RAG document chunks; standard throughput baseline
+#   document (1536) — long-form corpus ingestion; tests attention compute limits
+#
+# To run a single custom shape, override with a one-element list:
+#   -e "embedding_workload_shapes=[{'name':'custom','input_len':256}]"
 
-# embedding_random_input_len: 512
+embedding_workload_shapes:
+  - name: query
+    input_len: 64
+  - name: chunk
+    input_len: 512
+  - name: document
+    input_len: 1536
+
+# embedding_peak_shape controls which shape's latency sweep results are used
+# to derive cal_peak_concurrency (the operating-point peak probe).
+# Default: chunk (the 512-token baseline shape).
+
+# embedding_peak_shape: chunk
 
 # ==============================================================================
 # Container Stats Collector Configuration

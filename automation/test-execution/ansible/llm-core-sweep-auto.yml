@@ -95,7 +95,7 @@
         fail_msg: |
           Missing required variables. Please provide:
           -e "test_model=<model>"
-          -e "workload_type=<summarization|chat|code|rag>"
+          -e "workload_type=<chat|summarization|reasoning|batch_generation>"
           -e "requested_cores_list=[8,16,32,64]"
 
     - name: Store test run ID in hostvars

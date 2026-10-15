@@ -1,6 +1,21 @@
 ---
 # vLLM Scale-Out Deployment Tasks (llm-d: EPP + Envoy)
 
+- name: Normalize legacy embedding task flag to vLLM 0.31 runner/convert
+  when: (scaleout_vllm_task | default('')) == 'embed'
+  ansible.builtin.set_fact:
+    scaleout_vllm_task: ""
+    scaleout_vllm_runner: "{{ scaleout_vllm_runner | default('pooling', true) }}"
+    scaleout_vllm_convert: "{{ scaleout_vllm_convert | default('embed', true) }}"
+    scaleout_enable_prefix_caching: false
+
+- name: Derive scale-out serving mode flags
+  ansible.builtin.set_fact:
+    scaleout_serves_embeddings: >-
+      {{ (scaleout_vllm_runner | default('')) == 'pooling'
+         or (scaleout_vllm_convert | default('')) == 'embed'
+         or (scaleout_vllm_task | default('')) == 'embed' }}
+
 - name: Display scale-out configuration
   ansible.builtin.debug:
     msg:
@@ -18,6 +33,9 @@
       - "  Envoy port (client): {{ scaleout_envoy_port }}"
       - "  EPP gRPC port: {{ scaleout_epp_grpc_port }} ({{ 'enabled' if scaleout_routing_policy == 'intelligent' else 'disabled for round_robin' }})"
       - "  Model: {{ scaleout_model_name }}"
+      - "  Runner: {{ scaleout_vllm_runner | default('(auto)') }}"
+      - "  Convert: {{ scaleout_vllm_convert | default('(auto)') }}"
+      - "  Task: {{ scaleout_vllm_task | default('(auto)') }}"
 
 - name: Calculate CPU sets for each instance
   ansible.builtin.set_fact:
@@ -51,7 +69,12 @@
 
 - name: Verify requested CPU cores exist on this host
   ansible.builtin.shell: |
-    python3 - "{{ _scaleout_cpu_online.stdout | trim }}" "{{ (scaleout_instance_cpusets + [scaleout_envoy_cores] + ([scaleout_epp_cores] if scaleout_routing_policy == 'intelligent' else [])) | join(',') }}" <<'PYEOF'
+    python3 - \
+      "{{ _scaleout_cpu_online.stdout | trim }}" \
+      "{{ scaleout_instance_cpusets | join(',') }}" \
+      "{{ scaleout_envoy_cores }}" \
+      "{{ scaleout_epp_cores if scaleout_routing_policy == 'intelligent' else '' }}" \
+      <<'PYEOF'
     import sys
 
     def expand(spec):
@@ -67,16 +90,46 @@
                 cpus.add(int(part))
         return cpus
 
-    online = expand(sys.argv[1])
-    requested = expand(sys.argv[2])
-    missing = sorted(requested - online)
+    online   = expand(sys.argv[1])
+    vllm     = expand(sys.argv[2])
+    envoy    = expand(sys.argv[3])
+    epp      = expand(sys.argv[4]) if sys.argv[4] else set()
+
+    all_requested = vllm | envoy | epp
+    missing = sorted(all_requested - online)
     if missing:
         print(f"Requested CPU cores not present on this host: {missing}")
         print(f"Available cores: {sys.argv[1]}")
         print("Adjust scaleout_start_core, scaleout_cores_per_instance,")
         print("scaleout_envoy_cores, or scaleout_epp_cores and retry.")
         sys.exit(1)
-    print(f"OK: all {len(requested)} requested CPU cores are present")
+
+    # Warn about core 0 (OS interrupt / housekeeping core) only when there are
+    # spare online cores — if all available cores are assigned (e.g. filling a
+    # full NUMA node) core 0 is unavoidable and the warning is not actionable.
+    if 0 in vllm and len(all_requested) < len(online):
+        print("WARNING: core 0 is assigned to a vLLM instance.  Core 0 handles OS "
+              "interrupts on most Linux systems — this degrades inference performance.")
+        print("  → Set scaleout_start_core to a value > 0 (e.g. 16 to clear the default "
+              "Envoy (1-7) and EPP (8-15) ranges).")
+
+    # Warn about overlapping CPU assignments between services.
+    overlaps = []
+    if vllm & envoy:
+        overlaps.append(f"vLLM ∩ Envoy: {sorted(vllm & envoy)}")
+    if vllm & epp:
+        overlaps.append(f"vLLM ∩ EPP:   {sorted(vllm & epp)}")
+    if envoy & epp:
+        overlaps.append(f"Envoy ∩ EPP:  {sorted(envoy & epp)}")
+    if overlaps:
+        print("WARNING: CPU core overlap detected between services — contention will "
+              "hurt throughput and latency:")
+        for o in overlaps:
+            print(f"  {o}")
+        print("  → Increase scaleout_start_core so vLLM cores do not overlap with "
+              "scaleout_envoy_cores / scaleout_epp_cores.")
+
+    print(f"OK: all {len(all_requested)} requested CPU cores are present")
     PYEOF
   changed_when: false
 
@@ -358,6 +411,25 @@
   become: true
   changed_when: false
 
+- name: Pre-pull Envoy image
+  # podman-compose runs with --pull=never; pull images explicitly so compose-up
+  # never silently skips a service because its image is not cached locally.
+  ansible.builtin.command: podman pull {{ scaleout_envoy_image }}
+  become: true
+  changed_when: true
+
+- name: Pre-pull EPP image
+  ansible.builtin.command: podman pull {{ scaleout_epp_image }}
+  become: true
+  changed_when: true
+  when: scaleout_routing_policy == 'intelligent'
+
+- name: Pre-pull vLLM image
+  ansible.builtin.command: >-
+    podman pull {{ scaleout_lmcache_image_tag if scaleout_lmcache_backend == 'remote' else scaleout_vllm_image }}
+  become: true
+  changed_when: true
+
 - name: Compute expected container count for readiness polling
   ansible.builtin.set_fact:
     scaleout_expected_container_count: "{{ scaleout_num_instances | int + (1 if scaleout_lmcache_backend == 'remote' else 0) + (1 if scaleout_routing_policy == 'intelligent' else 0) + 1 }}"
@@ -497,7 +569,9 @@
       retries: 2
       delay: 5
       until: _smoke_embeddings.status | default(0) == 200
-      when: scaleout_vllm_task | default('') != 'generate'
+      when: >-
+        (scaleout_serves_embeddings | default(false) | bool)
+        or scaleout_vllm_task | default('') not in ['generate']
 
     - name: Probe completions endpoint through Envoy (smoke test)
       ansible.builtin.uri:
@@ -517,7 +591,7 @@
       delay: 5
       until: _smoke_completions.status | default(0) == 200
       when:
-        - scaleout_vllm_task | default('') != 'embed'
+        - not (scaleout_serves_embeddings | default(false) | bool)
         # Skip when the embeddings probe already proved the routing path —
         # a 400 from the wrong endpoint is expected, not worth retrying.
         - (_smoke_embeddings.status | default(0)) != 200

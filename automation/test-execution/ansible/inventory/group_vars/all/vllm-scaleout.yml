@@ -19,7 +19,7 @@
 # Number of vLLM instances to deploy (1-10)
 scaleout_num_instances: 5
 
-# Cores per instance (8, 16, or 32)
+# Cores per instance (4, 8, 16, 24, or 32)
 # Total cores used = num_instances * cores_per_instance
 scaleout_cores_per_instance: 32
 
@@ -123,12 +123,14 @@ scaleout_volume_name: "hf-cache"
 # Override at runtime: -e scaleout_model_name="model/name"
 # scaleout_model_name: "RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w8a8"
 
-# vLLM task type — leave unset for auto-detection (covers LLM and embedding models)
-# Set explicitly when required:
-#   embed          : encoder-only embedding models (Nomic, E5-mistral, etc.)
-#   generate       : forced generation mode
-#   transcription  : Whisper/audio ASR models
-# scaleout_vllm_task: ""
+# vLLM 0.31+ serving mode — use runner/convert instead of the old --task flag:
+#   LLM (default)   — leave runner/convert/task unset; auto-detection suffices
+#   Embedding       — scaleout_vllm_runner: pooling + scaleout_vllm_convert: embed
+#                     (embedding-benchmark-scaleout.yml sets these automatically)
+#   Whisper / ASR   — scaleout_vllm_task: transcription
+# scaleout_vllm_runner: ""    # e.g. pooling  (vLLM 0.31+ embedding / rerank)
+# scaleout_vllm_convert: ""   # e.g. embed    (use with --runner pooling)
+# scaleout_vllm_task: ""      # e.g. transcription for Whisper/ASR models
 
 # Max model length (tokens). Recommended for embedding to match ISL (e.g. 512).
 # scaleout_vllm_max_model_len: 512
@@ -164,11 +166,15 @@ scaleout_smt_cores_per_instance: 8
 #   scaleout_cores_per_instance: 32
 #   scaleout_model_name: "RedHatAI/Meta-Llama-3.1-8B-Instruct-quantized.w8a8"
 #
-# Embedding — 3 instances, 16 cores each, context capped:
+# Embedding — 3 instances, 16 cores each, context capped (vLLM 0.31+):
 #   scaleout_num_instances: 3
 #   scaleout_cores_per_instance: 16
 #   scaleout_model_name: "RedHatAI/granite-embedding-english-r2"
 #   scaleout_vllm_max_model_len: 512
+#   scaleout_vllm_runner: pooling
+#   scaleout_vllm_convert: embed
+#   scaleout_enable_prefix_caching: false
+#   NOTE: embedding-benchmark-scaleout.yml sets runner/convert/prefix_caching automatically.
 #
 # Audio/Whisper — 4 instances, 8 cores each:
 #   scaleout_num_instances: 4

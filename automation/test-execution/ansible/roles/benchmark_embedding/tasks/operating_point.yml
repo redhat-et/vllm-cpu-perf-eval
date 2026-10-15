@@ -59,12 +59,6 @@
       vllm bench serve
       {% endif %}
 
-- name: Ensure operating_point result directory exists
-  ansible.builtin.file:
-    path: "{{ results_base_dir }}/operating_point"
-    state: directory
-    mode: "0755"
-
 - name: Set operating-point concurrency levels
   ansible.builtin.set_fact:
     # sequential (1), light load (8), peak from latency sweep or default 32.
@@ -72,18 +66,26 @@
     op_concurrency_levels: >-
       {{ ([1, 8] + [cal_peak_concurrency | default(op_peak_concurrency | default(32)) | int]) | unique | list }}
 
-- name: Display operating-point operating points
+- name: Display operating-point concurrency levels and shapes
   ansible.builtin.debug:
     msg:
       - "Operating-point concurrency levels: {{ op_concurrency_levels }}"
       - "  conc=1   → sequential, minimum latency"
       - "  conc=8   → light load"
       - "  conc={{ op_concurrency_levels | last }} → peak throughput{{ ' (from latency sweep)' if cal_peak_concurrency is defined else ' (default)' }}"
+      - "Shapes: {{ embedding_workload_shapes | map(attribute='name') | list }}"
+
+- name: Ensure operating_point shape result directories exist
+  ansible.builtin.file:
+    path: "{{ results_base_dir }}/operating_point/{{ item.name }}"
+    state: directory
+    mode: "0755"
+  loop: "{{ embedding_workload_shapes }}"
 
 # Warmup — only needed when operating_point runs standalone (scenario=operating_point).
 # For scenario=all the latency sweep already warmed up the server, and the
 # inter-sweep health check in main.yml confirms it is still alive.
-- name: "Warmup - Stabilize vLLM batching before operating-point measurement"
+- name: "Warmup - Stabilize vLLM batching before operating-point measurement (chunk shape)"
   ansible.builtin.command:
     cmd: >
       timeout 120
@@ -93,7 +95,7 @@
       --backend openai-embeddings
       --model "{{ model_name }}"
       --dataset-name random
-      --random-input-len {{ embedding_random_input_len | default(512) }}
+      --random-input-len 512
       --num-prompts 100
       --request-rate inf
       --endpoint /v1/embeddings
@@ -117,7 +119,7 @@
   changed_when: false
   when: scenario in ['operating_point', 'all']
 
-- name: "Operating-point Test - Run at each concurrency level"
+- name: "Operating-point Test - Run at each shape × concurrency level"
   ansible.builtin.command:
     cmd: >
       timeout {{ (vllm_bench_max_seconds | int) * 2 }}
@@ -127,17 +129,20 @@
       --backend openai-embeddings
       --model "{{ model_name }}"
       --dataset-name random
-      --random-input-len {{ embedding_random_input_len | default(512) }}
+      --random-input-len {{ item.0.input_len }}
       --num-prompts {{ num_prompts }}
       --request-rate inf
-      --max-concurrency {{ item }}
+      --max-concurrency {{ item.1 }}
       --endpoint /v1/embeddings
       --save-result
-      --result-filename "{{ results_base_dir }}/operating_point/conc-{{ item }}.json"
-  loop: "{{ op_concurrency_levels }}"
+      --result-filename "{{ results_base_dir }}/operating_point/{{ item.0.name }}/conc-{{ item.1 }}.json"
+  loop: "{{ embedding_workload_shapes | product(op_concurrency_levels) | list }}"
   register: operating_point_tests
   changed_when: true
 
 - name: Display operating-point test completion
   ansible.builtin.debug:
-    msg: "Operating-point tests completed. Results saved to {{ results_base_dir }}/operating_point/"
+    msg:
+      - "Operating-point tests completed."
+      - "Shapes: {{ embedding_workload_shapes | map(attribute='name') | list }}"
+      - "Results saved to {{ results_base_dir }}/operating_point/<shape>/"

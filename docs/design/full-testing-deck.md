@@ -231,22 +231,28 @@ cpueval results --last
 
 ## Workload Profiles — Concurrent Load Testing
 
-| Workload | ISL:OSL | max-model-len | Use Case |
-|----------|---------|---------------|----------|
-| Chat | 512:512 | 2048 | Conversational AI |
-| RAG | 7680:512 | 16384 | Long Context Retrieval |
-| Code | 1024:1024 | 4096 | Code Generation |
-| Summarization | 2048:256 | 4096 | Document Processing |
-| Reasoning | 256:2048 | 4096 | Chain-of-Thought |
+Four shapes cover the LLM serving operating envelope, aligned with the
+[kubernetes-sigs/inference-perf](https://github.com/kubernetes-sigs/inference-perf/tree/main/workload-catalog) workload catalog and adapted for CPU hardware evaluation:
+
+| Workload | ISL:OSL | max-model-len | Stress Axis | inference-perf equivalent |
+|----------|---------|---------------|-------------|--------------------------|
+| Chat | 512:512 | 2048 | Balanced — equal prefill + decode | interactive-chat |
+| Summarization | 2048:256 | 4096 | Prefill-heavy — TTFT and AMX compute | deep-research |
+| Reasoning | 256:2048 | 4096 | Decode-heavy — memory bus, autoregressive throughput | reasoning (OSL capped at 2048; GPU uses 8000) |
+| Batch Generation | 512:4096 | 8192 | Sustained decode — bulk data throughput ceiling | batch-synthetic-data-generation |
+
+> **Removed:** `chat_lite` (128/128), `code` (1024/1024), `rag` (7680/512) — each
+> was redundant with another shape on the same stress axis. Context-length scaling
+> (`context_scaling_*`) covers extreme prefill territory.
 
 ### Variable LLM (Phase 2)
 
 | Workload | Mean ISL:OSL | Stdev | Range |
 |----------|-------------|-------|-------|
-| Chat (Variable) | 512:512 | +/-128 | 128-1024 : 256-1024 |
-| Code (Variable) | 1024:1024 | +/-256 | 512-2048 : 512-2048 |
+| Chat Variable | 512:512 | +/-128 | 128-1024 : 256-1024 |
+| Summarization Variable | 1024:256 | +/-256/64 | 512-2048 : 128-512 |
 
-**Phase 3**: involves the use of real data sets (TBD)
+**Phase 3**: involves prefix caching + real datasets (TBD)
 
 ---
 <style scoped>section { font-size: 22px; }</style>
@@ -318,12 +324,13 @@ saturation points
 
 **Variable tokens (ISL:OSL), no caching**
 
-**Objectives:** Impact of token variance; stability under variable load
+**Objectives:** Impact of token variance; stability under variable load; batching
+efficiency effects (padding waste, head-of-line blocking) that fixed-value tests miss
 
 **Changes from Phase 1:**
 
-- chat: 512±128 in / 512±128 out
-- code: 1024±256 in / 1024±256 out
+- chat_var: 512±128 in / 512±128 out (range 128-1024)
+- summarization_var: 1024±256 in / 256±64 out (range 512-2048 : 128-512)
 - Caching still disabled
 
 **Focus:** Throughput stability, latency variance, P95/P99 spread
@@ -357,8 +364,8 @@ Concurrent Load · Embedding · Audio · Offline Batch
 
 - **Core counts** (via `--cores`): 8, 16, 32 (defaults)
 - **GuideLLM concurrency levels:** 1, 2, 4, 8, 16, 32 (`concurrent` profile)
-- **Default workloads** (via `--workloads`): chat, code, summarization, rag
-- **Also available:** reasoning (Phase 1); chat_var, code_var (Phase 2)
+- **Default workloads** (via `--workloads`): chat, summarization, reasoning, batch_generation
+- **Also available:** chat_var, summarization_var (Phase 2); context_scaling_* (TTFT scaling)
 - **Models:** via `--models` (preset or comma-list)
 
 ---
@@ -541,9 +548,9 @@ Size GB  = Bytes / 1024³
 | Workload | Tokens (ISL+OSL) | Llama-3.2-1B | Granite-3.2-2B | GPT-OSS-20B |
 |----------|-----------------|--------------|---------------|-------------|
 | Chat | 1,024 | 2 GiB | 3 GiB | 2 GiB |
-| RAG | 8,192 | 11 GiB | N/A* | 14 GiB |
-| Code | 2,048 | 3 GiB | 5 GiB | 4 GiB |
 | Summarization | 2,304 | 3 GiB | 4 GiB | 3 GiB |
+| Reasoning | 2,304 | 3 GiB | 4 GiB | 3 GiB |
+| Batch Generation | 4,608 | 6 GiB | 8 GiB | 6 GiB |
 
 Values are **budget targets** (`per_request_kv × 32 concurrent × 1.25`, rounded up to the nearest GiB), not raw formula output. Sequence lengths are expected ISL+OSL; production `--max-model-len` adds headroom (e.g. Chat uses 1,024 tokens for sizing but `--max-model-len 2048` in serving). For `VLLM_CPU_KVCACHE_SPACE`, use `max_model_len` in `per_request_kv`, not ISL+OSL alone — the actual allocation will be larger than these floor estimates.
 

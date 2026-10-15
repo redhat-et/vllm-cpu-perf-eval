@@ -1,4 +1,5 @@
 version: '3.8'
+{% set _scaleout_embedding = (scaleout_vllm_runner | default('')) == 'pooling' or (scaleout_vllm_convert | default('')) == 'embed' or (scaleout_vllm_task | default('')) == 'embed' %}
 
 # All services use host networking so:
 # - vLLM instances bind sequential ports on the host (base_port, base_port+1, ...)
@@ -102,7 +103,20 @@ services:
       - "0.0.0.0"
       - --gpu-memory-utilization
       - "{{ scaleout_vllm_gpu_memory_utilization }}"
-{% if scaleout_vllm_task is defined and scaleout_vllm_task != '' %}
+{% if _scaleout_embedding %}
+      - --runner
+      - pooling
+      - --convert
+      - embed
+{% elif scaleout_vllm_runner is defined and scaleout_vllm_runner != '' %}
+      - --runner
+      - {{ scaleout_vllm_runner }}
+{% endif %}
+{% if not _scaleout_embedding and scaleout_vllm_convert is defined and scaleout_vllm_convert != '' %}
+      - --convert
+      - {{ scaleout_vllm_convert }}
+{% endif %}
+{% if scaleout_vllm_task is defined and scaleout_vllm_task != '' and scaleout_vllm_task != 'embed' %}
       - --task
       - {{ scaleout_vllm_task }}
 {% endif %}
@@ -110,8 +124,13 @@ services:
       - --max-model-len
       - "{{ scaleout_vllm_max_model_len }}"
 {% endif %}
-{% if scaleout_enable_prefix_caching %}
+{% if _scaleout_embedding or scaleout_vllm_task | default('') == 'transcription' %}
+      - --no-enable-prefix-caching
+      - --disable-hybrid-kv-cache-manager
+{% elif scaleout_enable_prefix_caching %}
       - --enable-prefix-caching
+{% else %}
+      - --no-enable-prefix-caching
 {% endif %}
 {% for arg in scaleout_vllm_extra_args %}
       - {{ arg }}
@@ -134,7 +153,16 @@ services:
           --port "{{ scaleout_vllm_base_port | int + i - 1 }}"
           --host "0.0.0.0"
           --gpu-memory-utilization "{{ scaleout_vllm_gpu_memory_utilization }}"
-{% if scaleout_vllm_task is defined and scaleout_vllm_task != '' %}
+{% if _scaleout_embedding %}
+          --runner "pooling"
+          --convert "embed"
+{% elif scaleout_vllm_runner is defined and scaleout_vllm_runner != '' %}
+          --runner "{{ scaleout_vllm_runner }}"
+{% endif %}
+{% if not _scaleout_embedding and scaleout_vllm_convert is defined and scaleout_vllm_convert != '' %}
+          --convert "{{ scaleout_vllm_convert }}"
+{% endif %}
+{% if scaleout_vllm_task is defined and scaleout_vllm_task != '' and scaleout_vllm_task != 'embed' %}
           --task "{{ scaleout_vllm_task }}"
 {% endif %}
 {% if scaleout_vllm_max_model_len is defined and scaleout_vllm_max_model_len != '' %}

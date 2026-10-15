@@ -157,7 +157,7 @@ class GuideLLMLoadGen(LoadGenerator):
         if config.dataset:
             env["GUIDELLM_DATASET"] = config.dataset
 
-        if config.workload_type in ['chat', 'rag', 'code']:
+        if config.workload_type in ['chat', 'summarization', 'reasoning', 'batch_generation']:
             env["GUIDELLM_WORKLOAD_TYPE"] = "generative"
         elif config.workload_type == 'embedding':
             env["GUIDELLM_BACKEND"] = "openai-embeddings"
@@ -286,8 +286,8 @@ class GuideLLMLoadGen(LoadGenerator):
     def supports_workload(self, workload_type: str) -> bool:
         """GuideLLM supports generative and embedding workloads."""
         supported = [
-            'chat', 'chat_lite', 'rag', 'code',
-            'summarization', 'reasoning', 'embedding',
+            'chat', 'summarization', 'reasoning', 'batch_generation',
+            'chat_var', 'summarization_var', 'embedding',
         ]
         return workload_type in supported
 

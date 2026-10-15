@@ -5,6 +5,48 @@
 # Predefined test configurations for different workload types
 # These are model-agnostic and can be used with any compatible model
 #
+# ============================================================================
+# Design Rationale
+# ============================================================================
+# Core fixed shapes (LLM generative) are aligned with the kubernetes-sigs/
+# inference-perf workload catalog but adapted for CPU hardware evaluation:
+#
+#   chat (512/512)
+#     Balanced ISL:OSL — equal prefill and decode pressure. Maps to
+#     inference-perf interactive-chat (mean 50/300), scaled up for a fixed-
+#     value benchmark that avoids distribution-driven noise.
+#
+#   summarization (2048/256)
+#     Prefill-heavy (8:1 ISL:OSL) — stresses TTFT and AMX compute during
+#     dense prompt ingestion. Maps to inference-perf deep-research (mean
+#     3000/300); our value is conservative enough to run on 8K-context models.
+#
+#   reasoning (256/2048)
+#     Decode-heavy (1:8 ISL:OSL) — stresses memory bus and autoregressive
+#     throughput. Maps to inference-perf reasoning (mean 1000/8000). OSL is
+#     capped at 2048 because at ~20 tok/s on CPU, 8000 OSL per request takes
+#     ~400s — impractical for a benchmark. 2048 already isolates the decode
+#     bottleneck clearly.
+#
+#   batch_generation (512/4096)
+#     Sustained-decode — small input, large uniform output. Maps directly to
+#     inference-perf batch-synthetic-data-generation (mean 500/4000). Distinct
+#     from reasoning: stresses bulk data throughput and memory bandwidth
+#     ceiling, not chain-of-thought latency.
+#
+# Shapes removed as redundant:
+#   chat_lite (128/128)   — covered by chat at lower concurrency
+#   code (1024/1024)      — same 1:1 ratio as chat; not a distinct stress axis
+#   rag (7680/512)        — extreme prefill; context_scaling_8k covers this territory
+#
+# Variable variants (*_var) add distribution-based ISL/OSL to capture
+# padding-waste, head-of-line-blocking, and batching efficiency effects
+# that fixed-value tests miss.
+#
+# Context-scaling workloads (context_scaling_*) are a dedicated TTFT scaling
+# series, not general-purpose shapes — they are kept separate from the core set.
+#
+# ============================================================================
 # Configuration Parameters:
 #   workload_type: Descriptive name for the workload
 #   isl: Input Sequence Length (tokens)
@@ -50,10 +92,18 @@ test_configs:
     kv_cache_space: "4GiB"        # Appropriate for 270-311M models at isl=512; override for large context models (e.g., Qwen3-Embedding-8B)
 
   # ============================================================================
-  # LLM Generative Models - Various Workloads
+  # LLM Generative Models — Three Core Shapes
+  #
+  # These cover the three operational extremes for CPU LLM serving:
+  #   chat          (512/512)   — balanced: equal prefill and decode pressure
+  #   summarization (2048/256)  — prefill-heavy: tests TTFT and compute throughput
+  #   reasoning     (256/2048)  — decode-heavy: tests memory bandwidth and sustained generation
+  #
+  # For context-length scaling tests, see the context_scaling_* entries below.
+  # For realistic mixed-traffic tests, see the *_var entries below.
   # ============================================================================
 
-  # Chat workload (primary working point)
+  # Balanced workload — equal prefill and decode pressure
   chat:
     workload_type: "chat"
     isl: 512                            # Standard input: user query
@@ -67,53 +117,11 @@ test_configs:
       - "--block-size=128"              # CPU optimal: multiples of 32 for SIMD alignment (AVX2/AVX512/NEON)
     kv_cache_space: "40GiB"             # Fallback value - should be overridden by model-specific kv_cache_sizes
 
-  # Chat lite workload (lighter version with shorter sequences)
-  chat_lite:
-    workload_type: "chat_lite"
-    isl: 128                            # Standard input: user query
-    osl: 128                            # Standard output: assistant response
-    variability: false
-    backend: "openai-chat"
-    vllm_args:
-      - "--dtype=auto"                  # Fallback dtype - overridden by model-specific dtype
-      - "--no-enable-prefix-caching"    # Baseline mode: no prefix caching
-      - "--max-model-len=2048"          # Limit model context to workload needs (2x total tokens for headroom)
-      - "--block-size=128"              # CPU optimal: multiples of 32 for SIMD alignment (AVX2/AVX512/NEON)
-    kv_cache_space: "10GiB"             # Fallback value - 256 total tokens (vs 1024 for chat)
-
-  # RAG workload (very long input, medium output)
-  rag:
-    workload_type: "rag"
-    isl: 7680                           # Very long input: retrieved context (7680+512=8192 to fit 8K context models)
-    osl: 512                            # Medium output: answer with citations (keep OSL short)
-    variability: false
-    backend: "openai-completions"
-    vllm_args:
-      - "--dtype=auto"                  # Fallback dtype - overridden by model-specific dtype
-      - "--no-enable-prefix-caching"    # Baseline mode: no prefix caching
-      - "--max-model-len=8320"          # Increased from 8192 to account for tokenization overhead (actual: 7681+512=8193)
-      - "--block-size=128"              # CPU optimal: multiples of 32 for SIMD alignment (AVX2/AVX512/NEON)
-    kv_cache_space: "40GiB"             # Fallback value - should be overridden by model-specific kv_cache_sizes
-
-  # Code generation workload (medium input, practical CPU ceiling output)
-  code:
-    workload_type: "code"
-    isl: 1024                           # Medium input: code prompt/requirements
-    osl: 1024                           # Practical output: generated code (1024 OSL near CPU ceiling)
-    variability: false
-    backend: "openai-completions"
-    vllm_args:
-      - "--dtype=auto"                  # Fallback dtype - overridden by model-specific dtype
-      - "--no-enable-prefix-caching"    # Baseline mode: no prefix caching
-      - "--max-model-len=4096"          # Limit model context to workload needs (2048 tokens)
-      - "--block-size=128"              # CPU optimal: multiples of 32 for SIMD alignment (AVX2/AVX512/NEON)
-    kv_cache_space: "40GiB"             # Fallback value - should be overridden by model-specific kv_cache_sizes
-
-  # Summarization workload (long input, short output)
+  # Prefill-heavy workload — long input, short output; stresses TTFT and AMX compute
   summarization:
     workload_type: "summarization"
     isl: 2048                           # Long input: document to summarize
-    osl: 256                            # Short output: summary (realistic and achievable)
+    osl: 256                            # Short output: summary
     variability: false
     backend: "openai-completions"
     vllm_args:
@@ -123,17 +131,33 @@ test_configs:
       - "--block-size=128"              # CPU optimal: multiples of 32 for SIMD alignment (AVX2/AVX512/NEON)
     kv_cache_space: "40GiB"             # Fallback value - should be overridden by model-specific kv_cache_sizes
 
-  # Reasoning workload (short input, long output)
+  # Decode-heavy workload — short input, long output; stresses memory bus and autoregressive throughput
   reasoning:
     workload_type: "reasoning"
     isl: 256                            # Short input: reasoning prompt
-    osl: 2048                           # Long output: chain-of-thought reasoning
+    osl: 2048                           # Long output: chain-of-thought (8000 in inference-perf; 2048 is CPU-appropriate ceiling)
     variability: false
     backend: "openai-completions"
     vllm_args:
       - "--dtype=auto"                  # Fallback dtype - overridden by model-specific dtype
       - "--no-enable-prefix-caching"    # Baseline mode: no prefix caching
       - "--max-model-len=4096"          # Limit model context to workload needs (2304 tokens)
+      - "--block-size=128"              # CPU optimal: multiples of 32 for SIMD alignment (AVX2/AVX512/NEON)
+    kv_cache_space: "40GiB"             # Fallback value - should be overridden by model-specific kv_cache_sizes
+
+  # Sustained-decode workload — small input, very large uniform output; maps to inference-perf
+  # batch-synthetic-data-generation. Distinct from reasoning: stresses bulk data throughput
+  # and memory bandwidth ceiling, not chain-of-thought generation latency.
+  batch_generation:
+    workload_type: "batch_generation"
+    isl: 512                            # Short prompt: generation instructions
+    osl: 4096                           # Large uniform output: generated dataset entries
+    variability: false
+    backend: "openai-completions"
+    vllm_args:
+      - "--dtype=auto"                  # Fallback dtype - overridden by model-specific dtype
+      - "--no-enable-prefix-caching"    # Baseline mode: no prefix caching
+      - "--max-model-len=8192"          # 512 + 4096 = 4608 + headroom
       - "--block-size=128"              # CPU optimal: multiples of 32 for SIMD alignment (AVX2/AVX512/NEON)
     kv_cache_space: "40GiB"             # Fallback value - should be overridden by model-specific kv_cache_sizes
 
@@ -141,7 +165,7 @@ test_configs:
   # Variable Workloads (Realistic Traffic Simulation)
   # ============================================================================
 
-  # Chat workload with variability (realistic traffic simulation)
+  # Balanced variable — realistic chat traffic with sequence length variance
   chat_var:
     workload_type: "chat_var"
     isl: 512                            # Mean input length
@@ -161,28 +185,7 @@ test_configs:
       - "--block-size=128"              # CPU optimal: multiples of 32 for SIMD alignment (AVX2/AVX512/NEON)
     kv_cache_space: "40GiB"             # Fallback value - should be overridden by model-specific kv_cache_sizes
 
-  # Code generation workload with variability (realistic output variance)
-  code_var:
-    workload_type: "code_var"
-    isl: 1024                           # Mean input length
-    isl_stdev: 256                      # Input length std dev (~25% variance)
-    isl_min: 512                        # Minimum input (simple requests)
-    isl_max: 2048                       # Maximum input (complex specs)
-    osl: 1024                           # Mean output length
-    osl_stdev: 256                      # Output length std dev (~25% variance)
-    osl_min: 512                        # Minimum output (small functions)
-    osl_max: 2048                       # Maximum output (large modules)
-    variability: true                   # Enable statistical distribution
-    backend: "openai-completions"
-    vllm_args:
-      - "--dtype=auto"                  # Fallback dtype - overridden by model-specific dtype
-      - "--no-enable-prefix-caching"    # Baseline mode: no prefix caching
-      - "--max-model-len=8192"          # Limit model context to workload needs (max 4096 tokens)
-      - "--block-size=128"              # CPU optimal: multiples of 32 for SIMD alignment (AVX2/AVX512/NEON)
-    kv_cache_space: "40GiB"             # Fallback value - should be overridden by model-specific kv_cache_sizes
-
-
-  # Summarization workload with variability (Realistic traffic simulation)
+  # Prefill-heavy variable — realistic document processing with input length variance
   summarization_var:
     workload_type: "summarization_var"
     isl: 1024                           # Mean input length

@@ -54,12 +54,16 @@ all:
         # Alternative Scenarios (comment/uncomment as needed)
         # ======================================================================
 
-        # Scenario 2: Embedding — 3 instances, 16 cores, context capped
+        # Scenario 2: Embedding — 3 instances, 16 cores, context capped (vLLM 0.31+)
         # scaleout_num_instances: 3
         # scaleout_cores_per_instance: 16
         # test_model: "RedHatAI/granite-embedding-english-r2"
         # scaleout_vllm_max_model_len: 512
+        # scaleout_vllm_runner: pooling       # required for vLLM 0.31+ embedding models
+        # scaleout_vllm_convert: embed        # required alongside pooling runner
+        # scaleout_enable_prefix_caching: false  # prefix cache unsupported for pooling
         # scaleout_routing_policy: "intelligent"
+        # NOTE: embedding-benchmark-scaleout.yml sets runner/convert/prefix_caching automatically.
 
         # Scenario 3: Audio/Whisper — 4 instances, 8 cores, transcription task
         # scaleout_num_instances: 4

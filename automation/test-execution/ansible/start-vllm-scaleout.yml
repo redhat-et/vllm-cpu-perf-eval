@@ -20,16 +20,16 @@
 #
 # Configuration options (override with -e or in inventory):
 #   - scaleout_num_instances      : Number of vLLM instances (default: 5)
-#   - scaleout_cores_per_instance : Cores per instance — 8, 16, 24, or 32 (default: 32)
+#   - scaleout_cores_per_instance : Cores per instance — 4, 8, 16, 24, or 32 (default: 32)
 #   - scaleout_start_core         : Starting CPU core (default: 32)
 #   - scaleout_enable_smt         : Enable SMT/HT cores (default: false)
 #   - scaleout_enable_prefix_caching : Enable prefix caching (default: true)
 #   - scaleout_vllm_base_port     : First vLLM instance port (default: 8000)
 #   - scaleout_envoy_port         : Client-facing Envoy port (default: 8081)
 #   - scaleout_model_name         : Model to deploy (default: from inventory)
-#   - scaleout_vllm_task          : vLLM --task flag; leave unset for auto-detection
-#                                   Use "embed" for encoder-only embedding models,
-#                                   "transcription" for Whisper/audio models
+#   - scaleout_vllm_runner        : e.g. pooling (vLLM 0.31+ embedding / rerank)
+#   - scaleout_vllm_convert       : e.g. embed with --runner pooling
+#   - scaleout_vllm_task          : e.g. transcription for Whisper (if supported)
 #   - scaleout_vllm_max_model_len : Cap model context window (recommended for embedding)
 #
 # Examples:
@@ -69,12 +69,12 @@
         that:
           - scaleout_num_instances | int > 0
           - scaleout_num_instances | int <= 10
-          - scaleout_cores_per_instance | int in [8, 16, 24, 32]
+          - scaleout_cores_per_instance | int in [4, 8, 16, 24, 32]
           - scaleout_routing_policy in ['intelligent', 'round_robin']
         fail_msg: |
           Invalid configuration:
             - scaleout_num_instances must be 1-10
-            - scaleout_cores_per_instance must be 8, 16, 24, or 32
+            - scaleout_cores_per_instance must be 4, 8, 16, 24, or 32
             - scaleout_routing_policy must be 'intelligent' or 'round_robin'
 
   roles:

@@ -34,6 +34,8 @@ from scaleout_data import (  # noqa: E402
     resolve_rps_column,
     resolve_throughput_column,
     throughput_sweep_summary,
+    client_workload_from_source,
+    run_has_client_workload,
 )
 
 st.title("🔀 Scale-Out Routing Analysis")
@@ -337,7 +339,7 @@ def client_latency_column(prefix: str, stat: str) -> Optional[str]:
     if prefix == "E2E":
         if stat == "mean":
             return "E2E mean (ms)"
-        if stat == "p99":
+        if stat in ("p95", "p99"):
             return "E2E P99 (ms)"
         return None
     suffix = {"mean": " mean (ms)", "p95": " P95 (ms)", "p99": " P99 (ms)"}
@@ -346,28 +348,37 @@ def client_latency_column(prefix: str, stat: str) -> Optional[str]:
     return f"{prefix}{suffix[stat]}"
 
 
+def _metric_has_data(df: pd.DataFrame, col: str) -> bool:
+    return col in df.columns and df[col].notna().any()
+
+
 def delta_metrics_for_stat(
     latency_stat: str,
     throughput_stat: str,
     df_a: pd.DataFrame,
     df_b: pd.DataFrame,
+    workload: str = "llm",
 ) -> List[tuple]:
     metrics: List[tuple] = []
-    for prefix, higher in (("TTFT", False), ("TPOT", False), ("ITL", False)):
-        col = client_latency_column(prefix, latency_stat)
-        if col:
-            metrics.append((col, higher))
+    if workload == "llm":
+        for prefix, higher in (("TTFT", False), ("TPOT", False), ("ITL", False)):
+            col = client_latency_column(prefix, latency_stat)
+            if col and (
+                _metric_has_data(df_a, col) or _metric_has_data(df_b, col)
+            ):
+                metrics.append((col, higher))
+    else:
+        e2e = client_latency_column("E2E", latency_stat)
+        if e2e and (
+            _metric_has_data(df_a, e2e) or _metric_has_data(df_b, e2e)
+        ):
+            metrics.append((e2e, False))
     tps_col = resolve_throughput_column(df_a, throughput_stat)
-    if tps_col not in df_a.columns:
-        tps_col = resolve_throughput_column(df_b, throughput_stat)
-    if tps_col in df_a.columns or tps_col in df_b.columns:
+    if _metric_has_data(df_a, tps_col) or _metric_has_data(df_b, tps_col):
         metrics.append((tps_col, True))
     rps_col = resolve_rps_column(df_a, throughput_stat)
-    if rps_col in df_a.columns or rps_col in df_b.columns:
+    if _metric_has_data(df_a, rps_col) or _metric_has_data(df_b, rps_col):
         metrics.append((rps_col, True))
-    e2e = client_latency_column("E2E", latency_stat)
-    if e2e:
-        metrics.append((e2e, False))
     return metrics
 
 
@@ -378,12 +389,13 @@ def _client_delta_table(
     label_b: str,
     latency_stat: str = "mean",
     throughput_stat: str = "p95",
+    workload: str = "llm",
 ) -> None:
     merged = df_a.merge(df_b, on="Concurrency", suffixes=("_a", "_b"))
     delta_rows = []
     for _, row in merged.iterrows():
         for metric, higher_is_better in delta_metrics_for_stat(
-            latency_stat, throughput_stat, df_a, df_b
+            latency_stat, throughput_stat, df_a, df_b, workload=workload
         ):
             va = row.get(f"{metric}_a")
             vb = row.get(f"{metric}_b")
@@ -425,6 +437,7 @@ def _client_overlay_charts(
     label_b: str,
     latency_stat: str = "mean",
     throughput_stat: str = "p95",
+    workload: str = "llm",
 ) -> None:
     stat_label = (
         latency_stat.upper() if latency_stat != "mean" else "Mean"
@@ -434,21 +447,27 @@ def _client_overlay_charts(
         if throughput_stat != "mean"
         else "Mean"
     )
-    for prefix, chart_title, _higher in (
-        ("TTFT", "⏱ Time to First Token (ms)", False),
-        ("TPOT", "⚡ TPOT (ms)", False),
-        ("ITL", "Inter-token latency (ms)", False),
-        ("E2E", "End-to-end latency (embedding)", False),
-    ):
+    if workload == "llm":
+        latency_charts = (
+            ("TTFT", "⏱ Time to First Token (ms)"),
+            ("TPOT", "⚡ TPOT (ms)"),
+            ("ITL", "Inter-token latency (ms)"),
+        )
+    else:
+        latency_charts = (("E2E", "End-to-end latency (ms)"),)
+
+    for prefix, chart_title in latency_charts:
         col = client_latency_column(prefix, latency_stat)
-        if not col or (col not in df_a.columns and col not in df_b.columns):
+        if not col or not (
+            _metric_has_data(df_a, col) or _metric_has_data(df_b, col)
+        ):
             continue
         gc_fig = go.Figure()
         for df_data, label, dash in [
             (df_a, label_a, "solid"),
             (df_b, label_b, "dash"),
         ]:
-            if col in df_data.columns and df_data[col].notna().any():
+            if _metric_has_data(df_data, col):
                 gc_fig.add_trace(go.Scatter(
                     x=df_data["Concurrency"],
                     y=df_data[col],
@@ -456,6 +475,8 @@ def _client_overlay_charts(
                     mode="lines+markers",
                     line=dict(dash=dash),
                 ))
+        if not gc_fig.data:
+            continue
         gc_fig.update_layout(
             title=f"{chart_title} — {stat_label}",
             xaxis_title="Concurrency",
@@ -876,18 +897,22 @@ GuideLLM averaged for that sweep step.
 scrapes, same statistic as Compare → Throughput) to **orange** during steady load.
                 """
             )
-        all_ts = set()
         per_backend_tps: Dict = {}
         for idx in instance_ids:
             df = extract_generation_throughput(instance_data[idx])
             if df.empty:
                 continue
-            per_backend_tps[idx] = df.set_index("elapsed_s")["value"]
-            all_ts.update(df["elapsed_s"].tolist())
-        if all_ts and per_backend_tps:
-            cluster_df = pd.DataFrame(index=sorted(all_ts))
-            for idx, series in per_backend_tps.items():
-                cluster_df[f"b{idx}"] = series
+            # Snap each backend's timestamps to the nearest 10 s grid so that
+            # backends scraped slightly out of phase align and their tok/s values
+            # are summed rather than interleaved (NaN + 100 = 100 not 200).
+            s = df.set_index("elapsed_s")["value"]
+            s.index = (s.index / 10).round() * 10
+            s = s.groupby(level=0).mean()
+            per_backend_tps[idx] = s
+        if per_backend_tps:
+            cluster_df = pd.DataFrame(
+                {f"b{idx}": s for idx, s in per_backend_tps.items()}
+            )
             cluster_df["cluster_tok_s"] = cluster_df.sum(axis=1, min_count=1)
             cluster_df = cluster_df.reset_index(names="elapsed_s")
             cluster_series = cluster_df["cluster_tok_s"].rolling(
@@ -1289,22 +1314,43 @@ with tab_comparisons:
         other = [r for r in runs if r["path"] != run_a["path"]]
         return other[0]["label"] if other else None
 
-    st.subheader("⚖️ Compare two runs")
-    st.caption(
-        "Choose any two scale-out runs — e.g. LMCache on vs off, routing policies, "
-        "or prefix caching. Run A defaults to the run selected on the Client tab."
-    )
+    def _suggest_in_pool(run_a: Dict, pool: List[Dict]) -> Optional[str]:
+        toggled = _suggest_compare_run_b(run_a)
+        pool_labels = {r["label"] for r in pool}
+        if toggled and toggled in pool_labels:
+            return toggled
+        other = [r for r in pool if r["path"] != run_a["path"]]
+        return other[0]["label"] if other else None
 
-    ref_label = st.session_state.get("scaleout_run_label", run_labels[0])
-    idx_a = run_labels.index(ref_label) if ref_label in run_labels else 0
-    label_a = st.selectbox("Run A", run_labels, index=idx_a, key="compare_run_a")
-    run_a = next(r for r in runs if r["label"] == label_a)
+    def _render_workload_compare(workload: str, key_prefix: str) -> None:
+        pool = [r for r in runs if run_has_client_workload(r, workload)]
+        pool_labels = [r["label"] for r in pool]
+        if len(pool_labels) < 2:
+            need = (
+                "GuideLLM `benchmarks.json`"
+                if workload == "llm"
+                else "`latency/` or `operating_point/` JSON from vllm-bench"
+            )
+            st.info(
+                f"Need at least two scale-out runs with {need} to compare."
+            )
+            return
 
-    other_labels = [lbl for lbl in run_labels if lbl != label_a]
-    if not other_labels:
-        st.info("Only one scale-out run in the results directory — add another run to compare.")
-    else:
-        suggested_b = _suggest_compare_run_b(run_a)
+        ref_label = st.session_state.get("scaleout_run_label", run_labels[0])
+        idx_a = (
+            pool_labels.index(ref_label)
+            if ref_label in pool_labels
+            else 0
+        )
+        label_a = st.selectbox(
+            "Run A",
+            pool_labels,
+            index=idx_a,
+            key=f"compare_run_a_{key_prefix}",
+        )
+        run_a = next(r for r in pool if r["label"] == label_a)
+        other_labels = [lbl for lbl in pool_labels if lbl != label_a]
+        suggested_b = _suggest_in_pool(run_a, pool)
         idx_b = (
             other_labels.index(suggested_b)
             if suggested_b in other_labels
@@ -1314,9 +1360,9 @@ with tab_comparisons:
             "Run B",
             other_labels,
             index=idx_b,
-            key="compare_run_b",
+            key=f"compare_run_b_{key_prefix}",
         )
-        run_b = next(r for r in runs if r["label"] == label_b)
+        run_b = next(r for r in pool if r["label"] == label_b)
 
         short_a = label_a if len(label_a) <= 48 else label_a[:45] + "…"
         short_b = label_b if len(label_b) <= 48 else label_b[:45] + "…"
@@ -1330,51 +1376,56 @@ with tab_comparisons:
 
         st.markdown("### Client (through Envoy)")
         lat_col, tp_col = st.columns(2)
+        tp_help = (
+            "GuideLLM per-load-point tok/s percentiles when available."
+            if workload == "llm"
+            else "Embedding runs use mean RPS / throughput from vllm-bench."
+        )
         with lat_col:
             compare_lat = st.radio(
                 "Latency statistic",
                 options=["Mean", "P95", "P99"],
                 horizontal=True,
-                key="compare_client_stat",
+                key=f"compare_client_stat_{key_prefix}",
             )
         with tp_col:
             compare_tp = st.radio(
                 "Throughput statistic",
                 options=["P95", "P99", "Mean"],
                 horizontal=True,
-                key="compare_throughput_stat",
-                help=(
-                    "Per concurrency: GuideLLM P95/P99 of tok/s when available. "
-                    "Deltas use the same columns; summaries avoid peak TPS."
-                ),
+                key=f"compare_throughput_stat_{key_prefix}",
+                help=tp_help,
             )
+        if workload == "llm":
+            st.session_state["compare_throughput_stat"] = compare_tp
         lat_key = compare_lat.lower()
         tp_key = compare_tp.lower()
         df_a, src_a = load_client_results_for_run(run_a)
         df_b, src_b = load_client_results_for_run(run_b)
-        if df_a is not None and df_b is not None:
-            st.caption(
-                f"Sources: A={src_a}, B={src_b} — solid = run A, dashed = run B. "
-                f"Latency: **{compare_lat}** · Throughput: **{compare_tp}** per load point."
-            )
-            _client_overlay_charts(
-                df_a, df_b, short_a, short_b,
-                latency_stat=lat_key, throughput_stat=tp_key,
-            )
-            _client_delta_table(
-                df_a, df_b, short_a, short_b,
-                latency_stat=lat_key, throughput_stat=tp_key,
-            )
-        else:
+        if df_a is None or df_b is None:
             missing = []
             if df_a is None:
                 missing.append("A")
             if df_b is None:
                 missing.append("B")
-            st.info(
-                f"Client results missing for run(s) {', '.join(missing)} "
-                "(need `benchmarks.json` or vllm-bench output in each run folder)."
-            )
+            st.info(f"Client results missing for run(s) {', '.join(missing)}.")
+            return
+        st.caption(
+            f"Sources: A={src_a}, B={src_b} — solid = run A, dashed = run B. "
+            f"Latency: **{compare_lat}** · Throughput: **{compare_tp}**."
+        )
+        _client_overlay_charts(
+            df_a, df_b, short_a, short_b,
+            latency_stat=lat_key,
+            throughput_stat=tp_key,
+            workload=workload,
+        )
+        _client_delta_table(
+            df_a, df_b, short_a, short_b,
+            latency_stat=lat_key,
+            throughput_stat=tp_key,
+            workload=workload,
+        )
 
         st.markdown("### Per-instance server metrics")
         data_a = instance_data_for_run(run_a)
@@ -1396,157 +1447,192 @@ with tab_comparisons:
             "Cache hit rate (%)",
         )
 
-    st.divider()
-
-    # ─── Instance-count scaling analysis ─────────────────────────────────────────
-
-    st.subheader("📏 Instance-Count Scaling Analysis")
-
-    scaling_ref = resolve_scaleout_run(
-        runs,
-        st.session_state.get("scaleout_run_label", run_labels[0]),
-    )
-    scaling_meta = scaling_ref["meta"]
-    sc_lat_col, sc_tp_col = st.columns(2)
-    with sc_lat_col:
-        scaling_stat = st.radio(
-            "TTFT statistic",
-            options=["Mean", "P95", "P99"],
-            horizontal=True,
-            key="scaling_ttft_stat",
-        )
-    with sc_tp_col:
-        scaling_tp_stat = st.radio(
-            "Throughput summary (not peak)",
-            options=["P95", "P99", "Mean"],
-            horizontal=True,
-            key="scaling_tp_stat",
-        )
-    scaling_ttft_col = client_latency_column("TTFT", scaling_stat.lower())
-    scaling_ttft_label = (
-        scaling_ttft_col or f"TTFT {scaling_stat}"
-    )
-    scaling_tp_key = scaling_tp_stat.lower()
-
-    # Compare runs with the same model, routing policy, and cores per instance,
-    # but different instance counts — the headline question for scale-out.
-    scaling_candidates = [
-        r for r in runs
-        if run_model_name(r) == run_model_name(scaling_ref)
-        and str(r["meta"].get("routing_policy") or "") == str(
-            scaling_meta.get("routing_policy") or ""
-        )
-        and str(r["meta"].get("cores_per_instance") or "") == str(
-            scaling_meta.get("cores_per_instance") or ""
-        )
-    ]
-
-    scaling_rows = []
-    for r in scaling_candidates:
-        n_instances = r["meta"].get("num_instances") or len(r["instance_files"])
-        df = load_client_results(r)
-        if df is None or df.empty:
-            continue
-        thr_ref, thr_col, anchor_conc, _thr_desc = throughput_sweep_summary(
-            df, scaling_tp_key
-        )
-        ttft_at_anchor = 0.0
-        if scaling_ttft_col and anchor_conc is not None:
-            match = df[df["Concurrency"] == anchor_conc]
-            if not match.empty and scaling_ttft_col in match.columns:
-                ttft_at_anchor = match.iloc[0].get(scaling_ttft_col, 0) or 0
-        scaling_rows.append({
-            "run": r,
-            "label": r["label"],
-            "instances": int(n_instances),
-            "throughput_ref": thr_ref,
-            "throughput_col": thr_col,
-            "anchor_concurrency": anchor_conc,
-            "ttft_at_anchor": ttft_at_anchor,
-        })
-
-    scaling_rows.sort(key=lambda row: row["instances"])
-    instance_counts = sorted({row["instances"] for row in scaling_rows})
-
-    if len(instance_counts) >= 2:
+    st.subheader("⚖️ Compare & scaling")
+    tab_cmp_llm, tab_cmp_embed, tab_scale = st.tabs([
+        "💬 Compare LLM runs",
+        "📐 Compare embedding runs",
+        "📏 Instance scaling",
+    ])
+    with tab_cmp_llm:
         st.caption(
-            f"Runs grouped by model `{run_model_name(scaling_ref) or '—'}`, policy "
-            f"`{scaling_meta.get('routing_policy', '—')}`, "
-            f"{scaling_meta.get('cores_per_instance', '?')} cores/instance "
-            f"(reference run: Client tab selection)."
+            "Generative workloads (GuideLLM): TTFT, TPOT, ITL, Output TPS. "
+            "Embedding metrics are on the **Compare embedding runs** tab."
         )
-
-        sc1, sc2 = st.columns(2)
-
-        scale_fig = go.Figure()
-        scale_fig.add_trace(go.Scatter(
-            x=[row["instances"] for row in scaling_rows],
-            y=[row["throughput_ref"] for row in scaling_rows],
-            name=f"Throughput ({scaling_tp_stat})",
-            mode="lines+markers",
-            line=dict(color="#4C9BE8"),
-        ))
-        scale_fig.update_layout(
-            xaxis_title="vLLM instances",
-            yaxis_title=f"Client {scaling_rows[0]['throughput_col']} summary",
-            height=320,
-            template="plotly_dark",
-            margin=dict(t=20, b=40),
+        _render_workload_compare("llm", "llm")
+    with tab_cmp_embed:
+        st.caption(
+            "Embedding workloads (vllm-bench): RPS, throughput, E2E latency. "
+            "For full embedding dashboards see **Embedding Metrics** (page 3)."
         )
-        sc1.plotly_chart(scale_fig, use_container_width=True)
+        _render_workload_compare("embedding", "emb")
 
-        ttft_scale_fig = go.Figure()
-        ttft_scale_fig.add_trace(go.Scatter(
-            x=[row["instances"] for row in scaling_rows],
-            y=[row["ttft_at_anchor"] for row in scaling_rows],
-            name=f"{scaling_ttft_label} @ throughput anchor",
-            mode="lines+markers",
-            line=dict(color="#F5A623"),
-        ))
-        ttft_scale_fig.update_layout(
-            xaxis_title="vLLM instances",
-            yaxis_title=f"{scaling_ttft_label} (ms)",
-            height=320,
-            template="plotly_dark",
-            margin=dict(t=20, b=40),
+    with tab_scale:
+        st.subheader("📏 Instance-Count Scaling Analysis")
+
+        scaling_ref = resolve_scaleout_run(
+            runs,
+            st.session_state.get("scaleout_run_label", run_labels[0]),
         )
-        sc2.plotly_chart(ttft_scale_fig, use_container_width=True)
+        scaling_meta = scaling_ref["meta"]
+        _ref_df, ref_src = load_client_results_for_run(scaling_ref)
+        scale_wl = (
+            client_workload_from_source(ref_src)
+            if ref_src
+            else "llm"
+        )
+        lat_prefix = "E2E" if scale_wl == "embedding" else "TTFT"
+        sc_lat_col, sc_tp_col = st.columns(2)
+        with sc_lat_col:
+            scaling_stat = st.radio(
+                f"{lat_prefix} statistic",
+                options=["Mean", "P95", "P99"],
+                horizontal=True,
+                key="scaling_ttft_stat",
+            )
+        with sc_tp_col:
+            scaling_tp_stat = st.radio(
+                "Throughput summary (not peak)",
+                options=["P95", "P99", "Mean"],
+                horizontal=True,
+                key="scaling_tp_stat",
+            )
+        scaling_ttft_col = client_latency_column(
+            lat_prefix, scaling_stat.lower()
+        )
+        scaling_ttft_label = (
+            scaling_ttft_col or f"{lat_prefix} {scaling_stat}"
+        )
+        scaling_tp_key = scaling_tp_stat.lower()
 
-        # Scaling efficiency vs the smallest instance count in the group.
-        base = scaling_rows[0]
-        base_throughput = base["throughput_ref"]
-        eff_rows = []
-        for row in scaling_rows:
-            throughput = row["throughput_ref"]
-            speedup = throughput / base_throughput if base_throughput else 0
-            instances_ratio = row["instances"] / base["instances"]
-            efficiency = (speedup / instances_ratio * 100) if instances_ratio else 0
-            eff_rows.append({
-                "Instances": row["instances"],
-                "Run": row["label"],
-                "Throughput summary": round(throughput, 2),
-                "Column": row["throughput_col"],
-                "Anchor concurrency": row["anchor_concurrency"],
-                scaling_ttft_label: row["ttft_at_anchor"],
-                "Speedup vs base": round(speedup, 2),
-                "Scaling efficiency (%)": round(efficiency, 1),
+        # Compare runs with the same model, routing policy, and cores per instance,
+        # but different instance counts — the headline question for scale-out.
+        scaling_candidates = [
+            r for r in runs
+            if run_has_client_workload(r, scale_wl)
+            and run_model_name(r) == run_model_name(scaling_ref)
+            and str(r["meta"].get("routing_policy") or "") == str(
+                scaling_meta.get("routing_policy") or ""
+            )
+            and str(r["meta"].get("cores_per_instance") or "") == str(
+                scaling_meta.get("cores_per_instance") or ""
+            )
+        ]
+
+        scaling_rows = []
+        for r in scaling_candidates:
+            n_instances = r["meta"].get("num_instances") or len(r["instance_files"])
+            df = load_client_results(r)
+            if df is None or df.empty:
+                continue
+            thr_ref, thr_col, anchor_conc, _thr_desc = throughput_sweep_summary(
+                df, scaling_tp_key
+            )
+            ttft_at_anchor = 0.0
+            if scaling_ttft_col and anchor_conc is not None:
+                match = df[df["Concurrency"] == anchor_conc]
+                if not match.empty and scaling_ttft_col in match.columns:
+                    ttft_at_anchor = match.iloc[0].get(scaling_ttft_col, 0) or 0
+            scaling_rows.append({
+                "run": r,
+                "label": r["label"],
+                "instances": int(n_instances),
+                "throughput_ref": thr_ref,
+                "throughput_col": thr_col,
+                "anchor_concurrency": anchor_conc,
+                "ttft_at_anchor": ttft_at_anchor,
             })
-        st.dataframe(pd.DataFrame(eff_rows), use_container_width=True, hide_index=True)
-        st.caption(
-            "Scaling efficiency = throughput speedup ÷ instance-count ratio. "
-            "100% is perfect linear scaling; values well below that indicate a "
-            "bottleneck elsewhere (Envoy, EPP, load generator, or shared memory bandwidth)."
-        )
-    elif len(scaling_rows) >= 2:
-        st.info(
-            "Multiple runs found for this combination, but all use the same "
-            "instance count — run with different `scaleout_num_instances` values "
-            "to populate the scaling analysis."
-        )
-    else:
-        st.info(
-            "Not enough comparable runs for this model / policy / cores-per-instance "
-            "combination. Run the same configuration with different "
-            "`scaleout_num_instances` values (with per-instance metrics and guidellm "
-            "client results) to populate the scaling analysis."
-        )
+
+        scaling_rows.sort(key=lambda row: row["instances"])
+        instance_counts = sorted({row["instances"] for row in scaling_rows})
+
+        if len(instance_counts) >= 2:
+            st.caption(
+                f"Runs grouped by model `{run_model_name(scaling_ref) or '—'}`, policy "
+                f"`{scaling_meta.get('routing_policy', '—')}`, "
+                f"{scaling_meta.get('cores_per_instance', '?')} cores/instance "
+                f"({scale_wl} client workload; reference: Client tab selection)."
+            )
+
+            sc1, sc2 = st.columns(2)
+
+            scale_fig = go.Figure()
+            scale_fig.add_trace(go.Scatter(
+                x=[row["instances"] for row in scaling_rows],
+                y=[row["throughput_ref"] for row in scaling_rows],
+                name=f"Throughput ({scaling_tp_stat})",
+                mode="lines+markers",
+                line=dict(color="#4C9BE8"),
+            ))
+            scale_fig.update_layout(
+                xaxis_title="vLLM instances",
+                yaxis_title=f"Client {scaling_rows[0]['throughput_col']} summary",
+                height=320,
+                template="plotly_dark",
+                margin=dict(t=20, b=40),
+            )
+            sc1.plotly_chart(scale_fig, use_container_width=True)
+
+            ttft_scale_fig = go.Figure()
+            ttft_scale_fig.add_trace(go.Scatter(
+                x=[row["instances"] for row in scaling_rows],
+                y=[row["ttft_at_anchor"] for row in scaling_rows],
+                name=f"{scaling_ttft_label} @ throughput anchor",
+                mode="lines+markers",
+                line=dict(color="#F5A623"),
+            ))
+            ttft_scale_fig.update_layout(
+                xaxis_title="vLLM instances",
+                yaxis_title=f"{scaling_ttft_label} (ms)",
+                height=320,
+                template="plotly_dark",
+                margin=dict(t=20, b=40),
+            )
+            sc2.plotly_chart(ttft_scale_fig, use_container_width=True)
+
+            # Scaling efficiency vs the smallest instance count in the group.
+            base = scaling_rows[0]
+            base_throughput = base["throughput_ref"]
+            eff_rows = []
+            for row in scaling_rows:
+                throughput = row["throughput_ref"]
+                speedup = throughput / base_throughput if base_throughput else 0
+                instances_ratio = row["instances"] / base["instances"]
+                efficiency = (
+                    (speedup / instances_ratio * 100) if instances_ratio else 0
+                )
+                eff_rows.append({
+                    "Instances": row["instances"],
+                    "Run": row["label"],
+                    "Throughput summary": round(throughput, 2),
+                    "Column": row["throughput_col"],
+                    "Anchor concurrency": row["anchor_concurrency"],
+                    scaling_ttft_label: row["ttft_at_anchor"],
+                    "Speedup vs base": round(speedup, 2),
+                    "Scaling efficiency (%)": round(efficiency, 1),
+                })
+            st.dataframe(
+                pd.DataFrame(eff_rows), use_container_width=True, hide_index=True
+            )
+            st.caption(
+                "Scaling efficiency = throughput speedup ÷ instance-count ratio. "
+                "100% is perfect linear scaling; values well below that indicate a "
+                "bottleneck elsewhere (Envoy, EPP, load generator, or shared memory bandwidth)."
+            )
+        elif len(scaling_rows) >= 2:
+            st.info(
+                "Multiple runs found for this combination, but all use the same "
+                "instance count — run with different `scaleout_num_instances` values "
+                "to populate the scaling analysis."
+            )
+        else:
+            client_hint = (
+                "vllm-bench embedding client results"
+                if scale_wl == "embedding"
+                else "GuideLLM client results"
+            )
+            st.info(
+                "Not enough comparable runs for this model / policy / cores-per-instance "
+                f"combination. Run the same configuration with different "
+                f"`scaleout_num_instances` values (with per-instance metrics and "
+                f"{client_hint}) to populate the scaling analysis."
+            )

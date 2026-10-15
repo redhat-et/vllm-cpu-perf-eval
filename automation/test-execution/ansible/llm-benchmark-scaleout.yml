@@ -210,8 +210,6 @@
         state: absent
       when:
         - hostvars['localhost']['scaleout_metrics_tmpdir'] is defined
-        - _results_dir_lookup.stdout is defined
-        - _results_dir_lookup.stdout | trim != ''
       failed_when: false
 
     - name: Patch test-metadata.json with scaleout fields

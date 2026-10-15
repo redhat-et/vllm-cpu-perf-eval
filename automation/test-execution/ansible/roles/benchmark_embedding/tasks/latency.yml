@@ -55,19 +55,20 @@
       vllm bench serve
       {% endif %}
 
-- name: Ensure latency result directory exists
-  ansible.builtin.file:
-    path: "{{ results_base_dir }}/latency"
-    state: directory
-    mode: "0755"
-
 - name: Define concurrency levels to test
   ansible.builtin.set_fact:
     # Fine-grained at low end (catches peaks between 16–32 for few-core instances),
     # then wider steps up to 384 for models still scaling at high concurrency.
     concurrency_levels: [16, 24, 32, 48, 64, 96, 128, 192, 256, 384]
 
-- name: "Warmup - Stabilize vLLM batching before latency measurement"
+- name: Ensure latency shape result directories exist
+  ansible.builtin.file:
+    path: "{{ results_base_dir }}/latency/{{ item.name }}"
+    state: directory
+    mode: "0755"
+  loop: "{{ embedding_workload_shapes }}"
+
+- name: "Warmup - Stabilize vLLM batching before latency measurement (chunk shape)"
   ansible.builtin.command:
     cmd: >
       timeout 120
@@ -77,7 +78,7 @@
       --backend openai-embeddings
       --model "{{ model_name }}"
       --dataset-name random
-      --random-input-len {{ embedding_random_input_len | default(512) }}
+      --random-input-len 512
       --num-prompts 100
       --request-rate inf
       --endpoint /v1/embeddings
@@ -100,7 +101,7 @@
   until: latency_embedding_ready.status == 200
   changed_when: false
 
-- name: "Latency Test - Run at each concurrency level"
+- name: "Latency Test - Run at each shape × concurrency level"
   ansible.builtin.command:
     cmd: >
       timeout {{ (vllm_bench_max_seconds | int) * 2 }}
@@ -110,20 +111,21 @@
       --backend openai-embeddings
       --model "{{ model_name }}"
       --dataset-name random
-      --random-input-len {{ embedding_random_input_len | default(512) }}
+      --random-input-len {{ item.0.input_len }}
       --num-prompts {{ num_prompts }}
       --endpoint /v1/embeddings
       --request-rate inf
-      --max-concurrency {{ item }}
+      --max-concurrency {{ item.1 }}
       --save-result
-      --result-filename "{{ results_base_dir }}/latency/concurrent-{{ item }}.json"
-  loop: "{{ concurrency_levels }}"
+      --result-filename "{{ results_base_dir }}/latency/{{ item.0.name }}/concurrent-{{ item.1 }}.json"
+  loop: "{{ embedding_workload_shapes | product(concurrency_levels) | list }}"
   register: latency_tests
   changed_when: true
 
 - name: Display latency test results summary
   ansible.builtin.debug:
     msg:
-      - "Latency tests completed for concurrency levels: {{ concurrency_levels }}"
-      - "Results saved to {{ results_base_dir }}/latency/"
-      - "Look for P99 latency sweet spot and degradation point"
+      - "Latency tests completed for shapes: {{ embedding_workload_shapes | map(attribute='name') | list }}"
+      - "Concurrency levels: {{ concurrency_levels }}"
+      - "Results saved to {{ results_base_dir }}/latency/<shape>/"
+      - "Look for P99 latency sweet spot and degradation point per shape"
