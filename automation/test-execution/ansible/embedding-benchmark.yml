@@ -243,9 +243,14 @@
           port: "{{ vllm_endpoint.external.url | urlsplit('port') }}"
       when: hostvars['localhost']['vllm_mode'] == 'external'
 
+    - name: Initialize bench_config for managed mode (connect to DUT)
+      ansible.builtin.set_fact:
+        bench_config: "{{ bench_config | default({}) | combine({'vllm_host': hostvars[groups['dut'][0]]['ansible_host'] | default(groups['dut'][0]), 'vllm_port': hostvars['localhost']['vllm_port'] | default(8000) | int}) }}"
+      when: hostvars['localhost']['vllm_mode'] == 'managed'
+
     - name: Override bench_config for external mode
       ansible.builtin.set_fact:
-        bench_config: "{{ bench_config | combine({'vllm_host': external_endpoint_parsed.hostname, 'vllm_port': external_endpoint_parsed.port | default(8000) | int}) }}"
+        bench_config: "{{ bench_config | default({}) | combine({'vllm_host': external_endpoint_parsed.hostname, 'vllm_port': external_endpoint_parsed.port | default(8000) | int}) }}"
       when: hostvars['localhost']['vllm_mode'] == 'external'
 
     - name: Run vLLM health check
