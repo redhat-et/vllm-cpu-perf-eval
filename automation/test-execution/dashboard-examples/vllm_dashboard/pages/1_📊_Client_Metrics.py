@@ -22,6 +22,7 @@ from plotly.subplots import make_subplots
 # Add parent directory to path for config_manager import
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from config_manager import DashboardConfig, normalize_vllm_version
+from scaleout_data import is_scaleout_metadata
 
 # Set global Plotly template
 if "plotly_white_light" not in pio.templates:
@@ -83,6 +84,9 @@ def load_guidellm_data(results_dir: str) -> pd.DataFrame:
 
             with open(metadata_file) as f:
                 metadata = json.load(f)
+
+            if is_scaleout_metadata(metadata, json_file.parent):
+                continue
 
             # Extract each benchmark (load point)
             for bench in data.get('benchmarks', []):
@@ -1369,8 +1373,12 @@ def render_dashboard():
             st.success(f"✓ Imported {len(imported_df)} CSV records (merged with {original_count} from directory)")
 
     if df.empty:
-        st.error("No benchmark data found!")
-        st.info(f"Looking in: {Path(results_dir).absolute()}")
+        st.error("No single-instance benchmark data found!")
+        st.info(
+            f"Looking in: {Path(results_dir).absolute()}\n\n"
+            "Runs with `deployment_type: scaleout` (or scale-out artifacts) are "
+            "shown on **🔀 ScaleOut Routing** (page 8), not here."
+        )
         st.info("Make sure benchmark results exist in the specified directory.")
         return
 

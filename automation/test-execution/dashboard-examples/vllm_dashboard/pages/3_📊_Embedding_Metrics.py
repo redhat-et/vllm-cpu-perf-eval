@@ -18,6 +18,7 @@ from plotly.subplots import make_subplots
 # Add parent directory to path for config_manager import
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from config_manager import DashboardConfig, normalize_vllm_version
+from scaleout_data import is_scaleout_metadata
 
 # Configure logging
 logging.basicConfig(
@@ -229,6 +230,9 @@ def load_embedding_data(results_dir: str) -> pd.DataFrame:
         try:
             with open(metadata_file) as f:
                 metadata = json.load(f)
+
+            if is_scaleout_metadata(metadata, metadata_file.parent):
+                continue
 
             # Validate required metadata fields
             required_fields = ['test_run_id', 'model', 'platform']
