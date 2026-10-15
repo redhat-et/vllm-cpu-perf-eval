@@ -337,7 +337,7 @@ def client_latency_column(prefix: str, stat: str) -> Optional[str]:
     if prefix == "E2E":
         if stat == "mean":
             return "E2E mean (ms)"
-        if stat in ("p95", "p99"):
+        if stat == "p99":
             return "E2E P99 (ms)"
         return None
     suffix = {"mean": " mean (ms)", "p95": " P95 (ms)", "p99": " P99 (ms)"}
@@ -358,9 +358,9 @@ def delta_metrics_for_stat(
         if col:
             metrics.append((col, higher))
     tps_col = resolve_throughput_column(df_a, throughput_stat)
-    if tps_col not in df_a.columns and tps_col in df_b.columns:
-        pass
-    elif tps_col in df_a.columns or tps_col in df_b.columns:
+    if tps_col not in df_a.columns:
+        tps_col = resolve_throughput_column(df_b, throughput_stat)
+    if tps_col in df_a.columns or tps_col in df_b.columns:
         metrics.append((tps_col, True))
     rps_col = resolve_rps_column(df_a, throughput_stat)
     if rps_col in df_a.columns or rps_col in df_b.columns:
@@ -843,15 +843,16 @@ with tab_instances:
                 """
 **What each line means**
 
-| | **Purple (time series)** | **Orange (horizontal)** |
-|---|---|---|
-| Source | Sum of each backend’s vLLM metric per scrape | GuideLLM `benchmarks.json` |
-| Metric | `vllm:avg_generation_throughput_toks_per_s` (or token-counter delta) | **Robust client throughput** (P95/P99/median across load — not peak) |
-| View | Server-side decode rate, summed across instances | Client-side, end-to-end **through Envoy** |
+| Series | Meaning |
+|---|---|
+| **Colored thin lines** | Each **backend**’s generation tok/s (`vllm:avg_generation_throughput_toks_per_s`) |
+| **Thick purple** | **Σ backends** at each scrape (instant cluster decode rate) |
+| **White / secondary axis** | **Cumulative** estimated output tokens (integrate Σ tok/s over scrape times) |
+| **Orange dashed** | GuideLLM client throughput **reference** (Compare → Throughput stat) |
+| **Purple dotted** | Same statistic applied to the **Σ** scrape series (not peak) |
 
-The orange line is a **summary** from `benchmarks.json` (default **P95**
-throughput across load levels, or per-point P95 tok/s on the Compare tab).
-It is **not** peak TPS. The purple line is whatever the scraper saw every ~10s.
+Client reference is from `benchmarks.json` during the load sweep; server lines
+are whatever the Prometheus scraper saw every ~10s (often includes idle time).
 
 **Purple below orange — does that make sense?**
 
@@ -899,14 +900,61 @@ scrapes, same statistic as Compare → Throughput) to **orange** during steady l
             server_ref, server_ref_label = server_cluster_throughput_ref(
                 cluster_df["cluster_tok_s"], tp_key
             )
-            cl_fig = go.Figure()
-            cl_fig.add_trace(go.Scatter(
-                x=cluster_df["elapsed_s"],
-                y=cluster_series,
-                name="Sum of backend generation tok/s",
-                mode="lines",
-                line=dict(width=2, color="#9B59B6"),
-            ))
+            cum_tokens: List[float] = []
+            tokens_est = 0.0
+            for j in range(len(cluster_df)):
+                if j > 0:
+                    dt = (
+                        cluster_df["elapsed_s"].iloc[j]
+                        - cluster_df["elapsed_s"].iloc[j - 1]
+                    )
+                    rate = cluster_df["cluster_tok_s"].iloc[j - 1]
+                    if pd.notna(rate) and dt > 0:
+                        tokens_est += float(rate) * float(dt)
+                cum_tokens.append(tokens_est)
+
+            cl_fig = make_subplots(specs=[[{"secondary_y": True}]])
+            for i, idx in enumerate(sorted(per_backend_tps.keys())):
+                col = f"b{idx}"
+                if col not in cluster_df.columns:
+                    continue
+                backend_y = (
+                    cluster_df[col].rolling(3, min_periods=1).mean()
+                )
+                cl_fig.add_trace(
+                    go.Scatter(
+                        x=cluster_df["elapsed_s"],
+                        y=backend_y,
+                        name=f"Backend {idx}",
+                        mode="lines",
+                        line=dict(
+                            color=BACKEND_COLORS[i % len(BACKEND_COLORS)],
+                            width=1,
+                        ),
+                        opacity=0.85,
+                    ),
+                    secondary_y=False,
+                )
+            cl_fig.add_trace(
+                go.Scatter(
+                    x=cluster_df["elapsed_s"],
+                    y=cluster_series,
+                    name="Σ all backends (tok/s)",
+                    mode="lines",
+                    line=dict(width=3, color="#9B59B6"),
+                ),
+                secondary_y=False,
+            )
+            cl_fig.add_trace(
+                go.Scatter(
+                    x=cluster_df["elapsed_s"],
+                    y=cum_tokens,
+                    name="Σ cumulative tokens (est.)",
+                    mode="lines",
+                    line=dict(width=2, color="#ECF0F1", dash="dot"),
+                ),
+                secondary_y=True,
+            )
             cl_fig.add_hline(
                 y=server_ref,
                 line_dash="dot",
@@ -948,14 +996,28 @@ scrapes, same statistic as Compare → Throughput) to **orange** during steady l
                 )
             cl_fig.update_layout(
                 xaxis_title="Elapsed since server metrics scrape (s)",
-                yaxis_title="Generation tok/s",
-                height=320,
+                height=420,
                 template="plotly_dark",
                 margin=dict(t=40, b=40),
+                legend_title="Server metrics",
+            )
+            cl_fig.update_yaxes(
+                title_text="Generation tok/s (per backend & Σ)",
+                secondary_y=False,
+                rangemode="tozero",
+            )
+            cl_fig.update_yaxes(
+                title_text="Est. cumulative output tokens (Σ)",
+                secondary_y=True,
+                rangemode="tozero",
             )
             st.plotly_chart(cl_fig, use_container_width=True)
             if client_ref_note:
                 st.caption(client_ref_note)
+            st.caption(
+                "Cumulative tokens ≈ ∫ (Σ backend tok/s) dt between scrapes — "
+                "rough check only; use client benchmarks for authoritative throughput."
+            )
         else:
             st.info(
                 "Per-backend generation throughput not found in "
