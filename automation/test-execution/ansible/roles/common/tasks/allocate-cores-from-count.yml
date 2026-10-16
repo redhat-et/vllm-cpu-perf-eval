@@ -60,8 +60,12 @@
     - requested_tensor_parallel != ""
 
 - name: Set tensor_parallel value for allocation
+  # Default to TP=1 — auto-TP selection is opt-in only.
+  # If 1 node cannot satisfy requested_cores the allocation fails with a clear
+  # error; the user must then either reduce requested_cores or pass an explicit
+  # requested_tensor_parallel (valid: 1, 2, 4, 8).
   ansible.builtin.set_fact:
-    _tensor_parallel_value: "{{ requested_tensor_parallel if (requested_tensor_parallel is defined and requested_tensor_parallel != omit and requested_tensor_parallel != None and requested_tensor_parallel != '') else None }}"
+    _tensor_parallel_value: "{{ requested_tensor_parallel | int if (requested_tensor_parallel is defined and requested_tensor_parallel != omit and requested_tensor_parallel != None and requested_tensor_parallel != '') else 1 }}"
 
 - name: Set socket pinning values for allocation
   ansible.builtin.set_fact:
@@ -184,7 +188,7 @@
       - "Strategy: {{ core_allocation_result.allocation_strategy }}"
       - "NUMA Nodes: {{ core_allocation_result.allocated_nodes | join(', ') }}"
       - "Cores per Node: {{ core_allocation_result.cores_per_node | join(', ') }}"
-      - "Tensor Parallel: {{ core_allocation_result.tensor_parallel }}{{ ' (auto-calculated)' if requested_tensor_parallel is not defined else ' (user-specified)' }}"
+      - "Tensor Parallel: {{ core_allocation_result.tensor_parallel }}{{ ' (default)' if (requested_tensor_parallel is not defined or requested_tensor_parallel == omit or requested_tensor_parallel == None or requested_tensor_parallel == '') else ' (user-specified)' }}"
       - "CPU Pinning: {{ auto_core_config.cpuset_cpus }}{{ ' (overridden by vllm_cpus)' if (vllm_cpus is defined and vllm_cpus not in [None, '']) else '' }}"
       - "Memory Affinity: {{ core_allocation_result.cpuset_mems }}"
       - "OMP Threads: {{ core_allocation_result.omp_num_threads }}"
