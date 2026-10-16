@@ -178,7 +178,7 @@ services:
             "kv_connector_extra_config":{
               "lmcache.mp.host":"tcp://localhost",
               "lmcache.mp.port":{{ scaleout_lmcache_server_port }},
-              "lmcache.mp.mp_transfer_mode":"lmcache_driven"
+              "lmcache.mp.mp_transfer_mode":"{{ scaleout_lmcache_mp_transfer_mode }}"
             }
           }'
 {% for arg in scaleout_vllm_extra_args %}
