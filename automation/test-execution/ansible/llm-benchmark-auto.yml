@@ -324,9 +324,9 @@
   gather_facts: false
 
   pre_tasks:
-    - name: End play if in external mode
+    - name: End play if not in managed mode
       ansible.builtin.meta: end_play
-      when: hostvars['localhost']['vllm_mode'] == 'external'
+      when: hostvars['localhost']['vllm_mode'] != 'managed'
 
   tasks:
     - block:
@@ -382,9 +382,9 @@
     vllm_numa_node: "{{ hostvars['localhost']['vllm_numa_node'] | default(None) }}"
 
   pre_tasks:
-    - name: End play if in external mode
+    - name: End play if not in managed mode
       ansible.builtin.meta: end_play
-      when: hostvars['localhost']['vllm_mode'] == 'external'
+      when: hostvars['localhost']['vllm_mode'] != 'managed'
 
   tasks:
     - name: Allocate cores from NUMA topology
@@ -410,9 +410,9 @@
     core_configuration: "{{ hostvars['localhost']['core_configuration'] }}"
 
   pre_tasks:
-    - name: End play if in external mode
+    - name: End play if not in managed mode
       ansible.builtin.meta: end_play
-      when: hostvars['localhost']['vllm_mode'] == 'external'
+      when: hostvars['localhost']['vllm_mode'] != 'managed'
 
   roles:
     - role: vllm_server
@@ -761,9 +761,9 @@
     core_configuration: "{{ hostvars['localhost']['core_configuration'] }}"
 
   pre_tasks:
-    - name: End play if in external mode
+    - name: End play if not in managed mode
       ansible.builtin.meta: end_play
-      when: hostvars['localhost']['vllm_mode'] | default('managed') == 'external'
+      when: hostvars['localhost']['vllm_mode'] | default('managed') != 'managed'
 
   roles:
     - role: results_collector
@@ -849,10 +849,10 @@
   gather_facts: false
 
   pre_tasks:
-    - name: End play if in external mode or cleanup disabled
+    - name: End play if not in managed mode or cleanup disabled
       ansible.builtin.meta: end_play
       when: >-
-        hostvars['localhost']['vllm_mode'] | default('managed') == 'external' or
+        hostvars['localhost']['vllm_mode'] | default('managed') != 'managed' or
         not (cleanup_after_test | default(true) | bool)
 
   tasks:
