@@ -35,8 +35,10 @@
         local_results_base: "{{ lookup('env', 'HOME') ~ '/benchmark-results' if (lookup('env', 'AWX_JOB_ID') | length > 0) else playbook_dir ~ '/../../../results/llm' }}"
 
     - name: Set vLLM mode early for validation
+      # Normalise to exactly 'managed' or 'external'.  Any other inventory value
+      # (e.g. 'dut-only') is treated as managed so the playbook starts vLLM itself.
       ansible.builtin.set_fact:
-        vllm_mode: "{{ vllm_mode | default(vllm_endpoint.mode | default('managed')) }}"
+        vllm_mode: "{{ 'external' if (vllm_mode | default(vllm_endpoint.mode | default('managed'))) == 'external' else 'managed' }}"
 
     - name: Apply vllm_endpoint_url override if provided
       ansible.builtin.set_fact:
