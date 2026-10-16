@@ -29,8 +29,15 @@
 #   scaleout_vllm_max_model_len     : Context length cap (default: 512)
 #   scaleout_vllm_runner / convert  : pooling + embed (vLLM 0.31+; do not use --task embed)
 #   scaleout_collect_per_instance_metrics : true (default) / false
-#   scaleout_enable_prefix_caching      : false (forced default for embedding — vLLM 0.31+
-#                                         pooling models crash with prefix cache enabled)
+#   scaleout_enable_prefix_caching      : false (forced — vLLM 0.31+ pooling runner does
+#                                         not use the block manager, so no KV cache blocks
+#                                         are allocated; prefix cache and LMCache both
+#                                         require block-manager KV tensors and will crash)
+#   scaleout_lmcache_backend            : must NOT be set to "remote" for embedding runs;
+#                                         LMCacheMPConnector registers KV cache blocks at
+#                                         startup — pooling runner allocates none, causing
+#                                         normalize_and_discover_per_layer_formats() to
+#                                         receive an empty dict and crash (StopIteration)
 #   scaleout_vllm_runner              : pooling (default)
 #   scaleout_vllm_convert             : embed (default)
 #

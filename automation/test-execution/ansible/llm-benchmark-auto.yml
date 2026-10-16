@@ -443,7 +443,10 @@
 
         - name: Parse external endpoint URL
           ansible.builtin.set_fact:
-            external_endpoint_parsed: "{{ vllm_endpoint.external.url | urlsplit }}"
+            external_endpoint_parsed:
+              hostname: "{{ vllm_endpoint.external.url | urlsplit('hostname') }}"
+              port: "{{ vllm_endpoint.external.url | urlsplit('port') }}"
+              scheme: "{{ vllm_endpoint.external.url | urlsplit('scheme') }}"
 
         - name: Validate parsed endpoint URL
           ansible.builtin.assert:

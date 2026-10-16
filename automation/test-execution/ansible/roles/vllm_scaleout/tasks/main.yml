@@ -16,6 +16,40 @@
          or (scaleout_vllm_convert | default('')) == 'embed'
          or (scaleout_vllm_task | default('')) == 'embed' }}
 
+- name: Fail if LMCache requested with embedding/pooling model
+  # Why this is architecturally impossible, not just a bug to work around:
+  #
+  # LMCache's LMCacheMPConnector works by having each vLLM worker register its
+  # allocated KV cache tensor blocks with the LMCache server via POSIX SHM.  The
+  # server then mmap-maps those tensors for zero-copy cross-instance sharing.
+  # This depends entirely on vLLM's block manager pre-allocating a pool of KV
+  # cache blocks at startup.
+  #
+  # The pooling runner (--runner pooling / --convert embed) does NOT use vLLM's
+  # block manager.  Each embedding request is processed as a single full-sequence
+  # forward pass — there is no incremental decoding, no persistent per-token KV
+  # blocks.  When LMCache calls normalize_and_discover_per_layer_formats() to
+  # register what it can cache, it receives an empty dict → StopIteration crash.
+  #
+  # This is confirmed by the fact that vLLM's own built-in prefix caching also
+  # does not work with pooling models (scaleout_enable_prefix_caching is forced
+  # false in embedding-benchmark-scaleout.yml for the same reason).  If the
+  # lightweight built-in version fails, LMCache — which hooks into the same block
+  # infrastructure — cannot succeed either.
+  #
+  # Could LMCache ever benefit embedding workloads?  In theory yes, but it would
+  # require caching the output embedding vectors rather than intermediate KV
+  # states — a fundamentally different feature that LMCache does not provide today.
+  ansible.builtin.fail:
+    msg: |
+      scaleout_lmcache_backend=remote cannot be used with embedding/pooling models.
+      Pooling runner (--runner pooling / --convert embed) allocates no attention KV
+      cache tensors, so LMCache has nothing to share and crashes on startup.
+      Remove scaleout_lmcache_backend=remote from your embedding benchmark run.
+  when:
+    - scaleout_lmcache_backend == 'remote'
+    - scaleout_serves_embeddings | bool
+
 - name: Display scale-out configuration
   ansible.builtin.debug:
     msg:
@@ -425,10 +459,12 @@
   when: scaleout_routing_policy == 'intelligent'
 
 - name: Pre-pull vLLM image
-  ansible.builtin.command: >-
-    podman pull {{ scaleout_lmcache_image_tag if scaleout_lmcache_backend == 'remote' else scaleout_vllm_image }}
+  # Skip for LMCache deployments — the image is built locally by the
+  # "Build vLLM+LMCache image on DUT" task above and cannot be pulled.
+  ansible.builtin.command: podman pull {{ scaleout_vllm_image }}
   become: true
   changed_when: true
+  when: scaleout_lmcache_backend != 'remote'
 
 - name: Compute expected container count for readiness polling
   ansible.builtin.set_fact:

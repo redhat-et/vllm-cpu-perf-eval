@@ -145,6 +145,13 @@ scaleout_lmcache_version: "0.5.5"
 #              instances connect via LMCacheMPConnector (lmcache_driven).
 #              vLLM's own prefix caching is disabled — LMCache is the
 #              caching layer.  scaleout_enable_prefix_caching is ignored.
+#
+# NOTE: "remote" is only valid for causal LM (text generation) models.
+#       It CANNOT be used with embedding/pooling models (--runner pooling /
+#       --convert embed).  The pooling runner does not use vLLM's block
+#       manager, so no KV cache blocks are allocated for LMCache to register
+#       or share — startup will crash with StopIteration.  The role enforces
+#       this with an explicit pre-flight check.
 scaleout_lmcache_backend: "none"
 
 # lmcache-server — runs in the same vLLM image (pip-installs lmcache if needed)
@@ -170,6 +177,16 @@ scaleout_lmcache_scorer_weight: 2
 #                (use for debugging: lets you see the actual error and confirm
 #                the rest of the stack works, then fix LMCache)
 scaleout_lmcache_kv_failure_policy: "fail"
+
+# LMCache MP transfer mode.  Controls who drives KV cache movement between the
+# vLLM worker and the LMCache server:
+#   lmcache_driven — LMCache maps worker KV tensors via POSIX SHM (zero-copy).
+#                    Requires gpu_connector format detection; known broken on
+#                    CPU-only vLLM (LBHNC layout not recognised → StopIteration).
+#   vllm_driven    — vLLM serialises the KV tensors and LMCache receives them.
+#                    May bypass the gpu_connector path; try this on CPU workers.
+#   auto           — LMCache picks the mode based on runtime capabilities.
+scaleout_lmcache_mp_transfer_mode: "lmcache_driven"
 
 # Hugepages for the lmcache-server shared memory pool
 #
