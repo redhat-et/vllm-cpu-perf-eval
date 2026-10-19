@@ -74,6 +74,11 @@
     scaleout_vllm_task: "transcription"
     scaleout_enable_prefix_caching: false
     scaleout_model_name: "{{ lookup('env', 'TEST_MODEL') | default(test_model | default('openai/whisper-large-v3'), true) }}"
+    # Each instance independently reserves this fraction of host RAM for KV
+    # cache.  0.9 (role default) works for a single instance but starves
+    # subsequent instances on the same host — lower the cap for scale-out.
+    # Override with -e scaleout_vllm_gpu_memory_utilization=<value> if needed.
+    scaleout_vllm_gpu_memory_utilization: "{{ scaleout_vllm_gpu_memory_utilization | default(0.3) }}"
 
 # ============================================================================
 # Phase 1.5: Start per-instance metrics collection

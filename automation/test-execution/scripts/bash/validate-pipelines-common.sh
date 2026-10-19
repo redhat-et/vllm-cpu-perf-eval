@@ -45,6 +45,12 @@ VLLM_BENCH_NUMA_NODE="${VLLM_BENCH_NUMA_NODE:-$GUIDELLM_NUMA_NODE}"
 # Audio smoke model (stage 10) — tiny Whisper keeps the smoke fast; Whisper
 # models need no HF token.
 AUDIO_MODEL="${AUDIO_MODEL:-openai/whisper-tiny}"
+# CPU KV-cache fraction per Whisper instance.  0.9 is the role default and
+# works for a single instance, but each instance reserves this fraction of
+# total RAM independently — two instances at 0.9 each exhaust the host.
+# 0.3 gives ~28 GiB per instance on a 92 GiB host, far more than whisper-tiny
+# needs, and leaves room for a second (or third) instance.
+AUDIO_SCALEOUT_GPU_MEM_UTIL="${AUDIO_SCALEOUT_GPU_MEM_UTIL:-0.3}"
 
 LMCACHE_L1_GB="${LMCACHE_L1_GB:-10}"
 LMCACHE_HUGEPAGES="${LMCACHE_HUGEPAGES:-true}"
@@ -345,6 +351,7 @@ audio_scaleout() {
         -e "scaleout_envoy_cores=${SCALEOUT_ENVOY_CORES}" \
         -e "scaleout_epp_cores=${SCALEOUT_EPP_CORES}" \
         -e "scaleout_envoy_concurrency=${SCALEOUT_ENVOY_CONCURRENCY}" \
+        -e "scaleout_vllm_gpu_memory_utilization=${AUDIO_SCALEOUT_GPU_MEM_UTIL}" \
         ${HF_ARGS[@]+"${HF_ARGS[@]}"}
 }
 
