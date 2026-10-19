@@ -68,7 +68,7 @@
       - "  Prefix caching: {{ 'Disabled (LMCache owns caching)' if scaleout_lmcache_backend == 'remote' else (scaleout_enable_prefix_caching | ternary('Enabled', 'Disabled')) }}"
       - "  LMCache backend: {{ scaleout_lmcache_backend }}"
       - "  {{ 'LMCache server L1 pool: ' + scaleout_lmcache_server_l1_size_gb | string + ' GB  port: ' + scaleout_lmcache_server_port | string if scaleout_lmcache_backend == 'remote' else '' }}"
-      - "  {{ 'Hugepages: 1 GB × ' + scaleout_lmcache_hugepages_1g_count | string + ' pre-allocated + THP=always' if (scaleout_lmcache_backend == 'remote' and scaleout_lmcache_hugepages_enabled) else '' }}"
+      - "  {{ 'Hugepages: 1 GB × ' + scaleout_lmcache_hugepages_1g_count | string + ' pre-allocated + THP=always' if (scaleout_lmcache_backend == 'remote' and scaleout_lmcache_hugepages_enabled | bool) else '' }}"
       - "  vLLM ports: {{ scaleout_vllm_base_port }} - {{ scaleout_vllm_base_port | int + scaleout_num_instances | int - 1 }}"
       - "  Envoy port (client): {{ scaleout_envoy_port }}"
       - "  EPP gRPC port: {{ scaleout_epp_grpc_port }} ({{ 'enabled' if scaleout_routing_policy == 'intelligent' else 'disabled for round_robin' }})"
@@ -89,7 +89,7 @@
             (
               (',' + (scaleout_smt_offset | int + (item - 1) * scaleout_smt_cores_per_instance | int) | string + '-' +
               (scaleout_smt_offset | int + item * scaleout_smt_cores_per_instance | int - 1) | string)
-              if scaleout_enable_smt else ''
+              if scaleout_enable_smt | bool else ''
             )
           )
         ]
@@ -723,7 +723,7 @@
       - "  • Routing policy: {{ scaleout_routing_policy }}"
       - "  • {{ 'EPP scoring: prefix-cache×' + scaleout_epp_prefix_cache_weight|string + ' queue×' + scaleout_epp_queue_weight|string + ' kv-cache×' + scaleout_epp_kv_cache_weight|string if scaleout_routing_policy == 'intelligent' else 'EPP: not started (round_robin mode)' }}"
       - "  • Prefix caching: {{ 'Disabled (LMCache owns caching — LMCacheMPConnector + ' + scaleout_lmcache_mp_transfer_mode + ')' if scaleout_lmcache_backend == 'remote' else scaleout_enable_prefix_caching | ternary('Enabled', 'Disabled') }}"
-      - "  • LMCache: {{ 'remote — L1 pool ' + scaleout_lmcache_server_l1_size_gb | string + ' GB on :' + scaleout_lmcache_server_port | string + (' + 1 GB hugepages × ' + scaleout_lmcache_hugepages_1g_count | string + ' + THP=always' if scaleout_lmcache_hugepages_enabled else '') if scaleout_lmcache_backend == 'remote' else 'disabled' }}"
+      - "  • LMCache: {{ 'remote — L1 pool ' + scaleout_lmcache_server_l1_size_gb | string + ' GB on :' + scaleout_lmcache_server_port | string + (' + 1 GB hugepages × ' + scaleout_lmcache_hugepages_1g_count | string + ' + THP=always' if scaleout_lmcache_hugepages_enabled | bool else '') if scaleout_lmcache_backend == 'remote' else 'disabled' }}"
       - "  • End-to-end smoke request through routing path: {{ 'skipped (transcription models)' if scaleout_vllm_task | default('') == 'transcription' else 'passed' }}"
       - ""
       - "Client Access Points:"

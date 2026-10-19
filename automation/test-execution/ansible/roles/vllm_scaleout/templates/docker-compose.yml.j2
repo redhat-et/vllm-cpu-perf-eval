@@ -27,7 +27,7 @@ version: '3.8'
 #            is the caching layer.  scaleout_enable_prefix_caching is ignored.
 {% if scaleout_lmcache_backend == 'remote' %}
 #
-# Hugepages: {{ 'enabled — 1 GB pages pre-allocated; THP set to always' if scaleout_lmcache_hugepages_enabled else 'disabled' }}
+# Hugepages: {{ 'enabled — 1 GB pages pre-allocated; THP set to always' if scaleout_lmcache_hugepages_enabled | bool else 'disabled' }}
 #   1 GB hugepages eliminate TLB pressure when N processes all map the same large shared-
 #   memory pool.  A {{ scaleout_lmcache_server_l1_size_gb }} GB L1 pool needs only
 #   {{ scaleout_lmcache_server_l1_size_gb }} TLB entries with 1 GB pages vs

@@ -171,10 +171,8 @@ directly for per-backend load charts and routing policy comparison.
 
 ### Prerequisites
 
-On the DUT:
-```bash
-pip3 install podman-compose
-```
+`podman-compose ≥ 1.2.0` is installed automatically by `start-vllm-scaleout.yml`.
+No manual installation is required.
 
 ### Deploy
 
