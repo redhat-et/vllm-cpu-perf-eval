@@ -144,7 +144,7 @@ scaleout_volume_name: "hf-cache"
 # Health Check Settings
 # ============================================================================
 
-scaleout_health_check_retries: 120
+scaleout_health_check_retries: 240
 scaleout_health_check_delay: 10
 
 # ============================================================================

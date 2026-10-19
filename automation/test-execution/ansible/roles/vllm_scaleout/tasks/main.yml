@@ -349,6 +349,21 @@
     vllm_rings = instances * 0.5
     needed     = math.ceil((kv_shm + lmcache_l1 + vllm_rings) * 1.1)
 
+    # The KV SHM objects are tmpfs-backed by host RAM: bound the total
+    # allocation against physical RAM so the remount below cannot size
+    # /dev/shm beyond what the host can back (e.g. util=0.9 x 5 instances
+    # requests ~4.5x total RAM and would OOM at runtime).
+    os_headroom_gb = 8
+    if kv_shm + lmcache_l1 + os_headroom_gb > total_gb:
+        print('ERROR: KV SHM + LMCache L1 pool exceeds physical RAM.')
+        print(f'  total RAM         : {total_gb:.0f} GiB')
+        print(f'  KV SHM (util x N) : {kv_shm:.1f} GiB')
+        print(f'  LMCache L1 pool   : {lmcache_l1} GiB')
+        print(f'  OS headroom       : {os_headroom_gb} GiB')
+        print('  Fix: reduce scaleout_vllm_gpu_memory_utilization or')
+        print('       scaleout_num_instances, or use a larger host.')
+        sys.exit(1)
+
     # Validate host has enough free RAM for lmcache L1 + ring buffers before we
     # start containers.  statvfs reports min(size_limit-allocated, free_ram+swap)
     # so insufficient physical RAM causes the ring-buffer check to fail even when
@@ -691,7 +706,7 @@
       - "  • vLLM instances: {{ scaleout_num_instances }} × {{ scaleout_cores_per_instance }} cores"
       - "  • Routing policy: {{ scaleout_routing_policy }}"
       - "  • {{ 'EPP scoring: prefix-cache×' + scaleout_epp_prefix_cache_weight|string + ' queue×' + scaleout_epp_queue_weight|string + ' kv-cache×' + scaleout_epp_kv_cache_weight|string if scaleout_routing_policy == 'intelligent' else 'EPP: not started (round_robin mode)' }}"
-      - "  • Prefix caching: {{ 'Disabled (LMCache owns caching — LMCacheMPConnector + engine_driven)' if scaleout_lmcache_backend == 'remote' else scaleout_enable_prefix_caching | ternary('Enabled', 'Disabled') }}"
+      - "  • Prefix caching: {{ 'Disabled (LMCache owns caching — LMCacheMPConnector + ' + scaleout_lmcache_mp_transfer_mode + ')' if scaleout_lmcache_backend == 'remote' else scaleout_enable_prefix_caching | ternary('Enabled', 'Disabled') }}"
       - "  • LMCache: {{ 'remote — L1 pool ' + scaleout_lmcache_server_l1_size_gb | string + ' GB on :' + scaleout_lmcache_server_port | string + (' + 1 GB hugepages × ' + scaleout_lmcache_hugepages_1g_count | string + ' + THP=always' if scaleout_lmcache_hugepages_enabled else '') if scaleout_lmcache_backend == 'remote' else 'disabled' }}"
       - "  • End-to-end smoke request through routing path: {{ 'skipped (transcription models)' if scaleout_vllm_task | default('') == 'transcription' else 'passed' }}"
       - ""

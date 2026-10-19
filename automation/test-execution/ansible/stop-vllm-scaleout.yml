@@ -88,6 +88,15 @@
       when: discovered_instance_containers.stdout_lines | default([]) | length == 0
       ignore_errors: true
 
+    # Clean POSIX SHM objects left by the scale-out containers.  All containers
+    # share the host IPC namespace (ipc: host) and lmcache_driven mode wraps KV
+    # tensors as SHM files (/lmcache_kv_<pid>_<idx>) — without this, multi-GB
+    # stale objects pin host RAM after teardown.
+    - name: Clean stale LMCache/vLLM shared-memory objects
+      ansible.builtin.shell: |
+        rm -f /dev/shm/vllm* /dev/shm/lmcache* /dev/shm/psm* 2>/dev/null || true
+      changed_when: false
+
     # Config dir is always removed — it only contains generated temp files
     - name: Remove configuration directory
       ansible.builtin.file:
@@ -126,5 +135,6 @@
           - "  • Envoy container: removed"
           - "  • EPP container: removed"
           - "  • vLLM instance containers: removed"
+          - "  • LMCache/vLLM SHM objects (/dev/shm): cleaned"
           - "  • Config directory ({{ scaleout_config_dir }}): removed"
           - "  • HF model cache volume: {{ scaleout_purge_model_cache | ternary('removed', 'preserved (pass -e scaleout_purge_model_cache=true to remove)') }}"
