@@ -53,6 +53,11 @@
 
 set -uo pipefail
 
+# Stop the whole harness on Ctrl-C/kill.  Without this, bash resumes after
+# the interrupted child exits and the stage runner moves on to the NEXT
+# stage (deploying again) — the harness appears unstoppable.
+trap 'printf "\n[INFO] Interrupted — harness stopped.\n[INFO] DUT state: the next run'"'"'s pre-clean removes leftover containers/SHM, or run stop-vllm-scaleout.yml now.\n"; exit 130' INT TERM
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _REPO_ROOT_EARLY="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
 
