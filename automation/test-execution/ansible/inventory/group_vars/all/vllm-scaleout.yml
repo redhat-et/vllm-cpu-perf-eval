@@ -95,9 +95,9 @@ scaleout_epp_metrics_port: 9090
 # the role overrides this automatically with the built lmcache image — do NOT
 # set scaleout_vllm_image directly in that case.
 # Options:
-#   - docker.io/vllm/vllm-openai-cpu:v0.31.0    (official vLLM CPU)
+#   - docker.io/vllm/vllm-openai-cpu:v0.32.0    (official vLLM CPU)
 #   - quay.io/vllm/automation-vllm:cpu-<tag>     (Red Hat AI optimized)
-scaleout_vllm_base_image: "docker.io/vllm/vllm-openai-cpu:v0.31.0"
+scaleout_vllm_base_image: "docker.io/vllm/vllm-openai-cpu:v0.32.0"
 
 # LMCache version baked into the vllm-cpu-lmcache image (must match what was built).
 # Also fixes the image tag formula so it always has the localhost/ registry prefix.
