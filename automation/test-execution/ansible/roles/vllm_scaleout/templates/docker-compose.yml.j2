@@ -266,6 +266,11 @@ services:
       - --pool-namespace=default
       - --grpc-port={{ scaleout_epp_grpc_port }}
       - --grpc-health-port={{ scaleout_epp_health_port }}
+      # Register grpc.health.v1 on the main gRPC port so Envoy's ext_proc
+      # cluster health check (127.0.0.1:{{ scaleout_epp_grpc_port }}) succeeds;
+      # without it the EPP cluster never reports healthy and traffic only
+      # flows via Envoy panic routing.
+      - --health-checking=true
       - --metrics-port={{ scaleout_epp_metrics_port }}
       - --secure-serving=false
       - --v=2
