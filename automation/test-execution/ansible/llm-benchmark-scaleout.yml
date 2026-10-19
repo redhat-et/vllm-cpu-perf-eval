@@ -69,6 +69,12 @@
 # Phase 1: Deploy scale-out infrastructure
 # ============================================================================
 - ansible.builtin.import_playbook: start-vllm-scaleout.yml
+  vars:
+    # Override inventory router pins (1-7 / 8-15) when benchmarks use a low
+    # scaleout_start_core — avoids vLLM ∩ Envoy/EPP overlap on single-socket smoke.
+    scaleout_envoy_cores: "{{ lookup('env', 'SCALEOUT_ENVOY_CORES') | default('72-75', true) }}"
+    scaleout_epp_cores: "{{ lookup('env', 'SCALEOUT_EPP_CORES') | default('76-83', true) }}"
+    scaleout_envoy_concurrency: "{{ lookup('env', 'SCALEOUT_ENVOY_CONCURRENCY') | default(4, true) | int }}"
 
 # ============================================================================
 # Phase 1.5: Start per-instance metrics collection

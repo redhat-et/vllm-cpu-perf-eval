@@ -68,6 +68,9 @@
 # ============================================================================
 - ansible.builtin.import_playbook: start-vllm-scaleout.yml
   vars:
+    scaleout_envoy_cores: "{{ lookup('env', 'SCALEOUT_ENVOY_CORES') | default('72-75', true) }}"
+    scaleout_epp_cores: "{{ lookup('env', 'SCALEOUT_EPP_CORES') | default('76-83', true) }}"
+    scaleout_envoy_concurrency: "{{ lookup('env', 'SCALEOUT_ENVOY_CONCURRENCY') | default(4, true) | int }}"
     scaleout_vllm_task: "transcription"
     scaleout_enable_prefix_caching: false
     scaleout_model_name: "{{ lookup('env', 'TEST_MODEL') | default(test_model | default('openai/whisper-large-v3'), true) }}"

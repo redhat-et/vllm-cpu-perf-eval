@@ -104,6 +104,9 @@
 # ============================================================================
 - ansible.builtin.import_playbook: start-vllm-scaleout.yml
   vars:
+    scaleout_envoy_cores: "{{ lookup('env', 'SCALEOUT_ENVOY_CORES') | default('72-75', true) }}"
+    scaleout_epp_cores: "{{ lookup('env', 'SCALEOUT_EPP_CORES') | default('76-83', true) }}"
+    scaleout_envoy_concurrency: "{{ lookup('env', 'SCALEOUT_ENVOY_CONCURRENCY') | default(4, true) | int }}"
     scaleout_model_name: "{{ lookup('env', 'TEST_MODEL') | default(test_model | default('RedHatAI/granite-embedding-english-r2'), true) }}"
     scaleout_vllm_max_model_len: "{{ lookup('env', 'SCALEOUT_MAX_MODEL_LEN') | default(512, true) }}"
     scaleout_vllm_task: ""

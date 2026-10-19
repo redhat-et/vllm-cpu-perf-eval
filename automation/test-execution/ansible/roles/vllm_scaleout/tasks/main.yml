@@ -108,6 +108,7 @@
       "{{ scaleout_instance_cpusets | join(',') }}" \
       "{{ scaleout_envoy_cores }}" \
       "{{ scaleout_epp_cores if scaleout_routing_policy == 'intelligent' else '' }}" \
+      "{{ scaleout_strict_cpu_isolation | default(true) | ternary('true', 'false') }}" \
       <<'PYEOF'
     import sys
 
@@ -155,17 +156,26 @@
         overlaps.append(f"vLLM ∩ EPP:   {sorted(vllm & epp)}")
     if envoy & epp:
         overlaps.append(f"Envoy ∩ EPP:  {sorted(envoy & epp)}")
+    strict = sys.argv[5].lower() == 'true' if len(sys.argv) > 5 else True
     if overlaps:
-        print("WARNING: CPU core overlap detected between services — contention will "
-              "hurt throughput and latency:")
+        msg = ("ERROR: CPU core overlap detected between services — contention will "
+               "hurt throughput and latency:" if strict else
+               "WARNING: CPU core overlap detected between services — contention will "
+               "hurt throughput and latency:")
+        print(msg)
         for o in overlaps:
             print(f"  {o}")
-        print("  → Increase scaleout_start_core so vLLM cores do not overlap with "
-              "scaleout_envoy_cores / scaleout_epp_cores.")
+        print("  → Increase scaleout_start_core and/or move scaleout_envoy_cores / "
+              "scaleout_epp_cores off the vLLM cpusets.")
+        if strict:
+            print("  → Or pass -e scaleout_strict_cpu_isolation=false to allow overlap.")
+            sys.exit(1)
 
     print(f"OK: all {len(all_requested)} requested CPU cores are present")
     PYEOF
+  register: _scaleout_cpu_verify
   changed_when: false
+  failed_when: _scaleout_cpu_verify.rc != 0
 
 - name: Build vLLM+LMCache image on DUT
   when: scaleout_lmcache_backend == 'remote' and scaleout_lmcache_build_image | bool

@@ -25,9 +25,11 @@
 #   8  teardown              — stop-vllm-scaleout.yml (idempotent final cleanup)
 #
 # Usage:
-#   ./validate-pipelines.sh                      # all stages (0-6, 9, 7, 8)
-#   STAGES=0,4,6 ./validate-pipelines.sh         # subset
+#   ./validate-pipelines.sh                      # STAGES=all → 0-5,9,7,8 (no LMCache)
+#   INCLUDE_LMCACHE=1 ./validate-pipelines.sh    # all stages including 6 (slow)
+#   STAGES=0,4,6 ./validate-pipelines.sh         # explicit subset
 #   STAGES=6 LMCACHE_TRANSFER_MODE=vllm_driven ./validate-pipelines.sh
+#   STOP_ON_FAIL=false ./validate-pipelines.sh   # continue after a failed stage
 #
 # Supplement mode (backfill after a full run; default STAGES=3,9,7, skips preflight):
 #   ./validate-pipelines.sh --supplement
@@ -40,23 +42,20 @@
 # Tunables (env, with defaults):
 #   LLM_MODEL, EMBEDDING_MODEL, QUICK_SECONDS, QUICK_REQUESTS, REQUESTED_CORES,
 #   SCALEOUT_* , GUIDELLM_*, EMBEDDING_SCALEOUT_* , VLLM_BENCH_* ,
-#   LMCACHE_*, PRE_CLEAN, RESULTS_ROOT, VALIDATION_LOG_DIR, STAGES, SUPPLEMENT
+#   LMCACHE_*, INCLUDE_LMCACHE, STOP_ON_FAIL, PRE_CLEAN, RESULTS_ROOT,
+#   VALIDATION_LOG_DIR, STAGES, SUPPLEMENT
 #
 # Notes:
 # - Smoke sizing: ONE short benchmark per configuration — LLM stages run a
 #   single GuideLLM concurrency level (GUIDELLM_PROFILE / GUIDELLM_RATE) and
 #   embedding stages a single shape + probe (EMBEDDING_SMOKE_SHAPE /
 #   EMBEDDING_PROBE_LEVELS).  Full sweeps live in the benchmark suites.
-# - Stage 6 builds the vllm-cpu-lmcache image on first run (multi-GB, slow).
+# - Stage 6 (LMCache) is excluded from STAGES=all — set INCLUDE_LMCACHE=1 to run it.
+# - Ctrl-C runs stop-vllm-scaleout.yml before exiting.
 # - Each stage logs to $VALIDATION_LOG_DIR/stage<N>-<name>.log
 # ============================================================================
 
 set -uo pipefail
-
-# Stop the whole harness on Ctrl-C/kill.  Without this, bash resumes after
-# the interrupted child exits and the stage runner moves on to the NEXT
-# stage (deploying again) — the harness appears unstoppable.
-trap 'printf "\n[INFO] Interrupted — harness stopped.\n[INFO] DUT state: the next run'"'"'s pre-clean removes leftover containers/SHM, or run stop-vllm-scaleout.yml now.\n"; exit 130' INT TERM
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 _REPO_ROOT_EARLY="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
@@ -105,6 +104,8 @@ VALIDATION_MAIN_SCRIPT="$0"
 VALIDATION_SUPPLEMENT_MODE="$VALIDATION_SUPPLEMENT_MODE"
 # shellcheck source=validate-pipelines-common.sh
 source "$SCRIPT_DIR/validate-pipelines-common.sh"
+
+trap validation_on_interrupt INT TERM
 
 if [[ "$VALIDATION_SUPPLEMENT_MODE" == true ]]; then
     info "Supplement mode — stages ${STAGES} (default 3,9,7: single embed + multi embed + results; no preflight unless STAGES includes 0)"
