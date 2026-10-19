@@ -116,22 +116,19 @@ services:
       - --convert
       - {{ scaleout_vllm_convert }}
 {% endif %}
-{% if scaleout_vllm_task is defined and scaleout_vllm_task != '' and scaleout_vllm_task != 'embed' %}
-{%   if scaleout_vllm_task == 'transcription' %}
-      - --runner
-      - generate
-{%   else %}
+{% if scaleout_vllm_task is defined and scaleout_vllm_task != '' and scaleout_vllm_task != 'embed' and scaleout_vllm_task != 'transcription' %}
       - --task
       - {{ scaleout_vllm_task }}
-{%   endif %}
 {% endif %}
 {% if scaleout_vllm_max_model_len is defined and scaleout_vllm_max_model_len != '' %}
       - --max-model-len
       - "{{ scaleout_vllm_max_model_len }}"
 {% endif %}
-{% if _scaleout_embedding or scaleout_vllm_task | default('') == 'transcription' %}
+{% if _scaleout_embedding %}
       - --no-enable-prefix-caching
       - --disable-hybrid-kv-cache-manager
+{% elif scaleout_vllm_task | default('') == 'transcription' %}
+      - --no-enable-prefix-caching
 {% elif scaleout_enable_prefix_caching | bool %}
       - --enable-prefix-caching
 {% else %}
@@ -167,7 +164,7 @@ services:
 {% if not _scaleout_embedding and scaleout_vllm_convert is defined and scaleout_vllm_convert != '' %}
           --convert "{{ scaleout_vllm_convert }}"
 {% endif %}
-{% if scaleout_vllm_task is defined and scaleout_vllm_task != '' and scaleout_vllm_task != 'embed' %}
+{% if scaleout_vllm_task is defined and scaleout_vllm_task != '' and scaleout_vllm_task != 'embed' and scaleout_vllm_task != 'transcription' %}
           --task "{{ scaleout_vllm_task }}"
 {% endif %}
 {% if scaleout_vllm_max_model_len is defined and scaleout_vllm_max_model_len != '' %}
