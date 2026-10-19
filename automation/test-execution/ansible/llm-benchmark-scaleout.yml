@@ -49,6 +49,10 @@
         scaleout_benchmark_start_epoch: "{{ lookup('pipe', 'date +%s') | int }}"
         scaleout_routing_policy: "{{ scaleout_routing_policy | default('intelligent') }}"
         scaleout_lmcache_backend: "{{ scaleout_lmcache_backend | default('none') }}"
+        # Resolve the workload here (not in import_playbook vars) to avoid an
+        # Ansible recursive template loop when the var references itself in
+        # import vars.
+        scaleout_workload_type: "{{ workload_type | default(lookup('env', 'WORKLOAD_TYPE') | default('summarization', true), true) }}"
 
     - name: Display scaleout benchmark configuration
       ansible.builtin.debug:
@@ -124,7 +128,7 @@
 - ansible.builtin.import_playbook: llm-benchmark-auto.yml
   vars:
     vllm_mode: "external"
-    workload_type: "{{ workload_type | default(lookup('env', 'WORKLOAD_TYPE') | default('summarization', true), true) }}"
+    workload_type: "{{ hostvars['localhost']['scaleout_workload_type'] }}"
     vllm_endpoint_url: "http://{{ hostvars[groups['dut'][0]]['ansible_host'] }}:{{ scaleout_envoy_port | default(8081) }}"
     benchmark_label_suffix: "scaleout-{{ scaleout_num_instances | default(5) }}x-{{ scaleout_routing_policy | default('intelligent') }}{{ '-lmcache' if scaleout_lmcache_backend | default('none') == 'remote' else '' }}"
 
