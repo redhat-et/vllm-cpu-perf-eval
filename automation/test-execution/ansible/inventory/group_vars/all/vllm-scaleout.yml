@@ -10,6 +10,10 @@
 #
 # These settings control the scale-out deployment playbook (start-vllm-scaleout.yml)
 # Override these in your inventory or via command line with -e
+#
+# Defaults below assume a large reference platform (5 × 32 cores). For smoke runs
+# or scaleout_start_core=0, always set scaleout_envoy_cores / scaleout_epp_cores
+# so they do not overlap vLLM instance cpusets (see docs/vllm-scaleout.md).
 # ============================================================================
 
 # ============================================================================
