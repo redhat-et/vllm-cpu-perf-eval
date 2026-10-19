@@ -287,7 +287,7 @@ Set all weights to 1 for load-aware round-robin (EPP running, but no strong affi
 
 ## LMCache: Cross-Instance KV Sharing
 
-### Overview
+### How LMCache Sharing Works
 
 By default, each vLLM instance holds its own independent KV cache.  The EPP
 routes requests with prefix affinity to maximise per-instance cache hits, but
@@ -542,7 +542,7 @@ issues — vLLM logs the actual LMCache error and continues serving requests
 (without cross-instance caching) instead of entering a crash/restart loop.  Set
 back to `fail` for production runs so a silent connector failure is not masked.
 
-### Quick Start
+### LMCache Quick Start
 
 ```bash
 # Minimum — LMCache with default 10 GB pool, no hugepages
