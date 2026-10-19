@@ -7,7 +7,16 @@
 
 - name: Read latency sweep result files (chunk shape — canonical peak reference)
   ansible.builtin.slurp:
-    src: "{{ results_base_dir }}/latency/{{ embedding_peak_shape | default(embedding_workload_shapes | map(attribute='name') | first | default('chunk')) }}/concurrent-{{ item }}.json"
+    src: >-
+      {{ results_base_dir }}/latency/{{
+        embedding_peak_shape
+        if embedding_peak_shape is defined
+        else (
+          'chunk'
+          if 'chunk' in (embedding_workload_shapes | map(attribute='name') | list)
+          else (embedding_workload_shapes | map(attribute='name') | first | default('chunk'))
+        )
+      }}/concurrent-{{ item }}.json
   loop: "{{ concurrency_levels }}"
   register: latency_slurp
   ignore_errors: true

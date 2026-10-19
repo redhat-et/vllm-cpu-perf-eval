@@ -78,6 +78,8 @@ matrix:
       application_focus: "Prefill/Decode (Small-Scale)"
       parameters: "1.1B"
       context_length: 2048
+      excluded_workloads:
+        - batch_generation  # requires max_model_len=8192; context_length 2048 is too small
       dtype: "bfloat16"
       architecture_specs:
         hidden_size: 2048
@@ -109,6 +111,8 @@ matrix:
       application_focus: "Balanced (Enterprise Baseline)"
       parameters: "2B"
       context_length: 4096
+      excluded_workloads:
+        - batch_generation  # requires max_model_len=8192; context_length 4096 is too small
       dtype: "bfloat16"
       architecture_specs:
         hidden_size: 2048
