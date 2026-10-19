@@ -1,6 +1,5 @@
 # shellcheck shell=bash
-# Shared config and stage functions for validate-pipelines.sh and
-# validate-pipelines-supplement.sh.  Source from bash only (not executable).
+# Shared config and stage functions for validate-pipelines.sh (source only).
 
 # --- Locate the repo --------------------------------------------------------
 _SCRIPT_COMMON_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -47,6 +46,15 @@ LMCACHE_L1_GB="${LMCACHE_L1_GB:-10}"
 LMCACHE_HUGEPAGES="${LMCACHE_HUGEPAGES:-true}"
 LMCACHE_UTIL="${LMCACHE_UTIL:-0.4}"
 LMCACHE_TRANSFER_MODE="${LMCACHE_TRANSFER_MODE:-}"   # empty = role default
+
+# Smoke sizing: ONE short benchmark per configuration.  LLM stages run a
+# single GuideLLM concurrency level instead of the group-vars default sweep
+# ([1,2,4,8,16,32]); embedding stages run a single shape and a single
+# operating-point probe.  Full sweeps live in the benchmark suites.
+GUIDELLM_PROFILE="${GUIDELLM_PROFILE:-concurrent}"
+GUIDELLM_RATE="${GUIDELLM_RATE:-8}"
+EMBEDDING_SMOKE_SHAPE="${EMBEDDING_SMOKE_SHAPE:-[{'name':'chunk','input_len':512}]}"
+EMBEDDING_PROBE_LEVELS="${EMBEDDING_PROBE_LEVELS:-[8]}"
 
 PRE_CLEAN="${PRE_CLEAN:-true}"
 RESULTS_ROOT="${RESULTS_ROOT:-$REPO_ROOT/results}"
@@ -128,7 +136,7 @@ validation_print_banner() {
     info "Embed scale : ${EMBEDDING_SCALEOUT_NUM_INSTANCES}x${EMBEDDING_SCALEOUT_CORES_PER_INSTANCE} from core $EMBEDDING_SCALEOUT_START_CORE (stage 9)"
     info "CPU pins    : single=${REQUESTED_CORES}c  envoy=${SCALEOUT_ENVOY_CORES}  epp=${SCALEOUT_EPP_CORES}  guidellm=${GUIDELLM_CPUS}  vllm-bench=${VLLM_BENCH_CPUS}"
     info "LMCache     : l1=${LMCACHE_L1_GB}GB hugepages=${LMCACHE_HUGEPAGES} util=${LMCACHE_UTIL}"
-    info "Quick caps  : ${QUICK_SECONDS}s / ${QUICK_REQUESTS} requests per LLM benchmark"
+    info "Quick caps  : ${QUICK_SECONDS}s / ${QUICK_REQUESTS} reqs; LLM ${GUIDELLM_PROFILE}@rate ${GUIDELLM_RATE}; embedding probes ${EMBEDDING_PROBE_LEVELS} (${EMBEDDING_SMOKE_SHAPE})"
     info "Stages      : $STAGES"
     info "Logs        : $LOG_DIR"
     log ""
@@ -158,6 +166,8 @@ single_llm() {
         -e "test_model=${LLM_MODEL}" \
         -e "workload_type=${workload}" \
         -e "requested_cores=${REQUESTED_CORES}" \
+        -e "guidellm_profile=${GUIDELLM_PROFILE}" \
+        -e "guidellm_rate=${GUIDELLM_RATE}" \
         -e "guidellm_max_seconds=${QUICK_SECONDS}" \
         -e "guidellm_max_requests=${QUICK_REQUESTS}" \
         ${HF_ARGS[@]+"${HF_ARGS[@]}"}
@@ -168,6 +178,8 @@ single_embedding() {
         -e "test_model=${EMBEDDING_MODEL}" \
         -e "requested_cores=${REQUESTED_CORES}" \
         -e "scenario=operating_point" \
+        -e "embedding_workload_shapes=${EMBEDDING_SMOKE_SHAPE}" \
+        -e "op_probe_levels=${EMBEDDING_PROBE_LEVELS}" \
         -e "num_prompts=64" \
         -e "op_peak_concurrency=8" \
         ${HF_ARGS[@]+"${HF_ARGS[@]}"}
@@ -195,9 +207,11 @@ multi_llm() {
         -e "scaleout_envoy_cores=${SCALEOUT_ENVOY_CORES}" \
         -e "scaleout_epp_cores=${SCALEOUT_EPP_CORES}" \
         -e "scaleout_envoy_concurrency=${SCALEOUT_ENVOY_CONCURRENCY}" \
+        -e "guidellm_profile=${GUIDELLM_PROFILE}" \
+        -e "guidellm_rate=${GUIDELLM_RATE}" \
         -e "guidellm_max_seconds=${QUICK_SECONDS}" \
         -e "guidellm_max_requests=${QUICK_REQUESTS}" \
-        ${HF_ARGS[@]+"${HF_ARGS[@]}"} "${extra[@]+"${extra[@]}"}"
+        ${HF_ARGS[@]+"${HF_ARGS[@]}"}
 }
 
 multi_llm_lmcache() {
@@ -219,6 +233,8 @@ multi_embedding_scaleout() {
     ansible_cmd "$ANSIBLE_DIR/embedding-benchmark-scaleout.yml" \
         -e "test_model=${EMBEDDING_MODEL}" \
         -e "scenario=operating_point" \
+        -e "embedding_workload_shapes=${EMBEDDING_SMOKE_SHAPE}" \
+        -e "op_probe_levels=${EMBEDDING_PROBE_LEVELS}" \
         -e "num_prompts=64" \
         -e "op_peak_concurrency=8" \
         -e "scaleout_num_instances=${EMBEDDING_SCALEOUT_NUM_INSTANCES}" \
