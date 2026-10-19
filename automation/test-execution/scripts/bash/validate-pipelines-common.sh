@@ -224,7 +224,7 @@ multi_llm() {
         -e "guidellm_rate=${GUIDELLM_RATE}" \
         -e "guidellm_max_seconds=${QUICK_SECONDS}" \
         -e "guidellm_max_requests=${QUICK_REQUESTS}" \
-        ${HF_ARGS[@]+"${HF_ARGS[@]}"}
+        ${HF_ARGS[@]+"${HF_ARGS[@]}"} "${extra[@]+"${extra[@]}"}"
 }
 
 multi_llm_lmcache() {
