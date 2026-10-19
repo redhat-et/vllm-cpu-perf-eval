@@ -100,7 +100,7 @@ Concretely:
   prefix could otherwise be computed 5 times.  With LMCache, compute it once — all 5
   instances benefit.
 
-Set `scaleout_lmcache_backend=remote` to enable; see [LMCache](#lmcache) for sizing
+Set `scaleout_lmcache_backend=remote` to enable; see [LMCache](#lmcache-cross-instance-kv-sharing) for sizing
 and configuration details.
 
 ---
@@ -299,8 +299,12 @@ cache it checks the shared pool before recomputing; when it evicts a block it
 pushes it to the pool for others.
 
 This is implemented via vLLM's V1 KV connector API (`--kv-transfer-config`).
-The vLLM CPU backend uses the V1 engine exclusively and the connector is fully
-supported — there are no CPU-specific restrictions.
+The vLLM CPU backend uses the V1 engine exclusively.  The connector works on CPU,
+but the deployment has CPU-specific requirements: all containers must share the
+host IPC namespace (`ipc: host` + `pid: host`), `/dev/shm` must be sized for the
+KV objects, and the LBHNC layout detection in older lmcache releases was broken
+on CPU (fixed in lmcache 0.5.x — if you hit a `StopIteration` at startup, set
+`scaleout_lmcache_mp_transfer_mode=vllm_driven`).
 
 `lmcache` is not bundled in the vLLM CPU image.  When `scaleout_lmcache_backend=remote`
 the role **automatically builds a custom image** (`vllm-cpu-lmcache:<tag>`) with lmcache
@@ -444,14 +448,14 @@ When `scaleout_lmcache_backend=remote`, the role:
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `scaleout_vllm_base_image` | `docker.io/vllm/vllm-openai-cpu:v0.25.1` | Upstream registry image (never overwritten by role tasks) |
+| `scaleout_vllm_base_image` | `docker.io/vllm/vllm-openai-cpu:v0.32.0` | Upstream registry image (never overwritten by role tasks) |
 | `scaleout_vllm_image` | `= scaleout_vllm_base_image` | Runtime image in the compose stack; overridden to `scaleout_lmcache_image_tag` when building |
 | `scaleout_lmcache_build_image` | `true` | Set `false` to skip the build and use `scaleout_vllm_image` as-is |
-| `scaleout_lmcache_image_tag` | `vllm-cpu-lmcache:<base-tag>` | Tag for the built image |
-| `scaleout_lmcache_version` | `0.3.9` | lmcache PyPI version to bake in |
+| `scaleout_lmcache_image_tag` | `localhost/vllm-cpu-lmcache:<base-tag>-lmcache<version>` | Tag for the built image |
+| `scaleout_lmcache_version` | `0.5.5` | lmcache PyPI version to bake in |
 
 The build runs **once** and is then cached.  If you upgrade the base vLLM image or pin
-a different lmcache version, delete the old image (`podman rmi vllm-cpu-lmcache:<tag>`)
+a different lmcache version, delete the old image (`podman rmi localhost/vllm-cpu-lmcache:<base-tag>-lmcache<version>`)
 before the next run so the role rebuilds.
 
 If the smoke-test inside the Containerfile fails (`import lmcache` or the
@@ -555,8 +559,8 @@ ansible-playbook start-vllm-scaleout.yml \
       scaleout_lmcache_hugepages_1g_count=20 \
       scaleout_vllm_gpu_memory_utilization=0.4"
 
-# Full benchmark — deploy, test, teardown
-ansible-playbook embedding-benchmark-scaleout.yml \
+# Full benchmark — deploy, test, teardown (causal-LM models only)
+ansible-playbook llm-benchmark-scaleout.yml \
   -e "scaleout_lmcache_backend=remote \
       scaleout_lmcache_hugepages_enabled=true \
       scaleout_vllm_gpu_memory_utilization=0.4"
@@ -597,16 +601,16 @@ Run the same workload with and without LMCache to measure the benefit:
 
 ```bash
 # Baseline — per-instance prefix caching, intelligent EPP routing
-ansible-playbook embedding-benchmark-scaleout.yml \
+ansible-playbook llm-benchmark-scaleout.yml \
   -e "scaleout_lmcache_backend=none scaleout_enable_prefix_caching=true"
 
 # LMCache — shared pool, intelligent EPP routing
-ansible-playbook embedding-benchmark-scaleout.yml \
+ansible-playbook llm-benchmark-scaleout.yml \
   -e "scaleout_lmcache_backend=remote scaleout_lmcache_hugepages_enabled=true"
 ```
 
 LMCache benefits are largest for workloads with **shared prefixes across
-requests** — RAG system prompts, batch embedding with repeated document prefixes,
+requests** — long system prompts, multi-turn conversations, batch generation
 or any scenario where the prefix hit rate is currently limited by requests being
 spread across instances.
 
@@ -707,22 +711,26 @@ With `scaleout_start_core=0` and two instances × 4 cores, vLLM uses **0–7**;
 pin vllm-bench on a disjoint range (e.g. **48–71**) so load-gen does not share
 instance CPUs.
 
+To functionally validate **LMCache**, use the LLM playbook instead — LMCache
+requires causal-LM models (see [LMCache](#lmcache-cross-instance-kv-sharing)):
+
 ```bash
-# LMCache — round_robin (compare to baseline after both complete)
+# LMCache functional smoke — small causal-LM model, 2 instances, short chat run
+# (LMCache cannot be used with embedding/pooling models — the role pre-flight
+# rejects that combination)
 ansible-playbook \
   -i automation/test-execution/ansible/inventory/hosts.yml \
-  automation/test-execution/ansible/embedding-benchmark-scaleout.yml \
-  -e "test_model=RedHatAI/granite-embedding-english-r2" \
+  automation/test-execution/ansible/llm-benchmark-scaleout.yml \
+  -e "test_model=RedHatAI/TinyLlama-1.1B-Chat-v1.0-pruned2.4" \
+  -e "workload_type=chat" \
   -e "scaleout_num_instances=2" \
   -e "scaleout_cores_per_instance=4" \
   -e "scaleout_start_core=0" \
   -e "scaleout_routing_policy=round_robin" \
-  -e "scaleout_vllm_max_model_len=512" \
-  -e "vllm_bench_cpus=48-71" \
-  -e "vllm_bench_numa_node=0" \
-  -e "scenario=operating_point" \
-  -e "num_prompts=64" \
-  -e "op_peak_concurrency=8" \
+  -e "guidellm_cpus=48-71" \
+  -e "guidellm_numa_node=0" \
+  -e "guidellm_max_seconds=120" \
+  -e "guidellm_max_requests=32" \
   -e "hf_token=${HF_TOKEN}" \
   -e "scaleout_lmcache_backend=remote" \
   -e "scaleout_lmcache_server_l1_size_gb=10" \

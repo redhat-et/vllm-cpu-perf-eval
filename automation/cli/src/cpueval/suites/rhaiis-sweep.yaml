@@ -7,7 +7,7 @@ matrix: true
 defaults:
   models: all
   cores: "8,16,32"
-  workloads: "chat,code,summarization,rag"
+  workloads: "chat,summarization,reasoning,batch_generation"
   phase: "1"
 
 param_mappings:
