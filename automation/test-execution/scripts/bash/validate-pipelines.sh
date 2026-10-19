@@ -21,11 +21,12 @@
 #   5  multi summarization   — same topology, different workload
 #   6  multi chat + LMCache   — scaleout_lmcache_backend=remote (causal-LM only)
 #   9  multi embedding       — embedding-benchmark-scaleout.yml smoke
+#   10 multi audio           — audio-benchmark-scaleout.yml smoke (tiny Whisper)
 #   7  results visibility    — view_results.py parses the runs produced above
 #   8  teardown              — stop-vllm-scaleout.yml (idempotent final cleanup)
 #
 # Usage:
-#   ./validate-pipelines.sh                      # STAGES=all → 0-5,9,7,8 (no LMCache)
+#   ./validate-pipelines.sh                      # STAGES=all → 0-5,9,10,7,8 (no LMCache)
 #   INCLUDE_LMCACHE=1 ./validate-pipelines.sh    # all stages including 6 (slow)
 #   STAGES=0,4,6 ./validate-pipelines.sh         # explicit subset
 #   STAGES=6 LMCACHE_TRANSFER_MODE=vllm_driven ./validate-pipelines.sh

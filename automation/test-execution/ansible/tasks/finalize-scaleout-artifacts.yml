@@ -16,22 +16,16 @@
       echo "benchmarks.json already in $dest"
       exit 0
     fi
-    # Search run tree (parent dirs) for GuideLLM output from llm-benchmark-auto.
-    search_root="$(dirname "$dest")"
-    found=""
-    while [ -n "$search_root" ] && [ "$search_root" != "/" ]; do
-      candidate=$(find "$search_root" -maxdepth 4 -name benchmarks.json -type f 2>/dev/null | head -1)
-      if [ -n "$candidate" ]; then
-        found="$candidate"
-        break
-      fi
-      search_root="$(dirname "$search_root")"
-    done
-    if [ -n "$found" ]; then
+    # Search within the run-specific results directory only (scaleout_results_dir
+    # is already pinned to this run via test_run_id — no need to climb parents).
+    found="$(find "$dest" -maxdepth 3 -name benchmarks.json -type f 2>/dev/null | head -1)"
+    if [ -n "$found" ] && [ "$found" != "$dest/benchmarks.json" ]; then
       cp "$found" "$dest/benchmarks.json"
       echo "Copied $found -> $dest/benchmarks.json"
+    elif [ -n "$found" ]; then
+      echo "benchmarks.json already in $dest"
     else
-      echo "No benchmarks.json found near $dest (embedding runs use latency/ instead)"
+      echo "No benchmarks.json found in $dest (embedding runs use latency/ instead)"
     fi
   args:
     executable: /bin/bash

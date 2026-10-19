@@ -639,7 +639,7 @@
             "test_run_id": "{{ test_run_id }}",
             "test_name": "{{ test_name | default('') }}",
             "model": "{{ model_name }}",
-            "deployment_type": "single",
+            "deployment_type": "{{ 'single' if vllm_mode != 'external' else 'external' }}",
             "platform": "{{ dut_platform_name | default('unknown') }}",
             "vllm_version": "{{ vllm_version | default('unknown') }}",
             "vllm_container_image": "{{ hostvars['localhost']['vllm_container_image'] | default('unknown') }}",

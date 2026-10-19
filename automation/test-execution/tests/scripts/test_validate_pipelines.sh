@@ -230,6 +230,20 @@ else
     fail "multi_embedding passes typed JSON extra-vars document" "JSON doc not found"
 fi
 
+# Test 12b: audio scaleout smoke contract
+: > "$CAPTURE_FILE"
+PRE_CLEAN=false audio_scaleout
+assert_contains "$CAPTURE_FILE" "audio-benchmark-scaleout.yml" "audio stage invokes the audio scale-out playbook"
+assert_contains "$CAPTURE_FILE" "-e test_model=${AUDIO_MODEL}" "audio stage passes the smoke model"
+assert_contains "$CAPTURE_FILE" "-e test_scenario=transcription-throughput" "audio stage passes the smoke scenario"
+assert_contains "$CAPTURE_FILE" "-e audio_num_files=2" "audio stage caps the file count"
+assert_contains "$CAPTURE_FILE" "-e scaleout_start_core=${EMBEDDING_SCALEOUT_START_CORE}" "audio stage uses the light topology"
+if grep -q "scaleout_lmcache" "$CAPTURE_FILE"; then
+    fail "audio stage must not enable LMCache" "LMCache vars present"
+else
+    pass "audio stage must not enable LMCache"
+fi
+
 # Test 13: PRE_CLEAN invokes the teardown playbook first
 : > "$CAPTURE_FILE"
 PRE_CLEAN=true multi_llm chat

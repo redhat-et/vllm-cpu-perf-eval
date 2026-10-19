@@ -22,7 +22,8 @@
     except (json.JSONDecodeError, OSError) as exc:
         print(f"WARNING: could not parse {path}: {exc}")
         sys.exit(0)
-    updates = {{ _meta_extra | to_json }}
+    updates_str = """{{ _meta_extra | to_json }}"""
+    updates = json.loads(updates_str)
     data.update(updates)
     tmp = path + ".tmp"
     with open(tmp, "w") as f:

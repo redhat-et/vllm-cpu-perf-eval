@@ -40,15 +40,21 @@
   # Could LMCache ever benefit embedding workloads?  In theory yes, but it would
   # require caching the output embedding vectors rather than intermediate KV
   # states — a fundamentally different feature that LMCache does not provide today.
+  # The same applies to transcription (Whisper) models: they are encoder-decoder,
+  # so the decoder KV is derived per-request from the audio input — there are no
+  # cross-request shared prefixes for LMCache to share, and the connector's
+  # block registration is not guaranteed on the transcription runner.
   ansible.builtin.fail:
     msg: |
-      scaleout_lmcache_backend=remote cannot be used with embedding/pooling models.
-      Pooling runner (--runner pooling / --convert embed) allocates no attention KV
-      cache tensors, so LMCache has nothing to share and crashes on startup.
-      Remove scaleout_lmcache_backend=remote from your embedding benchmark run.
+      scaleout_lmcache_backend=remote cannot be used with embedding/pooling or
+      transcription (encoder-decoder) models.  Pooling runner (--runner pooling /
+      --convert embed) allocates no attention KV cache tensors, and transcription
+      derives its KV per-request from audio — LMCache has nothing to share and
+      crashes on startup.
+      Remove scaleout_lmcache_backend=remote from your embedding/audio benchmark run.
   when:
     - scaleout_lmcache_backend == 'remote'
-    - scaleout_serves_embeddings | bool
+    - scaleout_serves_embeddings | bool or (scaleout_vllm_task | default('')) == 'transcription'
 
 - name: Display scale-out configuration
   ansible.builtin.debug:
@@ -313,7 +319,7 @@
   ansible.builtin.template:
     src: docker-compose.yml.j2
     dest: "{{ scaleout_config_dir }}/docker-compose.yml"
-    mode: "0644"
+    mode: "0640"
 
 - name: Display generated configuration paths
   ansible.builtin.debug:
