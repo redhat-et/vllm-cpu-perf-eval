@@ -273,7 +273,6 @@ def load_embedding_data(results_dir: str) -> pd.DataFrame:
                         # Parse test type from filename
                         stem = json_file.stem
                         shape = json_file.parent.name if json_file.parent != subdir else ''
-                        shape_prefix = shape + '-' if shape else ''
                         if stem.startswith('sweep-'):
                             # Legacy saturation sweep (baseline/ dir, old runs)
                             test_type = 'baseline'
@@ -386,7 +385,7 @@ def plot_operating_point(df: pd.DataFrame):
 
     grouped = df.groupby([
         'platform', 'model', 'vllm_version', 'requested_cores',
-        'input_length', 'test_name', 'test_run_id'
+        'input_length', 'test_name', 'test_run_id', 'shape'
     ])
     colors = px.colors.qualitative.Set2
     color_idx = 0
@@ -394,15 +393,16 @@ def plot_operating_point(df: pd.DataFrame):
     fig1 = go.Figure()
     fig2 = go.Figure()
 
-    for (platform, model, _, cores, input_len, test_name, test_id), group_df in grouped:
+    for (platform, model, _, cores, input_len, test_name, test_id, shape), group_df in grouped:
         group_df = group_df.sort_values('concurrency')
         model_short = model.split('/')[-1]
         plat = platform_short(platform)
         run_id_short = test_id[-6:] if len(test_id) >= 6 else test_id
+        shape_suffix = f" [{shape}]" if shape else ""
         if test_name and test_name.strip():
-            label = f"{plat} | {test_name} ({run_id_short})"
+            label = f"{plat} | {test_name}{shape_suffix} ({run_id_short})"
         else:
-            label = f"{plat} | {model_short} | {cores}c | {input_len}tok ({run_id_short})"
+            label = f"{plat} | {model_short} | {cores}c | {input_len}tok{shape_suffix} ({run_id_short})"
 
         color = colors[color_idx % len(colors)]
         x_labels = group_df['concurrency'].astype(str).tolist()
@@ -662,10 +662,11 @@ def plot_concurrent_load(df: pd.DataFrame):
     throughput_col = 'request_throughput_rps' if throughput_metric == "RPS" else 'token_throughput_tps'
     throughput_label = "Request Throughput (req/s)" if throughput_metric == "RPS" else "Token Throughput (tokens/s)"
 
-    # Group by test configuration
+    # Group by test configuration, including shape so runs with multiple shapes
+    # produce a separate trace per shape rather than a zigzag line.
     grouped = df.groupby([
         'platform', 'model', 'vllm_version', 'requested_cores',
-        'input_length', 'test_name', 'test_run_id'
+        'input_length', 'test_name', 'test_run_id', 'shape'
     ])
 
     colors = px.colors.qualitative.Set2
@@ -674,18 +675,19 @@ def plot_concurrent_load(df: pd.DataFrame):
     # Throughput vs concurrency
     fig1 = go.Figure()
 
-    for (platform, model, _, cores, input_len, test_name, test_id), group_df in grouped:
+    for (platform, model, _, cores, input_len, test_name, test_id, shape), group_df in grouped:
         group_df = group_df.sort_values('concurrency')
 
         # Build concise trace label
         model_short = model.split('/')[-1]
         plat = platform_short(platform)
         run_id_short = test_id[-6:] if len(test_id) >= 6 else test_id
+        shape_suffix = f" [{shape}]" if shape else ""
 
         if test_name and test_name.strip():
-            label = f"{plat} | {test_name} ({run_id_short})"
+            label = f"{plat} | {test_name}{shape_suffix} ({run_id_short})"
         else:
-            label = f"{plat} | {model_short} | {cores}c | {input_len}tok ({run_id_short})"
+            label = f"{plat} | {model_short} | {cores}c | {input_len}tok{shape_suffix} ({run_id_short})"
 
         fig1.add_trace(go.Scatter(
             x=group_df['concurrency'],

@@ -391,7 +391,8 @@ def _client_delta_table(
     throughput_stat: str = "p95",
     workload: str = "llm",
 ) -> None:
-    merged = df_a.merge(df_b, on="Concurrency", suffixes=("_a", "_b"))
+    merge_keys = ["Shape", "Source", "Concurrency"] if "Shape" in df_a.columns else ["Concurrency"]
+    merged = df_a.merge(df_b, on=merge_keys, suffixes=("_a", "_b"))
     delta_rows = []
     for _, row in merged.iterrows():
         for metric, higher_is_better in delta_metrics_for_stat(
@@ -730,10 +731,21 @@ with tab_client:
                 else "(request throughput & E2E latency from vllm-bench)"
             )
         )
-        display_cols = [c for c in client_df.columns if client_df[c].notna().any()]
+        display_cols = [
+            c for c in client_df.columns
+            if client_df[c].notna().any() and c != "Source"
+        ]
+        numeric_cols = [
+            c for c in display_cols
+            if c not in ("Shape", "Concurrency")
+            and pd.api.types.is_float_dtype(client_df[c])
+        ]
         st.dataframe(
-            client_df[display_cols].set_index("Concurrency").style.format(precision=2),
+            client_df[display_cols].style.format(
+                {c: "{:.2f}" for c in numeric_cols}, na_rep="-"
+            ),
             use_container_width=True,
+            hide_index=True,
         )
 
         client_stat = st.radio(
