@@ -61,10 +61,12 @@
 
 - name: Set operating-point concurrency levels
   ansible.builtin.set_fact:
-    # sequential (1), light load (8), peak from latency sweep or default 32.
+    # op_probe_levels override: fixed probe set for smoke/validation runs
+    # (e.g. -e "op_probe_levels=[8]" for a single probe).
+    # Default: sequential (1), light load (8), peak from latency sweep or default 32.
     # unique: when peak is 1 or 8 (e.g. after scenario=all), skip duplicate probes.
     op_concurrency_levels: >-
-      {{ ([1, 8] + [cal_peak_concurrency | default(op_peak_concurrency | default(32)) | int]) | unique | list }}
+      {{ op_probe_levels | default(([1, 8] + [cal_peak_concurrency | default(op_peak_concurrency | default(32)) | int]) | unique | list) }}
 
 - name: Display operating-point concurrency levels and shapes
   ansible.builtin.debug:
