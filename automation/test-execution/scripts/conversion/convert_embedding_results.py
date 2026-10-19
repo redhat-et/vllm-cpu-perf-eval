@@ -62,7 +62,8 @@ def parse_test_type(filename: str) -> tuple[str, Optional[str]]:
         Examples:
             sweep-inf.json -> ("baseline", "inf")
             sweep-25pct.json -> ("baseline", "25pct")
-            concurrent-16.json -> ("concurrent", "16")
+            concurrent-16.json -> ("concurrency", "16")
+            conc-16.json -> ("operating_point", "16")
     """
     stem = filename.replace('.json', '')
 
@@ -72,6 +73,9 @@ def parse_test_type(filename: str) -> tuple[str, Optional[str]]:
     elif stem.startswith('concurrent-'):
         concurrency = stem.replace('concurrent-', '')
         return ("concurrency", concurrency)
+    elif stem.startswith('conc-'):
+        concurrency = stem.replace('conc-', '')
+        return ("operating_point", concurrency)
     else:
         return ("unknown", None)
 
@@ -195,19 +199,26 @@ def scan_results_directory(results_dir: Path, model_filter: Optional[str] = None
             if metadata.get("cores_per_instance") and not core_count:
                 core_count = int(metadata["cores_per_instance"])
 
-            # Process JSON files in baseline / latency / operating_point subdirs
+            # Process JSON files in baseline / latency / operating_point subdirs.
+            # New runs write shape subdirectories (latency/<shape>/concurrent-N.json);
+            # older runs wrote result files flat.  Match both layouts.
             for subdir_name in RESULT_SUBDIRS:
                 subdir = test_run_dir / subdir_name
                 if not subdir.exists():
                     continue
 
-                # Process all JSON files in this subdirectory
-                for json_file in sorted(subdir.glob('*.json')):
+                # Process all JSON result files in this subdirectory
+                json_files = sorted(subdir.glob('*.json')) + sorted(subdir.glob('*/*.json'))
+                for json_file in json_files:
                     result = load_json_result(json_file)
                     if not result:
                         continue
 
                     test_type, parameter = parse_test_type(json_file.name)
+                    if json_file.parent != subdir and parameter is not None:
+                        # Prefix the parameter with the workload shape so rows
+                        # from different shapes stay distinguishable in the CSV.
+                        parameter = f"{json_file.parent.name}-{parameter}"
 
                     row = flatten_result(
                         result=result,

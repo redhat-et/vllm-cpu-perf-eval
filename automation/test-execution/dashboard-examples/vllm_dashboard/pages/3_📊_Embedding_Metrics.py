@@ -252,8 +252,12 @@ def load_embedding_data(results_dir: str) -> pd.DataFrame:
                 if not subdir.exists():
                     continue
 
-                # Process all JSON result files in this subdirectory
-                for json_file in sorted(subdir.glob("*.json")):
+                # New runs write shape subdirectories (latency/<shape>/concurrent-N.json);
+                # older runs wrote result files flat.  Match both layouts, and
+                # prefix nested parameters with the shape name to keep rows
+                # from different shapes distinguishable.
+                json_files = sorted(subdir.glob("*.json")) + sorted(subdir.glob("*/*.json"))
+                for json_file in json_files:
                     try:
                         with open(json_file) as f:
                             result = json.load(f)
@@ -268,19 +272,21 @@ def load_embedding_data(results_dir: str) -> pd.DataFrame:
 
                         # Parse test type from filename
                         stem = json_file.stem
+                        shape = json_file.parent.name if json_file.parent != subdir else ''
+                        shape_prefix = shape + '-' if shape else ''
                         if stem.startswith('sweep-'):
                             # Legacy saturation sweep (baseline/ dir, old runs)
                             test_type = 'baseline'
-                            parameter = stem.replace('sweep-', '')
+                            parameter = shape_prefix + stem.replace('sweep-', '')
                         elif stem.startswith('concurrent-'):
                             # Latency concurrency sweep
                             test_type = 'concurrent'
-                            parameter = stem.replace('concurrent-', '')
+                            parameter = shape_prefix + stem.replace('concurrent-', '')
                         elif stem.startswith('conc-'):
                             # Operating-point probes (operating_point/ dir, or
                             # legacy baseline/ dir in older runs)
                             test_type = 'operating_point'
-                            parameter = stem.replace('conc-', '')
+                            parameter = shape_prefix + stem.replace('conc-', '')
                         else:
                             test_type = 'unknown'
                             parameter = stem
