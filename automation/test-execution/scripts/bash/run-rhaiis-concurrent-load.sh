@@ -20,7 +20,7 @@
 #   --cores LIST            Comma-separated core counts
 #                           Default: 8,16,32
 #   --workloads LIST        Comma-separated workloads (chat|code|summarization|rag)
-#                           Default: chat,code,summarization,rag
+#                           Default: chat,summarization,reasoning,batch_generation
 #   --tensor-parallel NUM   Tensor parallelism (1|2|4|8)
 #                           Default: auto-calculated based on NUMA topology
 #   --phase PHASE           Test phase (1|2|3|all)

@@ -243,7 +243,7 @@ def test_concurrent_load_default():
     )
 
     assert result.returncode == 0
-    assert "--workloads chat,code,summarization,rag" in result.stdout
+    assert "--workloads chat,summarization,reasoning,batch_generation" in result.stdout
     assert "--models all" in result.stdout
     assert "--cores 8,16,32" in result.stdout
 
