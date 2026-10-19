@@ -37,7 +37,7 @@
   delegate_to: "{{ _cstats_dut }}"
   become: true
   register: _cstats_fetch
-  failed_when: false
+  ignore_errors: true
 
 - name: Warn when container stats could not be fetched from the DUT
   ansible.builtin.debug:

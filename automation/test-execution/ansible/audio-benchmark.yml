@@ -659,7 +659,7 @@
     scenario_stages: "{{ hostvars['localhost']['scenario_stages'] }}"
     scenario_dataset: "{{ hostvars['localhost']['scenario_dataset'] }}"
     scenario_request_type: "{{ hostvars['localhost']['scenario_request_type'] }}"
-    target_url: "{{ vllm_endpoint.external.url if vllm_mode == 'external' else 'http://' + bench_config.vllm_host + ':' + (vllm_server.port | string) }}"
+    target_url: "{{ hostvars['localhost']['vllm_endpoint'].external.url if vllm_mode == 'external' else 'http://' + bench_config.vllm_host + ':' + (vllm_server.port | string) }}"
     test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
     # Remote results path on load generator (matches LLM pattern)
     results_base: "{{ bench_config.results_dir }}/audio-models/{{ actual_model | replace('/', '__') }}/{{ test_scenario }}-{{ hostvars['localhost']['test_run_id'] }}"
@@ -690,7 +690,7 @@
 
     - name: Verify load generator can reach vLLM server
       ansible.builtin.uri:
-        url: "http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/health"
+        url: "{{ target_url }}/health"
         method: GET
         status_code: 200
         validate_certs: false
@@ -705,20 +705,20 @@
       ansible.builtin.debug:
         msg:
           - "Load Generator → vLLM Connectivity: {{ 'PASS ✓' if loadgen_connectivity_check.status == 200 else 'FAIL ✗' }}"
-          - "Target: http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/health"
+          - "Target: {{ target_url }}/health"
           - "Status: {{ loadgen_connectivity_check.status | default('No response') }}"
 
     - name: Fail if load generator cannot reach vLLM
       ansible.builtin.fail:
         msg: |
-          Load generator cannot connect to vLLM server at http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}
+          Load generator cannot connect to vLLM server at {{ target_url }}
 
           Possible causes:
           - DNS resolution failure (check /etc/hosts or DNS server)
-          - Firewall/security group blocking port {{ bench_config.vllm_port }}
+          - Firewall/security group blocking the target port
           - vLLM server not listening on external interface
 
-          Verify with: curl -v http://{{ bench_config.vllm_host }}:{{ bench_config.vllm_port }}/health
+          Verify with: curl -v {{ target_url }}/health
       when: loadgen_connectivity_check.status != 200
 
   tasks:

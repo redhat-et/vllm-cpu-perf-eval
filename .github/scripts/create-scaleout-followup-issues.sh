@@ -30,6 +30,23 @@ if [[ "$DRY_RUN" != "1" ]]; then
     }
 fi
 
+# Ensure a label exists; create it if missing so a missing label cannot abort
+# the script mid-run after some issues have already been created.
+ensure_label() {
+    local label="$1"
+    local color="${2:-0075ca}"
+    [[ "$DRY_RUN" == "1" ]] && return 0
+    gh label list --repo "$REPO" --json name --jq '.[].name' \
+        | grep -qx "$label" \
+        || gh label create --repo "$REPO" --name "$label" --color "$color" 2>/dev/null \
+        || true
+}
+
+ensure_label "enhancement" "a2eeef"
+ensure_label "documentation" "0075ca"
+ensure_label "bug"           "d73a4a"
+ensure_label "testing"       "e4e669"
+
 create_issue \
     "scaleout: benchmark playbooks hard-code Envoy/EPP cores for large hosts (72-83)" \
     "$(cat <<'EOF'
