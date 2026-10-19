@@ -41,4 +41,9 @@
         tasks_from: start-embedding
       vars:
         embedding_max_model_len: "{{ test_configs.embedding.isl | default(512) }}"  # Cap to benchmark ISL; prevents decoder models from pre-allocating blocks for unused context
-        trust_remote_code: "{{ hostvars['localhost']['trust_remote_code'] | default(trust_remote_code | default(false)) }}"
+        # NOTE: no self-referencing fallback here — include params outrank
+        # group_vars, so `| default(trust_remote_code | ...)` resolves to this
+        # very param and Ansible fails with "recursive loop detected in
+        # template".  Extra vars (-e) and localhost facts are already visible
+        # through hostvars['localhost'].
+        trust_remote_code: "{{ hostvars['localhost']['trust_remote_code'] | default(false) }}"
