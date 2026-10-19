@@ -56,12 +56,25 @@ EMBEDDING_MODEL="${EMBEDDING_MODEL:-RedHatAI/granite-embedding-english-r2}"
 QUICK_SECONDS="${QUICK_SECONDS:-180}"      # per-benchmark wall-clock cap (LLM stages)
 QUICK_REQUESTS="${QUICK_REQUESTS:-64}"     # per-benchmark request cap (LLM stages)
 
+# Single-instance vLLM core count (managed mode requires requested_cores).
+# With the TP=1 default this must fit one NUMA node's physical cores
+# (e.g. 24 on a 2-node box with 48 physical / 96 logical CPUs).
+REQUESTED_CORES="${REQUESTED_CORES:-24}"
+
 SCALEOUT_NUM_INSTANCES="${SCALEOUT_NUM_INSTANCES:-2}"
 SCALEOUT_CORES_PER_INSTANCE="${SCALEOUT_CORES_PER_INSTANCE:-24}"
 SCALEOUT_START_CORE="${SCALEOUT_START_CORE:-0}"
 GUIDELLM_CPUS="${GUIDELLM_CPUS:-48-71}"
 GUIDELLM_NUMA_NODE="${GUIDELLM_NUMA_NODE:-0}"
 SCALEOUT_ROUTING_POLICY="${SCALEOUT_ROUTING_POLICY:-intelligent}"
+
+# Envoy/EPP pins.  Role defaults (1-7 / 8-15) overlap instance 1 when
+# scaleout_start_core=0 — pin them to SMT siblings instead so vLLM keeps its
+# physical cores.  SCALEOUT_ENVOY_CONCURRENCY must match the core count in
+# SCALEOUT_ENVOY_CORES.
+SCALEOUT_ENVOY_CORES="${SCALEOUT_ENVOY_CORES:-72-75}"
+SCALEOUT_EPP_CORES="${SCALEOUT_EPP_CORES:-76-83}"
+SCALEOUT_ENVOY_CONCURRENCY="${SCALEOUT_ENVOY_CONCURRENCY:-4}"
 
 LMCACHE_L1_GB="${LMCACHE_L1_GB:-10}"
 LMCACHE_HUGEPAGES="${LMCACHE_HUGEPAGES:-true}"
@@ -142,6 +155,7 @@ info "DUT         : ${DUT_HOSTNAME:-<unset>}"
 info "LoadGen     : ${LOADGEN_HOSTNAME:-<unset>}"
 info "Models      : LLM=$LLM_MODEL  Embedding=$EMBEDDING_MODEL"
 info "Scale-out   : ${SCALEOUT_NUM_INSTANCES}x${SCALEOUT_CORES_PER_INSTANCE} cores from core $SCALEOUT_START_CORE, $SCALEOUT_ROUTING_POLICY"
+info "CPU pins    : single=${REQUESTED_CORES}c  envoy=${SCALEOUT_ENVOY_CORES}  epp=${SCALEOUT_EPP_CORES}  guidellm=${GUIDELLM_CPUS}"
 info "LMCache     : l1=${LMCACHE_L1_GB}GB hugepages=${LMCACHE_HUGEPAGES} util=${LMCACHE_UTIL}"
 info "Quick caps  : ${QUICK_SECONDS}s / ${QUICK_REQUESTS} requests per LLM benchmark"
 info "Logs        : $LOG_DIR"
@@ -176,6 +190,7 @@ single_llm() {
     ansible_cmd "$ANSIBLE_DIR/llm-benchmark-auto.yml" \
         -e "test_model=${LLM_MODEL}" \
         -e "workload_type=${workload}" \
+        -e "requested_cores=${REQUESTED_CORES}" \
         -e "guidellm_max_seconds=${QUICK_SECONDS}" \
         -e "guidellm_max_requests=${QUICK_REQUESTS}" \
         ${HF_ARGS[@]+"${HF_ARGS[@]}"}
@@ -215,6 +230,9 @@ multi_llm() {
         -e "guidellm_cpus=${GUIDELLM_CPUS}" \
         -e "guidellm_numa_node=${GUIDELLM_NUMA_NODE}" \
         -e "scaleout_routing_policy=${SCALEOUT_ROUTING_POLICY}" \
+        -e "scaleout_envoy_cores=${SCALEOUT_ENVOY_CORES}" \
+        -e "scaleout_epp_cores=${SCALEOUT_EPP_CORES}" \
+        -e "scaleout_envoy_concurrency=${SCALEOUT_ENVOY_CONCURRENCY}" \
         -e "guidellm_max_seconds=${QUICK_SECONDS}" \
         -e "guidellm_max_requests=${QUICK_REQUESTS}" \
         ${HF_ARGS[@]+"${HF_ARGS[@]}"} "${extra[@]+"${extra[@]}"}"
