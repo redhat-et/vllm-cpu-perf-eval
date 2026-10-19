@@ -438,20 +438,27 @@ def collect_embedding_results(result_dir):
         subdir = result_dir / subdir_name
         if not subdir.is_dir():
             continue
-        for json_file in sorted(subdir.glob("*.json")):
+        # New runs write shape subdirectories (latency/<shape>/concurrent-N.json);
+        # older runs wrote result files flat.  Match both layouts, and prefix
+        # nested results with the shape name so labels don't collide across shapes.
+        json_files = sorted(subdir.glob("*.json")) + sorted(subdir.glob("*/*.json"))
+        for json_file in json_files:
             data = load_json(json_file)
             if data is None:
                 continue
             stem = json_file.stem
+            shape = ""
+            if json_file.parent != subdir:
+                shape = json_file.parent.name + "-"
             if stem.startswith("sweep-"):
                 test_type = "baseline"
-                label = stem.replace("sweep-", "")
+                label = shape + stem.replace("sweep-", "")
             elif stem.startswith("conc-"):
                 test_type = "operating"
-                label = stem.replace("conc-", "")
+                label = shape + stem.replace("conc-", "")
             elif stem.startswith("concurrent-"):
                 test_type = "concurrent"
-                label = stem.replace(
+                label = shape + stem.replace(
                     "concurrent-", "",
                 )
             else:

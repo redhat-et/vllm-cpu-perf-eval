@@ -286,7 +286,10 @@ def load_embedding_client_df(run_dir: Path) -> Optional[pd.DataFrame]:
         subdir = run_dir / subdir_name
         if not subdir.is_dir():
             continue
-        for json_file in sorted(subdir.glob("*.json")):
+        # New runs write shape subdirectories (latency/<shape>/concurrent-N.json);
+        # older runs wrote result files flat.  Match both layouts.
+        json_files = sorted(subdir.glob("*.json")) + sorted(subdir.glob("*/*.json"))
+        for json_file in json_files:
             try:
                 result = json.loads(json_file.read_text())
             except Exception:
@@ -304,6 +307,7 @@ def load_embedding_client_df(run_dir: Path) -> Optional[pd.DataFrame]:
                 conc = result.get("max_concurrency")
 
             rows.append({
+                "Shape": json_file.parent.name if json_file.parent != subdir else "",
                 "Concurrency": conc,
                 "RPS": result.get("request_throughput", 0),
                 "Output TPS": result.get("total_token_throughput")
