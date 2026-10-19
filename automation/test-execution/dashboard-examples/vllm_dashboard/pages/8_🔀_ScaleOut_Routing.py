@@ -23,7 +23,7 @@ from plotly.subplots import make_subplots
 import json
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from config_manager import DashboardConfig  # noqa: E402
 from scaleout_data import (  # noqa: E402
