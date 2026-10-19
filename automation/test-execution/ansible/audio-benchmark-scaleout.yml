@@ -87,10 +87,8 @@
       ansible.builtin.include_tasks: tasks/start-scaleout-metrics-collection.yml
       vars:
         scaleout_metrics_tmpdir: "{{ hostvars['localhost']['scaleout_metrics_tmpdir'] }}"
-        scaleout_num_instances: "{{ hostvars['localhost']['scaleout_num_instances'] | default(scaleout_num_instances | default(5)) }}"
-        scaleout_vllm_base_port: "{{ scaleout_vllm_base_port | default(8000) }}"
-        scaleout_routing_policy: "{{ scaleout_routing_policy | default('intelligent') }}"
-        scaleout_epp_metrics_port: "{{ scaleout_epp_metrics_port | default(9090) }}"
+        scaleout_num_instances: "{{ hostvars['localhost']['scaleout_num_instances'] | default(5) }}"
+        scaleout_routing_policy: "{{ hostvars['localhost']['scaleout_routing_policy'] | default('intelligent') }}"
         metrics_collection_interval: 10
         metrics_collection_duration: 7200
         test_run_id: "{{ hostvars['localhost']['test_run_id'] }}"
@@ -102,7 +100,9 @@
 - ansible.builtin.import_playbook: audio-benchmark.yml
   vars:
     vllm_mode: "external"
-    vllm_endpoint_url: "http://{{ groups['dut'][0] }}:{{ scaleout_envoy_port | default(8081) }}/v1"
+    # No trailing /v1 — audio-benchmark.yml appends API paths itself
+    # (e.g. "<endpoint>/v1/models" for the health check).
+    vllm_endpoint_url: "http://{{ hostvars[groups['dut'][0]]['ansible_host'] | default(groups['dut'][0]) }}:{{ scaleout_envoy_port | default(8081) }}"
     benchmark_label_suffix: "scaleout-{{ scaleout_num_instances | default(5) }}x-{{ scaleout_routing_policy | default('intelligent') }}"
 
 # ============================================================================

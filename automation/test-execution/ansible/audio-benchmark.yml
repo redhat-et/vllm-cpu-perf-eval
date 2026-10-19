@@ -101,6 +101,16 @@
         is_awx_job: "{{ lookup('env', 'AWX_JOB_ID') | length > 0 }}"
         local_results_base: "{{ lookup('env', 'HOME') ~ '/benchmark-results' if (lookup('env', 'AWX_JOB_ID') | length > 0) else playbook_dir ~ '/../../../results' }}"
 
+    - name: Apply vllm_endpoint_url override if provided
+      # The scale-out wrapper (audio-benchmark-scaleout.yml) targets Envoy via
+      # this var; without it, external mode falls back to the env/inventory
+      # endpoint.  Mirrors embedding-benchmark.yml.
+      ansible.builtin.set_fact:
+        vllm_endpoint: "{{ vllm_endpoint | combine({'external': {'url': vllm_endpoint_url}}, recursive=True) }}"
+      when:
+        - vllm_endpoint_url is defined
+        - vllm_endpoint_url | length > 0
+
     # ========================================================================
     # Input Validation
     # ========================================================================

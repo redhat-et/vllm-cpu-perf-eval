@@ -277,16 +277,16 @@ def load_embedding_data(results_dir: str) -> pd.DataFrame:
                         if stem.startswith('sweep-'):
                             # Legacy saturation sweep (baseline/ dir, old runs)
                             test_type = 'baseline'
-                            parameter = shape_prefix + stem.replace('sweep-', '')
+                            parameter = stem.replace('sweep-', '')
                         elif stem.startswith('concurrent-'):
                             # Latency concurrency sweep
                             test_type = 'concurrent'
-                            parameter = shape_prefix + stem.replace('concurrent-', '')
+                            parameter = stem.replace('concurrent-', '')
                         elif stem.startswith('conc-'):
                             # Operating-point probes (operating_point/ dir, or
                             # legacy baseline/ dir in older runs)
                             test_type = 'operating_point'
-                            parameter = shape_prefix + stem.replace('conc-', '')
+                            parameter = stem.replace('conc-', '')
                         else:
                             test_type = 'unknown'
                             parameter = stem
@@ -320,6 +320,7 @@ def load_embedding_data(results_dir: str) -> pd.DataFrame:
 
                             # Test configuration
                             'test_type': test_type,
+                            'shape': shape,
                             'parameter': parameter,
                             'request_rate': result.get('request_rate'),
                             'max_concurrency': result.get('max_concurrency'),

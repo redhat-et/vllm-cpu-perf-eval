@@ -34,13 +34,17 @@ SCALEOUT_ENVOY_CORES="${SCALEOUT_ENVOY_CORES:-72-75}"
 SCALEOUT_EPP_CORES="${SCALEOUT_EPP_CORES:-76-83}"
 SCALEOUT_ENVOY_CONCURRENCY="${SCALEOUT_ENVOY_CONCURRENCY:-4}"
 
-# Lighter topology for stage 9 (embedding scale-out smoke).  Defaults match
-# docs/vllm-scaleout.md § Embedding functional smoke (2 × 4 cores from 16).
+# Lighter topology for stage 9/10 (embedding/audio scale-out smoke).  Defaults
+# match docs/vllm-scaleout.md § Embedding functional smoke (2 × 4 cores from 16).
 EMBEDDING_SCALEOUT_NUM_INSTANCES="${EMBEDDING_SCALEOUT_NUM_INSTANCES:-2}"
 EMBEDDING_SCALEOUT_CORES_PER_INSTANCE="${EMBEDDING_SCALEOUT_CORES_PER_INSTANCE:-4}"
 EMBEDDING_SCALEOUT_START_CORE="${EMBEDDING_SCALEOUT_START_CORE:-16}"
 VLLM_BENCH_CPUS="${VLLM_BENCH_CPUS:-$GUIDELLM_CPUS}"
 VLLM_BENCH_NUMA_NODE="${VLLM_BENCH_NUMA_NODE:-$GUIDELLM_NUMA_NODE}"
+
+# Audio smoke model (stage 10) — tiny Whisper keeps the smoke fast; Whisper
+# models need no HF token.
+AUDIO_MODEL="${AUDIO_MODEL:-openai/whisper-tiny}"
 
 LMCACHE_L1_GB="${LMCACHE_L1_GB:-10}"
 LMCACHE_HUGEPAGES="${LMCACHE_HUGEPAGES:-true}"
@@ -186,9 +190,10 @@ _find_latest_embedding_run_dir() {
     shopt -s nullglob
     for d in "$RESULTS_ROOT"/embedding/*/*/; do
         [[ -d "$d" ]] || continue
-        if ! dt="$(stat -f '%m' "$d" 2>/dev/null || stat -c '%Y' "$d" 2>/dev/null)"; then
+        if ! dt="$(stat -c '%Y' "$d" 2>/dev/null || stat -f '%m' "$d" 2>/dev/null)"; then
             continue
         fi
+        [[ "$dt" =~ ^[0-9]+$ ]] || continue
         if [[ "$dt" -gt "$best_any_mtime" ]]; then
             best_any_mtime=$dt
             best_any="$d"
@@ -324,15 +329,35 @@ multi_embedding_scaleout() {
         ${HF_ARGS[@]+"${HF_ARGS[@]}"}
 }
 
+audio_scaleout() {
+    if [[ "$PRE_CLEAN" == "true" ]]; then
+        info "Pre-clean: removing any leftover scale-out containers/SHM"
+        scaleout_teardown || warn "pre-clean teardown had errors (continuing)"
+    fi
+    ansible_cmd "$ANSIBLE_DIR/audio-benchmark-scaleout.yml" \
+        -e "test_model=${AUDIO_MODEL}" \
+        -e "test_scenario=transcription-throughput" \
+        -e "audio_num_files=2" \
+        -e "scaleout_num_instances=${EMBEDDING_SCALEOUT_NUM_INSTANCES}" \
+        -e "scaleout_cores_per_instance=${EMBEDDING_SCALEOUT_CORES_PER_INSTANCE}" \
+        -e "scaleout_start_core=${EMBEDDING_SCALEOUT_START_CORE}" \
+        -e "scaleout_routing_policy=${SCALEOUT_ROUTING_POLICY}" \
+        -e "scaleout_envoy_cores=${SCALEOUT_ENVOY_CORES}" \
+        -e "scaleout_epp_cores=${SCALEOUT_EPP_CORES}" \
+        -e "scaleout_envoy_concurrency=${SCALEOUT_ENVOY_CONCURRENCY}" \
+        ${HF_ARGS[@]+"${HF_ARGS[@]}"}
+}
+
 results_visibility() {
     local rc=0 out latest_emb prefer_scaleout=false
     if stage_enabled 9; then
         prefer_scaleout=true
     fi
     info "LLM results via view_results.py…"
-    out="$(python3 "$VIEW_RESULTS" "$RESULTS_ROOT/llm" 2>&1)" || true
+    local view_rc=0
+    out="$(python3 "$VIEW_RESULTS" "$RESULTS_ROOT/llm" 2>&1)" || view_rc=$?
     printf '%s\n' "$out" | tail -5
-    if [[ -z "$out" || "$out" == *"No results"* || "$out" == *"No benchmarks"* ]]; then
+    if [[ $view_rc -ne 0 || -z "$out" || "$out" == *"No results"* || "$out" == *"No benchmarks"* ]]; then
         warn "view_results.py found no LLM results under $RESULTS_ROOT/llm"; rc=1
     fi
 
@@ -342,9 +367,10 @@ results_visibility() {
         warn "no embedding run directories under $RESULTS_ROOT/embedding"; rc=1
     else
         info "latest embedding run: $latest_emb"
-        out="$(python3 "$VIEW_RESULTS" "${latest_emb%/}" 2>&1)" || true
+        view_rc=0
+        out="$(python3 "$VIEW_RESULTS" "${latest_emb%/}" 2>&1)" || view_rc=$?
         printf '%s\n' "$out" | tail -8
-        if [[ -z "$out" || "$out" == *"No results"* || "$out" == *"No embedding"* ]]; then
+        if [[ $view_rc -ne 0 || -z "$out" || "$out" == *"No results"* || "$out" == *"No embedding"* ]]; then
             warn "view_results.py found no embedding results in $latest_emb"; rc=1
         fi
     fi
@@ -373,13 +399,14 @@ validation_run_stages() {
     _run_stage_if_wanted 5 "multi summarization"  multi_llm summarization || return 1
     _run_stage_if_wanted 6 "multi chat lmcache"   multi_llm_lmcache || return 1
     _run_stage_if_wanted 9 "multi embedding"      multi_embedding_scaleout || return 1
+    _run_stage_if_wanted 10 "multi audio"         audio_scaleout || return 1
     _run_stage_if_wanted 7 "results visibility"   results_visibility || return 1
     _run_stage_if_wanted 8 "final teardown"       scaleout_teardown || return 1
 }
 
 validation_print_summary() {
     if [[ ${#STAGE_NAMES[@]} -eq 0 ]]; then
-        warn "No stages selected (STAGES=${STAGES}). Valid stage numbers: 0-6, 7, 8, 9"
+        warn "No stages selected (STAGES=${STAGES}). Valid stage numbers: 0-6, 7, 8, 9, 10"
         return 1
     fi
 

@@ -732,7 +732,7 @@ with tab_client:
         )
         display_cols = [c for c in client_df.columns if client_df[c].notna().any()]
         st.dataframe(
-            client_df[display_cols].set_index("Concurrency").style.format("{:.2f}"),
+            client_df[display_cols].set_index("Concurrency").style.format(precision=2),
             use_container_width=True,
         )
 

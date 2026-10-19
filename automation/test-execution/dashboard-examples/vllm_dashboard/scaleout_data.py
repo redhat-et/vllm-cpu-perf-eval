@@ -234,9 +234,9 @@ def load_guidellm_client_df(benchmarks_path: Path) -> Optional[pd.DataFrame]:
         tpot = _metric_successful(m, "time_per_output_token_ms")
         if not tpot.get("mean"):
             tpot = itl
-        tps = _metric_successful(m, "tokens_per_second")
+        tps = _metric_successful(m, "output_tokens_per_second")
         if not tps.get("mean"):
-            tps = _metric_successful(m, "output_tokens_per_second")
+            tps = _metric_successful(m, "tokens_per_second")
         rps = _metric_successful(m, "requests_per_second")
         e2e = _metric_successful(m, "end_to_end_latency_ms")
 
@@ -307,6 +307,7 @@ def load_embedding_client_df(run_dir: Path) -> Optional[pd.DataFrame]:
                 conc = result.get("max_concurrency")
 
             rows.append({
+                "Source": subdir_name,
                 "Shape": json_file.parent.name if json_file.parent != subdir else "",
                 "Concurrency": conc,
                 "RPS": result.get("request_throughput", 0),
