@@ -169,7 +169,7 @@ run_stage 96 "always fails" false || true
     || fail "run_stage records FAIL rc" "rc=${STAGE_RCS[1]}"
 
 # Test 7: summary fails when no stage was selected
-if (validation_print_summary) >/dev/null 2>&1; then
+if (STAGE_NAMES=(); STAGE_RCS=(); STAGE_SECS=(); validation_print_summary) >/dev/null 2>&1; then
     fail "summary returns 1 on empty stage selection" "exited 0"
 else
     pass "summary returns 1 on empty stage selection"
@@ -248,10 +248,11 @@ fi
 : > "$CAPTURE_FILE"
 PRE_CLEAN=true multi_llm chat
 CALLS="$(grep -c -- '---CALL---' "$CAPTURE_FILE")"
-if [[ "$CALLS" -eq 2 ]] && head -8 "$CAPTURE_FILE" | grep -q "stop-vllm-scaleout.yml"; then
+FIRST_CALL_ARGS="$(awk '/---CALL---/{found=1; next} found && /^ARGS=/{print; exit}' "$CAPTURE_FILE")"
+if [[ "$CALLS" -eq 2 ]] && [[ "$FIRST_CALL_ARGS" == *"stop-vllm-scaleout.yml"* ]]; then
     pass "PRE_CLEAN runs stop-vllm-scaleout before the benchmark"
 else
-    fail "PRE_CLEAN runs stop-vllm-scaleout before the benchmark" "$CALLS calls captured"
+    fail "PRE_CLEAN runs stop-vllm-scaleout before the benchmark" "$CALLS calls captured; first args: $FIRST_CALL_ARGS"
 fi
 
 # Test 14: multi_llm_lmcache forwards the LMCache backend settings

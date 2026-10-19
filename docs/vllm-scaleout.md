@@ -13,7 +13,7 @@ Deploy and benchmark multiple vLLM instances with intelligent routing via
 The scale-out deployment runs N vLLM instances on a single DUT with configurable:
 
 - **Number of instances** (1-10)
-- **Cores per instance** (8, 16, or 32 cores)
+- **Cores per instance** (4, 8, 16, 24, or 32 cores)
 - **SMT/HyperThreading** (enable/disable)
 - **Prefix caching** (enable/disable)
 - **Routing policy** (`intelligent` EPP or `round_robin` — benchmarkable)
@@ -218,12 +218,12 @@ ansible-playbook audio-benchmark-scaleout.yml \
 curl http://DUT_IP:8081/health
 curl http://DUT_IP:8081/v1/models
 
-# Envoy admin (cluster status, live stats)
-curl http://DUT_IP:19000/ready
-curl http://DUT_IP:19000/stats | grep -E "upstream|cx_total"
+# Envoy admin (cluster status, live stats) — binds to 127.0.0.1; use SSH tunnel or run on DUT
+curl http://127.0.0.1:19000/ready
+curl http://127.0.0.1:19000/stats | grep -E "upstream|cx_total"
 
-# EPP Prometheus metrics (routing decisions)
-curl http://DUT_IP:9090/metrics | grep -E "epp|endpoint"
+# EPP Prometheus metrics (routing decisions) — binds to 127.0.0.1; use SSH tunnel or run on DUT
+curl http://127.0.0.1:9090/metrics | grep -E "epp|endpoint"
 ```
 
 ### Stop

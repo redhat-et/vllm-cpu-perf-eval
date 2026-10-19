@@ -220,14 +220,14 @@ services:
   # needs {{ scaleout_lmcache_server_l1_size_gb }} TLB entries (1 GB pages) vs
   # {{ (scaleout_lmcache_server_l1_size_gb | int * 512) | int }}k entries (4 KB pages).
   lmcache-server:
-    image: {{ scaleout_lmcache_image_tag }}
+    image: {{ scaleout_lmcache_image_tag if (scaleout_lmcache_build_image | default(true) | bool) else scaleout_vllm_image }}
     container_name: vllm-lmcache-server
     network_mode: host
     ipc: host
     pid: host
     volumes:
       - /dev/shm:/dev/shm
-{% if scaleout_lmcache_hugepages_enabled %}
+{% if scaleout_lmcache_hugepages_enabled | bool %}
       # Expose 1 GB hugepages to the server so it can back the L1 pool with them.
       # Pre-allocation is done by the vllm_scaleout Ansible role before compose up.
       - /dev/hugepages1G:/dev/hugepages1G

@@ -49,17 +49,25 @@
       /tmp/container-stats-scaleout-{{ test_run_id }}.jsonl
   when: _cstats_fetch is failed
 
-- name: Remove container stats script and output from DUT
+- name: Remove container stats script and log from DUT
   ansible.builtin.file:
     path: "{{ item }}"
     state: absent
   loop:
     - "/tmp/scaleout_container_stats_{{ test_run_id }}.py"
-    - "/tmp/container-stats-scaleout-{{ test_run_id }}.jsonl"
     - "/tmp/scaleout_container_stats_{{ test_run_id }}.log"
   delegate_to: "{{ _cstats_dut }}"
   become: true
   failed_when: false
+
+- name: Remove container stats JSONL from DUT (only after successful fetch)
+  ansible.builtin.file:
+    path: "/tmp/container-stats-scaleout-{{ test_run_id }}.jsonl"
+    state: absent
+  delegate_to: "{{ _cstats_dut }}"
+  become: true
+  failed_when: false
+  when: _cstats_fetch is not failed
 
 - name: Display container stats stop status
   ansible.builtin.debug:

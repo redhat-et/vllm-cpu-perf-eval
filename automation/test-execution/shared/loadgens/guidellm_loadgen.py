@@ -49,8 +49,14 @@ class GuideLLMLoadGen(LoadGenerator):
             backend += f",api_key={api_key}"
         cmd.extend(["--backend", backend])
 
-        isl = config.extra_args.get('isl', 512)
-        osl = config.extra_args.get('osl', 512)
+        if config.workload_type == 'reasoning':
+            _default_isl, _default_osl = 256, 2048
+        elif config.workload_type == 'batch_generation':
+            _default_isl, _default_osl = 512, 4096
+        else:
+            _default_isl, _default_osl = 512, 512
+        isl = config.extra_args.get('isl', _default_isl)
+        osl = config.extra_args.get('osl', _default_osl)
         data_parts = [
             f"kind=synthetic_text"
             f",prompt_tokens={isl}"

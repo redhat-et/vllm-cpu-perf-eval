@@ -41,6 +41,8 @@ scrape_configs:
       - targets: ["localhost:8000"]
         labels:
           instance: "vllm-1"
+          pod: "vllm-instance-1"
+          namespace: "scaleout"
           source: "vllm-live"
 
   - job_name: "vllm-instance-2"
@@ -50,6 +52,8 @@ scrape_configs:
       - targets: ["localhost:8001"]
         labels:
           instance: "vllm-2"
+          pod: "vllm-instance-2"
+          namespace: "scaleout"
           source: "vllm-live"
 
   - job_name: "vllm-instance-3"
@@ -59,6 +63,8 @@ scrape_configs:
       - targets: ["localhost:8002"]
         labels:
           instance: "vllm-3"
+          pod: "vllm-instance-3"
+          namespace: "scaleout"
           source: "vllm-live"
 
   - job_name: "vllm-instance-4"
@@ -68,6 +74,8 @@ scrape_configs:
       - targets: ["localhost:8003"]
         labels:
           instance: "vllm-4"
+          pod: "vllm-instance-4"
+          namespace: "scaleout"
           source: "vllm-live"
 
   - job_name: "vllm-instance-5"
@@ -77,6 +85,8 @@ scrape_configs:
       - targets: ["localhost:8004"]
         labels:
           instance: "vllm-5"
+          pod: "vllm-instance-5"
+          namespace: "scaleout"
           source: "vllm-live"
 
   # ============================================================================
@@ -93,6 +103,8 @@ scrape_configs:
       - targets: ["localhost:9091"]
         labels:
           instance: "epp"
+          pod: "vllm-epp"
+          namespace: "scaleout"
           source: "llm-d-epp"
 
   # ============================================================================

@@ -154,7 +154,7 @@ matrix:
         chat: "2GiB"               # 1024 tokens, 32 concurrent
         summarization: "3GiB"      # 2304 tokens, 32 concurrent
         reasoning: "4GiB"          # 2304 tokens, 32 concurrent
-        batch_generation: "10GiB"  # 4608 tokens (512+4096), 32 concurrent, max_model_len=8192
+        batch_generation: "20GiB"  # 4608 tokens (512+4096), 32 concurrent, max_model_len=8192
         chat_var: "6GiB"           # 2048 max tokens, 32 concurrent, 1.5x safety
         summarization_var: "7GiB"  # 2560 max tokens, 32 concurrent, 1.5x safety
       default_workloads:
