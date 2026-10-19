@@ -26,7 +26,7 @@ class GuideLLMLoadGen(LoadGenerator):
 
     @property
     def version(self) -> str:
-        return "0.7.2"
+        return "0.8.1"
 
     @property
     def _is_v7_or_later(self) -> bool:

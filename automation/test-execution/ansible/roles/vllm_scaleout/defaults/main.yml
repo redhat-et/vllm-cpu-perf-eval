@@ -27,7 +27,7 @@ scaleout_vllm_base_port: 8000
 # scaleout_vllm_base_image — upstream image pulled from the registry.  This
 # variable is NEVER overwritten by role tasks; it is always the upstream source.
 # Override to upgrade the vLLM version.
-scaleout_vllm_base_image: "docker.io/vllm/vllm-openai-cpu:v0.31.0"
+scaleout_vllm_base_image: "docker.io/vllm/vllm-openai-cpu:v0.32.0"
 # scaleout_vllm_image — the image actually used in the compose stack.  Starts
 # equal to scaleout_vllm_base_image but the LMCache build task overrides it to
 # the pre-built lmcache image (scaleout_lmcache_image_tag) when building.

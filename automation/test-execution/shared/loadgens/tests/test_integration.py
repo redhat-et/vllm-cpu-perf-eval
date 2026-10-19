@@ -85,12 +85,12 @@ class TestGuideLLMLoadGen:
     def test_name_and_version(self, loadgen):
         """Test load generator name and version."""
         assert loadgen.name == "guidellm"
-        assert loadgen.version == "0.7.2"
+        assert loadgen.version == "0.8.1"
 
     def test_get_container_image(self, loadgen):
         """Test container image generation."""
         image = loadgen.get_container_image()
-        assert image == "ghcr.io/vllm-project/guidellm:v0.7.2"
+        assert image == "ghcr.io/vllm-project/guidellm:v0.8.1"
 
     def test_is_v7_or_later(self, loadgen):
         """Test version detection property."""
