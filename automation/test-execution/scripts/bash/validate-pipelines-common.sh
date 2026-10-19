@@ -53,8 +53,18 @@ LMCACHE_TRANSFER_MODE="${LMCACHE_TRANSFER_MODE:-}"   # empty = role default
 # operating-point probe.  Full sweeps live in the benchmark suites.
 GUIDELLM_PROFILE="${GUIDELLM_PROFILE:-concurrent}"
 GUIDELLM_RATE="${GUIDELLM_RATE:-8}"
-EMBEDDING_SMOKE_SHAPE="${EMBEDDING_SMOKE_SHAPE:-[{'name':'chunk','input_len':512}]}"
-EMBEDDING_PROBE_LEVELS="${EMBEDDING_PROBE_LEVELS:-[8]}"
+# NOTE: -e "k=v" values stay STRINGS in ansible (no YAML parsing), which broke
+# embedding_workload_shapes / op_probe_levels in earlier runs.  List/dict
+# values must be passed as one JSON extra-vars document so they arrive typed.
+# (The JSON defaults use if-unset assignments because ${VAR:-...} expansion
+# terminates at the first '}' — a brace inside the default would be eaten.)
+if [[ -z "${EMBEDDING_SMOKE_SHAPE:-}" ]]; then
+    EMBEDDING_SMOKE_SHAPE='[{"name":"chunk","input_len":512}]'
+fi
+if [[ -z "${EMBEDDING_PROBE_LEVELS:-}" ]]; then
+    EMBEDDING_PROBE_LEVELS='[8]'
+fi
+EMBEDDING_EXTRA_VARS="{\"embedding_workload_shapes\":${EMBEDDING_SMOKE_SHAPE},\"op_probe_levels\":${EMBEDDING_PROBE_LEVELS}}"
 
 PRE_CLEAN="${PRE_CLEAN:-true}"
 RESULTS_ROOT="${RESULTS_ROOT:-$REPO_ROOT/results}"
@@ -110,7 +120,11 @@ run_stage() {
 }
 
 ansible_cmd() {
-    ansible-playbook -i "$INVENTORY" "$@"
+    # Run from the ansible directory so ansible.cfg loads (roles_path,
+    # filter_plugins, host_key_checking).  Without it, include_role inside
+    # common/*.yml cannot resolve roles/vllm_server — embedding stages fail
+    # with "The role 'vllm_server' was not found".
+    (cd "$ANSIBLE_DIR" && ansible-playbook -i "$INVENTORY" "$@")
 }
 
 scaleout_teardown() {
@@ -157,7 +171,7 @@ stage0() {
     fi
     [[ $failed -eq 1 ]] && return 1
     info "Ansible connectivity check (dut + load_generator)…"
-    ansible dut:load_generator -i "$INVENTORY" -m ping
+    (cd "$ANSIBLE_DIR" && ansible dut:load_generator -i "$INVENTORY" -m ping)
 }
 
 single_llm() {
@@ -178,8 +192,7 @@ single_embedding() {
         -e "test_model=${EMBEDDING_MODEL}" \
         -e "requested_cores=${REQUESTED_CORES}" \
         -e "scenario=operating_point" \
-        -e "embedding_workload_shapes=${EMBEDDING_SMOKE_SHAPE}" \
-        -e "op_probe_levels=${EMBEDDING_PROBE_LEVELS}" \
+        -e "$EMBEDDING_EXTRA_VARS" \
         -e "num_prompts=64" \
         -e "op_peak_concurrency=8" \
         ${HF_ARGS[@]+"${HF_ARGS[@]}"}
@@ -233,8 +246,7 @@ multi_embedding_scaleout() {
     ansible_cmd "$ANSIBLE_DIR/embedding-benchmark-scaleout.yml" \
         -e "test_model=${EMBEDDING_MODEL}" \
         -e "scenario=operating_point" \
-        -e "embedding_workload_shapes=${EMBEDDING_SMOKE_SHAPE}" \
-        -e "op_probe_levels=${EMBEDDING_PROBE_LEVELS}" \
+        -e "$EMBEDDING_EXTRA_VARS" \
         -e "num_prompts=64" \
         -e "op_peak_concurrency=8" \
         -e "scaleout_num_instances=${EMBEDDING_SCALEOUT_NUM_INSTANCES}" \
