@@ -9,6 +9,10 @@ scaleout_start_core: 32
 scaleout_enable_smt: false
 scaleout_enable_prefix_caching: true
 
+# Fail deploy when vLLM, Envoy, and EPP cpusets overlap (recommended). Set false to
+# only print warnings (legacy behaviour).
+scaleout_strict_cpu_isolation: true
+
 # Pooling / embedding (--runner pooling). Set with --convert embed for encoder models.
 scaleout_vllm_runner: ""
 scaleout_vllm_convert: ""

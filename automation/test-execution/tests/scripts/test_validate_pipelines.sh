@@ -116,8 +116,14 @@ fi
 # Test 4: stage_enabled selection logic
 # ============================================================================
 STAGES=all
-stage_enabled 6 && pass "stage_enabled: all enables any stage" \
-    || fail "stage_enabled: all enables any stage" "stage 6 not enabled"
+if stage_enabled 6; then
+    fail "stage_enabled: STAGES=all excludes LMCache stage 6 by default" "stage 6 enabled"
+else
+    pass "stage_enabled: STAGES=all excludes LMCache stage 6 by default"
+fi
+INCLUDE_LMCACHE=1 STAGES=all stage_enabled 6 && pass "stage_enabled: INCLUDE_LMCACHE enables stage 6" \
+    || fail "stage_enabled: INCLUDE_LMCACHE enables stage 6" "stage 6 not enabled"
+STAGES=all
 # shellcheck disable=SC2034  # read by stage_enabled() in the sourced library
 STAGES=4,6
 stage_enabled 6 && pass "stage_enabled: subset membership" \
@@ -173,7 +179,7 @@ fi
 # Test 8: ansible_cmd runs from the ansible dir (ansible.cfg must load)
 # ============================================================================
 : > "$CAPTURE_FILE"
-ansible_cmd "$ANSIBLE_DIR/stop-vllm-scaleout.yml"
+ansible_cmd stop-vllm-scaleout.yml
 if [[ "$(grep '^PWD=' "$CAPTURE_FILE" | cut -d= -f2-)" == "$ANSIBLE_DIR" ]]; then
     pass "ansible_cmd runs from the ansible dir"
 else

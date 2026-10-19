@@ -77,6 +77,9 @@ LOG_DIR="$VALIDATION_LOG_DIR"
 
 STAGES="${STAGES:-all}"
 
+# Halt the harness after the first failed stage (set STOP_ON_FAIL=false to continue).
+STOP_ON_FAIL="${STOP_ON_FAIL:-true}"
+
 # --- Helpers ----------------------------------------------------------------
 if [[ -t 1 ]]; then
     C_G=$'\033[32m'; C_R=$'\033[31m'; C_Y=$'\033[33m'; C_B=$'\033[1m'; C_0=$'\033[0m'
@@ -93,9 +96,20 @@ log()  { printf '%s\n' "$*"; }
 info() { printf '%s[INFO]%s %s\n' "$C_B" "$C_0" "$*"; }
 warn() { printf '%s[WARN]%s %s\n' "$C_Y" "$C_0" "$*"; }
 
+validation_stop_on_fail() {
+    case "${STOP_ON_FAIL}" in true|1|yes|TRUE|YES) return 0 ;; *) return 1 ;; esac
+}
+
 stage_enabled() {
-    [[ "$STAGES" == "all" ]] && return 0
-    [[ ",$STAGES," == *",$1,"* ]]
+    local n="$1"
+    if [[ "$STAGES" == "all" ]]; then
+        # Stage 6 (LMCache) is slow — opt in with INCLUDE_LMCACHE=1 or STAGES=…,6
+        if [[ "$n" == "6" ]]; then
+            case "${INCLUDE_LMCACHE:-}" in true|1|yes|TRUE|YES) return 0 ;; *) return 1 ;; esac
+        fi
+        return 0
+    fi
+    [[ ",$STAGES," == *",$n,"* ]]
 }
 
 run_stage() {
@@ -128,7 +142,13 @@ ansible_cmd() {
 }
 
 scaleout_teardown() {
-    ansible_cmd "$ANSIBLE_DIR/stop-vllm-scaleout.yml"
+    ansible_cmd stop-vllm-scaleout.yml
+}
+
+validation_on_interrupt() {
+    printf '\n[INFO] Interrupted — running scale-out teardown…\n'
+    scaleout_teardown || warn "teardown had errors (containers may remain)"
+    exit 130
 }
 
 HF_ARGS=()
@@ -151,9 +171,52 @@ validation_print_banner() {
     info "CPU pins    : single=${REQUESTED_CORES}c  envoy=${SCALEOUT_ENVOY_CORES}  epp=${SCALEOUT_EPP_CORES}  guidellm=${GUIDELLM_CPUS}  vllm-bench=${VLLM_BENCH_CPUS}"
     info "LMCache     : l1=${LMCACHE_L1_GB}GB hugepages=${LMCACHE_HUGEPAGES} util=${LMCACHE_UTIL}"
     info "Quick caps  : ${QUICK_SECONDS}s / ${QUICK_REQUESTS} reqs; LLM ${GUIDELLM_PROFILE}@rate ${GUIDELLM_RATE}; embedding probes ${EMBEDDING_PROBE_LEVELS} (${EMBEDDING_SMOKE_SHAPE})"
-    info "Stages      : $STAGES"
+    info "Stages      : $STAGES (all = 0-5,9,7,8; stage 6 needs INCLUDE_LMCACHE=1)"
+    info "Stop on fail: $STOP_ON_FAIL"
     info "Logs        : $LOG_DIR"
     log ""
+}
+
+_find_latest_embedding_run_dir() {
+    local prefer_scaleout="${1:-false}"
+    local d meta dt
+    local best_scaleout="" best_scaleout_mtime=0
+    local best_any="" best_any_mtime=0
+
+    shopt -s nullglob
+    for d in "$RESULTS_ROOT"/embedding/*/*/; do
+        [[ -d "$d" ]] || continue
+        if ! dt="$(stat -f '%m' "$d" 2>/dev/null || stat -c '%Y' "$d" 2>/dev/null)"; then
+            continue
+        fi
+        if [[ "$dt" -gt "$best_any_mtime" ]]; then
+            best_any_mtime=$dt
+            best_any="$d"
+        fi
+        meta="${d%/}/test-metadata.json"
+        if [[ -f "$meta" ]] && python3 -c '
+import json, sys
+with open(sys.argv[1]) as f:
+    d = json.load(f)
+sys.exit(0 if d.get("deployment_type") == "scaleout" else 1)
+' "$meta" 2>/dev/null; then
+            if [[ "$dt" -gt "$best_scaleout_mtime" ]]; then
+                best_scaleout_mtime=$dt
+                best_scaleout="$d"
+            fi
+        fi
+    done
+    shopt -u nullglob
+
+    if [[ "$prefer_scaleout" == true ]]; then
+        if [[ -n "$best_scaleout" ]]; then
+            printf '%s' "$best_scaleout"
+        else
+            printf '%s' "${best_any:-}"
+        fi
+    else
+        printf '%s' "${best_any:-}"
+    fi
 }
 
 stage0() {
@@ -262,7 +325,10 @@ multi_embedding_scaleout() {
 }
 
 results_visibility() {
-    local rc=0 out latest_emb
+    local rc=0 out latest_emb prefer_scaleout=false
+    if stage_enabled 9; then
+        prefer_scaleout=true
+    fi
     info "LLM results via view_results.py…"
     out="$(python3 "$VIEW_RESULTS" "$RESULTS_ROOT/llm" 2>&1)" || true
     printf '%s\n' "$out" | tail -5
@@ -270,8 +336,8 @@ results_visibility() {
         warn "view_results.py found no LLM results under $RESULTS_ROOT/llm"; rc=1
     fi
 
-    info "Embedding results via view_results.py (latest run)…"
-    latest_emb="$(ls -td "$RESULTS_ROOT"/embedding/*/*/ 2>/dev/null | head -1 || true)"
+    info "Embedding results via view_results.py (latest scale-out run when available)…"
+    latest_emb="$(_find_latest_embedding_run_dir "$prefer_scaleout")"
     if [[ -z "$latest_emb" ]]; then
         warn "no embedding run directories under $RESULTS_ROOT/embedding"; rc=1
     else
@@ -285,19 +351,30 @@ results_visibility() {
     return $rc
 }
 
-validation_run_stages() {
-    want() { stage_enabled "$1"; }
+_run_stage_if_wanted() {
+    local num="$1" name="$2"
+    shift 2
+    stage_enabled "$num" || return 0
+    if ! run_stage "$num" "$name" "$@"; then
+        if validation_stop_on_fail; then
+            warn "STOP_ON_FAIL: halting after failed stage $num ($name)"
+            return 1
+        fi
+    fi
+    return 0
+}
 
-    want 0 && run_stage 0 "preflight"            stage0
-    want 1 && run_stage 1 "single chat"          single_llm chat
-    want 2 && run_stage 2 "single summarization" single_llm summarization
-    want 3 && run_stage 3 "single embedding"     single_embedding
-    want 4 && run_stage 4 "multi chat"           multi_llm chat
-    want 5 && run_stage 5 "multi summarization"  multi_llm summarization
-    want 6 && run_stage 6 "multi chat lmcache"   multi_llm_lmcache
-    want 9 && run_stage 9 "multi embedding"      multi_embedding_scaleout
-    want 7 && run_stage 7 "results visibility"   results_visibility
-    want 8 && run_stage 8 "final teardown"       scaleout_teardown
+validation_run_stages() {
+    _run_stage_if_wanted 0 "preflight"            stage0 || return 1
+    _run_stage_if_wanted 1 "single chat"          single_llm chat || return 1
+    _run_stage_if_wanted 2 "single summarization" single_llm summarization || return 1
+    _run_stage_if_wanted 3 "single embedding"     single_embedding || return 1
+    _run_stage_if_wanted 4 "multi chat"           multi_llm chat || return 1
+    _run_stage_if_wanted 5 "multi summarization"  multi_llm summarization || return 1
+    _run_stage_if_wanted 6 "multi chat lmcache"   multi_llm_lmcache || return 1
+    _run_stage_if_wanted 9 "multi embedding"      multi_embedding_scaleout || return 1
+    _run_stage_if_wanted 7 "results visibility"   results_visibility || return 1
+    _run_stage_if_wanted 8 "final teardown"       scaleout_teardown || return 1
 }
 
 validation_print_summary() {

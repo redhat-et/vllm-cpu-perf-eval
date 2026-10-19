@@ -12,8 +12,9 @@
 # Override these in your inventory or via command line with -e
 #
 # Defaults below assume a large reference platform (5 × 32 cores). For smoke runs
-# or scaleout_start_core=0, always set scaleout_envoy_cores / scaleout_epp_cores
-# so they do not overlap vLLM instance cpusets (see docs/vllm-scaleout.md).
+# or scaleout_start_core=0, set scaleout_envoy_cores / scaleout_epp_cores off the
+# vLLM cpusets (integrated *-benchmark-scaleout.yml playbooks override these).
+# Overlap fails deploy when scaleout_strict_cpu_isolation is true (role default).
 # ============================================================================
 
 # ============================================================================
