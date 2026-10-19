@@ -132,7 +132,7 @@ PRESET_TINY=(
 # Default configuration
 MODELS_INPUT="all"
 CORES_INPUT="8,16,32"
-WORKLOADS_INPUT="chat,code,summarization,rag"
+WORKLOADS_INPUT="chat,summarization,reasoning,batch_generation"
 PHASE="1"
 TENSOR_PARALLEL=""  # Empty = auto-calculate based on NUMA topology
 CONTINUE_ON_ERROR=false
@@ -324,9 +324,9 @@ fi
 
 # Validate workloads
 for workload in "${WORKLOADS[@]}"; do
-    if [[ ! "${workload}" =~ ^(chat|code|summarization|rag)$ ]]; then
+    if [[ ! "${workload}" =~ ^(chat|summarization|reasoning|batch_generation|chat_var|summarization_var)$ ]]; then
         log_error "Invalid workload: ${workload}"
-        log_error "Supported: chat, code, summarization, rag"
+        log_error "Supported: chat, summarization, reasoning, batch_generation, chat_var, summarization_var"
         exit 1
     fi
 done
