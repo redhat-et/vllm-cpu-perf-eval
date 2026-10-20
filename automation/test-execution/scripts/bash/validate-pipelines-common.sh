@@ -191,7 +191,7 @@ _find_latest_llm_run_dir() {
     local latest="" best_mtime=0 dt d f
     while IFS= read -r -d '' f; do
         d="$(dirname "$f")"
-        if dt="$(stat -c '%Y' "$d" 2>/dev/null || stat -f '%m' "$d" 2>/dev/null)"; then
+        if dt="$(stat -c '%Y' "$f" 2>/dev/null || stat -f '%m' "$f" 2>/dev/null)"; then
             [[ "$dt" =~ ^[0-9]+$ ]] && [[ "$dt" -gt "$best_mtime" ]] && { best_mtime=$dt; latest="$d"; }
         fi
     done < <(find "$RESULTS_ROOT/llm" -name "benchmarks.json" -print0 2>/dev/null)
