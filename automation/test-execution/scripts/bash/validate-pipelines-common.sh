@@ -187,6 +187,17 @@ validation_print_banner() {
     log ""
 }
 
+_find_latest_llm_run_dir() {
+    local latest="" best_mtime=0 dt d f
+    while IFS= read -r -d '' f; do
+        d="$(dirname "$f")"
+        if dt="$(stat -c '%Y' "$d" 2>/dev/null || stat -f '%m' "$d" 2>/dev/null)"; then
+            [[ "$dt" =~ ^[0-9]+$ ]] && [[ "$dt" -gt "$best_mtime" ]] && { best_mtime=$dt; latest="$d"; }
+        fi
+    done < <(find "$RESULTS_ROOT/llm" -name "benchmarks.json" -print0 2>/dev/null)
+    printf '%s' "$latest"
+}
+
 _find_latest_embedding_run_dir() {
     local prefer_scaleout="${1:-false}"
     local d meta dt
@@ -356,16 +367,22 @@ audio_scaleout() {
 }
 
 results_visibility() {
-    local rc=0 out latest_emb prefer_scaleout=false
+    local rc=0 out latest_llm latest_emb prefer_scaleout=false view_rc=0
     if stage_enabled 9; then
         prefer_scaleout=true
     fi
     info "LLM results via view_results.py…"
-    local view_rc=0
-    out="$(python3 "$VIEW_RESULTS" "$RESULTS_ROOT/llm" 2>&1)" || view_rc=$?
-    printf '%s\n' "$out" | tail -5
-    if [[ $view_rc -ne 0 || -z "$out" || "$out" == *"No results"* || "$out" == *"No benchmarks"* ]]; then
+    latest_llm="$(_find_latest_llm_run_dir)"
+    if [[ -z "$latest_llm" ]]; then
         warn "view_results.py found no LLM results under $RESULTS_ROOT/llm"; rc=1
+    else
+        info "latest LLM run: $latest_llm"
+        view_rc=0
+        out="$(python3 "$VIEW_RESULTS" "$latest_llm" 2>&1)" || view_rc=$?
+        printf '%s\n' "$out" | tail -5
+        if [[ $view_rc -ne 0 || -z "$out" || "$out" == *"No results"* || "$out" == *"No benchmarks"* ]]; then
+            warn "view_results.py found no LLM results in $latest_llm"; rc=1
+        fi
     fi
 
     info "Embedding results via view_results.py (latest scale-out run when available)…"
