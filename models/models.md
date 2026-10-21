@@ -343,7 +343,7 @@ Result:                       Input exceeds model capacity by 4x ❌
 **For TinyLlama testing:**
 - ✅ Use for **chat workload only** (ISL=512, well within 2048 limit)
 - ✅ Excellent for lightweight validation and quick smoke tests
-- ❌ Skip for comprehensive workload testing (code, summarization, RAG, reasoning)
+- ❌ Skip for comprehensive workload testing (summarization, reasoning, batch_generation)
 
 **For comprehensive workload testing:**
 - ✅ Use **Llama-3.2-1B** (8192 context) or **Llama-3.2-3B** (8192 context)
@@ -390,7 +390,7 @@ Tests all models at concurrency levels: **{1, 2, 4, 8, 16, 32}**
 **Enhanced v2 Features:**
 - Time-based testing (600 seconds)
 - Single-user baseline (concurrency=1)
-- Variable workloads (chat_var, code_var) for realistic traffic simulation
+- Variable workloads (chat_var, summarization_var) for realistic traffic simulation
 - 3-phase testing: Baseline → Realistic → Production
 
 **Participating Models:**
@@ -530,8 +530,8 @@ KV Cache Size (GB) = Total Bytes ÷ (1024³)
 Calculated with **32 concurrent requests** (MAX concurrency across all workloads):
 
 **Safety Margins:**
-- **Fixed workloads** (chat, rag, code, summarization, reasoning): 25% safety margin (1.25x)
-- **Variable workloads** (chat_var, code_var): 50% safety margin (1.5x) to account for multiple concurrent requests at max token lengths
+- **Fixed workloads** (chat, summarization, reasoning, batch_generation): 25% safety margin (1.25x)
+- **Variable workloads** (chat_var, summarization_var): 50% safety margin (1.5x) to account for multiple concurrent requests at max token lengths
 
 **Note**: All KV cache sizes are calculated for 32 concurrent requests to provide maximum headroom:
 - **chat**: 32 concurrent (MAX)
@@ -540,7 +540,7 @@ Calculated with **32 concurrent requests** (MAX concurrency across all workloads
 - **summarization**: 32 concurrent (MAX)
 - **reasoning**: 32 concurrent (MAX)
 - **chat_var**: 32 concurrent at max 2048 tokens (1024 + 1024)
-- **code_var**: 32 concurrent at max 4096 tokens (2048 + 2048)
+- **summarization_var**: 32 concurrent at max 2560 tokens (2048 input + 512 output)
 
 #### Chat Workload (512:512, 1024 tokens)
 

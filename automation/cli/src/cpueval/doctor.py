@@ -4,6 +4,7 @@ import os
 import shutil
 import socket
 import subprocess
+from pathlib import Path
 from typing import Tuple
 
 from rich.console import Console
@@ -31,6 +32,22 @@ def check_ansible_playbook() -> Tuple[bool, str]:
 
 def check_ansible_collections() -> Tuple[bool, str]:
     """Check if required Ansible collections are installed."""
+    # Check standard on-disk paths first — avoids false negatives when
+    # ansible-galaxy on PATH is from a different venv than ansible-playbook.
+    collection_dirs = [
+        Path.home() / ".ansible" / "collections" / "ansible_collections",
+        Path("/usr/share/ansible/collections/ansible_collections"),
+    ]
+    env_path = os.getenv("ANSIBLE_COLLECTIONS_PATH") or os.getenv("ANSIBLE_COLLECTIONS_PATHS")
+    if env_path:
+        for p in env_path.split(":"):
+            collection_dirs.insert(0, Path(p) / "ansible_collections")
+
+    for base in collection_dirs:
+        if (base / "containers" / "podman").exists():
+            return True, "containers.podman installed"
+
+    # Fallback: ask ansible-galaxy (may see bundled collections the path check misses)
     try:
         result = subprocess.run(
             ["ansible-galaxy", "collection", "list"],

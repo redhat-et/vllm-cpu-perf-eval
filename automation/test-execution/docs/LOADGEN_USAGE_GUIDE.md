@@ -26,7 +26,7 @@ shared/loadgens/
 ### GuideLLM
 **Purpose**: Comprehensive LLM benchmarking with multiple profiles
 **Container**: `ghcr.io/vllm-project/guidellm:v0.8.1`
-**Workloads**: chat, rag, code, summarization, reasoning, embedding
+**Workloads**: chat, summarization, reasoning, batch_generation, embedding
 **Profiles**: sweep, synchronous, concurrent, throughput, constant, poisson
 **Output**: JSON, HTML, CSV
 
@@ -65,9 +65,9 @@ python3 -m shared.loadgens get-loadgen guidellm
   "output_format": "json",
   "supported_workloads": {
     "chat": true,
-    "rag": true,
-    "code": true,
     "summarization": true,
+    "reasoning": true,
+    "batch_generation": true,
     "embedding": true
   }
 }
@@ -362,7 +362,7 @@ Both abstractions follow the same pattern:
 | **Ansible Task** | `backend-command.yml` | `loadgen-command.yml` |
 | **Config Class** | `BackendConfig` | `LoadGenConfig` |
 | **Output Class** | N/A | `LoadGenMetrics` |
-| **Workload Types** | generative, embedding | chat, rag, code, embedding, etc. |
+| **Workload Types** | generative, embedding | chat, summarization, reasoning, batch_generation, embedding, etc. |
 
 ## Benefits
 

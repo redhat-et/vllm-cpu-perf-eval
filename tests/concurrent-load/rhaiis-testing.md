@@ -439,10 +439,10 @@ ansible-playbook -i inventory/hosts.yml \
 - Use case: Standard conversational AI
 - vLLM: `max-model-len=2048`
 
-### Code (1024:1024)
-- Input: 1024 tokens
-- Output: 1024 tokens
-- Use case: Code generation
+### Reasoning (256:2048)
+- Input: 256 tokens
+- Output: 2048 tokens
+- Use case: Chain-of-thought reasoning (long output)
 - vLLM: `max-model-len=4096`
 
 ### Summarization (2048:256)
@@ -451,10 +451,10 @@ ansible-playbook -i inventory/hosts.yml \
 - Use case: Document summarization
 - vLLM: `max-model-len=4096`
 
-### RAG (7680:512)
-- Input: 7680 tokens (long context retrieval)
-- Output: 512 tokens (concise answer)
-- Use case: Retrieval-Augmented Generation
+### Batch Generation (512:4096)
+- Input: 512 tokens
+- Output: 4096 tokens
+- Use case: Bulk synthetic-data generation
 - vLLM: `max-model-len=8192` ✅
 
 ## Test Execution Notes
