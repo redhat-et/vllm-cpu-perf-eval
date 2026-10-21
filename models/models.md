@@ -82,10 +82,9 @@ Each model is tested across workloads that stress different aspects of inference
 ### LLM Workloads
 
 - **Chat (512:512)**: Balanced prefill/decode, typical conversational AI
-- **RAG (8192:512)**: Long context prefill, retrieval-augmented generation
-- **Code Generation (1024:1024)**: Balanced code generation scenarios
 - **Summarization (2048:256)**: Medium context, summarization tasks
 - **Reasoning (256:2048)**: Long output decode, chain-of-thought reasoning
+- **Batch Generation (512:4096)**: Bulk output decode, synthetic-data generation
 
 ### Embedding Workloads
 
@@ -228,21 +227,13 @@ This section covers Large Language Model (LLM) selection and testing across all 
 - **Focus**: Balanced prefill/decode
 - **Use Case**: Conversational AI, chatbots
 
-### RAG (8192:512)
-- **Input**: 8192 tokens (retrieved documents + query)
-- **Output**: 512 tokens (answer)
-- **Total**: 8704 tokens
-- **Max Model Len**: 16384
-- **Focus**: Long context prefill
-- **Use Case**: Document Q&A, knowledge retrieval
-
-### Code Generation (1024:1024)
-- **Input**: 1024 tokens (code prompt/context)
-- **Output**: 1024 tokens (generated code)
-- **Total**: 2048 tokens
-- **Max Model Len**: 4096
-- **Focus**: Balanced code generation
-- **Use Case**: Code completion, generation
+### Batch Generation (512:4096)
+- **Input**: 512 tokens (generation instructions)
+- **Output**: 4096 tokens (generated dataset entries)
+- **Total**: 4608 tokens
+- **Max Model Len**: 8192
+- **Focus**: Bulk output decode, memory bandwidth
+- **Use Case**: Synthetic-data generation, bulk content pipelines
 
 ### Summarization (2048:256)
 - **Input**: 2048 tokens (document to summarize)
@@ -312,12 +303,11 @@ the derived max_model_len (max_position_embeddings=2048.0)
 | Workload | ISL | OSL | Total Tokens | max_model_len | TinyLlama Support |
 |----------|-----|-----|--------------|---------------|-------------------|
 | **Chat** | 512 | 512 | 1024 | 2048 | ✅ **Compatible** (2048 ≤ 2048) |
-| **Code** | 1024 | 1024 | 2048 | 4096 | ❌ **max_model_len > model limit** (4096 > 2048) |
 | **Summarization** | **2048** | 256 | 2304 | 4096 | ❌ **max_model_len > model limit** (4096 > 2048) |
-| **RAG** | **8192** | 512 | 8704 | 16384 | ❌ **max_model_len > model limit** (16384 > 2048) |
 | **Reasoning** | 256 | 2048 | 2304 | 4096 | ❌ **max_model_len > model limit** (4096 > 2048) |
+| **Batch Generation** | 512 | **4096** | 4608 | 8192 | ❌ **max_model_len > model limit** (8192 > 2048) |
 
-#### Why Summarization and RAG Fail
+#### Why Summarization and Reasoning Fail
 
 **Summarization (ISL=2048):**
 ```
@@ -328,15 +318,16 @@ OSL required:                 256 tokens
 Result:                       IMPOSSIBLE - input fills entire context ❌
 ```
 
-**RAG (ISL=8192):**
+**Batch Generation (OSL=4096):**
 ```
-ISL (retrieved context):      8192 tokens
+ISL (generation prompt):      512 tokens (fits)
+OSL required:                 4096 tokens
+Total needed:                 4608 tokens
 TinyLlama max context:        2048 tokens
-Context overflow:             6144 tokens (8192 - 2048)
-Result:                       Input exceeds model capacity by 4x ❌
+Result:                       Output exceeds remaining capacity by 3072 tokens ❌
 ```
 
-**Key Insight:** vLLM validates that `max_model_len ≤ max_position_embeddings`. The workload's configured `max_model_len` (e.g., Code uses 4096) must not exceed the model's architectural limit (`max_position_embeddings=2048` for TinyLlama). This validation happens **before** any tokens are processed, making ISL/OSL values irrelevant if the workload's `max_model_len` already exceeds the model's capacity.
+**Key Insight:** vLLM validates that `max_model_len ≤ max_position_embeddings`. The workload's configured `max_model_len` (e.g., Reasoning uses 4096) must not exceed the model's architectural limit (`max_position_embeddings=2048` for TinyLlama). This validation happens **before** any tokens are processed, making ISL/OSL values irrelevant if the workload's `max_model_len` already exceeds the model's capacity.
 
 #### Recommendations
 
@@ -348,14 +339,14 @@ Result:                       Input exceeds model capacity by 4x ❌
 **For comprehensive workload testing:**
 - ✅ Use **Llama-3.2-1B** (8192 context) or **Llama-3.2-3B** (8192 context)
 - ✅ Use **Qwen3-0.6B** (8192 context) or **Qwen2.5-3B** (8192 context)
-- ✅ Use **granite-3.2-2b** (4096 context) - supports all except RAG
+- ✅ Use **granite-3.2-2b** (4096 context) - supports all except Batch Generation (needs 8192)
 
 **Command examples:**
 ```bash
 # ✅ GOOD: TinyLlama with chat only
 ./run-concurrent-load.sh --models TinyLlama-1.1B-Chat --workloads chat
 
-# ❌ WILL FAIL: TinyLlama with summarization/RAG
+# ❌ WILL FAIL: TinyLlama with summarization/reasoning
 ./run-concurrent-load.sh --models TinyLlama-1.1B-Chat --workloads summarization
 
 # ✅ GOOD: Use --continue-on-error to test other models despite TinyLlama failures
@@ -366,8 +357,8 @@ Result:                       Input exceeds model capacity by 4x ❌
 
 | Model | max_position_embeddings | Incompatible Workloads |
 |-------|------------------------|------------------------|
-| TinyLlama-1.1B-Chat | 2048 | Code, Summarization, RAG, Reasoning |
-| granite-3.2-2b-instruct | 4096 | RAG (needs 16384) |
+| TinyLlama-1.1B-Chat | 2048 | Summarization, Reasoning, Batch Generation |
+| granite-3.2-2b-instruct | 4096 | Batch Generation (needs 8192) |
 | Llama-3.2-1B-Instruct | 8192 | None (supports all standard workloads) |
 | Llama-3.2-3B-Instruct | 8192 | None (supports all standard workloads) |
 | Qwen3-0.6B | 8192 | None (supports all standard workloads) |
@@ -394,11 +385,11 @@ Tests all models at concurrency levels: **{1, 2, 4, 8, 16, 32}**
 - 3-phase testing: Baseline → Realistic → Production
 
 **Participating Models:**
-- Llama-3.2-1B-Instruct (Chat, RAG, Code, Summarization, Reasoning)
+- Llama-3.2-1B-Instruct (Chat, Summarization, Reasoning, Batch Generation)
 - TinyLlama-1.1B-Chat (Chat)
-- granite-3.2-2b-instruct (Chat, RAG, Code, Summarization, Reasoning)
-- Qwen/Qwen3-0.6B (Chat, Code)
-- openai/gpt-oss-20b (Chat, RAG, Code)
+- granite-3.2-2b-instruct (Chat, Summarization, Reasoning)
+- Qwen/Qwen3-0.6B (Chat, Batch Generation)
+- openai/gpt-oss-20b (Chat, Reasoning, Batch Generation)
 
 ### Test Suite 2: Scalability
 Uses sweep, synchronous, and Poisson profiles
@@ -535,10 +526,9 @@ Calculated with **32 concurrent requests** (MAX concurrency across all workloads
 
 **Note**: All KV cache sizes are calculated for 32 concurrent requests to provide maximum headroom:
 - **chat**: 32 concurrent (MAX)
-- **rag**: 32 concurrent (MAX)
-- **code**: 32 concurrent (MAX)
 - **summarization**: 32 concurrent (MAX)
 - **reasoning**: 32 concurrent (MAX)
+- **batch_generation**: 32 concurrent (MAX)
 - **chat_var**: 32 concurrent at max 2048 tokens (1024 + 1024)
 - **summarization_var**: 32 concurrent at max 2560 tokens (2048 input + 512 output)
 
@@ -554,29 +544,17 @@ Calculated with **32 concurrent requests** (MAX concurrency across all workloads
 | qwen2.5-3b-instruct | 0.0179 GB | 0.72 GB | 1 GiB |
 | gpt-oss-20b | 0.0424 GB | 1.70 GB | 2 GiB |
 
-#### RAG Workload (8192:512, 8704 tokens, 32 concurrent)
+#### Batch Generation Workload (512:4096, 4608 tokens, 32 concurrent)
 
 | Model | Per-Request | 32 × 1.25x | Configured |
 |-------|-------------|------------|------------|
-| llama-3.2-1b-instruct | 0.2656 GB | 10.6 GB | 11 GiB |
-| llama-3.2-3b-instruct | 0.9297 GB | 37.2 GB | 38 GiB |
-| tinyllama-1.1b-chat | 0.1828 GB | 7.31 GB | 8 GiB |
-| granite-3.2-2b-instruct | 0.4427 GB | 17.7 GB | 18 GiB |
-| qwen3-0.6b | 0.3102 GB | 12.4 GB | 13 GiB |
-| qwen2.5-3b-instruct | 0.1520 GB | 6.08 GB | 7 GiB |
-| gpt-oss-20b | 0.3604 GB | 14.4 GB | 15 GiB |
-
-#### Code Generation Workload (1024:1024, 2048 tokens, 32 concurrent)
-
-| Model | Per-Request | 32 × 1.25x | Configured |
-|-------|-------------|------------|------------|
-| llama-3.2-1b-instruct | 0.0625 GB | 2.50 GB | 3 GiB |
-| llama-3.2-3b-instruct | 0.2188 GB | 8.75 GB | 9 GiB |
-| tinyllama-1.1b-chat | 0.0430 GB | 1.72 GB | 2 GiB |
-| granite-3.2-2b-instruct | 0.1042 GB | 4.17 GB | 5 GiB |
-| qwen3-0.6b | 0.0730 GB | 2.92 GB | 3 GiB |
-| qwen2.5-3b-instruct | 0.0358 GB | 1.43 GB | 2 GiB |
-| gpt-oss-20b | 0.0848 GB | 3.39 GB | 4 GiB |
+| llama-3.2-1b-instruct | 0.1406 GB | 5.62 GB | 6 GiB |
+| llama-3.2-3b-instruct | 0.4923 GB | 19.7 GB | 20 GiB |
+| tinyllama-1.1b-chat | 0.0968 GB | 3.87 GB | 4 GiB |
+| granite-3.2-2b-instruct | 0.2344 GB | 9.38 GB | 10 GiB |
+| qwen3-0.6b | 0.1643 GB | 6.57 GB | 7 GiB |
+| qwen2.5-3b-instruct | 0.0806 GB | 3.22 GB | 4 GiB |
+| gpt-oss-20b | 0.1908 GB | 7.63 GB | 8 GiB |
 
 #### Summarization Workload (2048:256, 2304 tokens)
 
@@ -616,19 +594,19 @@ Calculated with **32 concurrent requests** (MAX concurrency across all workloads
 | qwen2.5-3b-instruct | 0.0358 GB | 1.72 GB | 4 GiB |
 | gpt-oss-20b | 0.0848 GB | 4.07 GB | 4 GiB |
 
-#### Code Variable Workload (max 2048:2048, 4096 tokens, 32 concurrent)
+#### Summarization Variable Workload (max 2048:512, 2560 tokens, 32 concurrent)
 
 **Note**: Sized for maximum token counts with 1.5x safety margin
 
 | Model | Per-Request | 32 × 1.5x | Configured |
 |-------|-------------|-----------|------------|
-| llama-3.2-1b-instruct | 0.125 GB | 6.00 GB | 6 GiB |
-| llama-3.2-3b-instruct | 0.438 GB | 21.0 GB | 21 GiB |
-| tinyllama-1.1b-chat | 0.086 GB | 4.12 GB | 5 GiB |
-| granite-3.2-2b-instruct | 0.208 GB | 10.0 GB | 15 GiB |
-| qwen3-0.6b | 0.146 GB | 7.01 GB | 11 GiB |
-| qwen2.5-3b-instruct | 0.072 GB | 3.46 GB | 7 GiB |
-| gpt-oss-20b | 0.170 GB | 8.16 GB | 7 GiB |
+| llama-3.2-1b-instruct | 0.0781 GB | 3.75 GB | 4 GiB |
+| llama-3.2-3b-instruct | 0.2734 GB | 13.1 GB | 14 GiB |
+| tinyllama-1.1b-chat | 0.0537 GB | 2.58 GB | 3 GiB |
+| granite-3.2-2b-instruct | 0.1302 GB | 6.25 GB | 7 GiB |
+| qwen3-0.6b | 0.0912 GB | 4.38 GB | 5 GiB |
+| qwen2.5-3b-instruct | 0.0447 GB | 2.15 GB | 3 GiB |
+| gpt-oss-20b | 0.1060 GB | 5.09 GB | 6 GiB |
 
 ### Usage in Test Automation
 
@@ -687,7 +665,7 @@ matrix:
 ## Steps for Adding LLM Models
 
 1. Add model entry to `llm-models/model-matrix.yaml`
-2. Define default workloads for the model (Chat, RAG, CodeGen, Summarization)
+2. Define default workloads for the model (Chat, Summarization, Reasoning, Batch Generation)
 3. Specify test suite participation
 4. Test with synchronous profile to verify functionality
 5. Update this documentation if adding a new architecture family
@@ -705,7 +683,7 @@ llm_models:
   context_length: 8192
   default_workloads:
   - chat
-  - rag
+  - reasoning
   test_suites:
   - concurrent-load
   - scalability

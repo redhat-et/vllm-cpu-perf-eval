@@ -55,11 +55,11 @@ FIELD_META: Dict[str, Dict[str, str]] = {
     },
     "workloads": {
         "label": "Workloads",
-        "help": "Comma-separated workloads (chat, code, summarization, rag)",
+        "help": "Comma-separated workloads (chat, summarization, reasoning, batch_generation)",
     },
     "workload": {
         "label": "Workload",
-        "help": "Workload type (chat, code, summarization, rag)",
+        "help": "Workload type (chat, summarization, reasoning, batch_generation)",
     },
     "scenario": {
         "label": "Scenario",

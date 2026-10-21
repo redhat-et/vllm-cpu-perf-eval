@@ -84,11 +84,11 @@ The test suite includes 5 quantized models:
 | Workload | ISL (Input) | OSL (Output) | Total Needed | TinyLlama Limit | Status |
 |----------|-------------|--------------|--------------|-----------------|--------|
 | **Chat** | 512 | 512 | 1024 | 2048 | ✅ **Compatible** |
-| **Code** | 1024 | 1024 | 2048 | 2048 | ⚠️ **Exact fit** (no headroom) |
 | **Summarization** | **2048** | 256 | 2304 | 2048 | ❌ **ISL too large** |
-| **RAG** | **7680** | 512 | 8192 | 2048 | ❌ **ISL way too large** |
+| **Reasoning** | 256 | **2048** | 2304 | 2048 | ❌ **OSL too large** |
+| **Batch Generation** | 512 | **4096** | 4608 | 2048 | ❌ **OSL too large** |
 
-### Why Summarization and RAG Fail
+### Why Summarization and Reasoning Fail
 
 **Summarization workload:**
 ```
@@ -101,11 +101,13 @@ Result:                       IMPOSSIBLE ❌
 
 The **input alone** fills TinyLlama's entire context window, leaving no space for output generation.
 
-**RAG workload:**
+**Reasoning workload:**
 ```
-ISL (retrieved context):      7680 tokens
+ISL (reasoning prompt):       256 tokens (fits)
+OSL required:                 2048 tokens
+Total needed:                 2304 tokens
 TinyLlama max context:        2048 tokens
-Result:                       Input exceeds model capacity by 3.75x ❌
+Result:                       Output exceeds remaining capacity by 256 tokens ❌
 ```
 
 ### Technical Details
@@ -143,7 +145,7 @@ pydantic_core._pydantic_core.ValidationError: 1 validation error for ModelConfig
 ./run-rhaiis-concurrent-load.sh --models all --continue-on-error
 ```
 
-**Bottom line:** This is a **fundamental model limitation**, not a bug or misconfiguration. TinyLlama (1.1B parameters, 2K context) is designed for lightweight chat applications, not long-context workloads like summarization or RAG.
+**Bottom line:** This is a **fundamental model limitation**, not a bug or misconfiguration. TinyLlama (1.1B parameters, 2K context) is designed for lightweight chat applications, not long-context or long-output workloads like summarization or reasoning.
 
 ---
 
@@ -262,9 +264,9 @@ Alternatively, pass NUMA parameters directly:
 
 ### Workloads
 - **Chat**: Standard chat interactions (512:512 tokens)
-- **Code**: Code generation (1024:1024 tokens)
 - **Summarization**: Document summarization (2048:256 tokens)
-- **RAG**: Retrieval-Augmented Generation (7680:512 tokens, max-model-len=8192)
+- **Reasoning**: Chain-of-thought reasoning (256:2048 tokens, max-model-len=4096)
+- **Batch Generation**: Bulk synthetic-data generation (512:4096 tokens, max-model-len=8192)
 
 ### Test Phases
 - **Phase 1** (default): Baseline tests with fixed tokens, no caching
@@ -571,7 +573,10 @@ If models fail to load, ensure:
 - HuggingFace token is set (if model is gated)
 - Sufficient memory for model + KV cache
 
-### RAG Workload Context Length
+### Legacy: RAG Workload Context Length (workload removed)
+
+> The RAG workload was removed from the catalog (replaced by the
+> inference-perf-aligned set); the note below is kept for history.
 
 **Issue:** RAG workload was failing with all requests getting HTTP 400 errors due to tokenization overhead.
 
