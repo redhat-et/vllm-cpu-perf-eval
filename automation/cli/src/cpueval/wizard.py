@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -28,6 +29,18 @@ OFFLINE_BATCH_MODES = (
     "all",
     "run_test",
 )
+
+# Scale-out field constraints — must stay in sync with the Ansible asserts in
+# start-vllm-scaleout.yml and the defaults in suites/vllm-scaleout.yaml.
+ROUTING_POLICIES = ("intelligent", "round_robin")
+CORES_PER_INSTANCE_CHOICES = (4, 8, 16, 24, 32)
+NUM_INSTANCES_RANGE = (1, 10)
+
+# Integer bounds for validated wizard fields: field -> (min, max).
+_INT_FIELD_RANGES: Dict[str, Tuple[int, int]] = {
+    "num_instances": NUM_INSTANCES_RANGE,
+    "start_core": (0, 4096),
+}
 
 # CLI flag aliases in suite YAML — wizard shows one canonical field per group.
 _ALIAS_GROUPS: Tuple[Tuple[str, ...], ...] = (
@@ -97,6 +110,22 @@ FIELD_META: Dict[str, Dict[str, str]] = {
         "label": "dtype",
         "help": "Model dtype (e.g. bfloat16, float16)",
     },
+    "num_instances": {
+        "label": "vLLM instances",
+        "help": "Number of vLLM instances to deploy (1-10)",
+    },
+    "cores_per_instance": {
+        "label": "Cores per instance",
+        "help": "CPU cores per vLLM instance (4, 8, 16, 24, or 32)",
+    },
+    "routing_policy": {
+        "label": "Routing policy",
+        "help": "intelligent (EPP) or round_robin",
+    },
+    "start_core": {
+        "label": "Start core",
+        "help": "First CPU core for sequential instance pinning (e.g. 0)",
+    },
 }
 
 # Keys we expose in the wizard, in display order.
@@ -115,6 +144,10 @@ WIZARD_FIELD_ORDER = (
     "num_prompts",
     "phase",
     "dtype",
+    "num_instances",
+    "cores_per_instance",
+    "routing_policy",
+    "start_core",
 )
 
 
@@ -450,6 +483,12 @@ def build_params_from_answers(
             result.vllm_bench_numa = _parse_optional_int(value, "vllm_bench_numa_node")
         elif field in ("tasks", "batch_size", "phase", "dtype"):
             extra_pairs.append(f"{field}={value}")
+        elif field in suite.param_mappings:
+            # Suite-specific fields: use the mapped ansible/script var name
+            error = validate_field_value(field, value)
+            if error is not None:
+                raise typer.BadParameter(error)
+            extra_pairs.append(f"{suite.param_mappings[field]}={value}")
 
     if extra_pairs:
         result.extra = extra_pairs
@@ -503,6 +542,39 @@ def _print_defaults(console: Console, suite: Suite) -> None:
         console.print("[dim]No configurable defaults — ready to run as-is.[/dim]\n")
 
 
+def validate_field_value(field: str, value: str) -> Optional[str]:
+    """Return an error message when a wizard value is invalid, else None."""
+    if field in _INT_FIELD_RANGES:
+        lo, hi = _INT_FIELD_RANGES[field]
+        try:
+            ivalue = int(value)
+        except ValueError:
+            return f"{field} must be an integer, got: {value}"
+        if not lo <= ivalue <= hi:
+            return f"{field} must be between {lo} and {hi}, got: {ivalue}"
+    if field == "cores_per_instance":
+        try:
+            ivalue = int(value)
+        except ValueError:
+            return f"cores_per_instance must be an integer, got: {value}"
+        if ivalue not in CORES_PER_INSTANCE_CHOICES:
+            choices = ", ".join(str(c) for c in CORES_PER_INSTANCE_CHOICES)
+            return f"cores_per_instance must be one of {choices}, got: {ivalue}"
+    if field == "routing_policy" and value not in ROUTING_POLICIES:
+        return f"routing_policy must be one of {', '.join(ROUTING_POLICIES)}, got: {value}"
+    return None
+
+
+def validate_tag(tag: str) -> Optional[str]:
+    """Return an error message when a result tag is invalid, else None.
+
+    Mirrors the --tag validation in cli.py.
+    """
+    if not re.fullmatch(r"[A-Za-z0-9-]+", tag) or not 1 <= len(tag) <= 30:
+        return "tag must be 1-30 characters, alphanumeric or hyphens only"
+    return None
+
+
 def _prompt_field(
     driver: _PromptDriver,
     suite: Suite,
@@ -522,6 +594,10 @@ def _prompt_field(
         value = driver.prompt(prompt_text, default=default)
         value = value.strip()
         if required and not value:
+            continue
+        error = validate_field_value(field, value)
+        if error is not None:
+            typer.echo(f"Invalid value: {error}")
             continue
         return value
 
@@ -614,7 +690,7 @@ def _collect_llm_matrix_answers(
 
     _collect_cpu_pinning(driver, console, suite, answers)
 
-    workloads_default = _default_for_field(suite, "workloads") or "chat,code,summarization,rag"
+    workloads_default = _default_for_field(suite, "workloads") or "chat,summarization,reasoning,batch_generation"
     answers["workloads"] = _prompt_keep_default(driver, "Workloads", workloads_default)
 
     phase_default = _default_for_field(suite, "phase")
@@ -752,7 +828,14 @@ def run_wizard(
     if warning:
         console.print(f"\n{warning}\n")
 
-    tag = driver.prompt("Result tag (optional, Enter to skip)", default="").strip() or None
+    while True:
+        tag = driver.prompt("Result tag (optional, Enter to skip)", default="").strip() or None
+        if tag is None:
+            break
+        tag_error = validate_tag(tag)
+        if tag_error is None:
+            break
+        console.print(f"[red]{tag_error}[/red]")
 
     dry_run = force_dry_run
     if not force_dry_run:
