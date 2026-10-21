@@ -35,7 +35,7 @@ model architectures and workload types.
 - Measure P95 latency scaling with increasing concurrency
 - Identify throughput saturation points
 - Establish baseline performance for different model architectures
-- Test across realistic workload profiles (Chat, RAG, CodeGen, Summarization)
+- Test across realistic workload profiles (Chat, Summarization, Reasoning, Batch Generation)
 
 ## Models Under Test
 
@@ -123,7 +123,7 @@ Concurrency levels: **{1, 2, 4, 8, 16, 32}**
 > actual conversation histories, code repositories, or document collections.
 >
 > **Blocked by:** Selection and integration of realistic datasets for each
-> workload type (Chat, RAG, CodeGen). Once datasets are available, Phase 3
+> workload type (Chat, Summarization). Once datasets are available, Phase 3
 > will use the same infrastructure as Phase 2 but with
 > `vllm_caching_mode=production` and real-world prompts.
 
@@ -134,7 +134,7 @@ Concurrency levels: **{1, 2, 4, 8, 16, 32}** (when implemented)
 | Test ID | Model | Workload | Primary Metric Focus |
 | --- | --- | --- | --- |
 | CONC-LLAMA32-CHAT-PROD | Llama-3.2-1B | Chat (realistic dataset) | Production P95 Latency with Caching |
-| CONC-LLAMA32-CODE-PROD | Llama-3.2-1B | CodeGen (realistic dataset) | Production P95 Latency with Caching |
+| CONC-LLAMA32-SUMM-PROD | Llama-3.2-1B | Summarization (realistic dataset) | Production P95 Latency with Caching |
 | CONC-GRANITE32-CHAT-PROD | granite-3.2-2b-instruct | Chat (realistic dataset) | Production P95 Latency (Enterprise) |
 | CONC-GPT20B-CHAT-PROD | gpt-oss-20b | Chat (realistic dataset) | Production P95 Latency (Large-Scale) |
 
