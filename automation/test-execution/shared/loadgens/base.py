@@ -17,7 +17,7 @@ class LoadGenConfig:
     Attributes:
         target_url: URL of the inference endpoint to test (online mode)
         model: Model name/identifier
-        workload_type: Type of workload (chat, rag, code, embedding, etc.)
+        workload_type: Type of workload (chat, summarization, reasoning, batch_generation, embedding, etc.)
         mode: Execution mode - "online" (server + load generator) or
             "offline_batch" (direct API, no server). Defaults to "online".
         max_requests: Maximum number of requests to send
