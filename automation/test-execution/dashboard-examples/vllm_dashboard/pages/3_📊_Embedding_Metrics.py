@@ -729,18 +729,19 @@ def plot_concurrent_load(df: pd.DataFrame):
     fig2 = go.Figure()
     color_idx = 0
 
-    for (platform, model, _, cores, input_len, test_name, test_id), group_df in grouped:
+    for (platform, model, _, cores, input_len, test_name, test_id, shape), group_df in grouped:
         group_df = group_df.sort_values('concurrency')
 
         # Build concise trace label
         model_short = model.split('/')[-1]
         plat = platform_short(platform)
         run_id_short = test_id[-6:] if len(test_id) >= 6 else test_id
+        shape_suffix = f" [{shape}]" if shape else ""
 
         if test_name and test_name.strip():
-            label = f"{plat} | {test_name} ({run_id_short})"
+            label = f"{plat} | {test_name}{shape_suffix} ({run_id_short})"
         else:
-            label = f"{plat} | {model_short} | {cores}c | {input_len}tok ({run_id_short})"
+            label = f"{plat} | {model_short} | {cores}c | {input_len}tok{shape_suffix} ({run_id_short})"
 
         fig2.add_trace(go.Scatter(
             x=group_df['concurrency'],
